@@ -7,7 +7,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "next dev -H 127.0.0.1 --webpack",
+    "dev": "/Users/betaform/.nvm/versions/node/v20.19.6/bin/node node_modules/.bin/next dev -H 127.0.0.1 --webpack",
     "build": "next build --webpack",
     "start": "next start -H 127.0.0.1",
     "lint": "eslint . --max-warnings=0",
