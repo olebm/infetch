@@ -233,8 +233,9 @@ export default function LandingPage() {
             <div className="flex flex-col">
               <div className="text-xs text-muted stat-num">01</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Postfach verbinden</h3>
-              <p className="mt-2 text-muted leading-relaxed min-h-[3.5rem]">
-                IMAP — Gmail, Outlook, iCloud und mehr. Kein Passwort wird bei uns gespeichert.
+              <p className="mt-2 text-muted leading-relaxed min-h-[4.5rem]">
+                Verbinde Gmail, Outlook, Apple iCloud oder jeden anderen IMAP-Anbieter in Minuten.
+                Kein Passwort wird gespeichert — nur ein widerrufbares App-Passwort.
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -252,9 +253,10 @@ export default function LandingPage() {
             <div className="flex flex-col">
               <div className="text-xs text-muted stat-num">02</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Wir erkennen</h3>
-              <p className="mt-2 text-muted leading-relaxed min-h-[3.5rem]">
-                KI liest Anbieter, Betrag, Steuersatz. Unsichere Fälle fragen nach.{" "}
-                <span className="text-ink/70">Nur Anhänge — nie der Mail-Text.</span>
+              <p className="mt-2 text-muted leading-relaxed min-h-[4.5rem]">
+                KI liest Anbieter, Betrag und Steuersatz direkt aus dem PDF-Anhang.
+                Unsichere Erkennungen warten auf dein OK.{" "}
+                <span className="text-ink/70">Mail-Text wird nie gespeichert.</span>
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -273,9 +275,9 @@ export default function LandingPage() {
             <div className="flex flex-col">
               <div className="text-xs text-muted stat-num">03</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Automatisch weiter</h3>
-              <p className="mt-2 text-muted leading-relaxed min-h-[3.5rem]">
-                PDF geht an deinen Buchhaltungs-Empfänger. Du machst nichts.{" "}
-                <span className="text-ink/70">Du siehst jeden Schritt im Audit-Log.</span>
+              <p className="mt-2 text-muted leading-relaxed min-h-[4.5rem]">
+                Das erkannte PDF geht sofort an deinen Buchhaltungs-Empfänger — ohne dein Zutun.{" "}
+                <span className="text-ink/70">Jeden Schritt siehst du lückenlos im Audit-Log.</span>
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
