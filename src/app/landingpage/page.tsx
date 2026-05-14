@@ -3,6 +3,12 @@ import Link from "next/link";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { ContactController } from "./contact-controller";
 
+const BF = process.env.NEXT_PUBLIC_BRANDFETCH_TOKEN ?? "";
+/** Brandfetch CDN — liefert scharfe Icons ohne JS. px = display-px × 2 für Retina. */
+function bfUrl(domain: string, px: number) {
+  return `https://cdn.brandfetch.io/${domain}/w/${px}/h/${px}/icon?c=${BF}`;
+}
+
 // ─── Tooltip helper ───────────────────────────────────────────────────────────
 
 function Tip({ label, children }: { label: string; children: React.ReactNode }) {
@@ -111,10 +117,9 @@ export default function LandingPage() {
                     className={`${animated ? "anim-row" : "row-hover"} px-3 py-3 flex items-center gap-4 ${i < arr.length - 1 ? "border-b border-line" : ""}`}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=72`}
+                      src={bfUrl(domain, 72)}
                       alt={domain}
                       width={36} height={36}
-                      referrerPolicy="no-referrer"
                       className="rounded-full shrink-0 object-contain"
                     />
                     <div className="flex-1 min-w-0">
@@ -171,12 +176,12 @@ export default function LandingPage() {
             ].map(({ domain, alt }) => (
               <Tip key={domain} label={alt}>
                 <div className="h-7 flex items-center cursor-default">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`}
+                    src={bfUrl(domain, 56)}
                     alt={alt}
                     width={28}
                     height={28}
-                    referrerPolicy="no-referrer"
                     className="h-7 w-auto object-contain opacity-80"
                   />
                 </div>
