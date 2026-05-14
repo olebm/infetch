@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { matchVendor } from "@/vendors/matcher";
 
 export type DiscoveredSender = {
@@ -38,10 +38,9 @@ export function extractDomain(address: string): string {
   return at >= 0 ? address.slice(at + 1) : "";
 }
 
-export function recordSenderObservation(
-  db: Database.Database,
+export async function recordSenderObservation(
   observation: SenderObservation,
-): { id: number; blocked: boolean } {
+): Promise<{ id: number; blocked: boolean }> {
   const fromAddress = normalizeAddress(observation.fromAddress);
   if (!fromAddress) {
     throw new Error("recordSenderObservation requires a non-empty fromAddress.");
@@ -52,12 +51,12 @@ export function recordSenderObservation(
   const importedDelta = Math.max(0, observation.pdfsImported);
   const blockedDelta = observation.blockedSkip ? 1 : 0;
 
-  db.prepare(
-    `INSERT INTO discovered_senders (
+  await sql`
+    INSERT INTO discovered_senders (
       from_address, from_domain, display_name,
       mail_count, pdf_count, imported_count, blocked_count
     )
-    VALUES (?, ?, ?, 1, ?, ?, ?)
+    VALUES (${fromAddress}, ${fromDomain}, ${displayName}, 1, ${pdfDelta}, ${importedDelta}, ${blockedDelta})
     ON CONFLICT(from_address) DO UPDATE SET
       mail_count = mail_count + 1,
       pdf_count = pdf_count + excluded.pdf_count,
@@ -65,22 +64,23 @@ export function recordSenderObservation(
       blocked_count = blocked_count + excluded.blocked_count,
       display_name = COALESCE(NULLIF(excluded.display_name, ''), discovered_senders.display_name),
       last_seen_at = CURRENT_TIMESTAMP,
-      updated_at = CURRENT_TIMESTAMP`,
-  ).run(fromAddress, fromDomain, displayName, pdfDelta, importedDelta, blockedDelta);
+      updated_at = CURRENT_TIMESTAMP
+  `;
 
-  const row = db
-    .prepare(`SELECT id, blocked FROM discovered_senders WHERE from_address = ?`)
-    .get(fromAddress) as { id: number; blocked: number };
-  return { id: row.id, blocked: row.blocked === 1 };
+  const rows = await sql<{ id: number; blocked: boolean }[]>`
+    SELECT id, blocked FROM discovered_senders WHERE from_address = ${fromAddress}
+  `;
+  const row = rows[0];
+  return { id: row.id, blocked: Boolean(row.blocked) };
 }
 
-export function isSenderBlocked(db: Database.Database, fromAddress: string | null | undefined): boolean {
+export async function isSenderBlocked(fromAddress: string | null | undefined): Promise<boolean> {
   const normalized = normalizeAddress(fromAddress);
   if (!normalized) return false;
-  const row = db
-    .prepare(`SELECT blocked FROM discovered_senders WHERE from_address = ?`)
-    .get(normalized) as { blocked: number } | undefined;
-  return row?.blocked === 1;
+  const rows = await sql<{ blocked: boolean }[]>`
+    SELECT blocked FROM discovered_senders WHERE from_address = ${normalized}
+  `;
+  return Boolean(rows[0]?.blocked);
 }
 
 /**
@@ -91,102 +91,94 @@ export function isSenderBlocked(db: Database.Database, fromAddress: string | nul
  * Schutz vor False-Positive: sobald wieder eine echte Rechnung durchgeht,
  * fällt der Sender aus der Auto-Ignore-Logik raus.
  */
-export function isSenderAutoIgnored(
-  db: Database.Database,
+export async function isSenderAutoIgnored(
   fromAddress: string | null | undefined,
   options: { minIgnoredStreak?: number; lookbackDays?: number } = {},
-): boolean {
+): Promise<boolean> {
   const normalized = normalizeAddress(fromAddress);
   if (!normalized) return false;
   const streak = Math.max(2, options.minIgnoredStreak ?? 3);
   const lookbackDays = Math.max(7, options.lookbackDays ?? 90);
 
   // Schritt 1: gibt es im Lookback erfolgreiche Imports? Dann kein Skip.
-  const hasSuccess = db
-    .prepare(
-      `SELECT 1 FROM invoices i
-       JOIN invoice_files f ON f.invoice_id = i.id
-       JOIN mail_messages m ON m.id = CAST(f.source_ref_id AS INTEGER)
-       WHERE m.from_address = ?
-         AND f.source_type = 'mail'
-         AND i.status IN ('ready', 'exported')
-         AND i.created_at >= datetime('now', ? || ' days')
-       LIMIT 1`,
-    )
-    .get(normalized, `-${lookbackDays}`) as { 1: number } | undefined;
-  if (hasSuccess) return false;
+  const hasSuccess = await sql`
+    SELECT 1 FROM invoices i
+    JOIN invoice_files f ON f.invoice_id = i.id
+    JOIN mail_messages m ON m.id = CAST(f.source_ref_id AS INTEGER)
+    WHERE m.from_address = ${normalized}
+      AND f.source_type = 'mail'
+      AND i.status IN ('ready', 'exported')
+      AND i.created_at >= NOW() - (${lookbackDays} || ' days')::INTERVAL
+    LIMIT 1
+  `;
+  if (hasSuccess.length > 0) return false;
 
   // Schritt 2: sind die letzten N Imports alle 'ignored'?
-  const recent = db
-    .prepare(
-      `SELECT i.status FROM invoices i
-       JOIN invoice_files f ON f.invoice_id = i.id
-       JOIN mail_messages m ON m.id = CAST(f.source_ref_id AS INTEGER)
-       WHERE m.from_address = ?
-         AND f.source_type = 'mail'
-       ORDER BY i.created_at DESC
-       LIMIT ?`,
-    )
-    .all(normalized, streak) as Array<{ status: string }>;
+  const recent = await sql<Array<{ status: string }>>`
+    SELECT i.status FROM invoices i
+    JOIN invoice_files f ON f.invoice_id = i.id
+    JOIN mail_messages m ON m.id = CAST(f.source_ref_id AS INTEGER)
+    WHERE m.from_address = ${normalized}
+      AND f.source_type = 'mail'
+    ORDER BY i.created_at DESC
+    LIMIT ${streak}
+  `;
 
   if (recent.length < streak) return false;
   return recent.every((r) => r.status === "ignored");
 }
 
-export function listDiscoveredSenders(db: Database.Database): DiscoveredSender[] {
-  const rows = db
-    .prepare(
-      `SELECT
-        ds.id,
-        ds.from_address AS fromAddress,
-        ds.from_domain AS fromDomain,
-        ds.display_name AS displayName,
-        ds.mail_count AS mailCount,
-        ds.pdf_count AS pdfCount,
-        ds.imported_count AS importedCount,
-        ds.blocked_count AS blockedCount,
-        ds.matched_vendor_id AS matchedVendorId,
-        ds.blocked,
-        ds.blocked_reason AS blockedReason,
-        ds.blocked_at AS blockedAt,
-        ds.first_seen_at AS firstSeenAt,
-        ds.last_seen_at AS lastSeenAt,
-        vendors.name AS matchedVendorName
-       FROM discovered_senders ds
-       LEFT JOIN vendors ON vendors.id = ds.matched_vendor_id
-       WHERE ds.pdf_count > 0
-       ORDER BY ds.pdf_count DESC, ds.mail_count DESC, ds.last_seen_at DESC`,
-    )
-    .all() as Array<Omit<DiscoveredSender, "blocked"> & { blocked: number }>;
-  return rows.map((row) => ({ ...row, blocked: row.blocked === 1 }));
+export async function listDiscoveredSenders(): Promise<DiscoveredSender[]> {
+  const rows = await sql<Array<Omit<DiscoveredSender, "blocked"> & { blocked: boolean }>>`
+    SELECT
+      ds.id,
+      ds.from_address AS "fromAddress",
+      ds.from_domain AS "fromDomain",
+      ds.display_name AS "displayName",
+      ds.mail_count AS "mailCount",
+      ds.pdf_count AS "pdfCount",
+      ds.imported_count AS "importedCount",
+      ds.blocked_count AS "blockedCount",
+      ds.matched_vendor_id AS "matchedVendorId",
+      ds.blocked,
+      ds.blocked_reason AS "blockedReason",
+      ds.blocked_at AS "blockedAt",
+      ds.first_seen_at AS "firstSeenAt",
+      ds.last_seen_at AS "lastSeenAt",
+      vendors.name AS "matchedVendorName"
+    FROM discovered_senders ds
+    LEFT JOIN vendors ON vendors.id = ds.matched_vendor_id
+    WHERE ds.pdf_count > 0
+    ORDER BY ds.pdf_count DESC, ds.mail_count DESC, ds.last_seen_at DESC
+  `;
+  return rows.map((row) => ({ ...row, blocked: Boolean(row.blocked) }));
 }
 
-export function blockSender(db: Database.Database, senderId: number, reason: string | null): void {
-  db.prepare(
-    `UPDATE discovered_senders
-     SET blocked = 1, blocked_reason = ?, blocked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  ).run(reason || null, senderId);
+export async function blockSender(senderId: number, reason: string | null): Promise<void> {
+  await sql`
+    UPDATE discovered_senders
+    SET blocked = TRUE, blocked_reason = ${reason || null}, blocked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${senderId}
+  `;
 }
 
-export function unblockSender(db: Database.Database, senderId: number): void {
-  db.prepare(
-    `UPDATE discovered_senders
-     SET blocked = 0, blocked_reason = NULL, blocked_at = NULL, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  ).run(senderId);
+export async function unblockSender(senderId: number): Promise<void> {
+  await sql`
+    UPDATE discovered_senders
+    SET blocked = FALSE, blocked_reason = NULL, blocked_at = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${senderId}
+  `;
 }
 
-export function linkSenderToVendor(
-  db: Database.Database,
+export async function linkSenderToVendor(
   senderId: number,
   vendorId: number | null,
-): void {
-  db.prepare(
-    `UPDATE discovered_senders
-     SET matched_vendor_id = ?, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  ).run(vendorId, senderId);
+): Promise<void> {
+  await sql`
+    UPDATE discovered_senders
+    SET matched_vendor_id = ${vendorId}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${senderId}
+  `;
 }
 
 export type BackfillResult = {
@@ -195,66 +187,56 @@ export type BackfillResult = {
   withPdfs: number;
 };
 
-export function backfillFromMailMessages(db: Database.Database): BackfillResult {
-  const summary = db
-    .prepare(
-      `SELECT
-        LOWER(mm.from_address) AS fromAddress,
-        COUNT(*) AS mailCount,
-        SUM(CASE WHEN mm.status NOT IN ('no_pdf', 'pending') THEN 1 ELSE 0 END) AS pdfCount,
-        SUM(CASE WHEN mm.status = 'processed' THEN 1 ELSE 0 END) AS importedCount,
-        MIN(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP)) AS firstSeen,
-        MAX(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP)) AS lastSeen
-       FROM mail_messages mm
-       WHERE mm.from_address IS NOT NULL AND mm.from_address != ''
-       GROUP BY LOWER(mm.from_address)
-       HAVING pdfCount > 0`,
-    )
-    .all() as Array<{
-      fromAddress: string;
-      mailCount: number;
-      pdfCount: number;
-      importedCount: number;
-      firstSeen: string;
-      lastSeen: string;
-    }>;
+export async function backfillFromMailMessages(): Promise<BackfillResult> {
+  const summary = await sql<Array<{
+    fromAddress: string;
+    mailCount: string;
+    pdfCount: string;
+    importedCount: string;
+    firstSeen: string;
+    lastSeen: string;
+  }>>`
+    SELECT
+      LOWER(mm.from_address) AS "fromAddress",
+      COUNT(*) AS "mailCount",
+      SUM(CASE WHEN mm.status NOT IN ('no_pdf', 'pending') THEN 1 ELSE 0 END) AS "pdfCount",
+      SUM(CASE WHEN mm.status = 'processed' THEN 1 ELSE 0 END) AS "importedCount",
+      MIN(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP)) AS "firstSeen",
+      MAX(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP)) AS "lastSeen"
+    FROM mail_messages mm
+    WHERE mm.from_address IS NOT NULL AND mm.from_address != ''
+    GROUP BY LOWER(mm.from_address)
+    HAVING SUM(CASE WHEN mm.status NOT IN ('no_pdf', 'pending') THEN 1 ELSE 0 END) > 0
+  `;
 
   let upserts = 0;
   let withPdfs = 0;
-  const upsert = db.prepare(
-    `INSERT INTO discovered_senders (
-      from_address, from_domain, display_name,
-      mail_count, pdf_count, imported_count, blocked_count,
-      first_seen_at, last_seen_at
-    )
-    VALUES (?, ?, NULL, ?, ?, ?, 0, ?, ?)
-    ON CONFLICT(from_address) DO UPDATE SET
-      mail_count = MAX(discovered_senders.mail_count, excluded.mail_count),
-      pdf_count = MAX(discovered_senders.pdf_count, excluded.pdf_count),
-      imported_count = MAX(discovered_senders.imported_count, excluded.imported_count),
-      first_seen_at = MIN(discovered_senders.first_seen_at, excluded.first_seen_at),
-      last_seen_at = MAX(discovered_senders.last_seen_at, excluded.last_seen_at),
-      updated_at = CURRENT_TIMESTAMP`,
-  );
 
-  const tx = db.transaction((rows: typeof summary) => {
-    for (const row of rows) {
-      const address = row.fromAddress.trim();
-      if (!address) continue;
-      upsert.run(
-        address,
-        extractDomain(address),
-        row.mailCount,
-        row.pdfCount,
-        row.importedCount,
-        row.firstSeen,
-        row.lastSeen,
-      );
-      upserts += 1;
-      if (row.pdfCount > 0) withPdfs += 1;
-    }
-  });
-  tx(summary);
+  for (const row of summary) {
+    const address = row.fromAddress.trim();
+    if (!address) continue;
+    const mailCount = Number(row.mailCount);
+    const pdfCount = Number(row.pdfCount);
+    const importedCount = Number(row.importedCount);
+
+    await sql`
+      INSERT INTO discovered_senders (
+        from_address, from_domain, display_name,
+        mail_count, pdf_count, imported_count, blocked_count,
+        first_seen_at, last_seen_at
+      )
+      VALUES (${address}, ${extractDomain(address)}, NULL, ${mailCount}, ${pdfCount}, ${importedCount}, 0, ${row.firstSeen}, ${row.lastSeen})
+      ON CONFLICT(from_address) DO UPDATE SET
+        mail_count = GREATEST(discovered_senders.mail_count, excluded.mail_count),
+        pdf_count = GREATEST(discovered_senders.pdf_count, excluded.pdf_count),
+        imported_count = GREATEST(discovered_senders.imported_count, excluded.imported_count),
+        first_seen_at = LEAST(discovered_senders.first_seen_at, excluded.first_seen_at),
+        last_seen_at = GREATEST(discovered_senders.last_seen_at, excluded.last_seen_at),
+        updated_at = CURRENT_TIMESTAMP
+    `;
+    upserts += 1;
+    if (pdfCount > 0) withPdfs += 1;
+  }
 
   return { scanned: summary.length, upserts, withPdfs };
 }
@@ -280,74 +262,90 @@ function nameFromDomain(domain: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-export function autoAssignSenders(db: Database.Database): AutoAssignResult {
-  const unmatched = db
-    .prepare(
-      `SELECT id, from_address AS fromAddress, from_domain AS fromDomain,
-        display_name AS displayName, pdf_count AS pdfCount
-       FROM discovered_senders
-       WHERE matched_vendor_id IS NULL AND blocked = 0`,
-    )
-    .all() as Array<{ id: number; fromAddress: string; fromDomain: string; displayName: string | null; pdfCount: number }>;
+export async function autoAssignSenders(): Promise<AutoAssignResult> {
+  const unmatched = await sql<Array<{
+    id: number;
+    fromAddress: string;
+    fromDomain: string;
+    displayName: string | null;
+    pdfCount: number;
+  }>>`
+    SELECT id, from_address AS "fromAddress", from_domain AS "fromDomain",
+      display_name AS "displayName", pdf_count AS "pdfCount"
+    FROM discovered_senders
+    WHERE matched_vendor_id IS NULL AND blocked = FALSE
+  `;
 
   let matched = 0;
   let created = 0;
   let skipped = 0;
 
-  const linkSender = db.prepare(
-    `UPDATE discovered_senders SET matched_vendor_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  );
-  const insertAlias = db.prepare(
-    `INSERT OR IGNORE INTO vendor_aliases (vendor_id, alias, match_type, priority) VALUES (?, ?, ?, ?)`,
-  );
-  const createVendorStmt = db.prepare(
-    `INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
-     VALUES (?, ?, 'service', 0, 1, 1)`,
-  );
-  const getVendorByKey = db.prepare(`SELECT id FROM vendors WHERE canonical_key = ?`);
+  for (const sender of unmatched) {
+    const signals = [sender.fromAddress, sender.fromDomain, sender.displayName || ""].filter(Boolean);
+    const match = await matchVendor(signals);
 
-  const tx = db.transaction((senders: typeof unmatched) => {
-    for (const sender of senders) {
-      const signals = [sender.fromAddress, sender.fromDomain, sender.displayName || ""].filter(Boolean);
-      const match = matchVendor(db, signals);
-
-      if (match.vendorId && match.confidence >= 0.7) {
-        linkSender.run(match.vendorId, sender.id);
-        insertAlias.run(match.vendorId, sender.fromDomain, "domain", 50);
-        insertAlias.run(match.vendorId, sender.fromAddress, "exact", 30);
-        matched++;
-        continue;
-      }
-
-      if (sender.pdfCount === 0) {
-        skipped++;
-        continue;
-      }
-
-      const rawName = (sender.displayName?.trim() || nameFromDomain(sender.fromDomain)).trim();
-      const name = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-      const baseKey = slugify(name) || slugify(sender.fromDomain) || `vendor-${sender.id}`;
-
-      let key = baseKey;
-      let suffix = 2;
-      while (getVendorByKey.get(key)) {
-        key = `${baseKey}-${suffix++}`;
-      }
-
-      createVendorStmt.run(name, key);
-      const row = getVendorByKey.get(key) as { id: number } | undefined;
-      if (!row) {
-        skipped++;
-        continue;
-      }
-
-      insertAlias.run(row.id, sender.fromDomain, "domain", 50);
-      insertAlias.run(row.id, sender.fromAddress, "exact", 30);
-      linkSender.run(row.id, sender.id);
-      created++;
+    if (match.vendorId && match.confidence >= 0.7) {
+      await sql`
+        UPDATE discovered_senders SET matched_vendor_id = ${match.vendorId}, updated_at = CURRENT_TIMESTAMP WHERE id = ${sender.id}
+      `;
+      await sql`
+        INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
+        VALUES (${match.vendorId}, ${sender.fromDomain}, 'domain', 50)
+        ON CONFLICT DO NOTHING
+      `;
+      await sql`
+        INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
+        VALUES (${match.vendorId}, ${sender.fromAddress}, 'exact', 30)
+        ON CONFLICT DO NOTHING
+      `;
+      matched++;
+      continue;
     }
-  });
 
-  tx(unmatched);
+    if (sender.pdfCount === 0) {
+      skipped++;
+      continue;
+    }
+
+    const rawName = (sender.displayName?.trim() || nameFromDomain(sender.fromDomain)).trim();
+    const name = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+    const baseKey = slugify(name) || slugify(sender.fromDomain) || `vendor-${sender.id}`;
+
+    // Find unique key
+    let key = baseKey;
+    let suffix = 2;
+    while (true) {
+      const existing = await sql`SELECT 1 FROM vendors WHERE canonical_key = ${key} LIMIT 1`;
+      if (existing.length === 0) break;
+      key = `${baseKey}-${suffix++}`;
+    }
+
+    const inserted = await sql<{ id: number }[]>`
+      INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
+      VALUES (${name}, ${key}, 'service', FALSE, TRUE, TRUE)
+      RETURNING id
+    `;
+    const newVendorRow = inserted[0];
+    if (!newVendorRow) {
+      skipped++;
+      continue;
+    }
+
+    await sql`
+      INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
+      VALUES (${newVendorRow.id}, ${sender.fromDomain}, 'domain', 50)
+      ON CONFLICT DO NOTHING
+    `;
+    await sql`
+      INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
+      VALUES (${newVendorRow.id}, ${sender.fromAddress}, 'exact', 30)
+      ON CONFLICT DO NOTHING
+    `;
+    await sql`
+      UPDATE discovered_senders SET matched_vendor_id = ${newVendorRow.id}, updated_at = CURRENT_TIMESTAMP WHERE id = ${sender.id}
+    `;
+    created++;
+  }
+
   return { scanned: unmatched.length, matched, created, skipped };
 }

@@ -2,22 +2,24 @@ import path from "node:path";
 import { getInvoiceDetail, getInvoiceReviewOptions, getVendors, getAdjacentInvoiceIds } from "@/lib/db/queries";
 import { getVendorSuggestions } from "@/vendors/suggestions";
 import { getExportTargets } from "@/exports/export-pipeline";
-import { getDb } from "@/lib/db/client";
 import { InvoiceReviewForm } from "@/components/invoice-review/invoice-review-form";
 
-export function InvoiceReviewView({ invoiceId }: { invoiceId: number }) {
-  const invoice = getInvoiceDetail(invoiceId);
+export async function InvoiceReviewView({ invoiceId }: { invoiceId: number }) {
+  const invoice = await getInvoiceDetail(invoiceId);
 
   if (!invoice) {
     return null;
   }
 
-  const db = getDb();
-  const vendors = getVendors().map((vendor) => ({ id: vendor.id, name: vendor.name }));
-  const duplicateCandidates = getInvoiceReviewOptions(invoiceId);
-  const vendorSuggestions = getVendorSuggestions(db, invoiceId, 3);
-  const exportTargets = getExportTargets(db).filter((t) => t.enabled && t.recipientEmail);
-  const adjacent = getAdjacentInvoiceIds(invoiceId);
+  const [vendors, duplicateCandidates, vendorSuggestions, exportTargetsAll, adjacent] = await Promise.all([
+    getVendors(),
+    getInvoiceReviewOptions(invoiceId),
+    getVendorSuggestions(invoiceId, 3),
+    getExportTargets(),
+    getAdjacentInvoiceIds(invoiceId),
+  ]);
+
+  const exportTargets = exportTargetsAll.filter((t) => t.enabled && t.recipientEmail);
 
   const invoiceWithDisplayNames = {
     ...invoice,
@@ -30,7 +32,7 @@ export function InvoiceReviewView({ invoiceId }: { invoiceId: number }) {
   return (
     <InvoiceReviewForm
       invoice={invoiceWithDisplayNames}
-      vendors={vendors}
+      vendors={vendors.map((vendor) => ({ id: vendor.id, name: vendor.name }))}
       duplicateCandidates={duplicateCandidates}
       vendorSuggestions={vendorSuggestions}
       exportTargets={exportTargets}

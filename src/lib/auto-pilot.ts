@@ -13,7 +13,6 @@ import { reevaluateReviewQueue } from "@/lib/automation/reeval-queue";
 import { cleanupIgnoredFiles } from "@/lib/automation/cleanup-ignored";
 import { escalateStuckReviews } from "@/lib/automation/stuck-escalation";
 import { backfillDomainAliases } from "@/lib/automation/alias-backfill";
-import { getDb } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 
 type JobName =
@@ -58,9 +57,14 @@ const jobs: Record<JobName, JobState> = {
 let started = false;
 
 async function runPortalFetch() {
-  const db = getDb();
-  const accounts = getPortalCredentialMetaList()
-    .filter((entry) => entry.username && hasConfiguredCredential(db, "portal", entry.vendorKey));
+  const allAccounts = await getPortalCredentialMetaList();
+  const accountsWithCreds = await Promise.all(
+    allAccounts.map(async (entry) => ({
+      entry,
+      ok: Boolean(entry.username) && (await hasConfiguredCredential("portal", entry.vendorKey)),
+    })),
+  );
+  const accounts = accountsWithCreds.filter((a) => a.ok).map((a) => a.entry);
   if (accounts.length === 0) return;
 
   const { chromium } = await import("playwright");
@@ -108,15 +112,15 @@ async function runJob(name: JobName) {
   job.running = true;
   try {
     if (name === "mailScan") await runPrimaryImapScan();
-    else if (name === "missingCheck") runMissingInvoiceCheck();
+    else if (name === "missingCheck") await runMissingInvoiceCheck();
     else if (name === "exportDispatch") await dispatchPendingExports();
     else if (name === "portalFetch") await runPortalFetch();
     else if (name === "communitySync") await syncCommunityRecipes();
-    else if (name === "provisionRules") provisionAutoApprovalRules(getDb());
-    else if (name === "reevalQueue") reevaluateReviewQueue(getDb());
-    else if (name === "cleanupIgnored") cleanupIgnoredFiles(getDb());
-    else if (name === "escalateStuck") escalateStuckReviews(getDb());
-    else if (name === "backfillAliases") backfillDomainAliases(getDb());
+    else if (name === "provisionRules") await provisionAutoApprovalRules();
+    else if (name === "reevalQueue") await reevaluateReviewQueue();
+    else if (name === "cleanupIgnored") await cleanupIgnoredFiles();
+    else if (name === "escalateStuck") await escalateStuckReviews();
+    else if (name === "backfillAliases") await backfillDomainAliases();
     job.lastRunAt = new Date();
     job.lastError = null;
   } catch (error) {

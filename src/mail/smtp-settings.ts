@@ -1,4 +1,3 @@
-import type Database from "better-sqlite3";
 import { readJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 
@@ -13,23 +12,22 @@ export type StoredSmtpAccount = {
 
 const settingKey = "smtp_accounts";
 
-export function getStoredSmtpAccounts(db?: Database.Database) {
-  return readJsonSetting<Record<string, StoredSmtpAccount>>(settingKey, {}, db);
+export async function getStoredSmtpAccounts(): Promise<Record<string, StoredSmtpAccount>> {
+  return readJsonSetting<Record<string, StoredSmtpAccount>>(settingKey, {});
 }
 
-export function getStoredSmtpAccount(ownerId: SmtpCredentialOwnerId, db?: Database.Database) {
-  return getStoredSmtpAccounts(db)[ownerId];
+export async function getStoredSmtpAccount(ownerId: SmtpCredentialOwnerId): Promise<StoredSmtpAccount | undefined> {
+  return (await getStoredSmtpAccounts())[ownerId];
 }
 
-export function saveStoredSmtpAccount(
+export async function saveStoredSmtpAccount(
   ownerId: SmtpCredentialOwnerId,
   account: Omit<StoredSmtpAccount, "updatedAt">,
-  db?: Database.Database,
-) {
-  const accounts = getStoredSmtpAccounts(db);
+): Promise<void> {
+  const accounts = await getStoredSmtpAccounts();
   accounts[ownerId] = {
     ...account,
     updatedAt: new Date().toISOString(),
   };
-  writeJsonSetting(settingKey, accounts, db);
+  await writeJsonSetting(settingKey, accounts);
 }

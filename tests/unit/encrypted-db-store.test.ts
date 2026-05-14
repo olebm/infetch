@@ -1,32 +1,26 @@
-import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { sql } from "@/lib/db/client";
 import { deleteDbSecret, isDbStoreAvailable, readDbSecret, writeDbSecret } from "@/lib/secrets/encrypted-db-store";
-import { schemaStatements } from "@/lib/db/schema";
 
-// ─── Test-DB ──────────────────────────────────────────────────────────────────
+// NOTE: These tests use the global postgres sql client.
+// They require a real Postgres connection (DATABASE_URL env var).
 
-function createTestDb(): Database.Database {
-  const db = new Database(":memory:");
-  db.pragma("foreign_keys = ON");
-  for (const statement of schemaStatements) {
-    try {
-      db.exec(statement);
-    } catch (err) {
-      const isAlterDupe =
-        /^\s*ALTER\s+TABLE\s+\S+\s+ADD\s+COLUMN\s+/i.test(statement) &&
-        err instanceof Error &&
-        err.message.includes("duplicate column name");
-      if (!isAlterDupe) throw err;
-    }
-  }
-  return db;
+const TEST_KEY = "0".repeat(64); // 32 zero-bytes as hex
+const TEST_PREFIX = `test:enc:${Date.now()}:`;
+
+async function cleanupTestSecrets() {
+  // Clean up any test secrets we may have written
+  await sql`DELETE FROM encrypted_secrets WHERE secret_ref LIKE ${TEST_PREFIX + "%"}`;
 }
 
 // ─── isDbStoreAvailable ───────────────────────────────────────────────────────
 
 describe("isDbStoreAvailable", () => {
+  const orig = process.env.SECRET_ENCRYPTION_KEY;
+
   afterEach(() => {
-    delete process.env.SECRET_ENCRYPTION_KEY;
+    if (orig === undefined) delete process.env.SECRET_ENCRYPTION_KEY;
+    else process.env.SECRET_ENCRYPTION_KEY = orig;
   });
 
   it("returns false when env var is missing", () => {
@@ -48,117 +42,110 @@ describe("isDbStoreAvailable", () => {
 // ─── Round-trip encrypt / decrypt ─────────────────────────────────────────────
 
 describe("writeDbSecret / readDbSecret", () => {
-  const VALID_KEY = "0".repeat(64); // 32 zero-bytes as hex
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    process.env.SECRET_ENCRYPTION_KEY = VALID_KEY;
+  beforeEach(async () => {
+    process.env.SECRET_ENCRYPTION_KEY = TEST_KEY;
+    await cleanupTestSecrets();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await cleanupTestSecrets();
     delete process.env.SECRET_ENCRYPTION_KEY;
-    db.close();
   });
 
-  it("stores and retrieves a secret", () => {
-    writeDbSecret("ref:test:1", "super-secret", db);
-    expect(readDbSecret("ref:test:1", db)).toBe("super-secret");
+  it("stores and retrieves a secret", async () => {
+    await writeDbSecret(`${TEST_PREFIX}1`, "super-secret");
+    expect(await readDbSecret(`${TEST_PREFIX}1`)).toBe("super-secret");
   });
 
-  it("handles secrets with special characters", () => {
+  it("handles secrets with special characters", async () => {
     const secret = 'p@$$w0rd!"#%&/()=?€üöä';
-    writeDbSecret("ref:test:special", secret, db);
-    expect(readDbSecret("ref:test:special", db)).toBe(secret);
+    await writeDbSecret(`${TEST_PREFIX}special`, secret);
+    expect(await readDbSecret(`${TEST_PREFIX}special`)).toBe(secret);
   });
 
-  it("overwrites an existing entry on re-write", () => {
-    writeDbSecret("ref:test:overwrite", "old-secret", db);
-    writeDbSecret("ref:test:overwrite", "new-secret", db);
-    expect(readDbSecret("ref:test:overwrite", db)).toBe("new-secret");
+  it("overwrites an existing entry on re-write", async () => {
+    await writeDbSecret(`${TEST_PREFIX}overwrite`, "old-secret");
+    await writeDbSecret(`${TEST_PREFIX}overwrite`, "new-secret");
+    expect(await readDbSecret(`${TEST_PREFIX}overwrite`)).toBe("new-secret");
   });
 
-  it("each write produces a different ciphertext (random IV)", () => {
-    writeDbSecret("ref:test:iv1", "same-secret", db);
-    const ct1 = (db.prepare("SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ?").get("ref:test:iv1") as { ciphertext: string }).ciphertext;
+  it("each write produces a different ciphertext (random IV)", async () => {
+    const ref = `${TEST_PREFIX}iv1`;
+    await writeDbSecret(ref, "same-secret");
+    const rows1 = await sql<{ ciphertext: string }[]>`SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ${ref}`;
+    const ct1 = rows1[0].ciphertext;
 
-    writeDbSecret("ref:test:iv1", "same-secret", db);
-    const ct2 = (db.prepare("SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ?").get("ref:test:iv1") as { ciphertext: string }).ciphertext;
+    await writeDbSecret(ref, "same-secret");
+    const rows2 = await sql<{ ciphertext: string }[]>`SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ${ref}`;
+    const ct2 = rows2[0].ciphertext;
 
     expect(ct1).not.toBe(ct2); // different IV → different ciphertext
   });
 
-  it("returns null for unknown secretRef", () => {
-    expect(readDbSecret("ref:not:found", db)).toBeNull();
+  it("returns null for unknown secretRef", async () => {
+    expect(await readDbSecret(`${TEST_PREFIX}not-found`)).toBeNull();
   });
 
-  it("returns null when key is missing at read time", () => {
-    writeDbSecret("ref:test:nokey", "secret", db);
+  it("returns null when key is missing at read time", async () => {
+    await writeDbSecret(`${TEST_PREFIX}nokey`, "secret");
     delete process.env.SECRET_ENCRYPTION_KEY;
-    expect(readDbSecret("ref:test:nokey", db)).toBeNull();
+    expect(await readDbSecret(`${TEST_PREFIX}nokey`)).toBeNull();
   });
 
-  it("returns null when key changes (wrong key → auth tag mismatch)", () => {
-    writeDbSecret("ref:test:wrongkey", "secret", db);
+  it("returns null when key changes (wrong key → auth tag mismatch)", async () => {
+    await writeDbSecret(`${TEST_PREFIX}wrongkey`, "secret");
     process.env.SECRET_ENCRYPTION_KEY = "f".repeat(64); // different key
-    expect(readDbSecret("ref:test:wrongkey", db)).toBeNull();
+    expect(await readDbSecret(`${TEST_PREFIX}wrongkey`)).toBeNull();
   });
 
-  it("returns null when ciphertext is tampered", () => {
-    writeDbSecret("ref:test:tampered", "secret", db);
-    // Flip the last hex char of the stored ciphertext
-    const row = db.prepare("SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ?").get("ref:test:tampered") as { ciphertext: string };
-    const tampered = row.ciphertext.slice(0, -1) + (row.ciphertext.endsWith("a") ? "b" : "a");
-    db.prepare("UPDATE encrypted_secrets SET ciphertext = ? WHERE secret_ref = ?").run(tampered, "ref:test:tampered");
-    expect(readDbSecret("ref:test:tampered", db)).toBeNull();
+  it("returns null when ciphertext is tampered", async () => {
+    const ref = `${TEST_PREFIX}tampered`;
+    await writeDbSecret(ref, "secret");
+    const rows = await sql<{ ciphertext: string }[]>`SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ${ref}`;
+    const tampered = rows[0].ciphertext.slice(0, -1) + (rows[0].ciphertext.endsWith("a") ? "b" : "a");
+    await sql`UPDATE encrypted_secrets SET ciphertext = ${tampered} WHERE secret_ref = ${ref}`;
+    expect(await readDbSecret(ref)).toBeNull();
   });
 });
 
 // ─── deleteDbSecret ───────────────────────────────────────────────────────────
 
 describe("deleteDbSecret", () => {
-  const VALID_KEY = "0".repeat(64);
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    process.env.SECRET_ENCRYPTION_KEY = VALID_KEY;
+  beforeEach(async () => {
+    process.env.SECRET_ENCRYPTION_KEY = TEST_KEY;
+    await cleanupTestSecrets();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await cleanupTestSecrets();
     delete process.env.SECRET_ENCRYPTION_KEY;
-    db.close();
   });
 
-  it("removes an existing entry", () => {
-    writeDbSecret("ref:delete:1", "secret", db);
-    deleteDbSecret("ref:delete:1", db);
-    expect(readDbSecret("ref:delete:1", db)).toBeNull();
+  it("removes an existing entry", async () => {
+    await writeDbSecret(`${TEST_PREFIX}del:1`, "secret");
+    await deleteDbSecret(`${TEST_PREFIX}del:1`);
+    expect(await readDbSecret(`${TEST_PREFIX}del:1`)).toBeNull();
   });
 
-  it("is a no-op when entry does not exist", () => {
-    expect(() => deleteDbSecret("ref:delete:nonexistent", db)).not.toThrow();
+  it("is a no-op when entry does not exist", async () => {
+    await expect(deleteDbSecret(`${TEST_PREFIX}del:nonexistent`)).resolves.not.toThrow();
   });
 });
 
 // ─── Key-Format Validation ────────────────────────────────────────────────────
 
 describe("key validation", () => {
-  let db: Database.Database;
-
-  beforeEach(() => { db = createTestDb(); });
   afterEach(() => {
     delete process.env.SECRET_ENCRYPTION_KEY;
-    db.close();
   });
 
-  it("throws when key is too short", () => {
+  it("throws when key is too short", async () => {
     process.env.SECRET_ENCRYPTION_KEY = "deadbeef"; // 4 bytes, not 32
-    expect(() => writeDbSecret("ref:bad:key", "secret", db)).toThrow(/32 Bytes/);
+    await expect(writeDbSecret(`${TEST_PREFIX}bad:key`, "secret")).rejects.toThrow(/32 Bytes/);
   });
 
-  it("throws when key is not configured", () => {
+  it("throws when key is not configured", async () => {
     delete process.env.SECRET_ENCRYPTION_KEY;
-    expect(() => writeDbSecret("ref:bad:noenv", "secret", db)).toThrow(/SECRET_ENCRYPTION_KEY/);
+    await expect(writeDbSecret(`${TEST_PREFIX}bad:noenv`, "secret")).rejects.toThrow(/SECRET_ENCRYPTION_KEY/);
   });
 });

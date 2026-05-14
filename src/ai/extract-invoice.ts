@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
 import { hasConfiguredCredential } from "@/lib/secrets/credential-store";
@@ -34,7 +34,6 @@ export type InvoiceAiRunResult =
   | { status: "failed"; inputHash: string; error: string };
 
 export async function runInvoiceAiExtraction(
-  db: Database.Database,
   input: {
     invoiceId: number;
     originalFilename: string;
@@ -44,16 +43,16 @@ export async function runInvoiceAiExtraction(
   },
   provider?: InvoiceAiProvider,
 ): Promise<InvoiceAiRunResult> {
-  const candidates = getAiCandidateVendors(db);
+  const candidates = await getAiCandidateVendors();
   const promptPayload = buildInvoiceExtractionPayload(input, candidates);
   const inputHash = createInvoiceExtractionInputHash(promptPayload);
   const model = appConfig.mistral.model;
-  const existing = getExistingExtraction(db, input.invoiceId, inputHash);
+  const existing = await getExistingExtraction(input.invoiceId, inputHash);
 
   if (existing?.status === "succeeded" && existing.outputJson) {
     const parsed = parseStoredExtraction(existing.outputJson);
     if (parsed) {
-      applyAiExtractionToInvoice(db, input.invoiceId, parsed);
+      await applyAiExtractionToInvoice(input.invoiceId, parsed);
       return { status: "cached", inputHash, extraction: parsed };
     }
   }
@@ -66,12 +65,12 @@ export async function runInvoiceAiExtraction(
     Boolean(provider) ||
     Boolean(appConfig.aiProxy.url) ||
     (appConfig.mistral.enabled &&
-      (hasConfiguredCredential(db, "mistral") || appConfig.mistral.configured));
+      ((await hasConfiguredCredential("mistral")) || appConfig.mistral.configured));
   if (!canUseMistral) {
     const reason = appConfig.mistral.enabled
       ? "Kein Mistral-Key konfiguriert (weder lokal noch via AI-Proxy)."
       : "Mistral AI ist deaktiviert.";
-    upsertAiExtraction(db, {
+    await upsertAiExtraction({
       invoiceId: input.invoiceId,
       model,
       inputHash,
@@ -79,7 +78,7 @@ export async function runInvoiceAiExtraction(
       error: reason,
       outputJson: null,
     });
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "warning",
       eventType: "mistral_extraction_skipped",
       invoiceId: input.invoiceId,
@@ -91,7 +90,7 @@ export async function runInvoiceAiExtraction(
 
   if (!input.pdfText.trim() && !appConfig.mistral.sendPdfBinary) {
     const reason = "Kein extrahierter PDF-Text für Mistral vorhanden.";
-    upsertAiExtraction(db, {
+    await upsertAiExtraction({
       invoiceId: input.invoiceId,
       model,
       inputHash,
@@ -99,7 +98,7 @@ export async function runInvoiceAiExtraction(
       error: reason,
       outputJson: null,
     });
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "warning",
       eventType: "mistral_extraction_skipped",
       invoiceId: input.invoiceId,
@@ -109,7 +108,7 @@ export async function runInvoiceAiExtraction(
     return { status: "skipped", inputHash, reason };
   }
 
-  upsertAiExtraction(db, {
+  await upsertAiExtraction({
     invoiceId: input.invoiceId,
     model,
     inputHash,
@@ -132,7 +131,7 @@ export async function runInvoiceAiExtraction(
         return result.extraction;
       });
     const extraction = invoiceAiExtractionSchema.parse(await extractor({ model, promptPayload }));
-    upsertAiExtraction(db, {
+    await upsertAiExtraction({
       invoiceId: input.invoiceId,
       model,
       inputHash,
@@ -140,8 +139,8 @@ export async function runInvoiceAiExtraction(
       error: null,
       outputJson: JSON.stringify(extraction),
     });
-    applyAiExtractionToInvoice(db, input.invoiceId, extraction);
-    recordSyncEvent(db, {
+    await applyAiExtractionToInvoice(input.invoiceId, extraction);
+    await recordSyncEvent({
       level: "info",
       eventType: "mistral_extraction_succeeded",
       invoiceId: input.invoiceId,
@@ -151,7 +150,7 @@ export async function runInvoiceAiExtraction(
     return { status: "succeeded", inputHash, extraction };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Mistral extraction failed";
-    upsertAiExtraction(db, {
+    await upsertAiExtraction({
       invoiceId: input.invoiceId,
       model,
       inputHash,
@@ -159,7 +158,7 @@ export async function runInvoiceAiExtraction(
       error: message,
       outputJson: null,
     });
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "error",
       eventType: "mistral_extraction_failed",
       invoiceId: input.invoiceId,
@@ -193,22 +192,18 @@ export function createInvoiceExtractionInputHash(payload: Record<string, unknown
   return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
-function getAiCandidateVendors(db: Database.Database): CandidateVendor[] {
-  const vendors = db
-    .prepare(
-      `SELECT id, name, canonical_key AS canonicalKey
-       FROM vendors
-       ORDER BY name COLLATE NOCASE`,
-    )
-    .all() as Array<{ id: number; name: string; canonicalKey: string }>;
+async function getAiCandidateVendors(): Promise<CandidateVendor[]> {
+  const vendors = await sql<Array<{ id: number; name: string; canonicalKey: string }>>`
+    SELECT id, name, canonical_key AS "canonicalKey"
+    FROM vendors
+    ORDER BY name
+  `;
 
-  const aliases = db
-    .prepare(
-      `SELECT vendor_id AS vendorId, alias
-       FROM vendor_aliases
-       ORDER BY priority ASC, alias ASC`,
-    )
-    .all() as Array<{ vendorId: number; alias: string }>;
+  const aliases = await sql<Array<{ vendorId: number; alias: string }>>`
+    SELECT vendor_id AS "vendorId", alias
+    FROM vendor_aliases
+    ORDER BY priority ASC, alias ASC
+  `;
 
   const aliasesByVendor = new Map<number, string[]>();
   for (const alias of aliases) {
@@ -224,16 +219,13 @@ function getAiCandidateVendors(db: Database.Database): CandidateVendor[] {
   }));
 }
 
-function getExistingExtraction(db: Database.Database, invoiceId: number, inputHash: string) {
-  return db
-    .prepare(
-      `SELECT status, output_json AS outputJson, error
-       FROM ai_extractions
-       WHERE invoice_id = ? AND provider = 'mistral' AND prompt_version = ? AND input_hash = ?`,
-    )
-    .get(invoiceId, invoiceExtractionPromptVersion, inputHash) as
-    | { status: string; outputJson: string | null; error: string | null }
-    | undefined;
+async function getExistingExtraction(invoiceId: number, inputHash: string) {
+  const rows = await sql<{ status: string; outputJson: string | null; error: string | null }[]>`
+    SELECT status, output_json AS "outputJson", error
+    FROM ai_extractions
+    WHERE invoice_id = ${invoiceId} AND provider = 'mistral' AND prompt_version = ${invoiceExtractionPromptVersion} AND input_hash = ${inputHash}
+  `;
+  return rows[0];
 }
 
 function parseStoredExtraction(outputJson: string) {
@@ -241,58 +233,51 @@ function parseStoredExtraction(outputJson: string) {
   return parsed.success ? parsed.data : null;
 }
 
-function upsertAiExtraction(
-  db: Database.Database,
-  input: {
-    invoiceId: number;
-    model: string;
-    inputHash: string;
-    outputJson: string | null;
-    status: "pending" | "succeeded" | "failed" | "skipped";
-    error: string | null;
-  },
-) {
-  db.prepare(
-    `INSERT INTO ai_extractions (
+async function upsertAiExtraction(input: {
+  invoiceId: number;
+  model: string;
+  inputHash: string;
+  outputJson: string | null;
+  status: "pending" | "succeeded" | "failed" | "skipped";
+  error: string | null;
+}): Promise<void> {
+  await sql`
+    INSERT INTO ai_extractions (
       invoice_id, provider, model, prompt_version, input_hash, output_json, status, error
     )
-    VALUES (?, 'mistral', ?, ?, ?, ?, ?, ?)
+    VALUES (${input.invoiceId}, 'mistral', ${input.model}, ${invoiceExtractionPromptVersion}, ${input.inputHash}, ${input.outputJson}, ${input.status}, ${input.error})
     ON CONFLICT(invoice_id, provider, prompt_version, input_hash) DO UPDATE SET
       model = excluded.model,
       output_json = excluded.output_json,
       status = excluded.status,
-      error = excluded.error`,
-  ).run(input.invoiceId, input.model, invoiceExtractionPromptVersion, input.inputHash, input.outputJson, input.status, input.error);
+      error = excluded.error
+  `;
 }
 
-function applyAiExtractionToInvoice(db: Database.Database, invoiceId: number, extraction: InvoiceAiExtraction) {
-  const current = db
-    .prepare(
-      `SELECT vendor_id AS vendorId, invoice_number AS invoiceNumber, invoice_date AS invoiceDate,
-        service_period_start AS servicePeriodStart, service_period_end AS servicePeriodEnd,
-        amount_gross AS amountGross, amount_net AS amountNet, vat_amount AS vatAmount,
-        currency, confidence
-       FROM invoices
-       WHERE id = ?`,
-    )
-    .get(invoiceId) as
-    | {
-        vendorId: number | null;
-        invoiceNumber: string | null;
-        invoiceDate: string | null;
-        servicePeriodStart: string | null;
-        servicePeriodEnd: string | null;
-        amountGross: number | null;
-        amountNet: number | null;
-        vatAmount: number | null;
-        currency: string | null;
-        confidence: number | null;
-      }
-    | undefined;
-
+async function applyAiExtractionToInvoice(invoiceId: number, extraction: InvoiceAiExtraction): Promise<void> {
+  const currentRows = await sql<{
+    vendorId: number | null;
+    invoiceNumber: string | null;
+    invoiceDate: string | null;
+    servicePeriodStart: string | null;
+    servicePeriodEnd: string | null;
+    amountGross: number | null;
+    amountNet: number | null;
+    vatAmount: number | null;
+    currency: string | null;
+    confidence: number | null;
+  }[]>`
+    SELECT vendor_id AS "vendorId", invoice_number AS "invoiceNumber", invoice_date AS "invoiceDate",
+      service_period_start AS "servicePeriodStart", service_period_end AS "servicePeriodEnd",
+      amount_gross AS "amountGross", amount_net AS "amountNet", vat_amount AS "vatAmount",
+      currency, confidence
+    FROM invoices
+    WHERE id = ${invoiceId}
+  `;
+  const current = currentRows[0];
   if (!current) return;
 
-  const vendorId = resolveAiVendorId(db, extraction) ?? current.vendorId;
+  const vendorId = (await resolveAiVendorId(extraction)) ?? current.vendorId;
   const invoiceNumber = extraction.invoice_number || current.invoiceNumber;
   const invoiceDate = extraction.invoice_date || current.invoiceDate;
   const amountGross = extraction.amount_gross ?? current.amountGross;
@@ -307,7 +292,7 @@ function applyAiExtractionToInvoice(db: Database.Database, invoiceId: number, ex
   });
 
   if (status !== "ready") {
-    const decision = evaluateAutoApproval(db, extraction, {
+    const decision = await evaluateAutoApproval(extraction, {
       vendorId,
       vendorName: extraction.vendor,
       amountGross,
@@ -315,7 +300,7 @@ function applyAiExtractionToInvoice(db: Database.Database, invoiceId: number, ex
     });
     if (decision.autoApproved) {
       status = "ready";
-      recordSyncEvent(db, {
+      await recordSyncEvent({
         level: "info",
         eventType: "auto_approval_applied",
         invoiceId,
@@ -341,41 +326,35 @@ function applyAiExtractionToInvoice(db: Database.Database, invoiceId: number, ex
     : extraction.document_type === "receipt"   ? "receipt"
     : "invoice";
 
-  db.prepare(
-    `UPDATE invoices
-     SET vendor_id = ?, status = ?, invoice_number = ?, invoice_date = ?,
-       service_period_start = ?, service_period_end = ?, amount_gross = ?,
-       amount_net = ?, vat_amount = ?, currency = ?, confidence = ?,
-       doc_type = ?,
-       updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  ).run(
-    vendorId,
-    status,
-    invoiceNumber,
-    invoiceDate,
-    extraction.service_period_start || current.servicePeriodStart,
-    extraction.service_period_end || current.servicePeriodEnd,
-    amountGross,
-    amountNet,
-    vatAmount,
-    currency,
-    Number(confidence.toFixed(2)),
-    docType,
-    invoiceId,
-  );
+  await sql`
+    UPDATE invoices
+    SET vendor_id = ${vendorId},
+        status = ${status},
+        invoice_number = ${invoiceNumber},
+        invoice_date = ${invoiceDate},
+        service_period_start = ${extraction.service_period_start || current.servicePeriodStart},
+        service_period_end = ${extraction.service_period_end || current.servicePeriodEnd},
+        amount_gross = ${amountGross},
+        amount_net = ${amountNet},
+        vat_amount = ${vatAmount},
+        currency = ${currency},
+        confidence = ${Number(confidence.toFixed(2))},
+        doc_type = ${docType},
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${invoiceId}
+  `;
 }
 
-function resolveAiVendorId(db: Database.Database, extraction: InvoiceAiExtraction) {
+async function resolveAiVendorId(extraction: InvoiceAiExtraction): Promise<number | null> {
   const canonicalKey = normalizeCanonicalKey(extraction.normalized_vendor);
   if (canonicalKey) {
-    const direct = db
-      .prepare(`SELECT id FROM vendors WHERE canonical_key = ?`)
-      .get(canonicalKey) as { id: number } | undefined;
-    if (direct) return direct.id;
+    const rows = await sql<{ id: number }[]>`
+      SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}
+    `;
+    if (rows[0]) return rows[0].id;
   }
 
-  const match = matchVendor(db, [extraction.normalized_vendor || "", extraction.vendor || ""]);
+  const match = await matchVendor([extraction.normalized_vendor || "", extraction.vendor || ""]);
   return match.vendorId;
 }
 
@@ -393,9 +372,6 @@ export function resolveInvoiceStatusFromAi(
   input: { vendorId: number | null; invoiceDate: string | null; amountGross: number | null },
 ) {
   const isInvoiceLike = ["invoice", "receipt", "payment_confirmation", "credit_note"].includes(extraction.document_type);
-  // Wenn KI das PDF klar als Nicht-Rechnung erkennt (AGB, Widerrufsbelehrung,
-  // Boarding-Pass, Vertrag, etc.) → 'ignored'. Würde sonst die Review-Queue
-  // mit nicht-aktionablen Items verstopfen.
   if (!isInvoiceLike) return "ignored";
   if (extraction.needs_review || extraction.confidence < 0.75) return "needs_review";
   if (!input.vendorId || !input.invoiceDate || input.amountGross === null) return "needs_review";

@@ -9,7 +9,7 @@
 
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { sendMonthlyReport } from "@/lib/mail/notify";
 import { appConfig } from "@/lib/config/env";
 
@@ -38,8 +38,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ skipped: true, reason: "no RESEND_API_KEY" });
   }
 
-  const db = getDb();
-
   // Vormonat berechnen (wir laufen am 1. des aktuellen Monats)
   const now = new Date();
   const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -50,72 +48,60 @@ export async function POST(req: Request): Promise<NextResponse> {
   const prevPrevMonth = prevPrevDate.toISOString().slice(0, 7);
 
   // Alle Org-Owner holen
-  const owners = db
-    .prepare(
-      `SELECT u.email, o.id AS orgId
-       FROM users u
-       INNER JOIN organizations o ON o.owner_user_id = u.id`,
-    )
-    .all() as { email: string; orgId: string }[];
+  const owners = await sql<{ email: string; orgId: string }[]>`
+    SELECT u.email, o.id AS "orgId"
+    FROM users u
+    INNER JOIN organizations o ON o.owner_user_id = u.id
+  `;
 
   const results: { email: string; sent: boolean }[] = [];
 
+  const prevMonthPrefix = prevMonth + "%";
+  const prevPrevMonthPrefix = prevPrevMonth + "%";
+
   for (const { email, orgId } of owners) {
     // KPIs für den Vormonat
-    const kpis = db
-      .prepare(
-        `SELECT
-           COUNT(CASE WHEN invoice_date LIKE ? || '%' THEN 1 END) AS sent,
-           COUNT(CASE WHEN invoice_date LIKE ? || '%' AND COALESCE(source, 'auto') != 'auto' THEN 1 END) AS sentManual,
-           SUM(CASE WHEN invoice_date LIKE ? || '%' THEN COALESCE(amount_gross, 0) ELSE 0 END) AS sumGross,
-           COUNT(CASE WHEN invoice_date LIKE ? || '%' THEN 1 END) AS prevSent,
-           SUM(CASE WHEN invoice_date LIKE ? || '%' THEN COALESCE(amount_gross, 0) ELSE 0 END) AS prevSumGross
-         FROM invoices
-         WHERE status = 'exported'
-           AND (organization_id = ? OR organization_id IS NULL)`,
-      )
-      .get(
-        prevMonth,
-        prevMonth,
-        prevMonth,
-        prevPrevMonth,
-        prevPrevMonth,
-        orgId,
-      ) as {
-        sent: number;
-        sentManual: number;
-        sumGross: number;
-        prevSent: number;
-        prevSumGross: number;
-      };
+    const kpiRows = await sql<{
+      sent: number;
+      sentManual: number;
+      sumGross: number;
+      prevSent: number;
+      prevSumGross: number;
+    }[]>`
+      SELECT
+        COUNT(CASE WHEN invoice_date LIKE ${prevMonthPrefix} THEN 1 END)::int AS sent,
+        COUNT(CASE WHEN invoice_date LIKE ${prevMonthPrefix} AND COALESCE(source, 'auto') != 'auto' THEN 1 END)::int AS "sentManual",
+        COALESCE(SUM(CASE WHEN invoice_date LIKE ${prevMonthPrefix} THEN COALESCE(amount_gross, 0) ELSE 0 END), 0) AS "sumGross",
+        COUNT(CASE WHEN invoice_date LIKE ${prevPrevMonthPrefix} THEN 1 END)::int AS "prevSent",
+        COALESCE(SUM(CASE WHEN invoice_date LIKE ${prevPrevMonthPrefix} THEN COALESCE(amount_gross, 0) ELSE 0 END), 0) AS "prevSumGross"
+      FROM invoices
+      WHERE status = 'exported'
+        AND (organization_id = ${orgId} OR organization_id IS NULL)
+    `;
+    const kpis = kpiRows[0] ?? { sent: 0, sentManual: 0, sumGross: 0, prevSent: 0, prevSumGross: 0 };
 
-    const pending = (
-      db
-        .prepare(
-          `SELECT COUNT(*) AS count FROM invoices
-           WHERE status = 'needs_review'
-             AND (organization_id = ? OR organization_id IS NULL)`,
-        )
-        .get(orgId) as { count: number }
-    ).count;
+    const pendingRows = await sql<{ count: string }[]>`
+      SELECT COUNT(*)::text AS count FROM invoices
+      WHERE status = 'needs_review'
+        AND (organization_id = ${orgId} OR organization_id IS NULL)
+    `;
+    const pending = Number(pendingRows[0]?.count ?? 0);
 
     // Top-3-Anbieter des Vormonats
-    const topVendors = db
-      .prepare(
-        `SELECT
-           v.name,
-           COUNT(*) AS count,
-           SUM(COALESCE(i.amount_gross, 0)) AS sumGross
-         FROM invoices i
-         JOIN vendors v ON v.id = i.vendor_id
-         WHERE i.status = 'exported'
-           AND i.invoice_date LIKE ? || '%'
-           AND (i.organization_id = ? OR i.organization_id IS NULL)
-         GROUP BY v.id
-         ORDER BY count DESC
-         LIMIT 3`,
-      )
-      .all(prevMonth, orgId) as Array<{ name: string; count: number; sumGross: number }>;
+    const topVendors = await sql<{ name: string; count: number; sumGross: number }[]>`
+      SELECT
+        v.name,
+        COUNT(*)::int AS count,
+        COALESCE(SUM(COALESCE(i.amount_gross, 0)), 0) AS "sumGross"
+      FROM invoices i
+      JOIN vendors v ON v.id = i.vendor_id
+      WHERE i.status = 'exported'
+        AND i.invoice_date LIKE ${prevMonthPrefix}
+        AND (i.organization_id = ${orgId} OR i.organization_id IS NULL)
+      GROUP BY v.id, v.name
+      ORDER BY count DESC
+      LIMIT 3
+    `;
 
     const sent = kpis.sent ?? 0;
 
@@ -131,11 +117,11 @@ export async function POST(req: Request): Promise<NextResponse> {
       sent,
       sentAuto: sent - (kpis.sentManual ?? 0),
       sentManual: kpis.sentManual ?? 0,
-      sumGross: kpis.sumGross ?? 0,
+      sumGross: Number(kpis.sumGross ?? 0),
       prevSent: kpis.prevSent ?? 0,
-      prevSumGross: kpis.prevSumGross ?? 0,
+      prevSumGross: Number(kpis.prevSumGross ?? 0),
       pending,
-      topVendors,
+      topVendors: topVendors.map((v) => ({ ...v, count: Number(v.count), sumGross: Number(v.sumGross) })),
     });
 
     results.push({ email, sent: ok });

@@ -1,7 +1,7 @@
 import { getAgentCostSummary } from "@/lib/db/queries";
 
-export function AgentActivityPanel({ daysBack = 30 }: { daysBack?: number }) {
-  const summary = getAgentCostSummary(daysBack);
+export async function AgentActivityPanel({ daysBack = 30 }: { daysBack?: number }) {
+  const summary = await getAgentCostSummary(daysBack);
 
   if (summary.totalRuns === 0) {
     return (

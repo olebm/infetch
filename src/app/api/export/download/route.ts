@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import JSZip from "jszip";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { getCurrentAuth } from "@/lib/auth/current";
 
 export const dynamic = "force-dynamic";
@@ -115,51 +115,111 @@ export async function GET(request: NextRequest) {
   const rawVendor = searchParams.get("vendorId") ?? null;
   const vendorId  = rawVendor ? Number(rawVendor) : null;
 
-  const db = getDb();
-
   // SECURITY (INFETCH-87): Org-Scoping — nur Rechnungen der eigenen Organisation.
   const orgId = auth.organization?.id ?? null;
 
-  const whereClauses: string[] = ["i.status NOT IN ('ignored', 'duplicate')"];
-  if (orgId) {
-    whereClauses.push("(i.organization_id = ? OR i.organization_id IS NULL)");
-  }
-  const params: Array<string | number> = orgId ? [orgId] : [];
+  // Build query with optional filters
+  let rows: InvoiceRow[];
 
-  if (year) {
-    whereClauses.push("strftime('%Y', COALESCE(i.invoice_date, i.created_at)) = ?");
-    params.push(year);
+  if (year && vendorId && !isNaN(vendorId)) {
+    const yearPattern = year + "%";
+    rows = await sql<InvoiceRow[]>`
+      SELECT
+        i.id              AS "invoiceId",
+        i.invoice_date    AS "invoiceDate",
+        i.created_at      AS "createdAt",
+        i.invoice_number  AS "invoiceNumber",
+        i.amount_gross    AS "amountGross",
+        i.amount_net      AS "amountNet",
+        i.vat_amount      AS "vatAmount",
+        i.currency,
+        i.status,
+        v.name            AS "vendorName",
+        v.canonical_key   AS "vendorKey",
+        f.stored_path     AS "storedPath",
+        f.original_filename AS "originalFilename"
+      FROM invoices i
+      LEFT JOIN vendors v ON v.id = i.vendor_id
+      LEFT JOIN invoice_files f ON f.invoice_id = i.id
+      WHERE i.status NOT IN ('ignored', 'duplicate')
+        AND (${orgId}::text IS NULL OR i.organization_id = ${orgId} OR i.organization_id IS NULL)
+        AND i.invoice_date LIKE ${yearPattern}
+        AND i.vendor_id = ${vendorId}
+      ORDER BY COALESCE(i.invoice_date, i.created_at::text) DESC
+    `;
+  } else if (year) {
+    const yearPattern = year + "%";
+    rows = await sql<InvoiceRow[]>`
+      SELECT
+        i.id              AS "invoiceId",
+        i.invoice_date    AS "invoiceDate",
+        i.created_at      AS "createdAt",
+        i.invoice_number  AS "invoiceNumber",
+        i.amount_gross    AS "amountGross",
+        i.amount_net      AS "amountNet",
+        i.vat_amount      AS "vatAmount",
+        i.currency,
+        i.status,
+        v.name            AS "vendorName",
+        v.canonical_key   AS "vendorKey",
+        f.stored_path     AS "storedPath",
+        f.original_filename AS "originalFilename"
+      FROM invoices i
+      LEFT JOIN vendors v ON v.id = i.vendor_id
+      LEFT JOIN invoice_files f ON f.invoice_id = i.id
+      WHERE i.status NOT IN ('ignored', 'duplicate')
+        AND (${orgId}::text IS NULL OR i.organization_id = ${orgId} OR i.organization_id IS NULL)
+        AND i.invoice_date LIKE ${yearPattern}
+      ORDER BY COALESCE(i.invoice_date, i.created_at::text) DESC
+    `;
+  } else if (vendorId && !isNaN(vendorId)) {
+    rows = await sql<InvoiceRow[]>`
+      SELECT
+        i.id              AS "invoiceId",
+        i.invoice_date    AS "invoiceDate",
+        i.created_at      AS "createdAt",
+        i.invoice_number  AS "invoiceNumber",
+        i.amount_gross    AS "amountGross",
+        i.amount_net      AS "amountNet",
+        i.vat_amount      AS "vatAmount",
+        i.currency,
+        i.status,
+        v.name            AS "vendorName",
+        v.canonical_key   AS "vendorKey",
+        f.stored_path     AS "storedPath",
+        f.original_filename AS "originalFilename"
+      FROM invoices i
+      LEFT JOIN vendors v ON v.id = i.vendor_id
+      LEFT JOIN invoice_files f ON f.invoice_id = i.id
+      WHERE i.status NOT IN ('ignored', 'duplicate')
+        AND (${orgId}::text IS NULL OR i.organization_id = ${orgId} OR i.organization_id IS NULL)
+        AND i.vendor_id = ${vendorId}
+      ORDER BY COALESCE(i.invoice_date, i.created_at::text) DESC
+    `;
+  } else {
+    rows = await sql<InvoiceRow[]>`
+      SELECT
+        i.id              AS "invoiceId",
+        i.invoice_date    AS "invoiceDate",
+        i.created_at      AS "createdAt",
+        i.invoice_number  AS "invoiceNumber",
+        i.amount_gross    AS "amountGross",
+        i.amount_net      AS "amountNet",
+        i.vat_amount      AS "vatAmount",
+        i.currency,
+        i.status,
+        v.name            AS "vendorName",
+        v.canonical_key   AS "vendorKey",
+        f.stored_path     AS "storedPath",
+        f.original_filename AS "originalFilename"
+      FROM invoices i
+      LEFT JOIN vendors v ON v.id = i.vendor_id
+      LEFT JOIN invoice_files f ON f.invoice_id = i.id
+      WHERE i.status NOT IN ('ignored', 'duplicate')
+        AND (${orgId}::text IS NULL OR i.organization_id = ${orgId} OR i.organization_id IS NULL)
+      ORDER BY COALESCE(i.invoice_date, i.created_at::text) DESC
+    `;
   }
-  if (vendorId && !isNaN(vendorId)) {
-    whereClauses.push("i.vendor_id = ?");
-    params.push(vendorId);
-  }
-
-  const where = `WHERE ${whereClauses.join(" AND ")}`;
-
-  const rows = db
-    .prepare(
-      `SELECT
-         i.id              AS invoiceId,
-         i.invoice_date    AS invoiceDate,
-         i.created_at      AS createdAt,
-         i.invoice_number  AS invoiceNumber,
-         i.amount_gross    AS amountGross,
-         i.amount_net      AS amountNet,
-         i.vat_amount      AS vatAmount,
-         i.currency,
-         i.status,
-         v.name            AS vendorName,
-         v.canonical_key   AS vendorKey,
-         f.stored_path     AS storedPath,
-         f.original_filename AS originalFilename
-       FROM invoices i
-       LEFT JOIN vendors v ON v.id = i.vendor_id
-       LEFT JOIN invoice_files f ON f.invoice_id = i.id
-       ${where}
-       ORDER BY COALESCE(i.invoice_date, i.created_at) DESC`,
-    )
-    .all(...params) as InvoiceRow[];
 
   if (rows.length === 0) {
     return new Response(

@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 
 /**
  * Auto-Alias-Lernen: Wenn der User manuell einem unbekannten Lieferanten
@@ -17,23 +17,20 @@ function extractEmailDomain(value: string | null | undefined): string | null {
   return match[2].toLowerCase();
 }
 
-function getSenderFromInvoice(
-  db: Database.Database,
+async function getSenderFromInvoice(
   invoiceId: number,
-): { fromAddress: string | null; mailMessageId: number | null } {
+): Promise<{ fromAddress: string | null; mailMessageId: number | null }> {
   // invoice → invoice_files (source_type='mail') → mail_messages.from_address
-  const row = db
-    .prepare(
-      `SELECT mm.from_address AS fromAddress, mm.id AS mailMessageId
-       FROM invoice_files inf
-       LEFT JOIN mail_messages mm ON CAST(mm.id AS TEXT) = inf.source_ref_id
-       WHERE inf.invoice_id = ?
-         AND inf.source_type = 'mail'
-       ORDER BY inf.created_at DESC
-       LIMIT 1`,
-    )
-    .get(invoiceId) as { fromAddress: string | null; mailMessageId: number | null } | undefined;
-  return row ?? { fromAddress: null, mailMessageId: null };
+  const rows = await sql<{ fromAddress: string | null; mailMessageId: number | null }[]>`
+    SELECT mm.from_address AS "fromAddress", mm.id AS "mailMessageId"
+    FROM invoice_files inf
+    LEFT JOIN mail_messages mm ON CAST(mm.id AS TEXT) = inf.source_ref_id
+    WHERE inf.invoice_id = ${invoiceId}
+      AND inf.source_type = 'mail'
+    ORDER BY inf.created_at DESC
+    LIMIT 1
+  `;
+  return rows[0] ?? { fromAddress: null, mailMessageId: null };
 }
 
 export type AutoAliasResult = {
@@ -53,11 +50,10 @@ export type AutoAliasResult = {
  *   2. discovered_senders.matched_vendor_id auf den neuen Vendor setzen
  *      (falls vorhanden)
  */
-export function learnFromManualMatch(
-  db: Database.Database,
+export async function learnFromManualMatch(
   input: { invoiceId: number; vendorId: number },
-): AutoAliasResult {
-  const sender = getSenderFromInvoice(db, input.invoiceId);
+): Promise<AutoAliasResult> {
+  const sender = await getSenderFromInvoice(input.invoiceId);
   const senderEmail = sender.fromAddress;
   if (!senderEmail) {
     return { learned: false, reason: "no_sender" };
@@ -99,38 +95,36 @@ export function learnFromManualMatch(
     return { learned: false, reason: "generic_email_provider", domain, senderEmail };
   }
 
-  const existing = db
-    .prepare(
-      `SELECT id, vendor_id AS vendorId
-       FROM vendor_aliases
-       WHERE alias = ? AND match_type = 'domain'`,
-    )
-    .get(domain) as { id: number; vendorId: number } | undefined;
+  const existing = await sql<{ id: number; vendorId: number }[]>`
+    SELECT id, vendor_id AS "vendorId"
+    FROM vendor_aliases
+    WHERE alias = ${domain} AND match_type = 'domain'
+    LIMIT 1
+  `;
+  const existingRow = existing[0];
 
-  const tx = db.transaction(() => {
-    if (!existing) {
-      // Neuer Domain-Alias fuer diesen Vendor
-      db.prepare(
-        `INSERT OR IGNORE INTO vendor_aliases (vendor_id, alias, match_type, priority)
-         VALUES (?, ?, 'domain', 50)`,
-      ).run(input.vendorId, domain);
-    } else if (existing.vendorId !== input.vendorId) {
-      // Domain war bisher anderem Vendor zugeordnet — User korrigiert -> auf neuen Vendor umstellen
-      db.prepare(
-        `UPDATE vendor_aliases
-         SET vendor_id = ?, priority = 50
-         WHERE id = ?`,
-      ).run(input.vendorId, existing.id);
-    }
+  if (!existingRow) {
+    // Neuer Domain-Alias fuer diesen Vendor
+    await sql`
+      INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
+      VALUES (${input.vendorId}, ${domain}, 'domain', 50)
+      ON CONFLICT DO NOTHING
+    `;
+  } else if (existingRow.vendorId !== input.vendorId) {
+    // Domain war bisher anderem Vendor zugeordnet — User korrigiert -> auf neuen Vendor umstellen
+    await sql`
+      UPDATE vendor_aliases
+      SET vendor_id = ${input.vendorId}, priority = 50
+      WHERE id = ${existingRow.id}
+    `;
+  }
 
-    // discovered_senders.matched_vendor_id aktualisieren (falls Eintrag existiert)
-    db.prepare(
-      `UPDATE discovered_senders
-       SET matched_vendor_id = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE from_address = ?`,
-    ).run(input.vendorId, senderEmail.toLowerCase());
-  });
-  tx();
+  // discovered_senders.matched_vendor_id aktualisieren (falls Eintrag existiert)
+  await sql`
+    UPDATE discovered_senders
+    SET matched_vendor_id = ${input.vendorId}, updated_at = CURRENT_TIMESTAMP
+    WHERE from_address = ${senderEmail.toLowerCase()}
+  `;
 
   return {
     learned: true,
@@ -150,35 +144,32 @@ export type RematchSummary = {
   unchanged: number;
 };
 
-export function rematchUnmatchedInvoices(
-  db: Database.Database,
-  matchVendor: (db: Database.Database, signals: string[]) => {
+export async function rematchUnmatchedInvoices(
+  matchVendor: (signals: string[]) => Promise<{
     vendorId: number | null;
     canonicalKey: string | null;
     confidence: number;
-  },
-): RematchSummary {
+  }>,
+): Promise<RematchSummary> {
   // Kandidaten: Rechnungen ohne vendor_id ODER mit niedrigem Confidence-Score
-  const candidates = db
-    .prepare(
-      `SELECT i.id AS id, i.vendor_id AS vendorId,
-              (SELECT inf.original_filename FROM invoice_files inf
-               WHERE inf.invoice_id = i.id ORDER BY inf.created_at DESC LIMIT 1) AS filename,
-              (SELECT mm.from_address FROM invoice_files inf
-               LEFT JOIN mail_messages mm ON CAST(mm.id AS TEXT) = inf.source_ref_id
-               WHERE inf.invoice_id = i.id AND inf.source_type = 'mail'
-               ORDER BY inf.created_at DESC LIMIT 1) AS fromAddress,
-              i.raw_text_path AS rawTextPath
-       FROM invoices i
-       WHERE i.vendor_id IS NULL OR i.confidence < 0.7`,
-    )
-    .all() as Array<{
+  const candidates = await sql<Array<{
     id: number;
     vendorId: number | null;
     filename: string | null;
     fromAddress: string | null;
     rawTextPath: string | null;
-  }>;
+  }>>`
+    SELECT i.id AS id, i.vendor_id AS "vendorId",
+           (SELECT inf.original_filename FROM invoice_files inf
+            WHERE inf.invoice_id = i.id ORDER BY inf.created_at DESC LIMIT 1) AS filename,
+           (SELECT mm.from_address FROM invoice_files inf
+            LEFT JOIN mail_messages mm ON CAST(mm.id AS TEXT) = inf.source_ref_id
+            WHERE inf.invoice_id = i.id AND inf.source_type = 'mail'
+            ORDER BY inf.created_at DESC LIMIT 1) AS "fromAddress",
+           i.raw_text_path AS "rawTextPath"
+    FROM invoices i
+    WHERE i.vendor_id IS NULL OR i.confidence < 0.7
+  `;
 
   let matched = 0;
   let unchanged = 0;
@@ -190,13 +181,15 @@ export function rematchUnmatchedInvoices(
       continue;
     }
 
-    const result = matchVendor(db, signals);
+    const result = await matchVendor(signals);
     if (result.vendorId && result.vendorId !== candidate.vendorId) {
-      db.prepare(
-        `UPDATE invoices
-         SET vendor_id = ?, confidence = MAX(confidence, ?), updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-      ).run(result.vendorId, result.confidence, candidate.id);
+      await sql`
+        UPDATE invoices
+        SET vendor_id = ${result.vendorId},
+            confidence = GREATEST(COALESCE(confidence, 0), ${result.confidence}),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${candidate.id}
+      `;
       matched += 1;
     } else {
       unchanged += 1;

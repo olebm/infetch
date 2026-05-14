@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getDb } from "@/lib/db/client";
 import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
 
 /**
@@ -12,8 +11,8 @@ import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
  * Nach erfolgreichem Tausch wird der Nutzer entweder zu `/next` oder nach `/`
  * weitergeleitet. Fehler landen auf `/login?error=auth_error`.
  *
- * Phase-1-Bridge: Falls der Nutzer noch kein SQLite-Profil hat (Erst-Login),
- * wird es hier angelegt. Ab Phase 2 übernimmt Postgres diese Rolle.
+ * Phase-1-Bridge: Falls der Nutzer noch kein Postgres-Profil hat (Erst-Login),
+ * wird es hier angelegt.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -33,21 +32,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_error`);
   }
 
-  // Phase-1-Bridge: Nutzer in SQLite anlegen falls noch nicht vorhanden
+  // Phase-1-Bridge: Nutzer in Postgres anlegen falls noch nicht vorhanden
   try {
-    const db = getDb();
-    const existing = findUserByEmail(data.user.email, db);
+    const existing = await findUserByEmail(data.user.email);
     if (!existing) {
-      createUserWithDefaultOrg({
+      await createUserWithDefaultOrg({
         email: data.user.email,
         name: (data.user.user_metadata?.full_name as string | undefined) ?? null,
-        db,
         userId: data.user.id,
       });
     }
   } catch (err) {
     // Kein harter Fehler — App bleibt nutzbar, Profil wird ggf. beim nächsten Login angelegt
-    console.error("[auth/callback] SQLite user sync failed:", err);
+    console.error("[auth/callback] Postgres user sync failed:", err);
   }
 
   return NextResponse.redirect(`${origin}${next}`);

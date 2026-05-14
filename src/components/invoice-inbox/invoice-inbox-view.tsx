@@ -20,7 +20,7 @@ import { StickySearchBar } from "@/components/invoice-inbox/sticky-search-bar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Invoice = ReturnType<typeof getInvoices>[number];
+type Invoice = Awaited<ReturnType<typeof getInvoices>>[number];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ type TabKey = (typeof TABS)[number]["key"];
  * month separator rows with display headline + total. Hover-only row
  * actions, chevron-right at end of each row.
  */
-export function InvoiceInboxView({
+export async function InvoiceInboxView({
   tab,
   year,
   search,
@@ -115,9 +115,12 @@ export function InvoiceInboxView({
   search?: string;
   status?: string;
 }) {
-  const counts = new Map(getInvoiceStatusCounts().map((c) => [c.status, c.count]));
-  const privatCount = getPrivateInvoiceCount();
-  const stats = getDashboardStats();
+  const [statusCountsRaw, privatCount, stats] = await Promise.all([
+    getInvoiceStatusCounts(),
+    getPrivateInvoiceCount(),
+    getDashboardStats(),
+  ]);
+  const counts = new Map(statusCountsRaw.map((c) => [c.status, Number(c.count)]));
   const activeYear = year ?? null;
 
   // Resolve active tab (with legacy ?status= support)
@@ -146,13 +149,13 @@ export function InvoiceInboxView({
   }
 
   // Fetch invoices for current tab
-  const invoices: Invoice[] = (() => {
+  const invoices: Invoice[] = await (async () => {
     if (activeTab === "fehlt") return [];
     if (activeTab === "privat") {
-      return getPrivateInvoices({
+      return (await getPrivateInvoices({
         year: activeYear ?? undefined,
         search: search || undefined,
-      }).slice(0, 30);
+      })).slice(0, 30);
     }
     const tabCfg = TABS.find((t) => t.key === activeTab)!;
     const statusList = tabCfg.statuses;

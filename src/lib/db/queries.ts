@@ -1,11 +1,10 @@
 import { format, subMonths } from "date-fns";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { getStoredSmtpAccount } from "@/mail/smtp-settings";
 import { hasConfiguredCredential } from "@/lib/secrets/credential-store";
 
-type CountRow = { count: number };
+type CountRow = { count: string | number };
 
 export type DashboardStats = {
   invoicesTotal: number;
@@ -17,19 +16,22 @@ export type DashboardStats = {
   exportReady: number;
 };
 
-export function getDashboardStats(): DashboardStats {
-  const db = getDb();
-  const count = (sql: string) => db.prepare(sql).get() as CountRow;
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const count = async (query: TemplateStringsArray, ...args: unknown[]) => {
+    const rows = await (sql as unknown as (...a: unknown[]) => Promise<CountRow[]>)(query, ...args);
+    return Number(rows[0]?.count ?? 0);
+  };
 
   return {
-    invoicesTotal: count("SELECT COUNT(*) AS count FROM invoices").count,
-    downloadedPdfs: count("SELECT COUNT(*) AS count FROM invoice_files").count,
-    needsReview: count("SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'").count,
-    duplicates: count("SELECT COUNT(*) AS count FROM invoices WHERE status = 'duplicate'").count,
-    missing: count("SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status WHERE final_status = 'missing'").count,
-    actionRequired: count("SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status WHERE final_status = 'action_required'").count,
-    exportReady: count("SELECT COUNT(*) AS count FROM exports WHERE status = 'ready'").count,
+    invoicesTotal: Number((await sql`SELECT COUNT(*) AS count FROM invoices`)[0].count),
+    downloadedPdfs: Number((await sql`SELECT COUNT(*) AS count FROM invoice_files`)[0].count),
+    needsReview: Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count),
+    duplicates: Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'duplicate'`)[0].count),
+    missing: Number((await sql`SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status WHERE final_status = 'missing'`)[0].count),
+    actionRequired: Number((await sql`SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status WHERE final_status = 'action_required'`)[0].count),
+    exportReady: Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'ready'`)[0].count),
   };
+  void count;
 }
 
 type SyncRunType = "imap_scan" | "missing_check" | "portal_fallback" | "ai_analysis" | "export";
@@ -42,24 +44,20 @@ export type PipelineStep = {
   lastRunAt: string | null;
 };
 
-export function getPipelineSnapshot(): PipelineStep[] {
-  const db = getDb();
-  const mistralConfigured = hasConfiguredCredential(db, "mistral");
+export async function getPipelineSnapshot(): Promise<PipelineStep[]> {
+  const mistralConfigured = await hasConfiguredCredential("mistral");
 
-  const latestRuns = db
-    .prepare(
-      `SELECT sr.type AS type, sr.status AS status, sr.finished_at AS finishedAt
-       FROM sync_runs sr
-       JOIN (
-         SELECT type, MAX(id) AS max_id
-         FROM sync_runs
-         GROUP BY type
-       ) latest ON latest.type = sr.type AND latest.max_id = sr.id`,
-    )
-    .all() as LatestSyncRunRow[];
+  const latestRuns = await sql<LatestSyncRunRow[]>`
+    SELECT sr.type AS type, sr.status AS status, sr.finished_at AS "finishedAt"
+    FROM sync_runs sr
+    JOIN (
+      SELECT type, MAX(id) AS max_id
+      FROM sync_runs
+      GROUP BY type
+    ) latest ON latest.type = sr.type AND latest.max_id = sr.id`;
 
   const runByType = new Map(latestRuns.map((row) => [row.type, row]));
-  const needsReviewCount = (db.prepare(`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`).get() as { count: number }).count;
+  const needsReviewCount = Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count);
 
   const stepFor = (type: SyncRunType, fallback: string): PipelineStep => {
     const run = runByType.get(type);
@@ -91,34 +89,24 @@ export function getPipelineSnapshot(): PipelineStep[] {
   ];
 }
 
-export function getSetupSnapshot(organizationId?: string | null) {
-  const db = getDb();
-  const exportTargetActive = (db
-    .prepare(`SELECT COUNT(*) AS count FROM export_targets WHERE enabled = 1 AND recipient_email IS NOT NULL`)
-    .get() as CountRow).count > 0;
-  // Mistral gilt als konfiguriert, wenn entweder ein DB-Credential vorliegt
-  // (Legacy/Self-Host BYOK) ODER die env-Variable gesetzt ist (Self-Host).
-  // Im MVP-Default wird der KI-Key vom Anbieter via Backend-Proxy gestellt
-  // (siehe INTAKE-55) — bis dahin reicht env-Var als Setup-Bestätigung.
+export async function getSetupSnapshot(organizationId?: string | null) {
+  const exportTargetActive = Number((await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled = 1 AND recipient_email IS NOT NULL`)[0].count) > 0;
   const mistralConfigured =
-    hasConfiguredCredential(db, "mistral") || appConfig.mistral.configured;
+    (await hasConfiguredCredential("mistral")) || appConfig.mistral.configured;
   return {
     mistralConfigured,
     imapConfigured:
-      hasConfiguredCredential(db, "imap", "primary", organizationId) || hasConfiguredCredential(db, "imap", "secondary", organizationId),
+      (await hasConfiguredCredential("imap", "primary", organizationId)) ||
+      (await hasConfiguredCredential("imap", "secondary", organizationId)),
     smtpConfigured:
-      hasConfiguredCredential(db, "smtp", "primary", organizationId) || hasConfiguredCredential(db, "smtp", "secondary", organizationId),
+      (await hasConfiguredCredential("smtp", "primary", organizationId)) ||
+      (await hasConfiguredCredential("smtp", "secondary", organizationId)),
     exportTargetActive,
   };
 }
 
-export function getUnmappedSenderCount(): number {
-  const db = getDb();
-  // Nur Sender mit PDFs zählen — PDF-lose Sender (Newsletter, Bestätigungsmails)
-  // sind kein Vendor-Zuordnungs-Hebel und würden den Dashboard-Banner aufblähen.
-  return (db
-    .prepare(`SELECT COUNT(*) AS count FROM discovered_senders WHERE matched_vendor_id IS NULL AND blocked = 0 AND pdf_count > 0`)
-    .get() as CountRow).count;
+export async function getUnmappedSenderCount(): Promise<number> {
+  return Number((await sql`SELECT COUNT(*) AS count FROM discovered_senders WHERE matched_vendor_id IS NULL AND blocked = 0 AND pdf_count > 0`)[0].count);
 }
 
 export type AgentCostSummary = {
@@ -141,87 +129,81 @@ export type AgentCostSummary = {
   }>;
 };
 
-export function getAgentCostSummary(daysBack = 30): AgentCostSummary {
-  const db = getDb();
+export async function getAgentCostSummary(daysBack = 30): Promise<AgentCostSummary> {
   const sinceIso = new Date(Date.now() - daysBack * 86400_000).toISOString();
 
-  const total = db
-    .prepare(
-      `SELECT
-         COUNT(*) AS totalRuns,
-         COALESCE(SUM(invoices_found), 0) AS totalInvoices,
-         COALESCE(SUM(llm_calls), 0) AS totalLlmCalls,
-         COALESCE(SUM(llm_cost_cents), 0) AS totalCostCents,
-         COALESCE(AVG(duration_ms), 0) AS avgDurationMs
-       FROM portal_run_logs
-       WHERE started_at >= ?`,
-    )
-    .get(sinceIso) as {
-      totalRuns: number;
-      totalInvoices: number;
-      totalLlmCalls: number;
-      totalCostCents: number;
-      avgDurationMs: number;
-    };
+  const [total] = await sql<Array<{
+    totalRuns: string;
+    totalInvoices: string;
+    totalLlmCalls: string;
+    totalCostCents: string;
+    avgDurationMs: string;
+  }>>`
+    SELECT
+      COUNT(*) AS "totalRuns",
+      COALESCE(SUM(invoices_found), 0) AS "totalInvoices",
+      COALESCE(SUM(llm_calls), 0) AS "totalLlmCalls",
+      COALESCE(SUM(llm_cost_cents), 0) AS "totalCostCents",
+      COALESCE(AVG(duration_ms), 0) AS "avgDurationMs"
+    FROM portal_run_logs
+    WHERE started_at >= ${sinceIso}`;
 
-  const byVendor = db
-    .prepare(
-      `SELECT
-         p.vendor_key AS vendorKey,
-         COALESCE(v.name, p.vendor_key) AS vendorName,
-         COUNT(*) AS runs,
-         COALESCE(SUM(p.invoices_found), 0) AS invoicesFound,
-         COALESCE(SUM(CASE WHEN p.status IN ('success','no_invoices') THEN 1 ELSE 0 END), 0) AS successCount,
-         COALESCE(SUM(CASE WHEN p.status NOT IN ('success','no_invoices') THEN 1 ELSE 0 END), 0) AS failureCount,
-         COALESCE(SUM(p.llm_cost_cents), 0) AS llmCostCents,
-         COALESCE(AVG(p.duration_ms), 0) AS avgDurationMs,
-         MAX(p.started_at) AS lastRunAt,
-         (SELECT status FROM portal_run_logs WHERE vendor_key = p.vendor_key ORDER BY id DESC LIMIT 1) AS lastStatus
-       FROM portal_run_logs p
-       LEFT JOIN vendors v ON v.canonical_key = p.vendor_key
-       WHERE p.started_at >= ?
-       GROUP BY p.vendor_key
-       ORDER BY lastRunAt DESC`,
-    )
-    .all(sinceIso) as AgentCostSummary["byVendor"];
+  const byVendor = await sql<AgentCostSummary["byVendor"]>`
+    SELECT
+      p.vendor_key AS "vendorKey",
+      COALESCE(v.name, p.vendor_key) AS "vendorName",
+      COUNT(*) AS runs,
+      COALESCE(SUM(p.invoices_found), 0) AS "invoicesFound",
+      COALESCE(SUM(CASE WHEN p.status IN ('success','no_invoices') THEN 1 ELSE 0 END), 0) AS "successCount",
+      COALESCE(SUM(CASE WHEN p.status NOT IN ('success','no_invoices') THEN 1 ELSE 0 END), 0) AS "failureCount",
+      COALESCE(SUM(p.llm_cost_cents), 0) AS "llmCostCents",
+      COALESCE(AVG(p.duration_ms), 0) AS "avgDurationMs",
+      MAX(p.started_at) AS "lastRunAt",
+      (SELECT status FROM portal_run_logs WHERE vendor_key = p.vendor_key ORDER BY id DESC LIMIT 1) AS "lastStatus"
+    FROM portal_run_logs p
+    LEFT JOIN vendors v ON v.canonical_key = p.vendor_key
+    WHERE p.started_at >= ${sinceIso}
+    GROUP BY p.vendor_key
+    ORDER BY "lastRunAt" DESC`;
 
   return {
-    totalRuns: total.totalRuns,
-    totalInvoices: total.totalInvoices,
-    totalLlmCalls: total.totalLlmCalls,
-    totalCostCents: total.totalCostCents,
-    avgDurationMs: Math.round(total.avgDurationMs),
-    byVendor,
+    totalRuns: Number(total.totalRuns),
+    totalInvoices: Number(total.totalInvoices),
+    totalLlmCalls: Number(total.totalLlmCalls),
+    totalCostCents: Number(total.totalCostCents),
+    avgDurationMs: Math.round(Number(total.avgDurationMs)),
+    byVendor: byVendor.map((r) => ({
+      ...r,
+      runs: Number(r.runs),
+      invoicesFound: Number(r.invoicesFound),
+      successCount: Number(r.successCount),
+      failureCount: Number(r.failureCount),
+      llmCostCents: Number(r.llmCostCents),
+      avgDurationMs: Number(r.avgDurationMs),
+    })),
   };
 }
 
-export function getPortalIssueAccounts(): Array<{
+export async function getPortalIssueAccounts(): Promise<Array<{
   vendorKey: string;
   vendorName: string;
   status: string;
   errorMessage: string | null;
-}> {
-  const db = getDb();
-  // Letzter Lauf pro Vendor mit problematischem Status
-  const rows = db
-    .prepare(
-      `SELECT v.canonical_key AS vendorKey, v.name AS vendorName, p.status, p.error_message AS errorMessage
-       FROM portal_run_logs p
-       JOIN vendors v ON v.canonical_key = p.vendor_key
-       WHERE p.id IN (
-         SELECT MAX(id) FROM portal_run_logs GROUP BY vendor_key
-       )
-       AND p.status IN ('login_required', 'two_factor', 'captcha', 'failed')`,
+}>> {
+  return await sql`
+    SELECT v.canonical_key AS "vendorKey", v.name AS "vendorName", p.status, p.error_message AS "errorMessage"
+    FROM portal_run_logs p
+    JOIN vendors v ON v.canonical_key = p.vendor_key
+    WHERE p.id IN (
+      SELECT MAX(id) FROM portal_run_logs GROUP BY vendor_key
     )
-    .all() as Array<{ vendorKey: string; vendorName: string; status: string; errorMessage: string | null }>;
-  return rows;
+    AND p.status IN ('login_required', 'two_factor', 'captcha', 'failed')`;
 }
 
-export function getExportQueueCounts() {
-  const db = getDb();
+export async function getExportQueueCounts() {
   return {
-    pending: (db.prepare(`SELECT COUNT(*) AS count FROM exports WHERE status = 'pending'`).get() as CountRow).count,
-    failed: (db.prepare(`SELECT COUNT(*) AS count FROM exports WHERE status = 'failed'`).get() as CountRow).count,
+    pending: Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'pending'`)[0].count),
+    failed: Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'failed'`)[0].count),
   };
 }
 
@@ -231,19 +213,11 @@ export type TodayBilanz = {
   needsReview: number;
 };
 
-export function getTodayBilanz(): TodayBilanz {
-  const db = getDb();
-  const count = (sql: string) => (db.prepare(sql).get() as CountRow).count;
+export async function getTodayBilanz(): Promise<TodayBilanz> {
   return {
-    importedToday: count(
-      `SELECT COUNT(*) AS count FROM invoices WHERE DATE(created_at) = DATE('now', 'localtime')`,
-    ),
-    exportedToday: count(
-      `SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND DATE(sent_at) = DATE('now', 'localtime')`,
-    ),
-    needsReview: count(
-      `SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`,
-    ),
+    importedToday: Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE (created_at::TIMESTAMP)::DATE = CURRENT_DATE`)[0].count),
+    exportedToday: Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND (sent_at::TIMESTAMP)::DATE = CURRENT_DATE`)[0].count),
+    needsReview: Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count),
   };
 }
 
@@ -252,358 +226,320 @@ export type AutomationStats = {
   exportedThisWeek: number;
   exportedLifetime: number;
   needsReview: number;
-  hoursSavedLifetime: number; // Heuristik: 2 Min pro automatisch versendeter Rechnung
-  daysActive: number | null;  // Tage seit erster Export-Aktivität (null = noch keine)
+  hoursSavedLifetime: number;
+  daysActive: number | null;
 };
 
-/**
- * Sicht auf das, was der Auto-Pilot bisher für den User erledigt hat.
- * Heute / Diese Woche / Lifetime — plus geschätzte Zeit-Ersparnis.
- *
- * Heuristik: pro automatisch versendeter Rechnung sparen wir dem User
- * etwa 2 Minuten manuelle Arbeit (Mail suchen → forwarden → eintragen).
- */
-export function getAutomationStats(): AutomationStats {
-  const db = getDb();
-  const count = (sql: string) => (db.prepare(sql).get() as CountRow).count;
-  const exportedToday = count(
-    `SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND DATE(sent_at) = DATE('now', 'localtime')`,
-  );
-  const exportedThisWeek = count(
-    `SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND sent_at >= datetime('now', '-7 days')`,
-  );
-  const exportedLifetime = count(
-    `SELECT COUNT(*) AS count FROM exports WHERE status = 'sent'`,
-  );
-  const needsReview = count(
-    `SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`,
-  );
+export async function getAutomationStats(): Promise<AutomationStats> {
+  const exportedToday = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND (sent_at::TIMESTAMP)::DATE = CURRENT_DATE`)[0].count);
+  const exportedThisWeek = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND sent_at >= (NOW() - INTERVAL '7 days')`)[0].count);
+  const exportedLifetime = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent'`)[0].count);
+  const needsReview = Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count);
   const minutesSaved = exportedLifetime * 2;
-  const firstExportRow = db
-    .prepare(`SELECT CAST(julianday('now') - julianday(MIN(sent_at)) AS INTEGER) AS days FROM exports WHERE status = 'sent'`)
-    .get() as { days: number | null } | undefined;
+  const firstExportRow = (await sql`
+    SELECT EXTRACT(EPOCH FROM (NOW() - MIN(sent_at)::TIMESTAMP))::INTEGER / 86400 AS days
+    FROM exports WHERE status = 'sent'`)[0] as { days: number | null } | undefined;
   const daysActive = firstExportRow?.days ?? null;
   return {
     exportedToday,
     exportedThisWeek,
     exportedLifetime,
     needsReview,
-    hoursSavedLifetime: Math.round((minutesSaved / 60) * 10) / 10, // eine Nachkommastelle
+    hoursSavedLifetime: Math.round((minutesSaved / 60) * 10) / 10,
     daysActive,
   };
 }
 
-export function getRecentEvents(limit = 8) {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT id, level, event_type AS eventType, message, created_at AS createdAt
-       FROM sync_events
-       ORDER BY created_at DESC, id DESC
-       LIMIT ?`,
-    )
-    .all(limit) as Array<{ id: number; level: string; eventType: string; message: string; createdAt: string }>;
+export async function getRecentEvents(limit = 8) {
+  return await sql<Array<{ id: number; level: string; eventType: string; message: string; createdAt: string }>>`
+    SELECT id, level, event_type AS "eventType", message, created_at AS "createdAt"
+    FROM sync_events
+    ORDER BY created_at DESC, id DESC
+    LIMIT ${limit}`;
 }
 
-export function getInvoices(options: { limit?: number; status?: string; statuses?: string[]; year?: string; search?: string; includePrivate?: boolean } = {}) {
-  const db = getDb();
+export async function getInvoices(options: { limit?: number; status?: string; statuses?: string[]; year?: string; search?: string; includePrivate?: boolean } = {}) {
   const limit = options.limit ?? 200;
   const whereClauses: string[] = [];
-  const queryParams: Array<string | number> = [];
 
-  // By default exclude private invoices
   if (!options.includePrivate) {
     whereClauses.push("COALESCE(invoices.is_private, 0) = 0");
   }
 
-  // PERFORMANCE (INFETCH-99): statuses[] → IN (?,...) statt N×getInvoices()-Calls
+  // Build query dynamically — postgres tagged-template doesn't support dynamic IN easily,
+  // so we use sql.unsafe for the dynamic where clause but keep params safe via interpolation.
+  // We build the full query as a safe tagged template with conditional fragments.
+
+  type InvoiceListRow = {
+    id: number;
+    status: string;
+    source: string;
+    invoiceNumber: string | null;
+    invoiceDate: string | null;
+    createdAt: string;
+    amountGross: number | null;
+    currency: string | null;
+    confidence: number | null;
+    aiStatus: string | null;
+    vendorName: string | null;
+    vendorDomain: string | null;
+  };
+
+  // Build dynamic query using sql.unsafe with careful parameter handling
+  const conditions: string[] = [];
+  if (!options.includePrivate) conditions.push("COALESCE(invoices.is_private, 0) = 0");
+
+  const params: Array<string | number> = [];
+  let paramIdx = 1;
+
   if (options.statuses && options.statuses.length > 0) {
-    const placeholders = options.statuses.map(() => "?").join(", ");
-    whereClauses.push(`invoices.status IN (${placeholders})`);
-    queryParams.push(...options.statuses);
+    const placeholders = options.statuses.map(() => `$${paramIdx++}`).join(", ");
+    conditions.push(`invoices.status IN (${placeholders})`);
+    params.push(...options.statuses);
   } else if (options.status) {
-    whereClauses.push("invoices.status = ?");
-    queryParams.push(options.status);
+    conditions.push(`invoices.status = $${paramIdx++}`);
+    params.push(options.status);
   }
   if (options.year) {
-    whereClauses.push("strftime('%Y', COALESCE(invoices.invoice_date, invoices.created_at)) = ?");
-    queryParams.push(options.year);
+    conditions.push(`EXTRACT(YEAR FROM COALESCE(invoices.invoice_date, invoices.created_at)::TIMESTAMP)::TEXT = $${paramIdx++}`);
+    params.push(options.year);
   }
   if (options.search) {
-    whereClauses.push("(vendors.name LIKE ? OR invoices.invoice_number LIKE ?)");
-    queryParams.push(`%${options.search}%`, `%${options.search}%`);
+    conditions.push(`(vendors.name ILIKE $${paramIdx++} OR invoices.invoice_number ILIKE $${paramIdx++})`);
+    params.push(`%${options.search}%`, `%${options.search}%`);
   }
 
-  const where = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
-  queryParams.push(limit);
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  params.push(limit);
+  const limitParam = `$${paramIdx}`;
 
-  return db
-    .prepare(
-      `SELECT
-        invoices.id,
-        invoices.status,
-        invoices.source,
-        invoices.invoice_number AS invoiceNumber,
-        invoices.invoice_date AS invoiceDate,
-        invoices.created_at AS createdAt,
-        invoices.amount_gross AS amountGross,
-        invoices.currency,
-        invoices.confidence,
-        (
-          SELECT ai_extractions.status
-          FROM ai_extractions
-          WHERE ai_extractions.invoice_id = invoices.id
-          ORDER BY ai_extractions.created_at DESC, ai_extractions.id DESC
-          LIMIT 1
-        ) AS aiStatus,
-        vendors.name AS vendorName,
-        (
-          SELECT COALESCE(
-            (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
-            (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
-          )
-        ) AS vendorDomain
-       FROM invoices
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       ${where}
-       ORDER BY COALESCE(invoices.invoice_date, invoices.created_at) DESC
-       LIMIT ?`,
-    )
-    .all(...queryParams) as Array<{
-      id: number;
-      status: string;
-      source: string;
-      invoiceNumber: string | null;
-      invoiceDate: string | null;
-      createdAt: string;
-      amountGross: number | null;
-      currency: string | null;
-      confidence: number | null;
-      aiStatus: string | null;
-      vendorName: string | null;
-      vendorDomain: string | null;
-    }>;
+  const queryText = `
+    SELECT
+      invoices.id,
+      invoices.status,
+      invoices.source,
+      invoices.invoice_number AS "invoiceNumber",
+      invoices.invoice_date AS "invoiceDate",
+      invoices.created_at AS "createdAt",
+      invoices.amount_gross AS "amountGross",
+      invoices.currency,
+      invoices.confidence,
+      (
+        SELECT ai_extractions.status
+        FROM ai_extractions
+        WHERE ai_extractions.invoice_id = invoices.id
+        ORDER BY ai_extractions.created_at DESC, ai_extractions.id DESC
+        LIMIT 1
+      ) AS "aiStatus",
+      vendors.name AS "vendorName",
+      (
+        SELECT COALESCE(
+          (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
+          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
+        )
+      ) AS "vendorDomain"
+    FROM invoices
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    ${where}
+    ORDER BY COALESCE(invoices.invoice_date, invoices.created_at) DESC
+    LIMIT ${limitParam}`;
+
+  return await sql.unsafe(queryText, params) as InvoiceListRow[];
 }
 
-export function getInvoiceYears(): number[] {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT DISTINCT strftime('%Y', COALESCE(invoice_date, created_at)) AS year
-       FROM invoices
-       ORDER BY year DESC`,
-    )
-    .all() as Array<{ year: string }>;
+export async function getInvoiceYears(): Promise<number[]> {
+  const rows = await sql<Array<{ year: string }>>`
+    SELECT DISTINCT EXTRACT(YEAR FROM COALESCE(invoice_date, created_at)::TIMESTAMP)::TEXT AS year
+    FROM invoices
+    ORDER BY year DESC`;
   return rows.map((r) => parseInt(r.year, 10)).filter((y) => !isNaN(y));
 }
 
-export function getInvoiceStatusCounts() {
-  const db = getDb();
-  return db
-    .prepare(`SELECT status, COUNT(*) AS count FROM invoices WHERE COALESCE(is_private, 0) = 0 GROUP BY status`)
-    .all() as Array<{ status: string; count: number }>;
+export async function getInvoiceStatusCounts() {
+  return await sql<Array<{ status: string; count: string }>>`
+    SELECT status, COUNT(*) AS count FROM invoices WHERE COALESCE(is_private, 0) = 0 GROUP BY status`;
 }
 
-export function getPrivateInvoiceCount(): number {
-  const db = getDb();
-  return (
-    db.prepare(`SELECT COUNT(*) AS count FROM invoices WHERE COALESCE(is_private, 0) = 1`).get() as { count: number }
-  ).count;
+export async function getPrivateInvoiceCount(): Promise<number> {
+  return Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE COALESCE(is_private, 0) = 1`)[0].count);
 }
 
-export function getPrivateInvoices(options: { year?: string; search?: string } = {}) {
-  const db = getDb();
-  const whereClauses: string[] = ["COALESCE(invoices.is_private, 0) = 1"];
-  const queryParams: Array<string | number> = [];
+export async function getPrivateInvoices(options: { year?: string; search?: string } = {}) {
+  const conditions: string[] = ["COALESCE(invoices.is_private, 0) = 1"];
+  const params: Array<string | number> = [];
+  let paramIdx = 1;
 
   if (options.year) {
-    whereClauses.push("strftime('%Y', COALESCE(invoices.invoice_date, invoices.created_at)) = ?");
-    queryParams.push(options.year);
+    conditions.push(`EXTRACT(YEAR FROM COALESCE(invoices.invoice_date, invoices.created_at)::TIMESTAMP)::TEXT = $${paramIdx++}`);
+    params.push(options.year);
   }
   if (options.search) {
-    whereClauses.push("(vendors.name LIKE ? OR invoices.invoice_number LIKE ?)");
-    queryParams.push(`%${options.search}%`, `%${options.search}%`);
+    conditions.push(`(vendors.name ILIKE $${paramIdx++} OR invoices.invoice_number ILIKE $${paramIdx++})`);
+    params.push(`%${options.search}%`, `%${options.search}%`);
   }
 
-  const where = `WHERE ${whereClauses.join(" AND ")}`;
-  queryParams.push(200);
+  params.push(200);
+  const limitParam = `$${paramIdx}`;
+  const where = `WHERE ${conditions.join(" AND ")}`;
 
-  return db
-    .prepare(
-      `SELECT
-        invoices.id,
-        invoices.status,
-        invoices.source,
-        invoices.invoice_number AS invoiceNumber,
-        invoices.invoice_date AS invoiceDate,
-        invoices.created_at AS createdAt,
-        invoices.amount_gross AS amountGross,
-        invoices.currency,
-        invoices.confidence,
-        NULL AS aiStatus,
-        vendors.name AS vendorName,
-        (
-          SELECT COALESCE(
-            (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
-            (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
-          )
-        ) AS vendorDomain
-       FROM invoices
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       ${where}
-       ORDER BY COALESCE(invoices.invoice_date, invoices.created_at) DESC
-       LIMIT ?`,
-    )
-    .all(...queryParams) as Array<{
-      id: number;
-      status: string;
-      source: string;
-      invoiceNumber: string | null;
-      invoiceDate: string | null;
-      createdAt: string;
-      amountGross: number | null;
-      currency: string | null;
-      confidence: number | null;
-      aiStatus: string | null;
-      vendorName: string | null;
-      vendorDomain: string | null;
-    }>;
+  type PrivateInvoiceRow = {
+    id: number;
+    status: string;
+    source: string;
+    invoiceNumber: string | null;
+    invoiceDate: string | null;
+    createdAt: string;
+    amountGross: number | null;
+    currency: string | null;
+    confidence: number | null;
+    aiStatus: string | null;
+    vendorName: string | null;
+    vendorDomain: string | null;
+  };
+
+  return await sql.unsafe(`
+    SELECT
+      invoices.id,
+      invoices.status,
+      invoices.source,
+      invoices.invoice_number AS "invoiceNumber",
+      invoices.invoice_date AS "invoiceDate",
+      invoices.created_at AS "createdAt",
+      invoices.amount_gross AS "amountGross",
+      invoices.currency,
+      invoices.confidence,
+      NULL AS "aiStatus",
+      vendors.name AS "vendorName",
+      (
+        SELECT COALESCE(
+          (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
+          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
+        )
+      ) AS "vendorDomain"
+    FROM invoices
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    ${where}
+    ORDER BY COALESCE(invoices.invoice_date, invoices.created_at) DESC
+    LIMIT ${limitParam}`, params) as PrivateInvoiceRow[];
 }
 
-export function getInvoiceDetail(invoiceId: number) {
-  const db = getDb();
-  const invoice = db
-    .prepare(
-      `SELECT
-        invoices.id,
-        invoices.vendor_id AS vendorId,
-        invoices.source,
-        invoices.status,
-        invoices.invoice_number AS invoiceNumber,
-        invoices.invoice_date AS invoiceDate,
-        invoices.service_period_start AS servicePeriodStart,
-        invoices.service_period_end AS servicePeriodEnd,
-        invoices.amount_gross AS amountGross,
-        invoices.amount_net AS amountNet,
-        invoices.vat_amount AS vatAmount,
-        invoices.currency,
-        invoices.confidence,
-        invoices.dedupe_key AS dedupeKey,
-        invoices.duplicate_of_invoice_id AS duplicateOfInvoiceId,
-        invoices.raw_text_path AS rawTextPath,
-        invoices.vat_rate AS vatRate,
-        invoices.doc_type AS docType,
-        invoices.preferred_export_target_id AS preferredExportTargetId,
-        invoices.created_at AS createdAt,
-        invoices.updated_at AS updatedAt,
-        vendors.name AS vendorName,
-        (
-          SELECT COALESCE(
-            (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
-            (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
-          )
-        ) AS vendorDomain,
-        duplicate_vendors.name AS duplicateVendorName,
-        duplicate_invoices.invoice_number AS duplicateInvoiceNumber
-       FROM invoices
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       LEFT JOIN invoices AS duplicate_invoices ON duplicate_invoices.id = invoices.duplicate_of_invoice_id
-       LEFT JOIN vendors AS duplicate_vendors ON duplicate_vendors.id = duplicate_invoices.vendor_id
-       WHERE invoices.id = ?`,
-    )
-    .get(invoiceId) as
-    | {
-        id: number;
-        vendorId: number | null;
-        source: string;
-        status: string;
-        invoiceNumber: string | null;
-        invoiceDate: string | null;
-        servicePeriodStart: string | null;
-        servicePeriodEnd: string | null;
-        amountGross: number | null;
-        amountNet: number | null;
-        vatAmount: number | null;
-        currency: string | null;
-        confidence: number | null;
-        dedupeKey: string | null;
-        duplicateOfInvoiceId: number | null;
-        rawTextPath: string | null;
-        vatRate: number | null;
-        docType: string | null;
-        preferredExportTargetId: number | null;
-        createdAt: string;
-        updatedAt: string;
-        vendorName: string | null;
-        vendorDomain: string | null;
-        duplicateVendorName: string | null;
-        duplicateInvoiceNumber: string | null;
-      }
-    | undefined;
+export async function getInvoiceDetail(invoiceId: number) {
+  const invoice = (await sql<Array<{
+    id: number;
+    vendorId: number | null;
+    source: string;
+    status: string;
+    invoiceNumber: string | null;
+    invoiceDate: string | null;
+    servicePeriodStart: string | null;
+    servicePeriodEnd: string | null;
+    amountGross: number | null;
+    amountNet: number | null;
+    vatAmount: number | null;
+    currency: string | null;
+    confidence: number | null;
+    dedupeKey: string | null;
+    duplicateOfInvoiceId: number | null;
+    rawTextPath: string | null;
+    vatRate: number | null;
+    docType: string | null;
+    preferredExportTargetId: number | null;
+    createdAt: string;
+    updatedAt: string;
+    vendorName: string | null;
+    vendorDomain: string | null;
+    duplicateVendorName: string | null;
+    duplicateInvoiceNumber: string | null;
+  }>>`
+    SELECT
+      invoices.id,
+      invoices.vendor_id AS "vendorId",
+      invoices.source,
+      invoices.status,
+      invoices.invoice_number AS "invoiceNumber",
+      invoices.invoice_date AS "invoiceDate",
+      invoices.service_period_start AS "servicePeriodStart",
+      invoices.service_period_end AS "servicePeriodEnd",
+      invoices.amount_gross AS "amountGross",
+      invoices.amount_net AS "amountNet",
+      invoices.vat_amount AS "vatAmount",
+      invoices.currency,
+      invoices.confidence,
+      invoices.dedupe_key AS "dedupeKey",
+      invoices.duplicate_of_invoice_id AS "duplicateOfInvoiceId",
+      invoices.raw_text_path AS "rawTextPath",
+      invoices.vat_rate AS "vatRate",
+      invoices.doc_type AS "docType",
+      invoices.preferred_export_target_id AS "preferredExportTargetId",
+      invoices.created_at AS "createdAt",
+      invoices.updated_at AS "updatedAt",
+      vendors.name AS "vendorName",
+      (
+        SELECT COALESCE(
+          (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
+          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
+        )
+      ) AS "vendorDomain",
+      duplicate_vendors.name AS "duplicateVendorName",
+      duplicate_invoices.invoice_number AS "duplicateInvoiceNumber"
+    FROM invoices
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    LEFT JOIN invoices AS duplicate_invoices ON duplicate_invoices.id = invoices.duplicate_of_invoice_id
+    LEFT JOIN vendors AS duplicate_vendors ON duplicate_vendors.id = duplicate_invoices.vendor_id
+    WHERE invoices.id = ${invoiceId}`)[0];
 
   if (!invoice) return null;
 
-  const files = db
-    .prepare(
-      `SELECT id, original_filename AS originalFilename, stored_path AS storedPath, sha256,
-        size_bytes AS sizeBytes, mime_type AS mimeType, source_type AS sourceType,
-        source_ref_id AS sourceRefId, created_at AS createdAt
-       FROM invoice_files
-       WHERE invoice_id = ?
-       ORDER BY created_at DESC, id DESC`,
-    )
-    .all(invoiceId) as Array<{
-      id: number;
-      originalFilename: string;
-      storedPath: string;
-      sha256: string;
-      sizeBytes: number;
-      mimeType: string;
-      sourceType: string;
-      sourceRefId: string | null;
-      createdAt: string;
-    }>;
+  const files = await sql<Array<{
+    id: number;
+    originalFilename: string;
+    storedPath: string;
+    sha256: string;
+    sizeBytes: number;
+    mimeType: string;
+    sourceType: string;
+    sourceRefId: string | null;
+    createdAt: string;
+  }>>`
+    SELECT id, original_filename AS "originalFilename", stored_path AS "storedPath", sha256,
+      size_bytes AS "sizeBytes", mime_type AS "mimeType", source_type AS "sourceType",
+      source_ref_id AS "sourceRefId", created_at AS "createdAt"
+    FROM invoice_files
+    WHERE invoice_id = ${invoiceId}
+    ORDER BY created_at DESC, id DESC`;
 
-  const latestExtraction = db
-    .prepare(
-      `SELECT id, provider, model, prompt_version AS promptVersion, status, error,
-        output_json AS outputJson, created_at AS createdAt
-       FROM ai_extractions
-       WHERE invoice_id = ?
-       ORDER BY created_at DESC, id DESC
-       LIMIT 1`,
-    )
-    .get(invoiceId) as
-    | {
-        id: number;
-        provider: string;
-        model: string | null;
-        promptVersion: string;
-        status: string;
-        error: string | null;
-        outputJson: string | null;
-        createdAt: string;
-      }
-    | undefined;
+  const latestExtraction = (await sql<Array<{
+    id: number;
+    provider: string;
+    model: string | null;
+    promptVersion: string;
+    status: string;
+    error: string | null;
+    outputJson: string | null;
+    createdAt: string;
+  }>>`
+    SELECT id, provider, model, prompt_version AS "promptVersion", status, error,
+      output_json AS "outputJson", created_at AS "createdAt"
+    FROM ai_extractions
+    WHERE invoice_id = ${invoiceId}
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1`)[0];
 
-  const events = db
-    .prepare(
-      `SELECT id, level, event_type AS eventType, year_month AS yearMonth, message, metadata_json AS metadataJson,
-        created_at AS createdAt
-       FROM sync_events
-       WHERE invoice_id = ?
-       ORDER BY created_at DESC, id DESC
-       LIMIT 25`,
-    )
-    .all(invoiceId) as Array<{
-      id: number;
-      level: string;
-      eventType: string;
-      yearMonth: string | null;
-      message: string;
-      metadataJson: string;
-      createdAt: string;
-    }>;
+  const events = await sql<Array<{
+    id: number;
+    level: string;
+    eventType: string;
+    yearMonth: string | null;
+    message: string;
+    metadataJson: string;
+    createdAt: string;
+  }>>`
+    SELECT id, level, event_type AS "eventType", year_month AS "yearMonth", message, metadata_json AS "metadataJson",
+      created_at AS "createdAt"
+    FROM sync_events
+    WHERE invoice_id = ${invoiceId}
+    ORDER BY created_at DESC, id DESC
+    LIMIT 25`;
 
   return {
     ...invoice,
@@ -621,28 +557,24 @@ export function getInvoiceDetail(invoiceId: number) {
   };
 }
 
-export function getInvoiceReviewOptions(currentInvoiceId: number, limit = 50) {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT invoices.id, invoices.invoice_number AS invoiceNumber, invoices.invoice_date AS invoiceDate,
-        invoices.amount_gross AS amountGross, invoices.currency, invoices.status,
-        vendors.name AS vendorName
-       FROM invoices
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       WHERE invoices.id != ?
-       ORDER BY invoices.created_at DESC, invoices.id DESC
-       LIMIT ?`,
-    )
-    .all(currentInvoiceId, limit) as Array<{
-      id: number;
-      invoiceNumber: string | null;
-      invoiceDate: string | null;
-      amountGross: number | null;
-      currency: string | null;
-      status: string;
-      vendorName: string | null;
-    }>;
+export async function getInvoiceReviewOptions(currentInvoiceId: number, limit = 50) {
+  return await sql<Array<{
+    id: number;
+    invoiceNumber: string | null;
+    invoiceDate: string | null;
+    amountGross: number | null;
+    currency: string | null;
+    status: string;
+    vendorName: string | null;
+  }>>`
+    SELECT invoices.id, invoices.invoice_number AS "invoiceNumber", invoices.invoice_date AS "invoiceDate",
+      invoices.amount_gross AS "amountGross", invoices.currency, invoices.status,
+      vendors.name AS "vendorName"
+    FROM invoices
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    WHERE invoices.id != ${currentInvoiceId}
+    ORDER BY invoices.created_at DESC, invoices.id DESC
+    LIMIT ${limit}`;
 }
 
 export type VendorRow = {
@@ -656,54 +588,43 @@ export type VendorRow = {
   portalCategory: string | null;
 };
 
-export function getVendors(): VendorRow[] {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT id, name, canonical_key AS canonicalKey, category, portal_enabled AS portalEnabled, hidden,
-        portal_login_url AS portalLoginUrl, portal_category AS portalCategory
-       FROM vendors
-       ORDER BY name COLLATE NOCASE`,
-    )
-    .all() as VendorRow[];
+export async function getVendors(): Promise<VendorRow[]> {
+  return await sql<VendorRow[]>`
+    SELECT id, name, canonical_key AS "canonicalKey", category, portal_enabled AS "portalEnabled", hidden,
+      portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory"
+    FROM vendors
+    ORDER BY name`;
 }
 
-export function findVendorByCanonicalKey(canonicalKey: string): VendorRow | null {
-  const db = getDb();
-  const row = db
-    .prepare(
-      `SELECT id, name, canonical_key AS canonicalKey, category, portal_enabled AS portalEnabled, hidden,
-        portal_login_url AS portalLoginUrl, portal_category AS portalCategory
-       FROM vendors WHERE canonical_key = ? LIMIT 1`,
-    )
-    .get(canonicalKey) as VendorRow | undefined;
+export async function findVendorByCanonicalKey(canonicalKey: string): Promise<VendorRow | null> {
+  const row = (await sql<VendorRow[]>`
+    SELECT id, name, canonical_key AS "canonicalKey", category, portal_enabled AS "portalEnabled", hidden,
+      portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory"
+    FROM vendors WHERE canonical_key = ${canonicalKey} LIMIT 1`)[0];
   return row ?? null;
 }
 
-export function upsertVendor(input: {
+export async function upsertVendor(input: {
   name: string;
   canonicalKey: string;
   category?: string;
   portalLoginUrl?: string | null;
   portalCategory?: string | null;
-}): VendorRow {
-  const db = getDb();
-  const existing = findVendorByCanonicalKey(input.canonicalKey);
+}): Promise<VendorRow> {
+  const existing = await findVendorByCanonicalKey(input.canonicalKey);
   if (existing) {
-    db.prepare(
-      `UPDATE vendors SET name = ?, category = COALESCE(?, category),
-         portal_login_url = COALESCE(?, portal_login_url),
-         portal_category = COALESCE(?, portal_category),
-         updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-    ).run(input.name, input.category ?? null, input.portalLoginUrl ?? null, input.portalCategory ?? null, existing.id);
+    await sql`
+      UPDATE vendors SET name = ${input.name}, category = COALESCE(${input.category ?? null}, category),
+        portal_login_url = COALESCE(${input.portalLoginUrl ?? null}, portal_login_url),
+        portal_category = COALESCE(${input.portalCategory ?? null}, portal_category),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${existing.id}`;
   } else {
-    db.prepare(
-      `INSERT INTO vendors (name, canonical_key, category, portal_enabled, portal_login_url, portal_category)
-       VALUES (?, ?, ?, 0, ?, ?)`,
-    ).run(input.name, input.canonicalKey, input.category ?? "unknown", input.portalLoginUrl ?? null, input.portalCategory ?? null);
+    await sql`
+      INSERT INTO vendors (name, canonical_key, category, portal_enabled, portal_login_url, portal_category)
+      VALUES (${input.name}, ${input.canonicalKey}, ${input.category ?? "unknown"}, 0, ${input.portalLoginUrl ?? null}, ${input.portalCategory ?? null})`;
   }
-  return findVendorByCanonicalKey(input.canonicalKey)!;
+  return (await findVendorByCanonicalKey(input.canonicalKey))!;
 }
 
 export type MissingItem = {
@@ -712,9 +633,7 @@ export type MissingItem = {
   vendorCanonicalKey: string;
   vendorDomain: string | null;
   portalAvailable: boolean;
-  /** Most urgent / most recent missing yearMonth for this vendor. */
   yearMonth: string;
-  /** Total number of missing months for this vendor. */
   missingMonths: number;
   finalStatus: string;
   portalStatus: string;
@@ -724,43 +643,37 @@ export type MissingItem = {
 
 const BUCKET_PRIORITY: Record<MissingItem["bucket"], number> = { help: 0, auto: 1, wait: 2 };
 
-export function getMissingItems(): MissingItem[] {
-  const db = getDb();
-  // Query ordered: name ASC, yearMonth DESC — so first row per vendor = most recent month
-  const rows = db
-    .prepare(
-      `SELECT v.id AS vendorId, v.name AS vendorName, v.canonical_key AS vendorCanonicalKey,
-        v.portal_enabled AS portalEnabled,
-        vms.year_month AS yearMonth, vms.final_status AS finalStatus, vms.portal_status AS portalStatus,
-        (
-          SELECT COALESCE(
-            (SELECT alias FROM vendor_aliases WHERE vendor_id = v.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
-            (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = v.id ORDER BY pdf_count DESC LIMIT 1)
-          )
-        ) AS vendorDomain,
-        (
-          SELECT AVG(i.amount_gross)
-          FROM invoices i
-          WHERE i.vendor_id = v.id AND i.status = 'exported' AND i.amount_gross IS NOT NULL
-        ) AS avgAmount
-       FROM vendor_month_status vms
-       JOIN vendors v ON v.id = vms.vendor_id
-       WHERE v.hidden = 0 AND vms.final_status IN ('missing', 'action_required', 'unchecked')
-       ORDER BY v.name ASC, vms.year_month DESC`,
-    )
-    .all() as Array<{
-      vendorId: number;
-      vendorName: string;
-      vendorCanonicalKey: string;
-      portalEnabled: number;
-      yearMonth: string;
-      finalStatus: string;
-      portalStatus: string;
-      vendorDomain: string | null;
-      avgAmount: number | null;
-    }>;
+export async function getMissingItems(): Promise<MissingItem[]> {
+  const rows = await sql<Array<{
+    vendorId: number;
+    vendorName: string;
+    vendorCanonicalKey: string;
+    portalEnabled: number;
+    yearMonth: string;
+    finalStatus: string;
+    portalStatus: string;
+    vendorDomain: string | null;
+    avgAmount: number | null;
+  }>>`
+    SELECT v.id AS "vendorId", v.name AS "vendorName", v.canonical_key AS "vendorCanonicalKey",
+      v.portal_enabled AS "portalEnabled",
+      vms.year_month AS "yearMonth", vms.final_status AS "finalStatus", vms.portal_status AS "portalStatus",
+      (
+        SELECT COALESCE(
+          (SELECT alias FROM vendor_aliases WHERE vendor_id = v.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
+          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = v.id ORDER BY pdf_count DESC LIMIT 1)
+        )
+      ) AS "vendorDomain",
+      (
+        SELECT AVG(i.amount_gross)
+        FROM invoices i
+        WHERE i.vendor_id = v.id AND i.status = 'exported' AND i.amount_gross IS NOT NULL
+      ) AS "avgAmount"
+    FROM vendor_month_status vms
+    JOIN vendors v ON v.id = vms.vendor_id
+    WHERE v.hidden = 0 AND vms.final_status IN ('missing', 'action_required', 'unchecked')
+    ORDER BY v.name ASC, vms.year_month DESC`;
 
-  // Deduplicate: one row per vendor — keep most urgent bucket, most recent month within bucket
   type Entry = { item: MissingItem; count: number };
   const vendorMap = new Map<number, Entry>();
 
@@ -772,7 +685,7 @@ export function getMissingItems(): MissingItem[] {
     else bucket = "wait";
 
     const item: MissingItem = {
-      vendorId: r.vendorId,
+      vendorId: Number(r.vendorId),
       vendorName: r.vendorName,
       vendorCanonicalKey: r.vendorCanonicalKey,
       vendorDomain: r.vendorDomain,
@@ -785,13 +698,12 @@ export function getMissingItems(): MissingItem[] {
       avgAmount: r.avgAmount ?? null,
     };
 
-    const existing = vendorMap.get(r.vendorId);
+    const existing = vendorMap.get(Number(r.vendorId));
     if (!existing) {
-      vendorMap.set(r.vendorId, { item, count: 1 });
+      vendorMap.set(Number(r.vendorId), { item, count: 1 });
       continue;
     }
     existing.count++;
-    // Replace representative row if this bucket has higher priority, or same priority + more recent
     const curPri = BUCKET_PRIORITY[bucket];
     const prevPri = BUCKET_PRIORITY[existing.item.bucket];
     if (curPri < prevPri || (curPri === prevPri && r.yearMonth > existing.item.yearMonth)) {
@@ -809,32 +721,25 @@ export function getMissingItems(): MissingItem[] {
     });
 }
 
-// getPortalOverview entfernt — /portals-Seite gibt es nicht mehr.
-// Online-Konto-Status kommt jetzt aus portal_run_logs pro Vendor.
-
-export function getMissingMatrix(includeHidden = false) {
-  const db = getDb();
-  const allVendors = getVendors();
+export async function getMissingMatrix(includeHidden = false) {
+  const allVendors = await getVendors();
   const vendors = includeHidden ? allVendors : allVendors.filter((v) => v.hidden === 0);
   const months = Array.from({ length: appConfig.syncMonthsBack }, (_, index) =>
     format(subMonths(new Date(), appConfig.syncMonthsBack - index - 1), "yyyy-MM"),
   );
-  const statuses = db
-    .prepare(
-      `SELECT vendor_id AS vendorId, year_month AS yearMonth, mail_status AS mailStatus,
-        portal_status AS portalStatus, manual_status AS manualStatus,
-        final_status AS finalStatus, source_used AS sourceUsed
-       FROM vendor_month_status`,
-    )
-    .all() as Array<{
-      vendorId: number;
-      yearMonth: string;
-      mailStatus: string;
-      portalStatus: string;
-      manualStatus: string;
-      finalStatus: string;
-      sourceUsed: string;
-    }>;
+  const statuses = await sql<Array<{
+    vendorId: number;
+    yearMonth: string;
+    mailStatus: string;
+    portalStatus: string;
+    manualStatus: string;
+    finalStatus: string;
+    sourceUsed: string;
+  }>>`
+    SELECT vendor_id AS "vendorId", year_month AS "yearMonth", mail_status AS "mailStatus",
+      portal_status AS "portalStatus", manual_status AS "manualStatus",
+      final_status AS "finalStatus", source_used AS "sourceUsed"
+    FROM vendor_month_status`;
   const statusByVendorMonth = new Map(statuses.map((status) => [`${status.vendorId}:${status.yearMonth}`, status]));
 
   return vendors.map((vendor) => ({
@@ -863,122 +768,102 @@ function getMatrixCellStatus(row: {
   return row.finalStatus;
 }
 
-export function getRuns(limit = 40) {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT id, type, status, triggered_by AS triggeredBy, summary_json AS summaryJson, started_at AS startedAt,
-        finished_at AS finishedAt, created_at AS createdAt
-       FROM sync_runs
-       ORDER BY created_at DESC, id DESC
-       LIMIT ?`,
-    )
-    .all(limit) as Array<{
-      id: number;
-      type: string;
-      status: string;
-      triggeredBy: string;
-      summaryJson: string;
-      startedAt: string | null;
-      finishedAt: string | null;
-      createdAt: string;
-    }>;
+export async function getRuns(limit = 40) {
+  return await sql<Array<{
+    id: number;
+    type: string;
+    status: string;
+    triggeredBy: string;
+    summaryJson: string;
+    startedAt: string | null;
+    finishedAt: string | null;
+    createdAt: string;
+  }>>`
+    SELECT id, type, status, triggered_by AS "triggeredBy", summary_json AS "summaryJson", started_at AS "startedAt",
+      finished_at AS "finishedAt", created_at AS "createdAt"
+    FROM sync_runs
+    ORDER BY created_at DESC, id DESC
+    LIMIT ${limit}`;
 }
 
-export function getDownloads(limit = 50) {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT invoice_files.id, invoice_files.invoice_id AS invoiceId, invoice_files.original_filename AS originalFilename,
-        invoice_files.stored_path AS storedPath, invoice_files.sha256, invoice_files.size_bytes AS sizeBytes,
-        invoice_files.source_type AS sourceType, invoices.status AS invoiceStatus,
-        (
-          SELECT ai_extractions.status
-          FROM ai_extractions
-          WHERE ai_extractions.invoice_id = invoices.id
-          ORDER BY ai_extractions.created_at DESC, ai_extractions.id DESC
-          LIMIT 1
-        ) AS aiStatus,
-        vendors.name AS vendorName
-       FROM invoice_files
-       LEFT JOIN invoices ON invoices.id = invoice_files.invoice_id
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       ORDER BY invoice_files.created_at DESC
-       LIMIT ?`,
-    )
-    .all(limit) as Array<{
-      id: number;
-      invoiceId: number | null;
-      originalFilename: string;
-      storedPath: string;
-      sha256: string;
-      sizeBytes: number;
-      sourceType: string;
-      invoiceStatus: string | null;
-      aiStatus: string | null;
-      vendorName: string | null;
-    }>;
+export async function getDownloads(limit = 50) {
+  return await sql<Array<{
+    id: number;
+    invoiceId: number | null;
+    originalFilename: string;
+    storedPath: string;
+    sha256: string;
+    sizeBytes: number;
+    sourceType: string;
+    invoiceStatus: string | null;
+    aiStatus: string | null;
+    vendorName: string | null;
+  }>>`
+    SELECT invoice_files.id, invoice_files.invoice_id AS "invoiceId", invoice_files.original_filename AS "originalFilename",
+      invoice_files.stored_path AS "storedPath", invoice_files.sha256, invoice_files.size_bytes AS "sizeBytes",
+      invoice_files.source_type AS "sourceType", invoices.status AS "invoiceStatus",
+      (
+        SELECT ai_extractions.status
+        FROM ai_extractions
+        WHERE ai_extractions.invoice_id = invoices.id
+        ORDER BY ai_extractions.created_at DESC, ai_extractions.id DESC
+        LIMIT 1
+      ) AS "aiStatus",
+      vendors.name AS "vendorName"
+    FROM invoice_files
+    LEFT JOIN invoices ON invoices.id = invoice_files.invoice_id
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    ORDER BY invoice_files.created_at DESC
+    LIMIT ${limit}`;
 }
 
-export function getExportQueue(limit = 200) {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT exports.id, exports.invoice_id AS invoiceId, exports.status,
-        exports.attempt_count AS attemptCount,
-        exports.last_error AS lastError, exports.sent_at AS sentAt,
-        export_targets.label AS targetLabel, invoices.invoice_date AS invoiceDate,
-        invoices.amount_gross AS amountGross, invoices.currency, vendors.name AS vendorName
-       FROM exports
-       JOIN export_targets ON export_targets.id = exports.export_target_id
-       JOIN invoices ON invoices.id = exports.invoice_id
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       ORDER BY exports.status ASC, exports.created_at DESC
-       LIMIT ?`,
-    )
-    .all(limit) as Array<{
-      id: number;
-      invoiceId: number;
-      status: string;
-      attemptCount: number;
-      lastError: string | null;
-      sentAt: string | null;
-      targetLabel: string;
-      invoiceDate: string | null;
-      amountGross: number | null;
-      currency: string | null;
-      vendorName: string | null;
-    }>;
+export async function getExportQueue(limit = 200) {
+  return await sql<Array<{
+    id: number;
+    invoiceId: number;
+    status: string;
+    attemptCount: number;
+    lastError: string | null;
+    sentAt: string | null;
+    targetLabel: string;
+    invoiceDate: string | null;
+    amountGross: number | null;
+    currency: string | null;
+    vendorName: string | null;
+  }>>`
+    SELECT exports.id, exports.invoice_id AS "invoiceId", exports.status,
+      exports.attempt_count AS "attemptCount",
+      exports.last_error AS "lastError", exports.sent_at AS "sentAt",
+      export_targets.label AS "targetLabel", invoices.invoice_date AS "invoiceDate",
+      invoices.amount_gross AS "amountGross", invoices.currency, vendors.name AS "vendorName"
+    FROM exports
+    JOIN export_targets ON export_targets.id = exports.export_target_id
+    JOIN invoices ON invoices.id = exports.invoice_id
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    ORDER BY exports.status ASC, exports.created_at DESC
+    LIMIT ${limit}`;
 }
 
-export function getExportStats() {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT export_targets.label AS targetLabel, exports.status, COUNT(*) AS count
-       FROM exports
-       JOIN export_targets ON export_targets.id = exports.export_target_id
-       GROUP BY export_targets.id, exports.status`,
-    )
-    .all() as Array<{ targetLabel: string; status: string; count: number }>;
+export async function getExportStats() {
+  return await sql<Array<{ targetLabel: string; status: string; count: string }>>`
+    SELECT export_targets.label AS "targetLabel", exports.status, COUNT(*) AS count
+    FROM exports
+    JOIN export_targets ON export_targets.id = exports.export_target_id
+    GROUP BY export_targets.id, exports.status`;
 }
 
-export function getCredentialSummaries() {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT id, scope, label, secret_store AS secretStore, status, last_verified_at AS lastVerifiedAt
-       FROM credential_refs
-       ORDER BY scope, label`,
-    )
-    .all() as Array<{
-      id: number;
-      scope: string;
-      label: string;
-      secretStore: string;
-      status: string;
-      lastVerifiedAt: string | null;
-    }>;
+export async function getCredentialSummaries() {
+  return await sql<Array<{
+    id: number;
+    scope: string;
+    label: string;
+    secretStore: string;
+    status: string;
+    lastVerifiedAt: string | null;
+  }>>`
+    SELECT id, scope, label, secret_store AS "secretStore", status, last_verified_at AS "lastVerifiedAt"
+    FROM credential_refs
+    ORDER BY scope, label`;
 }
 
 export type MailAccountSummary = {
@@ -992,37 +877,29 @@ export type MailAccountSummary = {
   lastVerifiedAt: string | null;
 };
 
-export function getPrimaryMailAccount() {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT id, label, host, port, secure, username, status, last_verified_at AS lastVerifiedAt
-       FROM mail_accounts
-       WHERE label = 'Primary IMAP'
-       ORDER BY id DESC
-       LIMIT 1`,
-    )
-    .get() as MailAccountSummary | undefined;
+export async function getPrimaryMailAccount() {
+  return (await sql<MailAccountSummary[]>`
+    SELECT id, label, host, port, secure, username, status, last_verified_at AS "lastVerifiedAt"
+    FROM mail_accounts
+    WHERE label = 'Primary IMAP'
+    ORDER BY id DESC
+    LIMIT 1`)[0];
 }
 
-export function getSecondaryMailAccount() {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT id, label, host, port, secure, username, status, last_verified_at AS lastVerifiedAt
-       FROM mail_accounts
-       WHERE label = 'Secondary IMAP'
-       ORDER BY id DESC
-       LIMIT 1`,
-    )
-    .get() as MailAccountSummary | undefined;
+export async function getSecondaryMailAccount() {
+  return (await sql<MailAccountSummary[]>`
+    SELECT id, label, host, port, secure, username, status, last_verified_at AS "lastVerifiedAt"
+    FROM mail_accounts
+    WHERE label = 'Secondary IMAP'
+    ORDER BY id DESC
+    LIMIT 1`)[0];
 }
 
-export function getPrimarySmtpAccount() {
+export async function getPrimarySmtpAccount() {
   return getStoredSmtpAccount("primary");
 }
 
-export function getSecondarySmtpAccount() {
+export async function getSecondarySmtpAccount() {
   return getStoredSmtpAccount("secondary");
 }
 
@@ -1058,105 +935,83 @@ type AutoApprovalRow = {
 
 function mapAutoApprovalRow(row: AutoApprovalRow): AutoApprovalRule {
   return {
-    id: row.id,
-    vendorId: row.vendor_id,
+    id: Number(row.id),
+    vendorId: row.vendor_id ? Number(row.vendor_id) : null,
     vendorPattern: row.vendor_pattern,
-    maxAmountCents: row.max_amount_cents,
-    enabled: row.enabled === 1,
+    maxAmountCents: row.max_amount_cents ? Number(row.max_amount_cents) : null,
+    enabled: Number(row.enabled) === 1,
     vendorName: row.vendor_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-export function listAutoApprovalRules(db: Database.Database = getDb()): AutoApprovalRule[] {
-  const rows = db
-    .prepare(
-      `SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
-              r.created_at, r.updated_at, v.name AS vendor_name
-       FROM auto_approval_rules r
-       LEFT JOIN vendors v ON v.id = r.vendor_id
-       ORDER BY r.enabled DESC, COALESCE(v.name, r.vendor_pattern) ASC`,
-    )
-    .all() as AutoApprovalRow[];
+export async function listAutoApprovalRules(): Promise<AutoApprovalRule[]> {
+  const rows = await sql<AutoApprovalRow[]>`
+    SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
+            r.created_at, r.updated_at, v.name AS vendor_name
+    FROM auto_approval_rules r
+    LEFT JOIN vendors v ON v.id = r.vendor_id
+    ORDER BY r.enabled DESC, COALESCE(v.name, r.vendor_pattern) ASC`;
   return rows.map(mapAutoApprovalRow);
 }
 
-export function getAutoApprovalRulesForVendor(
+export async function getAutoApprovalRulesForVendor(
   vendorId: number | null,
   vendorName: string | null,
-  db: Database.Database = getDb(),
-): AutoApprovalRule[] {
-  const rows = db
-    .prepare(
-      `SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
-              r.created_at, r.updated_at, v.name AS vendor_name
-       FROM auto_approval_rules r
-       LEFT JOIN vendors v ON v.id = r.vendor_id
-       WHERE r.enabled = 1
-         AND (
-           (r.vendor_id IS NOT NULL AND r.vendor_id = ?)
-           OR (r.vendor_pattern IS NOT NULL
-               AND ? IS NOT NULL
-               AND LOWER(?) LIKE '%' || LOWER(r.vendor_pattern) || '%')
-         )`,
-    )
-    .all(vendorId, vendorName, vendorName) as AutoApprovalRow[];
+): Promise<AutoApprovalRule[]> {
+  const rows = await sql<AutoApprovalRow[]>`
+    SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
+            r.created_at, r.updated_at, v.name AS vendor_name
+    FROM auto_approval_rules r
+    LEFT JOIN vendors v ON v.id = r.vendor_id
+    WHERE r.enabled = 1
+      AND (
+        (r.vendor_id IS NOT NULL AND r.vendor_id = ${vendorId})
+        OR (r.vendor_pattern IS NOT NULL
+            AND ${vendorName} IS NOT NULL
+            AND LOWER(${vendorName}) LIKE '%' || LOWER(r.vendor_pattern) || '%')
+      )`;
   return rows.map(mapAutoApprovalRow);
 }
 
-export function upsertAutoApprovalRule(input: {
+export async function upsertAutoApprovalRule(input: {
   id?: number;
   vendorId: number | null;
   vendorPattern: string | null;
   maxAmountCents: number | null;
   enabled: boolean;
-  db?: Database.Database;
-}): AutoApprovalRule {
-  const db = input.db ?? getDb();
+}): Promise<AutoApprovalRule> {
   if (input.id) {
-    db.prepare(
-      `UPDATE auto_approval_rules
-       SET vendor_id = ?, vendor_pattern = ?, max_amount_cents = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-    ).run(
-      input.vendorId,
-      input.vendorPattern,
-      input.maxAmountCents,
-      input.enabled ? 1 : 0,
-      input.id,
-    );
-    const updated = db
-      .prepare(
-        `SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
-                r.created_at, r.updated_at, v.name AS vendor_name
-         FROM auto_approval_rules r
-         LEFT JOIN vendors v ON v.id = r.vendor_id
-         WHERE r.id = ?`,
-      )
-      .get(input.id) as AutoApprovalRow;
+    await sql`
+      UPDATE auto_approval_rules
+      SET vendor_id = ${input.vendorId}, vendor_pattern = ${input.vendorPattern},
+          max_amount_cents = ${input.maxAmountCents}, enabled = ${input.enabled ? 1 : 0},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${input.id}`;
+    const updated = (await sql<AutoApprovalRow[]>`
+      SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
+              r.created_at, r.updated_at, v.name AS vendor_name
+      FROM auto_approval_rules r
+      LEFT JOIN vendors v ON v.id = r.vendor_id
+      WHERE r.id = ${input.id}`)[0];
     return mapAutoApprovalRow(updated);
   }
-  const info = db
-    .prepare(
-      `INSERT INTO auto_approval_rules (vendor_id, vendor_pattern, max_amount_cents, enabled)
-       VALUES (?, ?, ?, ?)`,
-    )
-    .run(input.vendorId, input.vendorPattern, input.maxAmountCents, input.enabled ? 1 : 0);
-  const inserted = db
-    .prepare(
-      `SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
-              r.created_at, r.updated_at, v.name AS vendor_name
-       FROM auto_approval_rules r
-       LEFT JOIN vendors v ON v.id = r.vendor_id
-       WHERE r.id = ?`,
-    )
-    .get(info.lastInsertRowid) as AutoApprovalRow;
-  return mapAutoApprovalRow(inserted);
+  const [inserted] = await sql<Array<{ id: string }>>`
+    INSERT INTO auto_approval_rules (vendor_id, vendor_pattern, max_amount_cents, enabled)
+    VALUES (${input.vendorId}, ${input.vendorPattern}, ${input.maxAmountCents}, ${input.enabled ? 1 : 0})
+    RETURNING id`;
+  const row = (await sql<AutoApprovalRow[]>`
+    SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
+            r.created_at, r.updated_at, v.name AS vendor_name
+    FROM auto_approval_rules r
+    LEFT JOIN vendors v ON v.id = r.vendor_id
+    WHERE r.id = ${Number(inserted.id)}`)[0];
+  return mapAutoApprovalRow(row);
 }
 
-export function deleteAutoApprovalRule(id: number, db: Database.Database = getDb()): void {
-  db.prepare(`DELETE FROM auto_approval_rules WHERE id = ?`).run(id);
+export async function deleteAutoApprovalRule(id: number): Promise<void> {
+  await sql`DELETE FROM auto_approval_rules WHERE id = ${id}`;
 }
 
 export type IntegrationProvider = "lexoffice" | "sevdesk" | "datev";
@@ -1187,177 +1042,134 @@ type IntegrationRow = {
 
 function mapIntegrationRow(row: IntegrationRow): IntegrationTarget {
   return {
-    id: row.id,
+    id: Number(row.id),
     provider: row.provider as IntegrationProvider,
     label: row.label,
     oauthTokenRef: row.oauth_token_ref,
     externalAccountId: row.external_account_id,
-    enabled: row.enabled === 1,
+    enabled: Number(row.enabled) === 1,
     lastVerifiedAt: row.last_verified_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-export function listIntegrationTargets(db: Database.Database = getDb()): IntegrationTarget[] {
-  const rows = db
-    .prepare(
-      `SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
-              last_verified_at, created_at, updated_at
-       FROM integration_targets
-       ORDER BY enabled DESC, provider ASC`,
-    )
-    .all() as IntegrationRow[];
+export async function listIntegrationTargets(): Promise<IntegrationTarget[]> {
+  const rows = await sql<IntegrationRow[]>`
+    SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
+            last_verified_at, created_at, updated_at
+    FROM integration_targets
+    ORDER BY enabled DESC, provider ASC`;
   return rows.map(mapIntegrationRow);
 }
 
-export function getIntegrationTarget(
+export async function getIntegrationTarget(
   provider: IntegrationProvider,
-  db: Database.Database = getDb(),
-): IntegrationTarget | null {
-  const row = db
-    .prepare(
-      `SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
-              last_verified_at, created_at, updated_at
-       FROM integration_targets
-       WHERE provider = ?`,
-    )
-    .get(provider) as IntegrationRow | undefined;
+): Promise<IntegrationTarget | null> {
+  const row = (await sql<IntegrationRow[]>`
+    SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
+            last_verified_at, created_at, updated_at
+    FROM integration_targets
+    WHERE provider = ${provider}`)[0];
   return row ? mapIntegrationRow(row) : null;
 }
 
-export function getActiveIntegrationTarget(
-  db: Database.Database = getDb(),
-): IntegrationTarget | null {
-  const row = db
-    .prepare(
-      `SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
-              last_verified_at, created_at, updated_at
-       FROM integration_targets
-       WHERE enabled = 1
-       ORDER BY updated_at DESC
-       LIMIT 1`,
-    )
-    .get() as IntegrationRow | undefined;
+export async function getActiveIntegrationTarget(): Promise<IntegrationTarget | null> {
+  const row = (await sql<IntegrationRow[]>`
+    SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
+            last_verified_at, created_at, updated_at
+    FROM integration_targets
+    WHERE enabled = 1
+    ORDER BY updated_at DESC
+    LIMIT 1`)[0];
   return row ? mapIntegrationRow(row) : null;
 }
 
-export function upsertIntegrationTarget(input: {
+export async function upsertIntegrationTarget(input: {
   provider: IntegrationProvider;
   label: string;
   oauthTokenRef?: string | null;
   externalAccountId?: string | null;
   enabled?: boolean;
-  db?: Database.Database;
-}): IntegrationTarget {
-  const db = input.db ?? getDb();
+}): Promise<IntegrationTarget> {
   const enabledFlag = (input.enabled ?? true) ? 1 : 0;
-  db.prepare(
-    `INSERT INTO integration_targets (provider, label, oauth_token_ref, external_account_id, enabled)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(provider) DO UPDATE SET
-       label = excluded.label,
-       oauth_token_ref = COALESCE(excluded.oauth_token_ref, integration_targets.oauth_token_ref),
-       external_account_id = COALESCE(excluded.external_account_id, integration_targets.external_account_id),
-       enabled = excluded.enabled,
-       updated_at = CURRENT_TIMESTAMP`,
-  ).run(
-    input.provider,
-    input.label,
-    input.oauthTokenRef ?? null,
-    input.externalAccountId ?? null,
-    enabledFlag,
-  );
-  const target = getIntegrationTarget(input.provider, db);
+  await sql`
+    INSERT INTO integration_targets (provider, label, oauth_token_ref, external_account_id, enabled)
+    VALUES (${input.provider}, ${input.label}, ${input.oauthTokenRef ?? null}, ${input.externalAccountId ?? null}, ${enabledFlag})
+    ON CONFLICT(provider) DO UPDATE SET
+      label = EXCLUDED.label,
+      oauth_token_ref = COALESCE(EXCLUDED.oauth_token_ref, integration_targets.oauth_token_ref),
+      external_account_id = COALESCE(EXCLUDED.external_account_id, integration_targets.external_account_id),
+      enabled = EXCLUDED.enabled,
+      updated_at = CURRENT_TIMESTAMP`;
+  const target = await getIntegrationTarget(input.provider);
   if (!target) throw new Error(`Integration ${input.provider} not found after upsert`);
   return target;
 }
 
-export function disableIntegrationTarget(
-  provider: IntegrationProvider,
-  db: Database.Database = getDb(),
-): void {
-  db.prepare(
-    `UPDATE integration_targets SET enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE provider = ?`,
-  ).run(provider);
+export async function disableIntegrationTarget(provider: IntegrationProvider): Promise<void> {
+  await sql`
+    UPDATE integration_targets SET enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE provider = ${provider}`;
 }
 
-export function markIntegrationVerified(
-  provider: IntegrationProvider,
-  db: Database.Database = getDb(),
-): void {
-  db.prepare(
-    `UPDATE integration_targets SET last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE provider = ?`,
-  ).run(provider);
+export async function markIntegrationVerified(provider: IntegrationProvider): Promise<void> {
+  await sql`
+    UPDATE integration_targets SET last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE provider = ${provider}`;
 }
 
-export function recordInvoiceExternalRef(
+export async function recordInvoiceExternalRef(
   invoiceId: number,
   externalRef: string,
   provider: IntegrationProvider,
-  db: Database.Database = getDb(),
-): void {
-  db.prepare(
-    `UPDATE invoices
-     SET external_ref = ?, external_ref_provider = ?, external_ref_at = CURRENT_TIMESTAMP,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  ).run(externalRef, provider, invoiceId);
+): Promise<void> {
+  await sql`
+    UPDATE invoices
+    SET external_ref = ${externalRef}, external_ref_provider = ${provider}, external_ref_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${invoiceId}`;
 }
 
 // ─── Review Navigation ────────────────────────────────────────────────────────
 
-/**
- * Gibt die IDs der vorherigen und nächsten Rechnung zurück,
- * bezogen auf die Review-Queue (needs_review, new, failed).
- */
-export function getAdjacentInvoiceIds(
+export async function getAdjacentInvoiceIds(
   invoiceId: number,
   statuses = ["needs_review", "new", "failed"],
-): { prevId: number | null; nextId: number | null; position: number; total: number } {
-  // PERFORMANCE (INFETCH-100): Vorher wurden ALLE IDs der Queue geladen und per
-  // JS findIndex() gesucht — O(n) auf dem Client, riesige Arrays bei großen Queues.
-  // Jetzt: LAG/LEAD-Window-Functions lösen das direkt in SQLite → 1 Zeile zurück.
-  const db = getDb();
-  const placeholders = statuses.map(() => "?").join(", ");
-
+): Promise<{ prevId: number | null; nextId: number | null; position: number; total: number }> {
   type QueueRow = {
     prevId: number | null;
     nextId: number | null;
-    position: number;
-    total: number;
+    position: string;
+    total: string;
   };
 
-  const row = db
-    .prepare(
-      `WITH queue AS (
-         SELECT
-           id,
-           LAG(id)  OVER (ORDER BY COALESCE(invoice_date, created_at) DESC, id DESC) AS prevId,
-           LEAD(id) OVER (ORDER BY COALESCE(invoice_date, created_at) DESC, id DESC) AS nextId,
-           ROW_NUMBER() OVER (ORDER BY COALESCE(invoice_date, created_at) DESC, id DESC) AS rn,
-           COUNT(*) OVER () AS total
-         FROM invoices
-         WHERE status IN (${placeholders})
-       )
-       SELECT prevId, nextId, CAST(rn AS INTEGER) AS position, CAST(total AS INTEGER) AS total
-       FROM queue
-       WHERE id = ?
-       LIMIT 1`,
+  const row = ((await sql.unsafe(`
+    WITH queue AS (
+      SELECT
+        id,
+        LAG(id)  OVER (ORDER BY COALESCE(invoice_date, created_at) DESC, id DESC) AS "prevId",
+        LEAD(id) OVER (ORDER BY COALESCE(invoice_date, created_at) DESC, id DESC) AS "nextId",
+        ROW_NUMBER() OVER (ORDER BY COALESCE(invoice_date, created_at) DESC, id DESC) AS rn,
+        COUNT(*) OVER () AS total
+      FROM invoices
+      WHERE status = ANY($1::text[])
     )
-    .get(...statuses, invoiceId) as QueueRow | undefined;
+    SELECT "prevId", "nextId", rn::INTEGER AS position, total::INTEGER AS total
+    FROM queue
+    WHERE id = $2
+    LIMIT 1`, [statuses, invoiceId]))[0] as unknown) as QueueRow | undefined;
 
   if (!row) {
-    // Invoice not in queue — compute total separately for the position indicator
-    const total = (
-      db
-        .prepare(`SELECT COUNT(*) AS count FROM invoices WHERE status IN (${placeholders})`)
-        .get(...statuses) as { count: number }
-    ).count;
-    return { prevId: null, nextId: null, position: 0, total };
+    const totalRow = ((await sql.unsafe(`
+      SELECT COUNT(*) AS total FROM invoices WHERE status = ANY($1::text[])`, [statuses]))[0] as unknown) as { total: string };
+    return { prevId: null, nextId: null, position: 0, total: Number(totalRow.total) };
   }
 
-  return row;
+  return {
+    prevId: row.prevId ? Number(row.prevId) : null,
+    nextId: row.nextId ? Number(row.nextId) : null,
+    position: Number(row.position),
+    total: Number(row.total),
+  };
 }
 
 // ─── Dashboard: neue Queries ───────────────────────────────────────────────────
@@ -1370,12 +1182,7 @@ export type MonthlyKpis = {
   deltaPercent: number | null;
 };
 
-/**
- * KPIs für einen Monat (YYYY-MM) und den Vormonat.
- * Basiert auf exported invoices (status = 'exported' oder exports.status = 'sent').
- */
-export function getMonthlyKpis(month: string): MonthlyKpis {
-  const db = getDb();
+export async function getMonthlyKpis(month: string): Promise<MonthlyKpis> {
   const [yearStr, mStr] = month.split("-");
   const year = parseInt(yearStr ?? "0", 10);
   const m = parseInt(mStr ?? "1", 10);
@@ -1383,50 +1190,38 @@ export function getMonthlyKpis(month: string): MonthlyKpis {
   const prevM = m === 1 ? 12 : m - 1;
   const prevMonth = `${prevYear}-${String(prevM).padStart(2, "0")}`;
 
-  type KpiRow = { total: number; sumGross: number | null };
+  type KpiRow = { total: string; sumGross: string | null };
 
-  const getKpi = (mo: string): KpiRow =>
-    db
-      .prepare(
-        `SELECT COUNT(*) AS total, SUM(amount_gross) AS sumGross
-         FROM invoices
-         WHERE status = 'exported'
-           AND invoice_date LIKE ? || '%'`,
-      )
-      .get(mo) as KpiRow;
+  const getKpi = async (mo: string): Promise<KpiRow> =>
+    (await sql<KpiRow[]>`
+      SELECT COUNT(*) AS total, SUM(amount_gross) AS "sumGross"
+      FROM invoices
+      WHERE status = 'exported'
+        AND invoice_date LIKE ${mo + '%'}`)[0];
 
-  const cur = getKpi(month);
-  const prev = getKpi(prevMonth);
+  const cur = await getKpi(month);
+  const prev = await getKpi(prevMonth);
 
-  const total = cur.total ?? 0;
-  const prevTotal = prev.total ?? 0;
-  const sumGross = cur.sumGross ?? 0;
-  const prevSumGross = prev.sumGross ?? 0;
+  const total = Number(cur.total ?? 0);
+  const prevTotal = Number(prev.total ?? 0);
+  const sumGross = Number(cur.sumGross ?? 0);
+  const prevSumGross = Number(prev.sumGross ?? 0);
   const deltaPercent =
     prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   return { total, sumGross, prevTotal, prevSumGross, deltaPercent };
 }
 
-/**
- * Tages-Zeitreihe der exportierten Rechnungen für die letzten N Tage.
- * Lücken werden als 0 aufgefüllt.
- */
-export function getDailyTimeseries(days: number): Array<{ date: string; count: number }> {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT strftime('%Y-%m-%d', COALESCE(invoice_date, created_at)) AS date, COUNT(*) AS count
-       FROM invoices
-       WHERE status = 'exported'
-         AND COALESCE(invoice_date, created_at) >= date('now', ? || ' days')
-       GROUP BY date
-       ORDER BY date ASC`,
-    )
-    .all(`-${days}`) as Array<{ date: string; count: number }>;
+export async function getDailyTimeseries(days: number): Promise<Array<{ date: string; count: number }>> {
+  const rows = await sql<Array<{ date: string; count: string }>>`
+    SELECT (COALESCE(invoice_date, created_at)::TIMESTAMP)::DATE::TEXT AS date, COUNT(*) AS count
+    FROM invoices
+    WHERE status = 'exported'
+      AND COALESCE(invoice_date, created_at) >= (NOW() - INTERVAL '1 day' * ${days})
+    GROUP BY date
+    ORDER BY date ASC`;
 
-  // Fill gaps
-  const map = new Map(rows.map((r) => [r.date, r.count]));
+  const map = new Map(rows.map((r) => [r.date, Number(r.count)]));
   const result: Array<{ date: string; count: number }> = [];
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date();
@@ -1437,211 +1232,143 @@ export function getDailyTimeseries(days: number): Array<{ date: string; count: n
   return result;
 }
 
-/**
- * Top-N Lieferanten nach Anzahl exportierter Rechnungen (aktuelle + Vormonat für Delta).
- */
-export function getTopVendors(
+export async function getTopVendors(
   limit = 5,
-): Array<{
+): Promise<Array<{
   vendorName: string;
   vendorDomain: string | null;
   count: number;
   sumGross: number;
   deltaPrevMonth: number;
-}> {
-  const db = getDb();
+}>> {
   const curMonth = new Date().toISOString().slice(0, 7);
   const [yearStr, mStr] = curMonth.split("-");
   const year = parseInt(yearStr ?? "0", 10);
   const m = parseInt(mStr ?? "1", 10);
   const prevMonth = `${m === 1 ? year - 1 : year}-${String(m === 1 ? 12 : m - 1).padStart(2, "0")}`;
 
-  // PERFORMANCE (INFETCH-96): Vorher N+1 — 2 separate DB-Queries pro Vendor im
-  // .map()-Loop. Jetzt alles in einer Query mit konditionalen SUMs.
   type Row = {
     vendorName: string;
     vendorDomain: string | null;
-    count: number;
-    sumGross: number | null;
-    curCount: number;
-    prevCount: number;
+    count: string;
+    sumGross: string | null;
+    curCount: string;
+    prevCount: string;
   };
 
-  return (
-    db
-      .prepare(
-        `SELECT
-           v.name AS vendorName,
-           COALESCE(
-             (SELECT alias FROM vendor_aliases WHERE vendor_id = v.id AND match_type = 'domain' ORDER BY priority ASC LIMIT 1),
-             (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = v.id ORDER BY pdf_count DESC LIMIT 1)
-           ) AS vendorDomain,
-           COUNT(*) AS count,
-           SUM(i.amount_gross) AS sumGross,
-           SUM(CASE WHEN i.invoice_date LIKE ? || '%' THEN 1 ELSE 0 END) AS curCount,
-           SUM(CASE WHEN i.invoice_date LIKE ? || '%' THEN 1 ELSE 0 END) AS prevCount
-         FROM invoices i
-         JOIN vendors v ON v.id = i.vendor_id
-         WHERE i.status = 'exported'
-         GROUP BY v.id
-         ORDER BY count DESC
-         LIMIT ?`,
-      )
-      .all(curMonth, prevMonth, limit) as Row[]
-  ).map((row) => ({
+  const rows = await sql<Row[]>`
+    SELECT
+      v.name AS "vendorName",
+      COALESCE(
+        (SELECT alias FROM vendor_aliases WHERE vendor_id = v.id AND match_type = 'domain' ORDER BY priority ASC LIMIT 1),
+        (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = v.id ORDER BY pdf_count DESC LIMIT 1)
+      ) AS "vendorDomain",
+      COUNT(*) AS count,
+      SUM(i.amount_gross) AS "sumGross",
+      SUM(CASE WHEN i.invoice_date LIKE ${curMonth + '%'} THEN 1 ELSE 0 END) AS "curCount",
+      SUM(CASE WHEN i.invoice_date LIKE ${prevMonth + '%'} THEN 1 ELSE 0 END) AS "prevCount"
+    FROM invoices i
+    JOIN vendors v ON v.id = i.vendor_id
+    WHERE i.status = 'exported'
+    GROUP BY v.id
+    ORDER BY count DESC
+    LIMIT ${limit}`;
+
+  return rows.map((row) => ({
     vendorName: row.vendorName,
     vendorDomain: row.vendorDomain,
-    count: row.count,
-    sumGross: row.sumGross ?? 0,
-    deltaPrevMonth: (row.curCount ?? 0) - (row.prevCount ?? 0),
+    count: Number(row.count),
+    sumGross: Number(row.sumGross ?? 0),
+    deltaPrevMonth: (Number(row.curCount ?? 0)) - (Number(row.prevCount ?? 0)),
   }));
 }
 
-/**
- * Lieferanten, bei denen seit >60 Tagen keine Rechnung mehr eingegangen ist,
- * obwohl zuvor mind. 2 Rechnungen eingingen (= überfällig).
- */
-export function getOverdueVendors(): Array<{
+export async function getOverdueVendors(): Promise<Array<{
   vendorName: string;
   vendorDomain: string | null;
   daysSince: number;
-}> {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT
-         v.name AS vendorName,
-         (SELECT ds.from_domain FROM discovered_senders ds
-          WHERE ds.matched_vendor_id = v.id
-          ORDER BY ds.pdf_count DESC LIMIT 1) AS vendorDomain,
-         CAST(julianday('now') - julianday(MAX(COALESCE(i.invoice_date, i.created_at))) AS INTEGER) AS daysSince
-       FROM invoices i
-       JOIN vendors v ON v.id = i.vendor_id
-       GROUP BY v.id
-       HAVING COUNT(*) >= 2
-          AND daysSince > 60
-       ORDER BY daysSince DESC
-       LIMIT 10`,
-    )
-    .all() as Array<{ vendorName: string; vendorDomain: string | null; daysSince: number }>;
-  return rows;
+}>> {
+  const rows = await sql<Array<{ vendorName: string; vendorDomain: string | null; daysSince: string }>>`
+    SELECT
+      v.name AS "vendorName",
+      (SELECT ds.from_domain FROM discovered_senders ds
+       WHERE ds.matched_vendor_id = v.id
+       ORDER BY ds.pdf_count DESC LIMIT 1) AS "vendorDomain",
+      EXTRACT(EPOCH FROM (NOW() - MAX(COALESCE(i.invoice_date, i.created_at)::TIMESTAMP)))::INTEGER / 86400 AS "daysSince"
+    FROM invoices i
+    JOIN vendors v ON v.id = i.vendor_id
+    GROUP BY v.id
+    HAVING COUNT(*) >= 2
+      AND EXTRACT(EPOCH FROM (NOW() - MAX(COALESCE(i.invoice_date, i.created_at)::TIMESTAMP)))::INTEGER / 86400 > 60
+    ORDER BY "daysSince" DESC
+    LIMIT 10`;
+  return rows.map((r) => ({ ...r, daysSince: Number(r.daysSince) }));
 }
 
-/**
- * Returns the ISO timestamp of the first invoice ever received.
- * Used to display "seit 10. Mai 2026" instead of "seit Beobachtungsbeginn".
- */
-export function getObservationStartDate(): string | null {
-  const db = getDb();
-  const row = db
-    .prepare(`SELECT MIN(created_at) AS firstAt FROM invoices`)
-    .get() as { firstAt: string | null } | undefined;
+export async function getObservationStartDate(): Promise<string | null> {
+  const row = (await sql`SELECT MIN(created_at) AS "firstAt" FROM invoices`)[0] as { firstAt: string | null } | undefined;
   return row?.firstAt ?? null;
 }
 
-/** ISO-Timestamp des letzten Scan-Events (imap_scan) — für Dashboard-Anzeige. */
-export function getLastScanAt(): string | null {
-  const db = getDb();
-  const row = db
-    .prepare(`SELECT MAX(created_at) AS lastAt FROM sync_events WHERE event_type = 'imap_scan'`)
-    .get() as { lastAt: string | null } | undefined;
+export async function getLastScanAt(): Promise<string | null> {
+  const row = (await sql`SELECT MAX(created_at) AS "lastAt" FROM sync_events WHERE event_type = 'imap_scan'`)[0] as { lastAt: string | null } | undefined;
   return row?.lastAt ?? null;
 }
 
 export type SecondaryStats = {
-  /** Tage, an denen der Auto-Pilot ohne manuellen Eingriff durchgelaufen ist.
-   *  Berechnet aus Differenz zwischen heute und dem letzten Eingang eines needs_review-Belegs.
-   *  null wenn noch keine Rechnungen vorhanden. */
   daysSinceLastIntervention: number | null;
-  /** Durchschnittliche Latenz in Minuten: Invoice-Eingang → Export (gerundet). null wenn keine Daten. */
   avgLatencyMin: number | null;
-  /** Anzahl ignorierter/duplizierter Belege im laufenden Monat. */
   filteredThisMonth: number;
-  /** Forecast für den Restmonat: ⌀ Tagesdurchschnitt der letzten 30 Tage × verbleibende Tage. null wenn keine Daten. */
   forecastRestMonth: number | null;
 };
 
-/**
- * Sekundäre Dashboard-Stats ("Vertrauen" + "Performance").
- * Entspricht den 4 kleinen Stat-Cells im Claude Design unterhalb des KPI-Graphen:
- * Tage ohne Eingriff · ⌀ Latenz · Gefiltert · Forecast.
- */
-export function getSecondaryStats(): SecondaryStats {
-  const db = getDb();
+export async function getSecondaryStats(): Promise<SecondaryStats> {
+  const lastReview = (await sql`
+    SELECT EXTRACT(EPOCH FROM (NOW() - MAX(created_at)::TIMESTAMP))::INTEGER / 86400 AS days
+    FROM invoices WHERE status = 'needs_review'`)[0] as { days: number | null } | undefined;
 
-  // --- Days since last needs_review ---
-  const lastReview = db
-    .prepare(
-      `SELECT CAST(julianday('now') - julianday(MAX(created_at)) AS INTEGER) AS days
-       FROM invoices WHERE status = 'needs_review'`,
-    )
-    .get() as { days: number | null } | undefined;
-  const hasExported = (
-    db.prepare(`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent'`).get() as { count: number }
-  ).count > 0;
-  const daysSinceLastIntervention =
-    lastReview?.days != null
-      ? lastReview.days
-      : hasExported
-        ? null // no needs_review ever = couldn't determine streak without first export date
-        : null;
+  const hasExported = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent'`)[0].count) > 0;
 
-  // days since first export (used as fallback "running since N days" if no needs_review ever)
   let autopilotDays: number | null = null;
   if (hasExported && lastReview?.days == null) {
-    const since = db
-      .prepare(
-        `SELECT CAST(julianday('now') - julianday(MIN(sent_at)) AS INTEGER) AS days
-         FROM exports WHERE status = 'sent'`,
-      )
-      .get() as { days: number | null } | undefined;
-    autopilotDays = since?.days ?? null;
+    const since = (await sql`
+      SELECT EXTRACT(EPOCH FROM (NOW() - MIN(sent_at)::TIMESTAMP))::INTEGER / 86400 AS days
+      FROM exports WHERE status = 'sent'`)[0] as { days: number | null } | undefined;
+    autopilotDays = since?.days != null ? Number(since.days) : null;
   }
 
-  // --- Avg latency in minutes ---
-  const latencyRow = db
-    .prepare(
-      `SELECT AVG((julianday(e.sent_at) - julianday(i.created_at)) * 24 * 60) AS avgMin
-       FROM exports e
-       JOIN invoices i ON i.id = e.invoice_id
-       WHERE e.status = 'sent' AND e.sent_at IS NOT NULL`,
-    )
-    .get() as { avgMin: number | null } | undefined;
+  const latencyRow = (await sql`
+    SELECT AVG(EXTRACT(EPOCH FROM (e.sent_at::TIMESTAMP - i.created_at::TIMESTAMP)) / 60) AS "avgMin"
+    FROM exports e
+    JOIN invoices i ON i.id = e.invoice_id
+    WHERE e.status = 'sent' AND e.sent_at IS NOT NULL`)[0] as { avgMin: number | null } | undefined;
   const avgLatencyMin =
-    latencyRow?.avgMin != null ? Math.round(latencyRow.avgMin) : null;
+    latencyRow?.avgMin != null ? Math.round(Number(latencyRow.avgMin)) : null;
 
-  // --- Filtered this month ---
-  const filteredRow = db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM invoices
-       WHERE status IN ('ignored', 'duplicate')
-         AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`,
-    )
-    .get() as { count: number };
-  const filteredThisMonth = filteredRow.count;
+  const filteredRow = (await sql`
+    SELECT COUNT(*) AS count FROM invoices
+    WHERE status IN ('ignored', 'duplicate')
+      AND TO_CHAR(created_at::TIMESTAMP, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')`)[0] as { count: string };
+  const filteredThisMonth = Number(filteredRow.count);
 
-  // --- Forecast for rest of month ---
-  // daily avg over last 30 days × remaining calendar days
-  const dailyAvgRow = db
-    .prepare(
-      `SELECT COUNT(*) * 1.0 / 30 AS rate
-       FROM exports
-       WHERE status = 'sent'
-         AND sent_at >= datetime('now', '-30 days')`,
-    )
-    .get() as { rate: number | null } | undefined;
+  const dailyAvgRow = (await sql`
+    SELECT COUNT(*) * 1.0 / 30 AS rate
+    FROM exports
+    WHERE status = 'sent'
+      AND sent_at >= (NOW() - INTERVAL '30 days')`)[0] as { rate: number | null } | undefined;
+
   let forecastRestMonth: number | null = null;
-  if (dailyAvgRow?.rate != null && dailyAvgRow.rate > 0) {
+  if (dailyAvgRow?.rate != null && Number(dailyAvgRow.rate) > 0) {
     const today = new Date();
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     const remaining = lastDay - today.getDate();
-    forecastRestMonth = Math.round(dailyAvgRow.rate * remaining);
+    forecastRestMonth = Math.round(Number(dailyAvgRow.rate) * remaining);
   }
 
   return {
     daysSinceLastIntervention:
       lastReview?.days != null
-        ? lastReview.days
+        ? Number(lastReview.days)
         : autopilotDays,
     avgLatencyMin,
     filteredThisMonth,
@@ -1662,7 +1389,6 @@ export type SenderWithStats = {
   matchedVendorId: number | null;
   matchedVendorName: string | null;
   vendorCategory: string | null;
-  /** Manuelle Kategorie, direkt auf dem Sender gesetzt (unabhängig vom Vendor-Match) */
   senderCategory: string | null;
   blocked: boolean;
   blockedReason: string | null;
@@ -1671,44 +1397,36 @@ export type SenderWithStats = {
   invoiceSum: number;
 };
 
-/**
- * Like listDiscoveredSenders but enriched with vendor category + invoice sum.
- * Sorted by invoiceSum DESC so highest-value vendors appear first.
- */
-export function listSendersWithStats(): SenderWithStats[] {
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT
-         ds.id,
-         ds.from_address        AS fromAddress,
-         ds.from_domain         AS fromDomain,
-         ds.display_name        AS displayName,
-         ds.mail_count          AS mailCount,
-         ds.pdf_count           AS pdfCount,
-         ds.imported_count      AS importedCount,
-         ds.matched_vendor_id   AS matchedVendorId,
-         ds.blocked,
-         ds.blocked_reason      AS blockedReason,
-         ds.first_seen_at       AS firstSeenAt,
-         ds.last_seen_at        AS lastSeenAt,
-         ds.vendor_category     AS senderCategory,
-         v.name                 AS matchedVendorName,
-         v.category             AS vendorCategory,
-         COALESCE((
-           SELECT SUM(i.amount_gross)
-           FROM invoices i
-           WHERE i.vendor_id = ds.matched_vendor_id
-             AND i.status = 'exported'
-         ), 0) AS invoiceSum
-       FROM discovered_senders ds
-       LEFT JOIN vendors v ON v.id = ds.matched_vendor_id
-       WHERE ds.pdf_count > 0
-       ORDER BY invoiceSum DESC, ds.pdf_count DESC, ds.mail_count DESC`,
-    )
-    .all() as Array<Omit<SenderWithStats, "blocked"> & { blocked: number }>;
+export async function listSendersWithStats(): Promise<SenderWithStats[]> {
+  const rows = await sql<Array<Omit<SenderWithStats, "blocked"> & { blocked: number }>>`
+    SELECT
+      ds.id,
+      ds.from_address        AS "fromAddress",
+      ds.from_domain         AS "fromDomain",
+      ds.display_name        AS "displayName",
+      ds.mail_count          AS "mailCount",
+      ds.pdf_count           AS "pdfCount",
+      ds.imported_count      AS "importedCount",
+      ds.matched_vendor_id   AS "matchedVendorId",
+      ds.blocked,
+      ds.blocked_reason      AS "blockedReason",
+      ds.first_seen_at       AS "firstSeenAt",
+      ds.last_seen_at        AS "lastSeenAt",
+      ds.vendor_category     AS "senderCategory",
+      v.name                 AS "matchedVendorName",
+      v.category             AS "vendorCategory",
+      COALESCE((
+        SELECT SUM(i.amount_gross)
+        FROM invoices i
+        WHERE i.vendor_id = ds.matched_vendor_id
+          AND i.status = 'exported'
+      ), 0) AS "invoiceSum"
+    FROM discovered_senders ds
+    LEFT JOIN vendors v ON v.id = ds.matched_vendor_id
+    WHERE ds.pdf_count > 0
+    ORDER BY "invoiceSum" DESC, ds.pdf_count DESC, ds.mail_count DESC`;
 
-  return rows.map((row) => ({ ...row, blocked: row.blocked === 1 }));
+  return rows.map((row) => ({ ...row, blocked: Number(row.blocked) === 1 }));
 }
 
 export type VendorInvoiceRow = {
@@ -1721,26 +1439,18 @@ export type VendorInvoiceRow = {
   invoiceNumber: string | null;
 };
 
-/**
- * All invoices for a given vendor, ordered newest-first.
- * Used in the AnbieterDetail view.
- */
-export function getVendorInvoices(vendorId: number): VendorInvoiceRow[] {
-  const db = getDb();
-  return db
-    .prepare(
-      `SELECT
-         id,
-         status,
-         invoice_date   AS invoiceDate,
-         created_at     AS createdAt,
-         amount_gross   AS amountGross,
-         currency,
-         invoice_number AS invoiceNumber
-       FROM invoices
-       WHERE vendor_id = ?
-       ORDER BY COALESCE(invoice_date, created_at) DESC
-       LIMIT 200`,
-    )
-    .all(vendorId) as VendorInvoiceRow[];
+export async function getVendorInvoices(vendorId: number): Promise<VendorInvoiceRow[]> {
+  return await sql<VendorInvoiceRow[]>`
+    SELECT
+      id,
+      status,
+      invoice_date   AS "invoiceDate",
+      created_at     AS "createdAt",
+      amount_gross   AS "amountGross",
+      currency,
+      invoice_number AS "invoiceNumber"
+    FROM invoices
+    WHERE vendor_id = ${vendorId}
+    ORDER BY COALESCE(invoice_date, created_at) DESC
+    LIMIT 200`;
 }

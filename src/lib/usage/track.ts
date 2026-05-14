@@ -1,12 +1,10 @@
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 
 export type UsageEventInput = {
   organizationId: string | null;
   eventType: string;
   costCents?: number;
   metadata?: Record<string, unknown>;
-  db?: Database.Database;
 };
 
 /**
@@ -20,25 +18,22 @@ export type UsageEventInput = {
  * wird der Event mit NULL gespeichert und kann später beim Multi-Tenant-Cutover
  * einer Default-Org zugeordnet werden.
  */
-export function recordUsageEvent(input: UsageEventInput): void {
-  const conn = input.db ?? getDb();
+export async function recordUsageEvent(input: UsageEventInput): Promise<void> {
   if (!input.organizationId) {
     // Solange Single-Tenant: Events nur loggen, nicht in usage_events schreiben
     // (FK organization_id ist NOT NULL). Sobald Multi-Tenant aktiv:
     // hier eine Fallback-Org-ID nutzen oder einen no-org-Bucket.
     return;
   }
-  conn
-    .prepare(
-      `INSERT INTO usage_events (organization_id, event_type, cost_cents, metadata_json)
-       VALUES (?, ?, ?, ?)`,
+  await sql`
+    INSERT INTO usage_events (organization_id, event_type, cost_cents, metadata_json)
+    VALUES (
+      ${input.organizationId},
+      ${input.eventType},
+      ${input.costCents ?? 0},
+      ${input.metadata ? JSON.stringify(input.metadata) : null}
     )
-    .run(
-      input.organizationId,
-      input.eventType,
-      input.costCents ?? 0,
-      input.metadata ? JSON.stringify(input.metadata) : null,
-    );
+  `;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createReadStream, statSync } from "node:fs";
 import { Readable } from "node:stream";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { getCurrentAuth } from "@/lib/auth/current";
 
 export const dynamic = "force-dynamic";
@@ -20,21 +20,18 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ fi
     return NextResponse.json({ error: "invalid file id" }, { status: 400 });
   }
 
-  const db = getDb();
+  const orgId = auth.organization?.id ?? null;
 
   // Org-Scoping: Nur Dateien die zur eigenen Organisation gehören
-  const row = db
-    .prepare(
-      `SELECT f.stored_path AS storedPath, f.original_filename AS originalFilename
-       FROM invoice_files f
-       INNER JOIN invoices i ON i.id = f.invoice_id
-       WHERE f.id = ?
-         AND (i.organization_id = ? OR i.organization_id IS NULL)
-       LIMIT 1`,
-    )
-    .get(id, auth.organization?.id ?? "") as
-    | { storedPath: string; originalFilename: string }
-    | undefined;
+  const rows = await sql<{ storedPath: string; originalFilename: string }[]>`
+    SELECT f.stored_path AS "storedPath", f.original_filename AS "originalFilename"
+    FROM invoice_files f
+    INNER JOIN invoices i ON i.id = f.invoice_id
+    WHERE f.id = ${id}
+      AND (i.organization_id = ${orgId} OR i.organization_id IS NULL)
+    LIMIT 1
+  `;
+  const row = rows[0];
 
   if (!row) {
     return NextResponse.json({ error: "file not found" }, { status: 404 });

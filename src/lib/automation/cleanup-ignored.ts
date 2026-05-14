@@ -1,5 +1,5 @@
-import type Database from "better-sqlite3";
 import fs from "node:fs";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
 
@@ -21,36 +21,30 @@ type Row = {
  *
  * Idempotent — bereits gelöschte Files werden übersprungen.
  */
-export function cleanupIgnoredFiles(db: Database.Database): CleanupResult {
+export async function cleanupIgnoredFiles(): Promise<CleanupResult> {
   const days = appConfig.selfHealing.cleanupIgnoredAfterDays;
 
-  const rows = db
-    .prepare(
-      `SELECT i.id AS invoiceId, f.id AS fileId, f.stored_path AS storedPath
-       FROM invoices i
-       JOIN invoice_files f ON f.invoice_id = i.id
-       WHERE i.status = 'ignored'
-         AND i.updated_at <= datetime('now', ? || ' days')
-         AND f.stored_path IS NOT NULL`,
-    )
-    .all(`-${days}`) as Row[];
+  const rows = await sql<Row[]>`
+    SELECT i.id AS "invoiceId", f.id AS "fileId", f.stored_path AS "storedPath"
+    FROM invoices i
+    JOIN invoice_files f ON f.invoice_id = i.id
+    WHERE i.status = 'ignored'
+      AND i.updated_at <= NOW() - (${days} || ' days')::INTERVAL
+      AND f.stored_path IS NOT NULL
+  `;
 
   const result: CleanupResult = { scanned: rows.length, filesDeleted: 0, errors: 0 };
-
-  const clearPath = db.prepare(
-    `UPDATE invoice_files SET stored_path = NULL WHERE id = ?`,
-  );
 
   for (const row of rows) {
     try {
       if (fs.existsSync(row.storedPath)) {
         fs.unlinkSync(row.storedPath);
       }
-      clearPath.run(row.fileId);
+      await sql`UPDATE invoice_files SET stored_path = NULL WHERE id = ${row.fileId}`;
       result.filesDeleted++;
     } catch (error) {
       result.errors++;
-      recordSyncEvent(db, {
+      await recordSyncEvent({
         level: "warning",
         eventType: "cleanup_ignored_failed",
         invoiceId: row.invoiceId,
@@ -61,7 +55,7 @@ export function cleanupIgnoredFiles(db: Database.Database): CleanupResult {
   }
 
   if (result.filesDeleted > 0) {
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "info",
       eventType: "cleanup_ignored_completed",
       message: `${result.filesDeleted} PDF-Files für 'ignored' Rechnungen gelöscht (älter als ${days} Tage).`,

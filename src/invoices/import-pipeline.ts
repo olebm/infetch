@@ -1,10 +1,9 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { ensureDataDirs } from "@/lib/filesystem/ensure-data-dirs";
-import { getDb } from "@/lib/db/client";
 import { recordSyncEvent } from "@/lib/db/events";
 import { runInvoiceAiExtraction } from "@/ai/extract-invoice";
 import { attemptAutoTransfer } from "@/lib/automation/auto-transfer";
@@ -31,7 +30,6 @@ type ImportPdfBufferInput = {
   mimeType?: string | null;
   sourceType: ImportPdfSource;
   sourceRefId?: string | null;
-  db?: Database.Database;
 };
 
 type ExistingFileRow = {
@@ -81,17 +79,15 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   }
 
   const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
-  const db = input.db || getDb();
-  const existing = db
-    .prepare(
-      `SELECT id, invoice_id AS invoiceId, original_filename AS originalFilename
-       FROM invoice_files
-       WHERE sha256 = ?`,
-    )
-    .get(sha256) as ExistingFileRow | undefined;
+  const existingRows = await sql<ExistingFileRow[]>`
+    SELECT id, invoice_id AS "invoiceId", original_filename AS "originalFilename"
+    FROM invoice_files
+    WHERE sha256 = ${sha256}
+  `;
+  const existing = existingRows[0];
 
   if (existing) {
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "warning",
       eventType: `${input.sourceType}_import_duplicate`,
       invoiceId: existing.invoiceId,
@@ -115,7 +111,7 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
 
   const extraction = await extractPdfText(buffer);
   const parsed = parseInvoiceFields(extraction.text, input.originalFilename);
-  const vendor = matchVendor(db, [input.originalFilename, extraction.text]);
+  const vendor = await matchVendor([input.originalFilename, extraction.text]);
   const status = junkCheck.isJunk
     ? "ignored"
     : vendor.vendorId && parsed.invoiceDate && parsed.amountGross
@@ -141,83 +137,67 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   fs.writeFileSync(storedPath, buffer, { mode: 0o600 });
   fs.writeFileSync(rawTextPath, extraction.text, { mode: 0o600 });
 
-  const tx = db.transaction(() => {
-    const invoice = db
-      .prepare(
-        `INSERT INTO invoices (
-          vendor_id, source, status, invoice_number, invoice_date, amount_gross, currency,
-          confidence, dedupe_key, raw_text_path
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        vendor.vendorId,
-        input.sourceType,
-        status,
-        parsed.invoiceNumber,
-        parsed.invoiceDate,
-        parsed.amountGross,
-        parsed.currency,
-        confidence,
-        sha256,
-        rawTextPath,
-      );
+  // Insert invoice
+  const invoiceRows = await sql<{ id: number }[]>`
+    INSERT INTO invoices (
+      vendor_id, source, status, invoice_number, invoice_date, amount_gross, currency,
+      confidence, dedupe_key, raw_text_path
+    )
+    VALUES (
+      ${vendor.vendorId}, ${input.sourceType}, ${status},
+      ${parsed.invoiceNumber}, ${parsed.invoiceDate}, ${parsed.amountGross},
+      ${parsed.currency}, ${confidence}, ${sha256}, ${rawTextPath}
+    )
+    RETURNING id
+  `;
+  const invoiceId = Number(invoiceRows[0].id);
 
-    const file = db
-      .prepare(
-        `INSERT INTO invoice_files (
-          invoice_id, original_filename, stored_path, sha256, size_bytes, mime_type, source_type, source_ref_id
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        Number(invoice.lastInsertRowid),
-        input.originalFilename,
-        storedPath,
-        sha256,
-        buffer.byteLength,
-        input.mimeType || "application/pdf",
-        input.sourceType,
-        input.sourceRefId || null,
-      );
+  // Insert invoice_file
+  const fileRows = await sql<{ id: number }[]>`
+    INSERT INTO invoice_files (
+      invoice_id, original_filename, stored_path, sha256, size_bytes, mime_type, source_type, source_ref_id
+    )
+    VALUES (
+      ${invoiceId}, ${input.originalFilename}, ${storedPath}, ${sha256},
+      ${buffer.byteLength}, ${input.mimeType || "application/pdf"},
+      ${input.sourceType}, ${input.sourceRefId || null}
+    )
+    RETURNING id
+  `;
+  const fileId = Number(fileRows[0].id);
 
-    upsertVendorMonthStatus(db, {
-      vendorId: vendor.vendorId,
-      invoiceId: Number(invoice.lastInsertRowid),
-      invoiceDate: parsed.invoiceDate,
-      sourceType: input.sourceType,
-    });
-
-    recordSyncEvent(db, {
-      level: extraction.error ? "warning" : "info",
-      eventType: `${input.sourceType}_pdf_imported`,
-      vendorId: vendor.vendorId,
-      invoiceId: Number(invoice.lastInsertRowid),
-      yearMonth: parsed.invoiceDate?.slice(0, 7),
-      message: `${input.originalFilename} wurde importiert.`,
-      metadata: { sha256, extractionError: extraction.error, storedPath },
-    });
-
-    return { invoiceId: Number(invoice.lastInsertRowid), fileId: Number(file.lastInsertRowid) };
+  await upsertVendorMonthStatus({
+    vendorId: vendor.vendorId,
+    invoiceId,
+    invoiceDate: parsed.invoiceDate,
+    sourceType: input.sourceType,
   });
 
-  const ids = tx();
+  await recordSyncEvent({
+    level: extraction.error ? "warning" : "info",
+    eventType: `${input.sourceType}_pdf_imported`,
+    vendorId: vendor.vendorId,
+    invoiceId,
+    yearMonth: parsed.invoiceDate?.slice(0, 7),
+    message: `${input.originalFilename} wurde importiert.`,
+    metadata: { sha256, extractionError: extraction.error, storedPath },
+  });
 
   let aiStatus: string;
   if (junkCheck.isJunk) {
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "info",
       eventType: "filename_junk_skipped",
-      invoiceId: ids.invoiceId,
+      invoiceId,
       message: `Filename "${input.originalFilename}" als Non-Invoice eingestuft — Mistral-Analyse übersprungen.`,
       metadata: { pattern: junkCheck.matchedPattern },
     });
     aiStatus = "skipped_junk_filename";
   } else if (isLocalExtractionSufficient(vendor.confidence, parsed, extraction, confidence)) {
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "info",
       eventType: "local_extraction_sufficient",
-      invoiceId: ids.invoiceId,
+      invoiceId,
       message: "Lokale Extraktion vollständig — Mistral-Analyse übersprungen.",
       metadata: {
         vendorConfidence: vendor.confidence,
@@ -228,8 +208,8 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     });
     aiStatus = "skipped_local";
   } else {
-    const aiResult = await runInvoiceAiExtraction(db, {
-      invoiceId: ids.invoiceId,
+    const aiResult = await runInvoiceAiExtraction({
+      invoiceId,
       originalFilename: input.originalFilename,
       pdfText: extraction.text,
       localParsed: {
@@ -243,33 +223,33 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     aiStatus = aiResult.status;
   }
 
-  syncStoredInvoiceFileNamesForInvoice(ids.invoiceId, db);
+  await syncStoredInvoiceFileNamesForInvoice(invoiceId);
 
   // Auto-Transfer: wenn Status='ready' (durch Auto-Approval gesetzt) UND eine
   // Integration aktiv ist, pushe direkt an die Steuersoftware.
-  await attemptAutoTransfer(db, ids.invoiceId);
+  await attemptAutoTransfer(invoiceId);
 
-  const finalStatus = (
-    db.prepare(`SELECT status FROM invoices WHERE id = ?`).get(ids.invoiceId) as { status: string } | undefined
-  )?.status;
+  const finalStatusRows = await sql<{ status: string }[]>`
+    SELECT status FROM invoices WHERE id = ${invoiceId}
+  `;
+  const finalStatus = finalStatusRows[0]?.status;
 
   // Benachrichtigung bei manuellem Review-Bedarf
   if (finalStatus === "needs_review") {
-    const ownerRow = db
-      .prepare(
-        `SELECT u.email FROM users u
-         INNER JOIN org_members om ON om.user_id = u.id
-         INNER JOIN organizations o ON o.id = om.organization_id
-         WHERE o.owner_user_id = u.id
-         LIMIT 1`,
-      )
-      .get() as { email: string } | undefined;
+    const ownerRows = await sql<{ email: string }[]>`
+      SELECT u.email FROM users u
+      INNER JOIN org_members om ON om.user_id = u.id
+      INNER JOIN organizations o ON o.id = om.organization_id
+      WHERE o.owner_user_id = u.id
+      LIMIT 1
+    `;
+    const ownerRow = ownerRows[0];
 
     if (ownerRow?.email) {
       void sendReviewNotification({
         to: ownerRow.email,
         vendorName: vendor.canonicalKey ?? input.originalFilename,
-        invoiceId: ids.invoiceId,
+        invoiceId,
       });
     }
   }
@@ -277,8 +257,8 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   return {
     ok: true,
     status: "imported",
-    invoiceId: ids.invoiceId,
-    fileId: ids.fileId,
+    invoiceId,
+    fileId,
     message: buildImportMessage(finalStatus || status, aiStatus),
   };
 }
@@ -289,9 +269,6 @@ export function isLocalExtractionSufficient(
   extraction: { error: string | null },
   overallConfidence: number,
 ): boolean {
-  // Vendor-Confidence: 0.72 reicht (contains-Match), wenn Datum + Betrag UND
-  // overall-Konfidenz robust sind. Sicherheit kommt aus der Kombination aller
-  // Felder, nicht aus einer einzelnen hohen Schwelle.
   return (
     vendorConfidence >= 0.72 &&
     parsed.invoiceDate !== null &&
@@ -326,10 +303,12 @@ function calculateConfidence(
   return Math.max(0, Math.min(0.98, Number(score.toFixed(2))));
 }
 
-function upsertVendorMonthStatus(
-  db: Database.Database,
-  input: { vendorId: number | null; invoiceId: number; invoiceDate: string | null; sourceType: ImportPdfSource },
-) {
+async function upsertVendorMonthStatus(input: {
+  vendorId: number | null;
+  invoiceId: number;
+  invoiceDate: string | null;
+  sourceType: ImportPdfSource;
+}): Promise<void> {
   if (!input.vendorId || !input.invoiceDate) return;
   const yearMonth = input.invoiceDate.slice(0, 7);
   const statusBySource = {
@@ -338,12 +317,16 @@ function upsertVendorMonthStatus(
     portal: { mailStatus: "missing", portalStatus: "found", manualStatus: "none", sourceUsed: "portal" },
   }[input.sourceType];
 
-  db.prepare(
-    `INSERT INTO vendor_month_status (
+  await sql`
+    INSERT INTO vendor_month_status (
       vendor_id, year_month, mail_status, portal_status, manual_status, final_status,
       source_used, invoice_id, last_checked_at
     )
-    VALUES (?, ?, ?, ?, ?, 'found', ?, ?, CURRENT_TIMESTAMP)
+    VALUES (
+      ${input.vendorId}, ${yearMonth},
+      ${statusBySource.mailStatus}, ${statusBySource.portalStatus}, ${statusBySource.manualStatus},
+      'found', ${statusBySource.sourceUsed}, ${input.invoiceId}, CURRENT_TIMESTAMP
+    )
     ON CONFLICT(vendor_id, year_month) DO UPDATE SET
       mail_status = excluded.mail_status,
       portal_status = excluded.portal_status,
@@ -351,14 +334,6 @@ function upsertVendorMonthStatus(
       final_status = 'found',
       source_used = excluded.source_used,
       invoice_id = excluded.invoice_id,
-      last_checked_at = CURRENT_TIMESTAMP`,
-  ).run(
-    input.vendorId,
-    yearMonth,
-    statusBySource.mailStatus,
-    statusBySource.portalStatus,
-    statusBySource.manualStatus,
-    statusBySource.sourceUsed,
-    input.invoiceId,
-  );
+      last_checked_at = CURRENT_TIMESTAMP
+  `;
 }

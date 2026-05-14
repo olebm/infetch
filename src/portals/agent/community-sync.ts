@@ -76,7 +76,7 @@ export async function syncCommunityRecipes(options: { force?: boolean } = {}): P
 
   for (const entry of meta.recipes) {
     try {
-      const local = getActiveRecipe(entry.vendor);
+      const local = await getActiveRecipe(entry.vendor);
 
       // Lokales Recipe (recordedBy='local') gewinnt immer
       if (local && local.recordedBy === "local" && !options.force) {
@@ -91,7 +91,7 @@ export async function syncCommunityRecipes(options: { force?: boolean } = {}): P
       }
 
       const recipe = await fetchJson<Recipe>(`${DEFAULT_RECIPE_BASE_URL}${entry.vendor}.json`);
-      saveRecipe({ vendorKey: entry.vendor, recipe, recordedBy: "community" });
+      await saveRecipe({ vendorKey: entry.vendor, recipe, recordedBy: "community" });
 
       if (!local) result.installed += 1;
       else result.updated += 1;
@@ -104,13 +104,13 @@ export async function syncCommunityRecipes(options: { force?: boolean } = {}): P
   return result;
 }
 
-export function getCommunityRecipeStats(): {
+export async function getCommunityRecipeStats(): Promise<{
   total: number;
   community: number;
   local: number;
   broken: number;
-} {
-  const all = listRecipes();
+}> {
+  const all = await listRecipes();
   return {
     total: all.length,
     community: all.filter((r) => r.recordedBy === "community" && r.status === "active").length,

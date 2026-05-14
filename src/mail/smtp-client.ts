@@ -1,10 +1,7 @@
 import fs from "node:fs";
 import nodemailer from "nodemailer";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
-import { readCredentialSecret } from "@/lib/secrets/credential-store";
+import { readCredentialSecret, updateCredentialVerificationStatus } from "@/lib/secrets/credential-store";
 import { getStoredSmtpAccount } from "@/mail/smtp-settings";
-import { updateCredentialVerificationStatus } from "@/lib/secrets/credential-store";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 
 export type SmtpVerifyResult = {
@@ -24,17 +21,15 @@ export type SendInvoiceMailOptions = {
   currency: string | null;
   pdfPath: string;
   originalFilename: string;
-  db?: Database.Database;
 };
 
 export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<void> {
-  const resolvedDb = options.db ?? getDb();
-  const account = getStoredSmtpAccount(options.smtpSlot, resolvedDb);
+  const account = await getStoredSmtpAccount(options.smtpSlot);
   if (!account) {
     throw new Error(`SMTP Postfach "${options.smtpSlot}" ist nicht konfiguriert.`);
   }
 
-  const password = await readCredentialSecret({ scope: "smtp", ownerId: options.smtpSlot, organizationId: options.organizationId, db: resolvedDb });
+  const password = await readCredentialSecret({ scope: "smtp", ownerId: options.smtpSlot, organizationId: options.organizationId });
   if (!password) {
     throw new Error(`Kein Passwort für SMTP Postfach "${options.smtpSlot}" gefunden.`);
   }
@@ -97,16 +92,14 @@ export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<
 
 export async function verifySmtpAccountConnection(
   ownerId: SmtpCredentialOwnerId,
-  db?: Database.Database,
   organizationId?: string | null,
 ): Promise<SmtpVerifyResult> {
-  const resolvedDb = db || getDb();
-  const account = getStoredSmtpAccount(ownerId, resolvedDb);
+  const account = await getStoredSmtpAccount(ownerId);
   if (!account) {
     throw new Error(`SMTP Postfach "${ownerId}" ist nicht konfiguriert.`);
   }
 
-  const password = await readCredentialSecret({ scope: "smtp", ownerId, organizationId, db: resolvedDb });
+  const password = await readCredentialSecret({ scope: "smtp", ownerId, organizationId });
   if (!password) {
     throw new Error(`Kein gespeichertes Passwort für SMTP Postfach "${ownerId}" gefunden.`);
   }
@@ -127,8 +120,7 @@ export async function verifySmtpAccountConnection(
     transporter.close();
   }
 
-  updateCredentialVerificationStatus({
-    db: resolvedDb,
+  await updateCredentialVerificationStatus({
     scope: "smtp",
     ownerId,
     status: "configured",

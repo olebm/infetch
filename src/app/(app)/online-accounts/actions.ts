@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import {
   savePortalCredentialMeta,
@@ -51,8 +51,8 @@ export async function connectOnlineAccountAction(
       }
     }
 
-    const tier = getTier();
-    const limit = canAddOnlineAccount(undefined, tier);
+    const tier = await getTier();
+    const limit = await canAddOnlineAccount(tier);
     if (!limit.allowed) {
       const proPrice = getLimits("pro").priceMonthlyEur;
       return {
@@ -66,7 +66,7 @@ export async function connectOnlineAccountAction(
 
     if (mode === "existing") {
       const existingKey = String(formData.get("vendorKey") || "").trim();
-      const vendor = findVendorByCanonicalKey(existingKey);
+      const vendor = await findVendorByCanonicalKey(existingKey);
       if (!vendor) {
         return { status: "error", message: "Lieferant nicht gefunden." };
       }
@@ -78,13 +78,13 @@ export async function connectOnlineAccountAction(
         return { status: "error", message: "Bitte einen Namen für den Lieferanten eingeben." };
       }
       vendorName = newName;
-      canonicalKey = generateCanonicalKey(newName);
+      canonicalKey = await generateCanonicalKey(newName);
     } else {
       return { status: "error", message: "Ungültiger Modus." };
     }
 
     // Vendor anlegen oder aktualisieren mit URL + Kategorie
-    const vendor = upsertVendor({
+    const vendor = await upsertVendor({
       name: vendorName,
       canonicalKey,
       portalLoginUrl: loginUrl,
@@ -98,7 +98,7 @@ export async function connectOnlineAccountAction(
       label: `${vendor.name} Online-Konto`,
       secret: password,
     });
-    savePortalCredentialMeta({ vendorKey: vendor.canonicalKey, username });
+    await savePortalCredentialMeta({ vendorKey: vendor.canonicalKey, username });
 
     // Optionaler TOTP-Schlüssel
     if (totpSecret) {
@@ -246,13 +246,16 @@ export async function syncCommunityRecipesAction(
 export async function removeOnlineAccountAction(formData: FormData): Promise<void> {
   const vendorKey = String(formData.get("vendorKey") || "").trim();
   if (!vendorKey) return;
-  const db = getDb();
-  db.prepare(`DELETE FROM credential_refs WHERE scope IN ('portal','totp') AND secret_ref LIKE ?`).run(`%:${vendorKey}:%`);
-  db.prepare(`DELETE FROM portal_recipes WHERE vendor_key = ?`).run(vendorKey);
-  db.prepare(`DELETE FROM portal_run_logs WHERE vendor_key = ?`).run(vendorKey);
-  db.prepare(`UPDATE vendors SET portal_login_url = NULL, portal_category = NULL WHERE canonical_key = ?`).run(vendorKey);
-  invalidateBrowserSession(vendorKey);
-  resetPortalCredentialMeta(vendorKey);
+  await sql`
+    DELETE FROM credential_refs WHERE scope IN ('portal','totp') AND secret_ref LIKE ${`%:${vendorKey}:%`}
+  `;
+  await sql`DELETE FROM portal_recipes WHERE vendor_key = ${vendorKey}`;
+  await sql`DELETE FROM portal_run_logs WHERE vendor_key = ${vendorKey}`;
+  await sql`
+    UPDATE vendors SET portal_login_url = NULL, portal_category = NULL WHERE canonical_key = ${vendorKey}
+  `;
+  await invalidateBrowserSession(vendorKey);
+  await resetPortalCredentialMeta(vendorKey);
   revalidatePath("/einstellungen");
 }
 
@@ -279,12 +282,13 @@ async function importDownloads(
  * generateCanonicalKey: deterministische, kollisionsfreie ID aus einem Namen.
  * Bei Kollision haengen wir -2, -3, ... an.
  */
-function generateCanonicalKey(name: string): string {
+async function generateCanonicalKey(name: string): Promise<string> {
   const base = slugify(name);
-  const db = getDb();
   let candidate = base;
   let n = 2;
-  while (db.prepare(`SELECT 1 FROM vendors WHERE canonical_key = ? LIMIT 1`).get(candidate)) {
+  while (true) {
+    const rows = await sql`SELECT 1 FROM vendors WHERE canonical_key = ${candidate} LIMIT 1`;
+    if (!rows[0]) break;
     candidate = `${base}-${n}`;
     n += 1;
     if (n > 100) throw new Error("Zu viele Kollisionen bei der ID-Generierung.");

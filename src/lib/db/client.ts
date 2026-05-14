@@ -1,39 +1,51 @@
-import fs from "node:fs";
-import path from "node:path";
-import Database from "better-sqlite3";
-import { appConfig } from "@/lib/config/env";
-import { ensureDataDirs } from "@/lib/filesystem/ensure-data-dirs";
-import { schemaStatements } from "@/lib/db/schema";
-import { seedDatabase } from "@/vendors/seed";
+import postgres from "postgres";
 
-let database: Database.Database | null = null;
+/**
+ * Supabase Postgres client (porsager/postgres).
+ * Wird als Singleton gehalten — safe in Next.js Server Actions / Route Handlers.
+ *
+ * DATABASE_URL Format:
+ *   postgresql://postgres.[project-ref]:[password]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+ *
+ * Im Dev-Betrieb: DIRECT_URL für Migrationen (keine Session-Multiplexing-Einschränkungen).
+ * Im Prod-Betrieb: Pooler-URL (Transaction Mode) für maximale Parallelität.
+ */
 
-export function getDb() {
-  if (database) {
-    return database;
+// Prevent multiple connections in Next.js hot-reload (dev mode)
+declare global {
+  // eslint-disable-next-line no-var
+  var __pgSql: postgres.Sql | undefined;
+}
+
+function createClient(): postgres.Sql {
+  const url = process.env.DATABASE_URL;
+  if (!url || url.startsWith("./") || url.endsWith(".db")) {
+    throw new Error(
+      "DATABASE_URL must be a PostgreSQL connection string. " +
+        "Set it in .env.local:\n" +
+        "  DATABASE_URL=postgresql://postgres.[ref]:[password]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres",
+    );
   }
+  return postgres(url, {
+    // Supabase Pooler (Transaction Mode): max 1 concurrent query per connection
+    // — prepared statements not supported in transaction mode
+    prepare: false,
+    // Transform snake_case column names to camelCase
+    // Disabled — queries use explicit AS aliases instead
+    // transform: postgres.camel,
+  });
+}
 
-  ensureDataDirs();
-  fs.mkdirSync(path.dirname(appConfig.databaseUrl), { recursive: true, mode: 0o700 });
+export const sql: postgres.Sql =
+  globalThis.__pgSql ?? (globalThis.__pgSql = createClient());
 
-  database = new Database(appConfig.databaseUrl);
-  database.pragma("journal_mode = WAL");
-  database.pragma("foreign_keys = ON");
-
-  for (const statement of schemaStatements) {
-    try {
-      database.exec(statement);
-    } catch (error) {
-      // ALTER TABLE ADD COLUMN is not idempotent in SQLite — ignore if column already exists
-      const isAlterAddColumn = /^\s*ALTER\s+TABLE\s+\S+\s+ADD\s+COLUMN\s+/i.test(statement);
-      if (isAlterAddColumn && error instanceof Error && error.message.includes("duplicate column name")) {
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  seedDatabase(database);
-
-  return database;
+/**
+ * @deprecated Verwende `sql` direkt. Diese Funktion existiert nur für die
+ * schrittweise Migration der legacy-Dateien (Phase 2).
+ *
+ * Da `sql` kein better-sqlite3-Database-Objekt ist, gibt diese Funktion
+ * den sql-Client zurück — alle Aufrufer müssen auf async/await umgestellt werden.
+ */
+export function getDb(): postgres.Sql {
+  return sql;
 }

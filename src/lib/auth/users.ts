@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import type { OrganizationRow, UserRow } from "@/lib/auth/session";
 
 function slugify(input: string): string {
@@ -12,57 +11,50 @@ function slugify(input: string): string {
     .slice(0, 48) || "user";
 }
 
-export function findUserByEmail(email: string, db?: Database.Database): UserRow | null {
-  const conn = db ?? getDb();
-  const row = conn
-    .prepare(
-      `SELECT id, email, name, email_verified_at AS emailVerifiedAt
-       FROM users
-       WHERE email = ? AND deleted_at IS NULL`,
-    )
-    .get(email.toLowerCase()) as UserRow | undefined;
-  return row ?? null;
+export async function findUserByEmail(email: string): Promise<UserRow | null> {
+  const rows = await sql<UserRow[]>`
+    SELECT id, email, name, email_verified_at AS "emailVerifiedAt"
+    FROM users
+    WHERE email = ${email.toLowerCase()} AND deleted_at IS NULL
+  `;
+  return rows[0] ?? null;
 }
 
-export function createUserWithDefaultOrg(input: {
+export async function createUserWithDefaultOrg(input: {
   email: string;
   name?: string | null;
-  db?: Database.Database;
   /** Optionale User-ID (z. B. Supabase-Auth-UUID). Wird generiert falls nicht angegeben. */
   userId?: string;
-}): { user: UserRow; organization: OrganizationRow } {
-  const db = input.db ?? getDb();
+}): Promise<{ user: UserRow; organization: OrganizationRow }> {
   const email = input.email.toLowerCase();
   const userId = input.userId ?? crypto.randomUUID();
   const orgId = crypto.randomUUID();
   const baseSlug = slugify(input.name || email.split("@")[0] || "user");
-  const slug = ensureUniqueSlug(db, baseSlug);
+  const slug = await ensureUniqueSlug(baseSlug);
   const orgName = input.name ? `${input.name}` : email.split("@")[0];
+  const now = new Date().toISOString();
 
-  const tx = db.transaction(() => {
-    db.prepare(
-      `INSERT INTO users (id, email, name, email_verified_at)
-       VALUES (?, ?, ?, ?)`,
-    ).run(userId, email, input.name ?? null, new Date().toISOString());
+  await sql`
+    INSERT INTO users (id, email, name, email_verified_at)
+    VALUES (${userId}, ${email}, ${input.name ?? null}, ${now})
+  `;
 
-    db.prepare(
-      `INSERT INTO organizations (id, name, slug, tier, owner_user_id)
-       VALUES (?, ?, ?, 'free', ?)`,
-    ).run(orgId, orgName, slug, userId);
+  await sql`
+    INSERT INTO organizations (id, name, slug, tier, owner_user_id)
+    VALUES (${orgId}, ${orgName}, ${slug}, 'free', ${userId})
+  `;
 
-    db.prepare(
-      `INSERT INTO org_members (organization_id, user_id, role)
-       VALUES (?, ?, 'owner')`,
-    ).run(orgId, userId);
-  });
-  tx();
+  await sql`
+    INSERT INTO org_members (organization_id, user_id, role)
+    VALUES (${orgId}, ${userId}, 'owner')
+  `;
 
   return {
     user: {
       id: userId,
       email,
       name: input.name ?? null,
-      emailVerifiedAt: new Date().toISOString(),
+      emailVerifiedAt: now,
     },
     organization: {
       id: orgId,
@@ -74,13 +66,12 @@ export function createUserWithDefaultOrg(input: {
   };
 }
 
-function ensureUniqueSlug(db: Database.Database, base: string): string {
+async function ensureUniqueSlug(base: string): Promise<string> {
   let slug = base;
   let attempt = 0;
-  while (
-    (db.prepare(`SELECT 1 FROM organizations WHERE slug = ?`).get(slug) as unknown) !==
-    undefined
-  ) {
+  while (true) {
+    const rows = await sql`SELECT 1 FROM organizations WHERE slug = ${slug} LIMIT 1`;
+    if (rows.length === 0) break;
     attempt += 1;
     slug = `${base}-${attempt}`;
   }

@@ -9,8 +9,8 @@ const defaultRows = [
   { label: "Online-Konten", scope: "portal", detail: "Optional, für Auto-Abholen aus Lieferanten-Portalen" },
 ];
 
-export function CredentialStatusPanel() {
-  const credentials = getCredentialSummaries();
+export async function CredentialStatusPanel() {
+  const credentials = await getCredentialSummaries();
   const rows = appConfig.features.enablePortals
     ? defaultRows
     : defaultRows.filter((row) => row.scope !== "portal");

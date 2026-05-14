@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 
 export type InboundAddressRow = {
@@ -13,19 +12,21 @@ export type InboundAddressRow = {
   fullAddress: string;
 };
 
-function rowToInboundAddress(row: {
+type RawRow = {
   id: string;
   organizationId: string | null;
   localPart: string;
-  enabled: number;
+  enabled: boolean;
   lastReceivedAt: string | null;
   receivedCount: number;
-}): InboundAddressRow {
+};
+
+function rowToInboundAddress(row: RawRow): InboundAddressRow {
   return {
     id: row.id,
     organizationId: row.organizationId,
     localPart: row.localPart,
-    enabled: row.enabled === 1,
+    enabled: Boolean(row.enabled),
     lastReceivedAt: row.lastReceivedAt,
     receivedCount: row.receivedCount,
     fullAddress: `${row.localPart}@${appConfig.resendInbound.domain}`,
@@ -40,106 +41,68 @@ function generateLocalPart(): string {
   return crypto.randomBytes(8).toString("hex");
 }
 
-export function getInboundAddressForOrg(
+export async function getInboundAddressForOrg(
   organizationId: string,
-  db?: Database.Database,
-): InboundAddressRow | null {
-  const conn = db ?? getDb();
-  const row = conn
-    .prepare(
-      `SELECT id, organization_id AS organizationId, local_part AS localPart,
-              enabled, last_received_at AS lastReceivedAt, received_count AS receivedCount
-       FROM mail_inbound_addresses
-       WHERE organization_id = ? AND deleted_at IS NULL
-       ORDER BY created_at
-       LIMIT 1`,
-    )
-    .get(organizationId) as
-    | {
-        id: string;
-        organizationId: string;
-        localPart: string;
-        enabled: number;
-        lastReceivedAt: string | null;
-        receivedCount: number;
-      }
-    | undefined;
-  return row ? rowToInboundAddress(row) : null;
+): Promise<InboundAddressRow | null> {
+  const rows = await sql<RawRow[]>`
+    SELECT id, organization_id AS "organizationId", local_part AS "localPart",
+           enabled, last_received_at AS "lastReceivedAt", received_count AS "receivedCount"
+    FROM mail_inbound_addresses
+    WHERE organization_id = ${organizationId} AND deleted_at IS NULL
+    ORDER BY created_at
+    LIMIT 1
+  `;
+  return rows[0] ? rowToInboundAddress(rows[0]) : null;
 }
 
-export function ensureInboundAddressForOrg(
+export async function ensureInboundAddressForOrg(
   organizationId: string,
-  db?: Database.Database,
-): InboundAddressRow {
-  const existing = getInboundAddressForOrg(organizationId, db);
+): Promise<InboundAddressRow> {
+  const existing = await getInboundAddressForOrg(organizationId);
   if (existing) return existing;
 
-  const conn = db ?? getDb();
   const id = crypto.randomUUID();
   let localPart = generateLocalPart();
   // Sehr unwahrscheinlich, aber: bei Kollision neuen Wert nehmen
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const exists = conn
-      .prepare(`SELECT 1 FROM mail_inbound_addresses WHERE local_part = ?`)
-      .get(localPart);
-    if (!exists) break;
+    const exists = await sql`SELECT 1 FROM mail_inbound_addresses WHERE local_part = ${localPart}`;
+    if (exists.length === 0) break;
     localPart = generateLocalPart();
   }
 
-  conn
-    .prepare(
-      `INSERT INTO mail_inbound_addresses (id, organization_id, local_part)
-       VALUES (?, ?, ?)`,
-    )
-    .run(id, organizationId, localPart);
+  await sql`
+    INSERT INTO mail_inbound_addresses (id, organization_id, local_part)
+    VALUES (${id}, ${organizationId}, ${localPart})
+  `;
 
   return rowToInboundAddress({
     id,
     organizationId,
     localPart,
-    enabled: 1,
+    enabled: true,
     lastReceivedAt: null,
     receivedCount: 0,
   });
 }
 
-export function findInboundAddressByLocalPart(
+export async function findInboundAddressByLocalPart(
   localPart: string,
-  db?: Database.Database,
-): InboundAddressRow | null {
-  const conn = db ?? getDb();
-  const row = conn
-    .prepare(
-      `SELECT id, organization_id AS organizationId, local_part AS localPart,
-              enabled, last_received_at AS lastReceivedAt, received_count AS receivedCount
-       FROM mail_inbound_addresses
-       WHERE local_part = ? AND deleted_at IS NULL AND enabled = 1`,
-    )
-    .get(localPart) as
-    | {
-        id: string;
-        organizationId: string | null;
-        localPart: string;
-        enabled: number;
-        lastReceivedAt: string | null;
-        receivedCount: number;
-      }
-    | undefined;
-  return row ? rowToInboundAddress(row) : null;
+): Promise<InboundAddressRow | null> {
+  const rows = await sql<RawRow[]>`
+    SELECT id, organization_id AS "organizationId", local_part AS "localPart",
+           enabled, last_received_at AS "lastReceivedAt", received_count AS "receivedCount"
+    FROM mail_inbound_addresses
+    WHERE local_part = ${localPart} AND deleted_at IS NULL AND enabled = TRUE
+  `;
+  return rows[0] ? rowToInboundAddress(rows[0]) : null;
 }
 
-export function recordInboundDelivery(
-  addressId: string,
-  db?: Database.Database,
-): void {
-  const conn = db ?? getDb();
-  conn
-    .prepare(
-      `UPDATE mail_inbound_addresses
-       SET last_received_at = CURRENT_TIMESTAMP,
-           received_count = received_count + 1,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-    )
-    .run(addressId);
+export async function recordInboundDelivery(addressId: string): Promise<void> {
+  await sql`
+    UPDATE mail_inbound_addresses
+    SET last_received_at = CURRENT_TIMESTAMP,
+        received_count = received_count + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${addressId}
+  `;
 }

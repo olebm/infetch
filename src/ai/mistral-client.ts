@@ -1,7 +1,5 @@
 import { Mistral } from "@mistralai/mistralai";
-import type Database from "better-sqlite3";
 import { appConfig } from "@/lib/config/env";
-import { getDb } from "@/lib/db/client";
 import {
   readCredentialSecret,
   updateCredentialVerificationStatus,
@@ -25,8 +23,8 @@ export type MistralInvoiceExtractionRequest = {
  * Vision target: KI-Erkennung wird vom Anbieter (uns) via Backend-Proxy bereitgestellt
  * (siehe INTAKE-55). Bis dahin bleibt der direkte Client-Call mit env-Fallback aktiv.
  */
-async function resolveMistralApiKey(db?: Database.Database): Promise<string | null> {
-  const stored = await readCredentialSecret({ scope: "mistral", db });
+async function resolveMistralApiKey(): Promise<string | null> {
+  const stored = await readCredentialSecret({ scope: "mistral" });
   if (stored) return stored;
   const envKey = process.env.MISTRAL_API_KEY?.trim();
   return envKey || null;
@@ -81,8 +79,8 @@ export async function callMistralInvoiceExtractor(request: MistralInvoiceExtract
   return invoiceAiExtractionSchema.parse(JSON.parse(content));
 }
 
-export async function verifyMistralConnection(db: Database.Database = getDb()) {
-  const apiKey = await resolveMistralApiKey(db);
+export async function verifyMistralConnection() {
+  const apiKey = await resolveMistralApiKey();
   if (!apiKey) {
     throw new Error("Mistral API Key ist nicht konfiguriert.");
   }
@@ -92,8 +90,7 @@ export async function verifyMistralConnection(db: Database.Database = getDb()) {
     const response = await client.models.list();
     const firstModel = response.data?.[0]?.id || appConfig.mistral.model;
 
-    updateCredentialVerificationStatus({
-      db,
+    await updateCredentialVerificationStatus({
       scope: "mistral",
       ownerId: "default",
       status: "configured",
@@ -106,8 +103,7 @@ export async function verifyMistralConnection(db: Database.Database = getDb()) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Mistral-Verbindung fehlgeschlagen.";
     if (looksLikeMistralCredentialError(message)) {
-      updateCredentialVerificationStatus({
-        db,
+      await updateCredentialVerificationStatus({
         scope: "mistral",
         ownerId: "default",
         status: "invalid",

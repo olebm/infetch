@@ -1,5 +1,4 @@
 import { appConfig } from "@/lib/config/env";
-import { getDb } from "@/lib/db/client";
 import { getPrimaryMailAccount, getSecondaryMailAccount } from "@/lib/db/queries";
 import {
   hasConfiguredCredential,
@@ -26,33 +25,41 @@ import { InboundAddressCard } from "@/components/credentials/inbound-address-car
 export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {
-  const db = getDb();
   const auth = await getCurrentAuth();
   const keychainAvailable = isSecretStoreAvailable();
-  const exportTargets = getExportTargets(db);
-  const confidenceThreshold = readJsonSetting<number>(
-    "auto_approve_confidence",
-    appConfig.features.autoApprovalConfidenceThreshold,
-    db,
-  );
 
-  const inboundAddress = auth?.organization
-    ? ensureInboundAddressForOrg(auth.organization.id, db)
-    : null;
-
-  const imapPrimary   = getPrimaryMailAccount();
-  const imapSecondary = getSecondaryMailAccount();
+  const [
+    exportTargets,
+    confidenceThreshold,
+    inboundAddress,
+    imapPrimary,
+    imapSecondary,
+    primaryHasCredential,
+    primaryHasRef,
+    secondaryHasCredential,
+    secondaryHasRef,
+  ] = await Promise.all([
+    getExportTargets(),
+    readJsonSetting<number>("auto_approve_confidence", appConfig.features.autoApprovalConfidenceThreshold),
+    auth?.organization ? ensureInboundAddressForOrg(auth.organization.id) : Promise.resolve(null),
+    getPrimaryMailAccount(),
+    getSecondaryMailAccount(),
+    hasConfiguredCredential("imap", "primary", auth?.organization?.id),
+    hasStoredCredentialRef("imap", "primary", auth?.organization?.id),
+    hasConfiguredCredential("imap", "secondary", auth?.organization?.id),
+    hasStoredCredentialRef("imap", "secondary", auth?.organization?.id),
+  ]);
 
   const mailboxSlots: MailboxSlot[] = [
     {
       key: "primary",
-      isConnected: hasConfiguredCredential(db, "imap", "primary", auth?.organization?.id) || hasStoredCredentialRef(db, "imap", "primary", auth?.organization?.id),
+      isConnected: primaryHasCredential || primaryHasRef,
       email: imapPrimary?.username ?? null,
       providerDomain: imapPrimary?.username ? (getProviderFromEmail(imapPrimary.username)?.domain ?? null) : null,
     },
     {
       key: "secondary",
-      isConnected: hasConfiguredCredential(db, "imap", "secondary", auth?.organization?.id) || hasStoredCredentialRef(db, "imap", "secondary", auth?.organization?.id),
+      isConnected: secondaryHasCredential || secondaryHasRef,
       email: imapSecondary?.username ?? null,
       providerDomain: imapSecondary?.username ? (getProviderFromEmail(imapSecondary.username)?.domain ?? null) : null,
     },
@@ -240,4 +247,3 @@ export default async function SetupPage() {
     </div>
   );
 }
-

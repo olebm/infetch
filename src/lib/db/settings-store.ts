@@ -1,10 +1,10 @@
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 
-export function readJsonSetting<T>(key: string, fallback: T, db: Database.Database = getDb()) {
-  const row = db.prepare(`SELECT value_json AS valueJson FROM settings WHERE key = ?`).get(key) as
-    | { valueJson: string }
-    | undefined;
+export async function readJsonSetting<T>(key: string, fallback: T): Promise<T> {
+  const rows = await sql<{ valueJson: string }[]>`
+    SELECT value_json AS "valueJson" FROM settings WHERE key = ${key} LIMIT 1
+  `;
+  const row = rows[0];
 
   if (!row?.valueJson) return fallback;
 
@@ -15,12 +15,12 @@ export function readJsonSetting<T>(key: string, fallback: T, db: Database.Databa
   }
 }
 
-export function writeJsonSetting(key: string, value: unknown, db: Database.Database = getDb()) {
-  db.prepare(
-    `INSERT INTO settings (key, value_json, updated_at)
-     VALUES (?, ?, CURRENT_TIMESTAMP)
-     ON CONFLICT(key) DO UPDATE SET
-       value_json = excluded.value_json,
-       updated_at = CURRENT_TIMESTAMP`,
-  ).run(key, JSON.stringify(value));
+export async function writeJsonSetting(key: string, value: unknown): Promise<void> {
+  await sql`
+    INSERT INTO settings (key, value_json, updated_at)
+    VALUES (${key}, ${JSON.stringify(value)}, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET
+      value_json = excluded.value_json,
+      updated_at = CURRENT_TIMESTAMP
+  `;
 }

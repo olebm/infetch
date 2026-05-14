@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 
 export type BrowserSession = {
@@ -21,55 +20,49 @@ export function pathForVendor(vendorKey: string): string {
   return path.join(sessionDir(), `${vendorKey}.storage.json`);
 }
 
-export function getBrowserSession(vendorKey: string, db?: Database.Database): BrowserSession | null {
-  const row = (db ?? getDb())
-    .prepare(
-      `SELECT vendor_key AS vendorKey, storage_state_path AS storageStatePath,
-        last_login_at AS lastLoginAt, expires_at AS expiresAt
-       FROM portal_browser_sessions
-       WHERE vendor_key = ?
-       LIMIT 1`,
-    )
-    .get(vendorKey) as BrowserSession | undefined;
+export async function getBrowserSession(vendorKey: string): Promise<BrowserSession | null> {
+  const rows = await sql<BrowserSession[]>`
+    SELECT vendor_key AS "vendorKey", storage_state_path AS "storageStatePath",
+      last_login_at AS "lastLoginAt", expires_at AS "expiresAt"
+    FROM portal_browser_sessions
+    WHERE vendor_key = ${vendorKey}
+    LIMIT 1
+  `;
+  const row = rows[0];
   if (!row) return null;
   if (!fs.existsSync(row.storageStatePath)) return null;
   return row;
 }
 
-export function saveBrowserSession(input: {
+export async function saveBrowserSession(input: {
   vendorKey: string;
   storageState: unknown;
   expiresAt?: string | null;
-  db?: Database.Database;
-}): BrowserSession {
-  const db = input.db ?? getDb();
+}): Promise<BrowserSession> {
   const filePath = pathForVendor(input.vendorKey);
   fs.writeFileSync(filePath, JSON.stringify(input.storageState), { mode: 0o600 });
 
-  db.prepare(
-    `INSERT INTO portal_browser_sessions (vendor_key, storage_state_path, expires_at, last_login_at, updated_at)
-     VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     ON CONFLICT(vendor_key) DO UPDATE SET
-       storage_state_path = excluded.storage_state_path,
-       expires_at = excluded.expires_at,
-       last_login_at = CURRENT_TIMESTAMP,
-       updated_at = CURRENT_TIMESTAMP`,
-  ).run(input.vendorKey, filePath, input.expiresAt ?? null);
+  await sql`
+    INSERT INTO portal_browser_sessions (vendor_key, storage_state_path, expires_at, last_login_at, updated_at)
+    VALUES (${input.vendorKey}, ${filePath}, ${input.expiresAt ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT(vendor_key) DO UPDATE SET
+      storage_state_path = excluded.storage_state_path,
+      expires_at = excluded.expires_at,
+      last_login_at = CURRENT_TIMESTAMP,
+      updated_at = CURRENT_TIMESTAMP
+  `;
 
-  const row = db
-    .prepare(
-      `SELECT vendor_key AS vendorKey, storage_state_path AS storageStatePath,
-        last_login_at AS lastLoginAt, expires_at AS expiresAt
-       FROM portal_browser_sessions
-       WHERE vendor_key = ?`,
-    )
-    .get(input.vendorKey) as BrowserSession;
-  return row;
+  const rows = await sql<BrowserSession[]>`
+    SELECT vendor_key AS "vendorKey", storage_state_path AS "storageStatePath",
+      last_login_at AS "lastLoginAt", expires_at AS "expiresAt"
+    FROM portal_browser_sessions
+    WHERE vendor_key = ${input.vendorKey}
+  `;
+  return rows[0];
 }
 
-export function invalidateBrowserSession(vendorKey: string, db?: Database.Database) {
-  const resolved = db ?? getDb();
-  const existing = getBrowserSession(vendorKey, resolved);
+export async function invalidateBrowserSession(vendorKey: string): Promise<void> {
+  const existing = await getBrowserSession(vendorKey);
   if (existing && fs.existsSync(existing.storageStatePath)) {
     try {
       fs.unlinkSync(existing.storageStatePath);
@@ -77,5 +70,5 @@ export function invalidateBrowserSession(vendorKey: string, db?: Database.Databa
       // ignore
     }
   }
-  resolved.prepare(`DELETE FROM portal_browser_sessions WHERE vendor_key = ?`).run(vendorKey);
+  await sql`DELETE FROM portal_browser_sessions WHERE vendor_key = ${vendorKey}`;
 }

@@ -1,30 +1,10 @@
-import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { buildInvoiceExtractionPayload, createInvoiceExtractionInputHash, runInvoiceAiExtraction } from "@/ai/extract-invoice";
 import type { InvoiceAiExtraction } from "@/ai/schemas";
-import { schemaStatements } from "@/lib/db/schema";
-import { seedDatabase } from "@/vendors/seed";
+import { sql } from "@/lib/db/client";
 
-function createDb() {
-  const db = new Database(":memory:");
-  db.pragma("foreign_keys = ON");
-  for (const statement of schemaStatements) {
-    db.exec(statement);
-  }
-  seedDatabase(db);
-  return db;
-}
-
-function insertInvoice(db: Database.Database) {
-  return Number(
-    db
-      .prepare(
-        `INSERT INTO invoices (source, status, confidence, dedupe_key)
-         VALUES ('manual', 'needs_review', 0.4, 'hash')`,
-      )
-      .run().lastInsertRowid,
-  );
-}
+// NOTE: runInvoiceAiExtraction now uses the global postgres sql client.
+// Tests that create/read invoices require a real Postgres connection.
 
 const validExtraction: InvoiceAiExtraction = {
   document_type: "invoice",
@@ -48,6 +28,15 @@ const validExtraction: InvoiceAiExtraction = {
   review_reason: null,
 };
 
+async function insertInvoice(): Promise<number> {
+  const rows = await sql<{ id: number }[]>`
+    INSERT INTO invoices (source, status, confidence, dedupe_key)
+    VALUES ('manual', 'needs_review', 0.4, 'hash-' || extract(epoch from now())::text)
+    RETURNING id
+  `;
+  return rows[0].id;
+}
+
 describe("Mistral invoice extraction pipeline", () => {
   it("builds stable hashes from minimized prompt payloads", () => {
     const payload = buildInvoiceExtractionPayload(
@@ -65,10 +54,8 @@ describe("Mistral invoice extraction pipeline", () => {
   });
 
   it("records a succeeded AI audit row and applies validated fields to the invoice", async () => {
-    const db = createDb();
-    const invoiceId = insertInvoice(db);
+    const invoiceId = await insertInvoice();
     const result = await runInvoiceAiExtraction(
-      db,
       {
         invoiceId,
         originalFilename: "openai.pdf",
@@ -79,18 +66,18 @@ describe("Mistral invoice extraction pipeline", () => {
       async () => validExtraction,
     );
 
-    const invoice = db
-      .prepare(
-        `SELECT invoices.status, invoices.invoice_number AS invoiceNumber, invoices.amount_gross AS amountGross,
-          vendors.canonical_key AS vendorKey
-         FROM invoices
-         JOIN vendors ON vendors.id = invoices.vendor_id
-         WHERE invoices.id = ?`,
-      )
-      .get(invoiceId) as { status: string; invoiceNumber: string; amountGross: number; vendorKey: string };
-    const aiRow = db
-      .prepare(`SELECT status, output_json AS outputJson FROM ai_extractions WHERE invoice_id = ?`)
-      .get(invoiceId) as { status: string; outputJson: string };
+    const invoiceRows = await sql<{ status: string; invoiceNumber: string | null; amountGross: number | null; vendorKey: string }[]>`
+      SELECT invoices.status, invoices.invoice_number AS "invoiceNumber", invoices.amount_gross AS "amountGross",
+        vendors.canonical_key AS "vendorKey"
+      FROM invoices
+      JOIN vendors ON vendors.id = invoices.vendor_id
+      WHERE invoices.id = ${invoiceId}
+    `;
+    const invoice = invoiceRows[0];
+    const aiRows = await sql<{ status: string; outputJson: string }[]>`
+      SELECT status, output_json AS "outputJson" FROM ai_extractions WHERE invoice_id = ${invoiceId}
+    `;
+    const aiRow = aiRows[0];
 
     expect(result.status).toBe("succeeded");
     expect(invoice).toMatchObject({
@@ -104,8 +91,7 @@ describe("Mistral invoice extraction pipeline", () => {
   });
 
   it("uses the local AI cache for the same input hash", async () => {
-    const db = createDb();
-    const invoiceId = insertInvoice(db);
+    const invoiceId = await insertInvoice();
     let calls = 0;
     const provider = async () => {
       calls += 1;
@@ -119,8 +105,8 @@ describe("Mistral invoice extraction pipeline", () => {
       localVendorKey: null,
     };
 
-    await runInvoiceAiExtraction(db, input, provider);
-    const second = await runInvoiceAiExtraction(db, input, provider);
+    await runInvoiceAiExtraction(input, provider);
+    const second = await runInvoiceAiExtraction(input, provider);
 
     expect(second.status).toBe("cached");
     expect(calls).toBe(1);

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import {
   autoAssignSenders,
   backfillFromMailMessages,
@@ -26,16 +26,19 @@ function parseSenderId(formData: FormData): number {
   return id;
 }
 
-function getSenderRow(id: number) {
-  return getDb()
-    .prepare(
-      `SELECT id, from_address AS fromAddress, from_domain AS fromDomain, display_name AS displayName,
-        matched_vendor_id AS matchedVendorId
-       FROM discovered_senders WHERE id = ?`,
-    )
-    .get(id) as
-    | { id: number; fromAddress: string; fromDomain: string; displayName: string | null; matchedVendorId: number | null }
-    | undefined;
+async function getSenderRow(id: number) {
+  const rows = await sql<Array<{
+    id: number;
+    fromAddress: string;
+    fromDomain: string;
+    displayName: string | null;
+    matchedVendorId: number | null;
+  }>>`
+    SELECT id, from_address AS "fromAddress", from_domain AS "fromDomain",
+      display_name AS "displayName", matched_vendor_id AS "matchedVendorId"
+    FROM discovered_senders WHERE id = ${id}
+  `;
+  return rows[0];
 }
 
 function refreshSenderViews() {
@@ -51,9 +54,9 @@ export async function blockSenderAction(
   try {
     const senderId = parseSenderId(formData);
     const reason = String(formData.get("reason") || "").trim() || null;
-    const sender = getSenderRow(senderId);
+    const sender = await getSenderRow(senderId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
-    blockSender(getDb(), senderId, reason);
+    await blockSender(senderId, reason);
     refreshSenderViews();
     return {
       status: "success",
@@ -71,9 +74,9 @@ export async function unblockSenderAction(
   void _previousState;
   try {
     const senderId = parseSenderId(formData);
-    const sender = getSenderRow(senderId);
+    const sender = await getSenderRow(senderId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
-    unblockSender(getDb(), senderId);
+    await unblockSender(senderId);
     refreshSenderViews();
     return { status: "success", message: `${sender.fromAddress} ist wieder freigegeben.` };
   } catch (error) {
@@ -96,9 +99,9 @@ export async function linkSenderToVendorAction(
     if (vendorId !== null && (!Number.isInteger(vendorId) || vendorId <= 0)) {
       return { status: "error", message: "Ungültige Vendor-ID." };
     }
-    const sender = getSenderRow(senderId);
+    const sender = await getSenderRow(senderId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
-    linkSenderToVendor(getDb(), senderId, vendorId);
+    await linkSenderToVendor(senderId, vendorId);
     refreshSenderViews();
     return {
       status: "success",
@@ -129,7 +132,7 @@ export async function createVendorFromSenderAction(
   void _previousState;
   try {
     const senderId = parseSenderId(formData);
-    const sender = getSenderRow(senderId);
+    const sender = await getSenderRow(senderId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
 
     const name = (String(formData.get("vendorName") || "").trim() || sender.displayName || sender.fromDomain).trim();
@@ -137,40 +140,40 @@ export async function createVendorFromSenderAction(
 
     const category = String(formData.get("category") || "service").trim() || "service";
     const baseKey = slugify(name) || slugify(sender.fromDomain) || `vendor-${senderId}`;
-    const db = getDb();
 
-    const existingVendor = db
-      .prepare(`SELECT id FROM vendors WHERE canonical_key = ?`)
-      .get(baseKey) as { id: number } | undefined;
+    const existingRows = await sql<{ id: number }[]>`
+      SELECT id FROM vendors WHERE canonical_key = ${baseKey}
+    `;
+    const existingVendor = existingRows[0];
 
     let vendorId: number;
     if (existingVendor) {
       vendorId = existingVendor.id;
     } else {
-      const result = db
-        .prepare(
-          `INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
-           VALUES (?, ?, ?, 0, 1, 1)`,
-        )
-        .run(name, baseKey, category);
-      vendorId = Number(result.lastInsertRowid);
+      const insertRows = await sql<{ id: number }[]>`
+        INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
+        VALUES (${name}, ${baseKey}, ${category}, FALSE, TRUE, TRUE)
+        RETURNING id
+      `;
+      vendorId = Number(insertRows[0].id);
     }
 
     const domain = sender.fromDomain;
     if (domain) {
-      db.prepare(
-        `INSERT OR IGNORE INTO vendor_aliases (vendor_id, alias, match_type, priority)
-         VALUES (?, ?, 'domain', 50)`,
-      ).run(vendorId, domain);
+      await sql`
+        INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
+        VALUES (${vendorId}, ${domain}, 'domain', 50)
+        ON CONFLICT DO NOTHING
+      `;
     }
-    db.prepare(
-      `INSERT OR IGNORE INTO vendor_aliases (vendor_id, alias, match_type, priority)
-       VALUES (?, ?, 'exact', 30)`,
-    ).run(vendorId, sender.fromAddress);
+    await sql`
+      INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
+      VALUES (${vendorId}, ${sender.fromAddress}, 'exact', 30)
+      ON CONFLICT DO NOTHING
+    `;
 
-    linkSenderToVendor(db, senderId, vendorId);
+    await linkSenderToVendor(senderId, vendorId);
     refreshSenderViews();
-    
 
     return {
       status: "success",
@@ -191,7 +194,7 @@ export async function autoAssignSendersAction(
 ): Promise<SenderActionState> {
   void _previousState;
   try {
-    const result = autoAssignSenders(getDb());
+    const result = await autoAssignSenders();
     refreshSenderViews();
     revalidatePath("/fehlt");
     const parts: string[] = [];
@@ -216,7 +219,7 @@ export async function backfillSendersAction(
 ): Promise<SenderActionState> {
   void _previousState;
   try {
-    const result = backfillFromMailMessages(getDb());
+    const result = await backfillFromMailMessages();
     refreshSenderViews();
     return {
       status: "success",
@@ -235,7 +238,7 @@ export async function rematchInvoicesAction(
 ): Promise<SenderActionState> {
   void _previousState;
   try {
-    const result = rematchUnmatchedInvoices(getDb(), matchVendor);
+    const result = await rematchUnmatchedInvoices(matchVendor);
     refreshSenderViews();
     revalidatePath("/audit");
     if (result.scanned === 0) {
@@ -252,4 +255,3 @@ export async function rematchInvoicesAction(
     };
   }
 }
-

@@ -1,5 +1,5 @@
 import path from "node:path";
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { recordSyncEvent } from "@/lib/db/events";
 import {
   getActiveIntegrationTarget,
@@ -28,30 +28,26 @@ type InvoiceFileRef = {
   originalFilename: string;
 };
 
-function loadInvoiceForTransfer(db: Database.Database, invoiceId: number): InvoiceForTransfer | null {
-  const row = db
-    .prepare(
-      `SELECT invoices.id, invoices.status, invoices.external_ref AS externalRef,
-              invoices.invoice_date AS invoiceDate, vendors.name AS vendorName
-       FROM invoices
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       WHERE invoices.id = ?`,
-    )
-    .get(invoiceId) as InvoiceForTransfer | undefined;
-  return row ?? null;
+async function loadInvoiceForTransfer(invoiceId: number): Promise<InvoiceForTransfer | null> {
+  const rows = await sql<InvoiceForTransfer[]>`
+    SELECT invoices.id, invoices.status, invoices.external_ref AS "externalRef",
+           invoices.invoice_date AS "invoiceDate", vendors.name AS "vendorName"
+    FROM invoices
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    WHERE invoices.id = ${invoiceId}
+  `;
+  return rows[0] ?? null;
 }
 
-function loadInvoiceFile(db: Database.Database, invoiceId: number): InvoiceFileRef | null {
-  const row = db
-    .prepare(
-      `SELECT stored_path AS storedPath, original_filename AS originalFilename
-       FROM invoice_files
-       WHERE invoice_id = ?
-       ORDER BY created_at DESC, id DESC
-       LIMIT 1`,
-    )
-    .get(invoiceId) as InvoiceFileRef | undefined;
-  return row ?? null;
+async function loadInvoiceFile(invoiceId: number): Promise<InvoiceFileRef | null> {
+  const rows = await sql<InvoiceFileRef[]>`
+    SELECT stored_path AS "storedPath", original_filename AS "originalFilename"
+    FROM invoice_files
+    WHERE invoice_id = ${invoiceId}
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
 }
 
 /**
@@ -60,23 +56,22 @@ function loadInvoiceFile(db: Database.Database, invoiceId: number): InvoiceFileR
  * external_ref bereits gesetzt ist.
  */
 export async function attemptAutoTransfer(
-  db: Database.Database,
   invoiceId: number,
 ): Promise<{ pushed: boolean; provider?: IntegrationProvider; externalRef?: string; reason?: string }> {
   if (!appConfig.features.enableApiIntegrations) {
     return { pushed: false, reason: "api integrations disabled" };
   }
-  const invoice = loadInvoiceForTransfer(db, invoiceId);
+  const invoice = await loadInvoiceForTransfer(invoiceId);
   if (!invoice) return { pushed: false, reason: "invoice not found" };
   if (invoice.status !== "ready") return { pushed: false, reason: "status not ready" };
   if (invoice.externalRef) return { pushed: false, reason: "already transferred" };
 
-  const integration = getActiveIntegrationTarget(db);
+  const integration = await getActiveIntegrationTarget();
   if (!integration) return { pushed: false, reason: "no active integration" };
 
-  const file = loadInvoiceFile(db, invoiceId);
+  const file = await loadInvoiceFile(invoiceId);
   if (!file) {
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "warning",
       eventType: "auto_transfer_skipped",
       invoiceId,
@@ -89,7 +84,7 @@ export async function attemptAutoTransfer(
   try {
     const apiKey = await readCredentialSecret({ scope: integration.provider });
     if (!apiKey) {
-      recordSyncEvent(db, {
+      await recordSyncEvent({
         level: "warning",
         eventType: "auto_transfer_skipped",
         invoiceId,
@@ -115,12 +110,12 @@ export async function attemptAutoTransfer(
       return { pushed: false, reason: `provider ${integration.provider} not implemented` };
     }
 
-    recordInvoiceExternalRef(invoiceId, externalId, integration.provider, db);
-    db.prepare(
-      `UPDATE invoices SET status = 'exported', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    ).run(invoiceId);
+    await recordInvoiceExternalRef(invoiceId, externalId, integration.provider);
+    await sql`
+      UPDATE invoices SET status = 'exported', updated_at = CURRENT_TIMESTAMP WHERE id = ${invoiceId}
+    `;
 
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "info",
       eventType: "auto_transfer_succeeded",
       invoiceId,
@@ -136,7 +131,7 @@ export async function attemptAutoTransfer(
         : error instanceof Error
           ? error.message
           : String(error);
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "error",
       eventType: "auto_transfer_failed",
       invoiceId,

@@ -1,14 +1,13 @@
 import { format, subMonths } from "date-fns";
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
-import { getDb } from "@/lib/db/client";
 import { recordSyncEvent } from "@/lib/db/events";
 import { resolveVendorMonthStatus, type SourceStatus } from "@/invoices/status";
 
 type VendorRow = {
   id: number;
   name: string;
-  portalEnabled: number;
+  portalEnabled: boolean;
 };
 
 type InvoiceSignal = {
@@ -33,59 +32,52 @@ export function getSyncMonths() {
   );
 }
 
-export function runMissingInvoiceCheck(db: Database.Database = getDb()): MissingCheckResult {
-  const syncRun = db
-    .prepare(
-      `INSERT INTO sync_runs (type, status, triggered_by, started_at)
-       VALUES ('missing_check', 'running', 'user', CURRENT_TIMESTAMP)`,
-    )
-    .run();
-  const syncRunId = Number(syncRun.lastInsertRowid);
+export async function runMissingInvoiceCheck(): Promise<MissingCheckResult> {
+  const syncRunRows = await sql<{ id: number }[]>`
+    INSERT INTO sync_runs (type, status, triggered_by, started_at)
+    VALUES ('missing_check', 'running', 'user', CURRENT_TIMESTAMP)
+    RETURNING id
+  `;
+  const syncRunId = Number(syncRunRows[0].id);
 
   try {
-    const vendors = db
-      .prepare(
-        `SELECT id, name, portal_enabled AS portalEnabled
-         FROM vendors
-         ORDER BY name COLLATE NOCASE`,
-      )
-      .all() as VendorRow[];
+    const vendors = await sql<VendorRow[]>`
+      SELECT id, name, portal_enabled AS "portalEnabled"
+      FROM vendors
+      ORDER BY name
+    `;
     const months = getSyncMonths();
-    const invoiceByVendorMonth = getInvoiceSignals(db);
+    const invoiceByVendorMonth = await getInvoiceSignals();
     const summary = { checked: 0, found: 0, required: 0, actionRequired: 0, disabled: 0 };
 
-    const tx = db.transaction(() => {
-      for (const vendor of vendors) {
-        for (const yearMonth of months) {
-          const signal = invoiceByVendorMonth.get(`${vendor.id}:${yearMonth}`);
-          const sourceStatus = resolveSourceStatus(db, vendor, yearMonth, signal);
-          const final = resolveVendorMonthStatus(sourceStatus);
-          upsertVendorMonthStatus(db, {
-            vendorId: vendor.id,
-            yearMonth,
-            sourceStatus,
-            finalStatus: final.finalStatus,
-            sourceUsed: final.sourceUsed,
-            invoiceId: signal?.id ?? null,
-          });
+    for (const vendor of vendors) {
+      for (const yearMonth of months) {
+        const signal = invoiceByVendorMonth.get(`${vendor.id}:${yearMonth}`);
+        const sourceStatus = await resolveSourceStatus(vendor, yearMonth, signal);
+        const final = resolveVendorMonthStatus(sourceStatus);
+        await upsertVendorMonthStatus({
+          vendorId: vendor.id,
+          yearMonth,
+          sourceStatus,
+          finalStatus: final.finalStatus,
+          sourceUsed: final.sourceUsed,
+          invoiceId: signal?.id ?? null,
+        });
 
-          summary.checked += 1;
-          if (final.finalStatus === "found") summary.found += 1;
-          if (sourceStatus.portalStatus === "required") summary.required += 1;
-          if (final.finalStatus === "action_required") summary.actionRequired += 1;
-          if (sourceStatus.portalStatus === "disabled") summary.disabled += 1;
-        }
+        summary.checked += 1;
+        if (final.finalStatus === "found") summary.found += 1;
+        if (sourceStatus.portalStatus === "required") summary.required += 1;
+        if (final.finalStatus === "action_required") summary.actionRequired += 1;
+        if (sourceStatus.portalStatus === "disabled") summary.disabled += 1;
       }
-    });
+    }
 
-    tx();
-
-    db.prepare(
-      `UPDATE sync_runs
-       SET status = 'succeeded', finished_at = CURRENT_TIMESTAMP, summary_json = ?
-       WHERE id = ?`,
-    ).run(JSON.stringify(summary), syncRunId);
-    recordSyncEvent(db, {
+    await sql`
+      UPDATE sync_runs
+      SET status = 'succeeded', finished_at = CURRENT_TIMESTAMP, summary_json = ${JSON.stringify(summary)}
+      WHERE id = ${syncRunId}
+    `;
+    await recordSyncEvent({
       level: "info",
       eventType: "missing_check_completed",
       message: "Missing Check abgeschlossen.",
@@ -95,12 +87,12 @@ export function runMissingInvoiceCheck(db: Database.Database = getDb()): Missing
     return { syncRunId, ...summary };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Missing check failed";
-    db.prepare(
-      `UPDATE sync_runs
-       SET status = 'failed', finished_at = CURRENT_TIMESTAMP, summary_json = ?
-       WHERE id = ?`,
-    ).run(JSON.stringify({ error: message }), syncRunId);
-    recordSyncEvent(db, {
+    await sql`
+      UPDATE sync_runs
+      SET status = 'failed', finished_at = CURRENT_TIMESTAMP, summary_json = ${JSON.stringify({ error: message })}
+      WHERE id = ${syncRunId}
+    `;
+    await recordSyncEvent({
       level: "error",
       eventType: "missing_check_failed",
       message: "Missing Check fehlgeschlagen.",
@@ -110,19 +102,17 @@ export function runMissingInvoiceCheck(db: Database.Database = getDb()): Missing
   }
 }
 
-function getInvoiceSignals(db: Database.Database) {
-  const rows = db
-    .prepare(
-      `SELECT id, vendor_id AS vendorId, source, substr(invoice_date, 1, 7) AS yearMonth
-       FROM invoices
-       WHERE vendor_id IS NOT NULL
-         AND invoice_date IS NOT NULL
-         AND status NOT IN ('ignored', 'duplicate', 'failed')
-       ORDER BY
-         CASE source WHEN 'manual' THEN 1 WHEN 'mail' THEN 2 ELSE 3 END,
-         created_at DESC`,
-    )
-    .all() as InvoiceSignal[];
+async function getInvoiceSignals() {
+  const rows = await sql<InvoiceSignal[]>`
+    SELECT id, vendor_id AS "vendorId", source, SUBSTR(invoice_date, 1, 7) AS "yearMonth"
+    FROM invoices
+    WHERE vendor_id IS NOT NULL
+      AND invoice_date IS NOT NULL
+      AND status NOT IN ('ignored', 'duplicate', 'failed')
+    ORDER BY
+      CASE source WHEN 'manual' THEN 1 WHEN 'mail' THEN 2 ELSE 3 END,
+      created_at DESC
+  `;
 
   const map = new Map<string, InvoiceSignal>();
   for (const row of rows) {
@@ -132,12 +122,11 @@ function getInvoiceSignals(db: Database.Database) {
   return map;
 }
 
-function resolveSourceStatus(
-  db: Database.Database,
+async function resolveSourceStatus(
   vendor: VendorRow,
   yearMonth: string,
   signal: InvoiceSignal | undefined,
-): SourceStatus {
+): Promise<SourceStatus> {
   if (signal?.source === "manual") {
     return { manualStatus: "imported", mailStatus: "unchecked", portalStatus: "not_needed" };
   }
@@ -148,40 +137,40 @@ function resolveSourceStatus(
     return { manualStatus: "none", mailStatus: "missing", portalStatus: "found" };
   }
 
-  const existing = db
-    .prepare(
-      `SELECT portal_status AS portalStatus
-       FROM vendor_month_status
-       WHERE vendor_id = ? AND year_month = ?`,
-    )
-    .get(vendor.id, yearMonth) as { portalStatus: SourceStatus["portalStatus"] } | undefined;
+  const existing = await sql<{ portalStatus: SourceStatus["portalStatus"] }[]>`
+    SELECT portal_status AS "portalStatus"
+    FROM vendor_month_status
+    WHERE vendor_id = ${vendor.id} AND year_month = ${yearMonth}
+  `;
 
   if (!vendor.portalEnabled) {
     return { manualStatus: "none", mailStatus: "missing", portalStatus: "disabled" };
   }
-  if (existing?.portalStatus === "running" || existing?.portalStatus === "failed" || existing?.portalStatus === "not_found") {
-    return { manualStatus: "none", mailStatus: "missing", portalStatus: existing.portalStatus };
+  const existingStatus = existing[0]?.portalStatus;
+  if (existingStatus === "running" || existingStatus === "failed" || existingStatus === "not_found") {
+    return { manualStatus: "none", mailStatus: "missing", portalStatus: existingStatus };
   }
   return { manualStatus: "none", mailStatus: "missing", portalStatus: "required" };
 }
 
-function upsertVendorMonthStatus(
-  db: Database.Database,
-  input: {
-    vendorId: number;
-    yearMonth: string;
-    sourceStatus: SourceStatus;
-    finalStatus: "unchecked" | "found" | "missing" | "action_required";
-    sourceUsed: "none" | "manual" | "mail" | "portal";
-    invoiceId: number | null;
-  },
-) {
-  db.prepare(
-    `INSERT INTO vendor_month_status (
+async function upsertVendorMonthStatus(input: {
+  vendorId: number;
+  yearMonth: string;
+  sourceStatus: SourceStatus;
+  finalStatus: "unchecked" | "found" | "missing" | "action_required";
+  sourceUsed: "none" | "manual" | "mail" | "portal";
+  invoiceId: number | null;
+}): Promise<void> {
+  await sql`
+    INSERT INTO vendor_month_status (
       vendor_id, year_month, mail_status, portal_status, manual_status, final_status,
       source_used, invoice_id, last_checked_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    VALUES (
+      ${input.vendorId}, ${input.yearMonth},
+      ${input.sourceStatus.mailStatus}, ${input.sourceStatus.portalStatus}, ${input.sourceStatus.manualStatus},
+      ${input.finalStatus}, ${input.sourceUsed}, ${input.invoiceId}, CURRENT_TIMESTAMP
+    )
     ON CONFLICT(vendor_id, year_month) DO UPDATE SET
       mail_status = excluded.mail_status,
       portal_status = excluded.portal_status,
@@ -189,15 +178,6 @@ function upsertVendorMonthStatus(
       final_status = excluded.final_status,
       source_used = excluded.source_used,
       invoice_id = excluded.invoice_id,
-      last_checked_at = CURRENT_TIMESTAMP`,
-  ).run(
-    input.vendorId,
-    input.yearMonth,
-    input.sourceStatus.mailStatus,
-    input.sourceStatus.portalStatus,
-    input.sourceStatus.manualStatus,
-    input.finalStatus,
-    input.sourceUsed,
-    input.invoiceId,
-  );
+      last_checked_at = CURRENT_TIMESTAMP
+  `;
 }

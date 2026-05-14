@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
 import { detectEmailProvider } from "@/lib/email-providers";
@@ -70,69 +70,67 @@ export async function completeOnboardingAction(
       }
     }
 
-    const db = getDb();
     const auth = await getCurrentAuth();
     const organizationId = auth?.organization?.id ?? null;
 
     // 1) IMAP Credential + mail_account
     const imapSecretRef = await saveCredentialSecret({
-      db,
       scope: "imap",
       ownerId: "primary",
       organizationId,
       label: "Primary IMAP Password",
       secret: password,
     });
-    const imapCredential = db
-      .prepare(`SELECT id FROM credential_refs WHERE secret_ref = ?`)
-      .get(imapSecretRef) as { id: number } | undefined;
+    const imapCredRows = await sql<{ id: number }[]>`
+      SELECT id FROM credential_refs WHERE secret_ref = ${imapSecretRef}
+    `;
+    const imapCredentialId = imapCredRows[0]?.id ?? null;
 
-    const existingImap = db
-      .prepare(`SELECT id FROM mail_accounts WHERE label = 'Primary IMAP' LIMIT 1`)
-      .get() as { id: number } | undefined;
+    const existingImapRows = await sql<{ id: number }[]>`
+      SELECT id FROM mail_accounts WHERE label = 'Primary IMAP' LIMIT 1
+    `;
+    const existingImap = existingImapRows[0];
 
     if (existingImap) {
-      db.prepare(
-        `UPDATE mail_accounts
-         SET host = ?, port = ?, secure = ?, username = ?, credential_ref_id = ?,
-           status = 'configured', organization_id = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredential?.id ?? null, organizationId, existingImap.id);
+      await sql`
+        UPDATE mail_accounts
+        SET host = ${imapHost}, port = ${imapPort}, secure = ${imapSecure},
+            username = ${email}, credential_ref_id = ${imapCredentialId},
+            status = 'configured', organization_id = ${organizationId},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${existingImap.id}
+      `;
     } else {
-      db.prepare(
-        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
-         VALUES ('Primary IMAP', ?, ?, ?, ?, ?, 'configured', ?)`,
-      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredential?.id ?? null, organizationId);
+      await sql`
+        INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
+        VALUES ('Primary IMAP', ${imapHost}, ${imapPort}, ${imapSecure}, ${email}, ${imapCredentialId}, 'configured', ${organizationId})
+      `;
     }
 
     // 2) SMTP Credential + smtp_account JSON
     await saveCredentialSecret({
-      db,
       scope: "smtp",
       ownerId: "primary",
       organizationId,
       label: "Primary SMTP Password",
       secret: password,
     });
-    saveStoredSmtpAccount(
-      "primary",
-      {
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        username: email,
-        fromAddress: email,
-      },
-      db,
-    );
+    await saveStoredSmtpAccount("primary", {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      username: email,
+      fromAddress: email,
+    });
 
     // 3) Export Target (Kontist or Accountable, with recipient email and primary smtp)
     const exportTargetKey = exportTarget === "accountable" ? "accountable" : "kontist";
-    db.prepare(
-      `UPDATE export_targets
-       SET recipient_email = ?, smtp_slot = 'primary', enabled = 1, updated_at = CURRENT_TIMESTAMP
-       WHERE target = ?`,
-    ).run(recipientEmail, exportTargetKey);
+    await sql`
+      UPDATE export_targets
+      SET recipient_email = ${recipientEmail}, smtp_slot = 'primary', enabled = TRUE,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE target = ${exportTargetKey}
+    `;
 
     // 4) Trigger first scan
     runPrimaryImapScan().catch(() => {
@@ -170,13 +168,12 @@ export async function saveRecipientOnlyAction(
       return { status: "error", message: "Bitte gib eine Empfänger-Adresse ein." };
     }
 
-    const db = getDb();
     const exportTargetKey = exportTarget === "accountable" ? "accountable" : "kontist";
-    db.prepare(
-      `UPDATE export_targets
-       SET recipient_email = ?, enabled = 1, updated_at = CURRENT_TIMESTAMP
-       WHERE target = ?`,
-    ).run(recipientEmail, exportTargetKey);
+    await sql`
+      UPDATE export_targets
+      SET recipient_email = ${recipientEmail}, enabled = TRUE, updated_at = CURRENT_TIMESTAMP
+      WHERE target = ${exportTargetKey}
+    `;
 
     revalidatePath("/");
     revalidatePath("/einstellungen");

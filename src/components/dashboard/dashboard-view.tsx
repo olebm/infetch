@@ -67,31 +67,52 @@ function formatAmount(amount: number | null, currency: string | null): string {
  *   6. Top-Anbieter (5-col grid, logo + name + n × sum + trend)
  *   7. Trust band (<dl> grid, quiet)
  */
-export function DashboardView() {
-  const setup = getSetupSnapshot();
-  const stats = getAutomationStats();
-  const secondary = getSecondaryStats();
-  const daily = getDailyTimeseries(30);
-  const topVendors = getTopVendors(5);
-  const overdueVendors = getOverdueVendors();
-  const duplicates = getInvoices({ status: "duplicate", limit: 3 });
+export async function DashboardView() {
+  const [
+    setup,
+    stats,
+    secondary,
+    daily,
+    topVendors,
+    overdueVendors,
+    duplicates,
+    recentInvoicesRaw,
+    statusCountsRaw,
+    monthly,
+    obsStart,
+    lastScanAt,
+  ] = await Promise.all([
+    getSetupSnapshot(),
+    getAutomationStats(),
+    getSecondaryStats(),
+    getDailyTimeseries(30),
+    getTopVendors(5),
+    getOverdueVendors(),
+    getInvoices({ status: "duplicate", limit: 3 }),
+    getInvoices({ limit: 20 }),
+    getInvoiceStatusCounts(),
+    (() => {
+      const now = new Date();
+      return getMonthlyKpis(now.toISOString().slice(0, 7));
+    })(),
+    getObservationStartDate(),
+    getLastScanAt(),
+  ]);
+
   // Mehr holen, dann auf 5 mit Vendor-Name filtern → keine „Unbekannter Anbieter"-Einträge
-  const recentInvoices = getInvoices({ limit: 20 }).filter((inv) => !!inv.vendorName).slice(0, 5);
-  const statusCounts = new Map(getInvoiceStatusCounts().map((c) => [c.status, c.count]));
+  const recentInvoices = recentInvoicesRaw.filter((inv) => !!inv.vendorName).slice(0, 5);
+  const statusCounts = new Map(statusCountsRaw.map((c) => [c.status, Number(c.count)]));
   const reviewCount = ["needs_review", "new", "failed"].reduce(
     (acc, s) => acc + (statusCounts.get(s) ?? 0), 0,
   );
 
   const now = new Date();
-  const curMonthIso = now.toISOString().slice(0, 7);
-  const monthly = getMonthlyKpis(curMonthIso);
   const monthLabel = `${MONTHS_DE[now.getMonth()]} ${now.getFullYear()}`;
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   const monthEndLabel = `${monthEnd.getDate()}. ${MONTHS_DE[now.getMonth()]}`;
 
   // "seit …" label — erster Scan-Zeitpunkt aus erster Rechnung
   const MONTHS_SHORT = ["Jan","Feb","März","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
-  const obsStart = getObservationStartDate();
   const obsLabel = obsStart
     ? (() => {
         const d = new Date(obsStart);
@@ -108,14 +129,13 @@ export function DashboardView() {
   for (let i = 2; i <= 4; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const iso = d.toISOString().slice(0, 7);
-    const kpi = getMonthlyKpis(iso);
+    const kpi = await getMonthlyKpis(iso);
     if (kpi.total > 0) {
       olderMonths.push({ label: MONTHS_DE[d.getMonth()]!, count: kpi.total });
     }
   }
 
   // Last scan timestamp for Trust-Band
-  const lastScanAt = getLastScanAt();
   const lastScanLabel = (() => {
     if (!setup.imapConfigured) return "—";
     if (!lastScanAt) return "noch kein Scan";

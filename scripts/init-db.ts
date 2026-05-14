@@ -1,6 +1,7 @@
-import { getDb } from "../src/lib/db/client";
+import { sql } from "../src/lib/db/client";
 
-const db = getDb();
-const vendorCount = db.prepare("SELECT COUNT(*) AS count FROM vendors").get() as { count: number };
+const rows = await sql<{ count: string }[]>`SELECT COUNT(*) AS count FROM vendors`;
+const vendorCount = Number(rows[0].count);
 
-console.log(`Database initialized with ${vendorCount.count} vendors.`);
+console.log(`Database initialized with ${vendorCount} vendors.`);
+await sql.end();

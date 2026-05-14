@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
 
@@ -19,29 +19,23 @@ type Row = {
  * Rechnung wäre eh nie verarbeitet worden, und der User merkt nichts davon
  * weil sie aus der Review-Queue raus ist. DB-Row bleibt für Audit.
  */
-export function escalateStuckReviews(db: Database.Database): StuckEscalationResult {
+export async function escalateStuckReviews(): Promise<StuckEscalationResult> {
   const days = appConfig.selfHealing.stuckEscalationAfterDays;
 
-  const rows = db
-    .prepare(
-      `SELECT id, vendor_id AS vendorId,
-         CAST((julianday('now') - julianday(updated_at)) AS INTEGER) AS ageDays
-       FROM invoices
-       WHERE status = 'needs_review'
-         AND updated_at <= datetime('now', ? || ' days')`,
-    )
-    .all(`-${days}`) as Row[];
+  const rows = await sql<Row[]>`
+    SELECT id, vendor_id AS "vendorId",
+      EXTRACT(EPOCH FROM (NOW() - updated_at))::INTEGER / 86400 AS "ageDays"
+    FROM invoices
+    WHERE status = 'needs_review'
+      AND updated_at <= NOW() - (${days} || ' days')::INTERVAL
+  `;
 
   const result: StuckEscalationResult = { scanned: rows.length, escalated: 0 };
 
-  const update = db.prepare(
-    `UPDATE invoices SET status = 'ignored', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  );
-
   for (const row of rows) {
-    update.run(row.id);
+    await sql`UPDATE invoices SET status = 'ignored', updated_at = CURRENT_TIMESTAMP WHERE id = ${row.id}`;
     result.escalated++;
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "info",
       eventType: "stuck_review_escalated",
       invoiceId: row.id,

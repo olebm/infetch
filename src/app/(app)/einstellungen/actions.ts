@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { IMAP_MAIL_ACCOUNT_SLOTS } from "@/mail/imap-account-slots";
 import { SMTP_ACCOUNT_SLOTS } from "@/mail/smtp-account-slots";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
@@ -24,7 +24,7 @@ import { writeJsonSetting } from "@/lib/db/settings-store";
 import { verifyLexofficeConnection, LexofficeApiError } from "@/lib/integrations/lexoffice-client";
 import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sevdesk-client";
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
-import { updateUserName, updateUserProfile, invalidateAllOtherSessions } from "@/lib/auth/session";
+import { updateUserProfile, invalidateAllOtherSessions } from "@/lib/auth/session";
 
 export type CredentialFormState = {
   status: "idle" | "success" | "error";
@@ -82,7 +82,6 @@ export async function saveImapCredentialAction(
       return { status: "error", message: "Bitte Host, Port und User vollständig ausfüllen." };
     }
 
-    const db = getDb();
     const organizationId = auth.organization?.id ?? null;
     const credentialLabel = slot.label === "Primary IMAP" ? "Primary IMAP Password" : "Secondary IMAP Password";
 
@@ -90,42 +89,44 @@ export async function saveImapCredentialAction(
 
     if (password.trim()) {
       const secretRef = await saveCredentialSecret({
-        db,
         scope: "imap",
         ownerId: slot.ownerId,
         organizationId,
         label: credentialLabel,
         secret: password,
       });
-      const credential = db
-        .prepare(`SELECT id FROM credential_refs WHERE secret_ref = ?`)
-        .get(secretRef) as { id: number } | undefined;
-      credentialRefId = credential?.id ?? null;
-    } else if (!hasStoredCredentialRef(db, "imap", slot.ownerId, organizationId)) {
+      const credRows = await sql<{ id: number }[]>`
+        SELECT id FROM credential_refs WHERE secret_ref = ${secretRef}
+      `;
+      credentialRefId = credRows[0]?.id ?? null;
+    } else if (!(await hasStoredCredentialRef("imap", slot.ownerId, organizationId))) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     } else {
-      const existing = db.prepare(`SELECT credential_ref_id FROM mail_accounts WHERE label = ? LIMIT 1`).get(slot.label) as
-        | { credential_ref_id: number | null }
-        | undefined;
-      credentialRefId = existing?.credential_ref_id ?? null;
+      const existingRows = await sql<{ credential_ref_id: number | null }[]>`
+        SELECT credential_ref_id FROM mail_accounts WHERE label = ${slot.label} LIMIT 1
+      `;
+      credentialRefId = existingRows[0]?.credential_ref_id ?? null;
     }
 
-    const existingAccount = db.prepare(`SELECT id FROM mail_accounts WHERE label = ? LIMIT 1`).get(slot.label) as
-      | { id: number }
-      | undefined;
+    const existingAccountRows = await sql<{ id: number }[]>`
+      SELECT id FROM mail_accounts WHERE label = ${slot.label} LIMIT 1
+    `;
+    const existingAccount = existingAccountRows[0];
 
     if (existingAccount) {
-      db.prepare(
-        `UPDATE mail_accounts
-         SET host = ?, port = ?, secure = ?, username = ?, credential_ref_id = ?,
-           status = 'configured', organization_id = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-      ).run(host, port, secure ? 1 : 0, username, credentialRefId, organizationId, existingAccount.id);
+      await sql`
+        UPDATE mail_accounts
+        SET host = ${host}, port = ${port}, secure = ${secure}, username = ${username},
+            credential_ref_id = ${credentialRefId},
+            status = 'configured', organization_id = ${organizationId},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${existingAccount.id}
+      `;
     } else {
-      db.prepare(
-        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
-         VALUES (?, ?, ?, ?, ?, ?, 'configured', ?)`,
-      ).run(slot.label, host, port, secure ? 1 : 0, username, credentialRefId, organizationId);
+      await sql`
+        INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
+        VALUES (${slot.label}, ${host}, ${port}, ${secure}, ${username}, ${credentialRefId}, 'configured', ${organizationId})
+      `;
     }
 
     revalidatePath("/");
@@ -164,23 +165,21 @@ export async function saveSmtpCredentialAction(
       return { status: "error", message: "Bitte Host, Port, User und Absenderadresse vollständig ausfüllen." };
     }
 
-    const db = getDb();
     const organizationId = auth.organization?.id ?? null;
 
     if (password.trim()) {
       await saveCredentialSecret({
-        db,
         scope: "smtp",
         ownerId: slot.ownerId,
         organizationId,
         label: `${slot.label} Password`,
         secret: password,
       });
-    } else if (!hasStoredCredentialRef(db, "smtp", slot.ownerId, organizationId)) {
+    } else if (!(await hasStoredCredentialRef("smtp", slot.ownerId, organizationId))) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     }
 
-    saveStoredSmtpAccount(slot.ownerId, { host, port, secure, username, fromAddress }, db);
+    await saveStoredSmtpAccount(slot.ownerId, { host, port, secure, username, fromAddress });
 
     revalidatePath("/");
     revalidatePath("/einstellungen");
@@ -224,69 +223,68 @@ export async function saveMailboxCredentialsAction(
     if (!Number.isInteger(imapPort) || imapPort <= 0) return { status: "error", message: "Ungültiger IMAP-Port." };
     if (!Number.isInteger(smtpPort) || smtpPort <= 0) return { status: "error", message: "Ungültiger SMTP-Port." };
 
-    const db = getDb();
     const organizationId = auth.organization?.id ?? null;
 
     // ── 1) IMAP credential + mail_account ─────────────────────────────────────
     let imapCredRefId: number | null = null;
     if (password.trim()) {
       const secretRef = await saveCredentialSecret({
-        db,
         scope: "imap",
         ownerId: mailSlot,
         organizationId,
         label: slotPwd,
         secret: password,
       });
-      const cred = db
-        .prepare(`SELECT id FROM credential_refs WHERE secret_ref = ?`)
-        .get(secretRef) as { id: number } | undefined;
-      imapCredRefId = cred?.id ?? null;
-    } else if (!hasStoredCredentialRef(db, "imap", mailSlot, organizationId)) {
+      const credRows = await sql<{ id: number }[]>`
+        SELECT id FROM credential_refs WHERE secret_ref = ${secretRef}
+      `;
+      imapCredRefId = credRows[0]?.id ?? null;
+    } else if (!(await hasStoredCredentialRef("imap", mailSlot, organizationId))) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     } else {
-      const existing = db
-        .prepare(`SELECT credential_ref_id FROM mail_accounts WHERE label = ? LIMIT 1`)
-        .get(slotLabel) as { credential_ref_id: number | null } | undefined;
-      imapCredRefId = existing?.credential_ref_id ?? null;
+      const existingRows = await sql<{ credential_ref_id: number | null }[]>`
+        SELECT credential_ref_id FROM mail_accounts WHERE label = ${slotLabel} LIMIT 1
+      `;
+      imapCredRefId = existingRows[0]?.credential_ref_id ?? null;
     }
 
-    const existingImap = db
-      .prepare(`SELECT id FROM mail_accounts WHERE label = ? LIMIT 1`)
-      .get(slotLabel) as { id: number } | undefined;
+    const existingImapRows = await sql<{ id: number }[]>`
+      SELECT id FROM mail_accounts WHERE label = ${slotLabel} LIMIT 1
+    `;
+    const existingImap = existingImapRows[0];
 
     if (existingImap) {
-      db.prepare(
-        `UPDATE mail_accounts
-           SET host = ?, port = ?, secure = ?, username = ?, credential_ref_id = ?,
-               status = 'configured', organization_id = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredRefId, organizationId, existingImap.id);
+      await sql`
+        UPDATE mail_accounts
+        SET host = ${imapHost}, port = ${imapPort}, secure = ${imapSecure}, username = ${email},
+            credential_ref_id = ${imapCredRefId},
+            status = 'configured', organization_id = ${organizationId},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${existingImap.id}
+      `;
     } else {
-      db.prepare(
-        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
-         VALUES (?, ?, ?, ?, ?, ?, 'configured', ?)`,
-      ).run(slotLabel, imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredRefId, organizationId);
+      await sql`
+        INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
+        VALUES (${slotLabel}, ${imapHost}, ${imapPort}, ${imapSecure}, ${email}, ${imapCredRefId}, 'configured', ${organizationId})
+      `;
     }
 
     // ── 2) SMTP credential + smtp_account ─────────────────────────────────────
     if (password.trim()) {
       await saveCredentialSecret({
-        db,
         scope: "smtp",
         ownerId: mailSlot,
         organizationId,
         label: slotSmtpPwd,
         secret: password,
       });
-    } else if (!hasStoredCredentialRef(db, "smtp", mailSlot, organizationId)) {
+    } else if (!(await hasStoredCredentialRef("smtp", mailSlot, organizationId))) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein SMTP-Passwort gespeichert)." };
     }
 
-    saveStoredSmtpAccount(
+    await saveStoredSmtpAccount(
       mailSlot,
       { host: smtpHost, port: smtpPort, secure: smtpSecure, username: email, fromAddress: email },
-      db,
     );
 
     revalidatePath("/");
@@ -328,8 +326,7 @@ export async function testMistralConnectionAction(
   void _previousState;
 
   try {
-    const db = getDb();
-    const result = await verifyMistralConnection(db);
+    const result = await verifyMistralConnection();
     revalidatePath("/");
     revalidatePath("/einstellungen");
     return {
@@ -353,8 +350,7 @@ export async function testImapConnectionAction(
       return { status: "error", message: "Ungültiges IMAP-Konto." };
     }
 
-    const db = getDb();
-    const result = await verifyImapAccountConnection(slotParam, db);
+    const result = await verifyImapAccountConnection(slotParam);
     revalidatePath("/");
     revalidatePath("/einstellungen");
     return {
@@ -380,8 +376,7 @@ export async function testSmtpConnectionAction(
       return { status: "error", message: "Ungültiges SMTP-Konto." };
     }
 
-    const db = getDb();
-    const result = await verifySmtpAccountConnection(slotParam, db);
+    const result = await verifySmtpAccountConnection(slotParam);
     revalidatePath("/einstellungen");
     return {
       status: "success",
@@ -414,8 +409,7 @@ export async function saveExportTargetAction(
     }
     const enabled = formData.get("enabled") === "on";
 
-    const db = getDb();
-    saveExportTarget(target, recipientEmail, smtpSlot.ownerId, enabled, db);
+    await saveExportTarget(target, recipientEmail, smtpSlot.ownerId, enabled);
 
     revalidatePath("/einstellungen");
     revalidatePath("/exports");
@@ -488,7 +482,7 @@ export async function saveAutoApprovalRuleAction(
       maxAmountCents = Math.round(parsed * 100);
     }
 
-    upsertAutoApprovalRule({
+    await upsertAutoApprovalRule({
       id: idValue ? Number(idValue) : undefined,
       vendorId,
       vendorPattern: vendorPattern ? vendorPattern : null,
@@ -515,7 +509,7 @@ export async function deleteAutoApprovalRuleAction(
     if (!idValue || Number.isNaN(id)) {
       return { status: "error", message: "Ungültige Regel-ID." };
     }
-    deleteAutoApprovalRule(id);
+    await deleteAutoApprovalRule(id);
     revalidatePath("/einstellungen");
     return { status: "success", message: "Regel entfernt." };
   } catch (error) {
@@ -557,14 +551,14 @@ export async function saveLexofficeApiKeyAction(
       secret: apiKey,
     });
 
-    upsertIntegrationTarget({
+    await upsertIntegrationTarget({
       provider: "lexoffice",
       label: profile.companyName,
       oauthTokenRef: secretRef,
       externalAccountId: profile.organizationId,
       enabled: true,
     });
-    markIntegrationVerified("lexoffice");
+    await markIntegrationVerified("lexoffice");
 
     revalidatePath("/einstellungen");
     return {
@@ -606,14 +600,14 @@ export async function saveSevdeskApiKeyAction(
       secret: apiKey,
     });
 
-    upsertIntegrationTarget({
+    await upsertIntegrationTarget({
       provider: "sevdesk",
       label,
       oauthTokenRef: secretRef,
       externalAccountId: userInfo.sevClient?.id ?? userInfo.id,
       enabled: true,
     });
-    markIntegrationVerified("sevdesk");
+    await markIntegrationVerified("sevdesk");
 
     revalidatePath("/einstellungen");
     return {
@@ -643,8 +637,7 @@ export async function updateConfidenceThresholdAction(
     if (isNaN(raw) || raw < 0.5 || raw > 0.99) {
       return { status: "error", message: "Ungültiger Wert (50–99%)." };
     }
-    const db = getDb();
-    writeJsonSetting("auto_approve_confidence", raw, db);
+    await writeJsonSetting("auto_approve_confidence", raw);
     revalidatePath("/einstellungen");
     return { status: "success", message: "Konfidenz-Schwelle gespeichert.", value: raw };
   } catch (error) {
@@ -665,7 +658,7 @@ export async function disconnectIntegrationAction(
     if (!["lexoffice", "sevdesk", "datev"].includes(provider)) {
       return { status: "error", message: "Unbekannter Provider." };
     }
-    disableIntegrationTarget(provider);
+    await disableIntegrationTarget(provider);
     revalidatePath("/einstellungen");
     return { status: "success", message: `${provider} getrennt.`, provider };
   } catch (error) {
@@ -697,7 +690,7 @@ export async function updateProfileAction(
     const companyName = String(formData.get("companyName") || "").trim().slice(0, 200);
     const vatId = String(formData.get("vatId") || "").trim().slice(0, 50);
 
-    updateUserProfile(auth.user.id, { name, companyName, vatId });
+    await updateUserProfile(auth.user.id, { name, companyName, vatId });
     revalidatePath("/konto");
     return { status: "success", message: "Profil gespeichert." };
   } catch (error) {
@@ -724,7 +717,7 @@ export async function invalidateAllOtherSessionsAction(
     const auth = await getCurrentAuth();
     if (!auth) return { status: "error", message: "Nicht angemeldet." };
 
-    const count = invalidateAllOtherSessions(auth.user.id, auth.session.id);
+    const count = await invalidateAllOtherSessions(auth.user.id, auth.session.id);
     revalidatePath("/einstellungen");
     return {
       status: "success",
@@ -743,12 +736,11 @@ export async function invalidateAllOtherSessionsAction(
 export async function clearExportTargetAction(formData: FormData): Promise<void> {
   const id = Number(formData.get("targetId"));
   if (!id) return;
-  const db = getDb();
-  db.prepare(
-    `UPDATE export_targets
-     SET recipient_email = NULL, enabled = 0, smtp_slot = 'primary', updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  ).run(id);
+  await sql`
+    UPDATE export_targets
+    SET recipient_email = NULL, enabled = FALSE, smtp_slot = 'primary', updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${id}
+  `;
   revalidatePath("/einstellungen");
 }
 
@@ -764,15 +756,15 @@ export async function switchOrganizationAction(
     const orgId = String(formData.get("orgId") || "").trim();
     if (!orgId) return { status: "error", message: "Keine Organisation angegeben." };
 
-    const db = getDb();
     // Verify membership
-    const member = db
-      .prepare(`SELECT 1 FROM org_members WHERE organization_id = ? AND user_id = ?`)
-      .get(orgId, auth.user.id);
-    if (!member) return { status: "error", message: "Kein Zugriff auf diese Organisation." };
+    const memberRows = await sql`
+      SELECT 1 FROM org_members WHERE organization_id = ${orgId} AND user_id = ${auth.user.id}
+    `;
+    if (!memberRows[0]) return { status: "error", message: "Kein Zugriff auf diese Organisation." };
 
-    db.prepare(`UPDATE sessions SET active_organization_id = ? WHERE id = ?`)
-      .run(orgId, auth.session.id);
+    await sql`
+      UPDATE sessions SET active_organization_id = ${orgId} WHERE id = ${auth.session.id}
+    `;
   } catch (error) {
     return {
       status: "error",

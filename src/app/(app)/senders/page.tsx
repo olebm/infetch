@@ -13,7 +13,7 @@ export default async function SendersPage({
   searchParams: Promise<{ sender?: string }>;
 }) {
   const params = await searchParams;
-  const senders = listSendersWithStats();
+  const senders = await listSendersWithStats();
 
   const selectedId = params.sender ? Number(params.sender) : null;
   let vendorInvoices: VendorInvoiceRow[] | null = null;
@@ -21,7 +21,7 @@ export default async function SendersPage({
   if (selectedId) {
     const sender = senders.find((s) => s.id === selectedId);
     if (sender?.matchedVendorId) {
-      vendorInvoices = getVendorInvoices(sender.matchedVendorId);
+      vendorInvoices = await getVendorInvoices(sender.matchedVendorId);
     } else if (sender) {
       // Sender exists but has no matched vendor → empty invoice list
       vendorInvoices = [];

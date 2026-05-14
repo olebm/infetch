@@ -1,5 +1,5 @@
 /**
- * AES-256-GCM Credential Store auf SQLite-Basis (INFETCH-XX).
+ * AES-256-GCM Credential Store auf Postgres-Basis (INFETCH-XX).
  *
  * Wird als Fallback verwendet wenn kein macOS Keychain verfügbar ist (Linux, Docker).
  * Setzt SECRET_ENCRYPTION_KEY als Umgebungsvariable voraus — ein 64-Zeichen-Hex-String
@@ -16,8 +16,7 @@
  */
 
 import crypto from "node:crypto";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 
 const ALGORITHM = "aes-256-gcm" as const;
 const IV_BYTES = 12;    // 96 Bit — optimal für GCM
@@ -52,11 +51,10 @@ export function isDbStoreAvailable(): boolean {
  * Verschlüsselt `secret` mit AES-256-GCM und speichert das Ergebnis in der DB.
  * Überschreibt einen vorhandenen Eintrag für `secretRef`.
  */
-export function writeDbSecret(
+export async function writeDbSecret(
   secretRef: string,
   secret: string,
-  db?: Database.Database,
-): void {
+): Promise<void> {
   const key = getEncryptionKey();
   const iv = crypto.randomBytes(IV_BYTES);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
@@ -71,29 +69,26 @@ export function writeDbSecret(
   // Format: iv_hex:authTag_hex:ciphertext_hex
   const stored = `${iv.toString("hex")}:${authTag.toString("hex")}:${ciphertext.toString("hex")}`;
 
-  (db ?? getDb())
-    .prepare(
-      `INSERT INTO encrypted_secrets (secret_ref, ciphertext)
-       VALUES (?, ?)
-       ON CONFLICT(secret_ref) DO UPDATE SET
-         ciphertext  = excluded.ciphertext,
-         updated_at  = CURRENT_TIMESTAMP`,
-    )
-    .run(secretRef, stored);
+  await sql`
+    INSERT INTO encrypted_secrets (secret_ref, ciphertext)
+    VALUES (${secretRef}, ${stored})
+    ON CONFLICT(secret_ref) DO UPDATE SET
+      ciphertext = excluded.ciphertext,
+      updated_at = CURRENT_TIMESTAMP
+  `;
 }
 
 /**
  * Liest und entschlüsselt einen Secret aus der DB.
  * Gibt null zurück wenn der Eintrag nicht gefunden wird oder die Entschlüsselung fehlschlägt.
  */
-export function readDbSecret(
+export async function readDbSecret(
   secretRef: string,
-  db?: Database.Database,
-): string | null {
-  const row = (db ?? getDb())
-    .prepare(`SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ? LIMIT 1`)
-    .get(secretRef) as { ciphertext: string } | undefined;
-
+): Promise<string | null> {
+  const rows = await sql<{ ciphertext: string }[]>`
+    SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ${secretRef} LIMIT 1
+  `;
+  const row = rows[0];
   if (!row) return null;
 
   let key: Buffer;
@@ -126,11 +121,8 @@ export function readDbSecret(
 /**
  * Löscht einen Secret aus der DB. Kein Fehler wenn nicht vorhanden.
  */
-export function deleteDbSecret(
+export async function deleteDbSecret(
   secretRef: string,
-  db?: Database.Database,
-): void {
-  (db ?? getDb())
-    .prepare(`DELETE FROM encrypted_secrets WHERE secret_ref = ?`)
-    .run(secretRef);
+): Promise<void> {
+  await sql`DELETE FROM encrypted_secrets WHERE secret_ref = ${secretRef}`;
 }

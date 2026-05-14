@@ -6,10 +6,9 @@ import { getAutomationStats, getSetupSnapshot, getPrimaryMailAccount } from "@/l
 import { getExportTargets } from "@/exports/export-pipeline";
 import { ensureInboundAddressForOrg } from "@/mail/inbound-addresses";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { getDb } from "@/lib/db/client";
 import { CopyField } from "@/components/ui/copy-field";
 
-type Setup = ReturnType<typeof getSetupSnapshot>;
+type Setup = Awaited<ReturnType<typeof getSetupSnapshot>>;
 
 interface AutoPilotHeroProps {
   setup?: Setup;
@@ -33,8 +32,13 @@ function formatCountdown(sec: number | null): string {
  * accent on the most important number/concept.
  */
 export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
-  const setup = setupProp ?? getSetupSnapshot();
-  const stats = getAutomationStats();
+  const [setup, stats, imapAccount, exportTargets] = await Promise.all([
+    setupProp ? Promise.resolve(setupProp) : getSetupSnapshot(),
+    getAutomationStats(),
+    getPrimaryMailAccount(),
+    getExportTargets(),
+  ]);
+
   const daysActive = stats.daysActive;
   const status = getAutoPilotStatus();
   const enabled = appConfig.features.autoPilotEnabled;
@@ -45,8 +49,6 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
   const isFresh = !isBlocked && stats.exportedLifetime === 0;
 
   // Fetch display emails for the running-state paragraph
-  const imapAccount = getPrimaryMailAccount();
-  const exportTargets = getExportTargets();
   const inboxEmail = imapAccount?.username ?? null;
   const recipientEmail = exportTargets.find((t) => t.enabled)?.recipientEmail ?? null;
 
@@ -54,9 +56,8 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
 
   if (isFresh) {
     const auth = await getCurrentAuth();
-    const db = getDb();
     const inboundAddress = auth?.organization
-      ? ensureInboundAddressForOrg(auth.organization.id, db)
+      ? await ensureInboundAddressForOrg(auth.organization.id)
       : null;
     return <HeroFresh setup={setup} inboundAddress={inboundAddress?.fullAddress ?? null} />;
   }

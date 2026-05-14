@@ -77,8 +77,8 @@ function RowActions({ item }: { item: MissingItem }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function MissingListView() {
-  const items = getMissingItems();
+export async function MissingListView() {
+  const items = await getMissingItems();
 
   if (items.length === 0) {
     return (

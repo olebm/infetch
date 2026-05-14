@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { evaluateAutoApproval } from "@/lib/automation/auto-approval";
 import { recordSyncEvent } from "@/lib/db/events";
 import type { InvoiceAiExtraction } from "@/ai/schemas";
@@ -28,25 +28,16 @@ type Row = {
  *
  * Idempotent — Rechnungen ohne Änderungsbedarf bleiben unangetastet.
  */
-export function reevaluateReviewQueue(db: Database.Database): ReevalResult {
-  const rows = db
-    .prepare(
-      `SELECT i.id, i.vendor_id, v.name AS vendor_name, i.invoice_date, i.amount_gross, ae.output_json
-       FROM invoices i
-       LEFT JOIN vendors v ON v.id = i.vendor_id
-       LEFT JOIN ai_extractions ae ON ae.invoice_id = i.id AND ae.status = 'succeeded'
-       WHERE i.status = 'needs_review'`,
-    )
-    .all() as Row[];
+export async function reevaluateReviewQueue(): Promise<ReevalResult> {
+  const rows = await sql<Row[]>`
+    SELECT i.id, i.vendor_id, v.name AS vendor_name, i.invoice_date, i.amount_gross, ae.output_json
+    FROM invoices i
+    LEFT JOIN vendors v ON v.id = i.vendor_id
+    LEFT JOIN ai_extractions ae ON ae.invoice_id = i.id AND ae.status = 'succeeded'
+    WHERE i.status = 'needs_review'
+  `;
 
   const result: ReevalResult = { scanned: rows.length, ignored: 0, approved: 0, unchanged: 0 };
-
-  const updateIgnored = db.prepare(
-    `UPDATE invoices SET status = 'ignored', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  );
-  const updateReady = db.prepare(
-    `UPDATE invoices SET status = 'ready', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-  );
 
   for (const row of rows) {
     if (!row.output_json) {
@@ -64,9 +55,9 @@ export function reevaluateReviewQueue(db: Database.Database): ReevalResult {
 
     // Phase 1: Non-Rechnungen → 'ignored'
     if (!INVOICE_TYPES.has(extraction.document_type)) {
-      updateIgnored.run(row.id);
+      await sql`UPDATE invoices SET status = 'ignored', updated_at = CURRENT_TIMESTAMP WHERE id = ${row.id}`;
       result.ignored++;
-      recordSyncEvent(db, {
+      await recordSyncEvent({
         level: "info",
         eventType: "reeval_marked_ignored",
         invoiceId: row.id,
@@ -77,7 +68,7 @@ export function reevaluateReviewQueue(db: Database.Database): ReevalResult {
     }
 
     // Phase 2: Echte Rechnung → Auto-Approval erneut versuchen
-    const decision = evaluateAutoApproval(db, extraction, {
+    const decision = await evaluateAutoApproval(extraction, {
       vendorId: row.vendor_id,
       vendorName: row.vendor_name,
       amountGross: row.amount_gross,
@@ -85,9 +76,9 @@ export function reevaluateReviewQueue(db: Database.Database): ReevalResult {
     });
 
     if (decision.autoApproved) {
-      updateReady.run(row.id);
+      await sql`UPDATE invoices SET status = 'ready', updated_at = CURRENT_TIMESTAMP WHERE id = ${row.id}`;
       result.approved++;
-      recordSyncEvent(db, {
+      await recordSyncEvent({
         level: "info",
         eventType: "reeval_auto_approved",
         invoiceId: row.id,

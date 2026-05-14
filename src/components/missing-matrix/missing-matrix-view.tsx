@@ -4,8 +4,8 @@ import { StatusBadge } from "@/components/status/status-badge";
 import { MissingCheckForm } from "@/components/missing-matrix/missing-check-form";
 import { toggleVendorHiddenAction } from "@/app/(app)/fehlt/actions";
 
-export function MissingMatrixView({ includeHidden = false }: { includeHidden?: boolean }) {
-  const rows = getMissingMatrix(includeHidden);
+export async function MissingMatrixView({ includeHidden = false }: { includeHidden?: boolean }) {
+  const rows = await getMissingMatrix(includeHidden);
   const months = rows[0]?.months.map((month) => month.month) || [];
 
   return (

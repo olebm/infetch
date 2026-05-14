@@ -6,8 +6,7 @@
  * (Datenbank-Spalte oder externes Lookup).
  */
 
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 
 export type Tier = "free" | "pro";
 
@@ -46,21 +45,17 @@ export function getLimits(tier: Tier = getTier()): TierLimits {
   return LIMITS[tier];
 }
 
-export function canAddOnlineAccount(
-  db?: Database.Database,
+export async function canAddOnlineAccount(
   tier: Tier = getTier(),
-): { allowed: boolean; current: number; max: number } {
-  const conn = db ?? getDb();
+): Promise<{ allowed: boolean; current: number; max: number }> {
   const max = LIMITS[tier].maxOnlineAccounts;
 
-  const row = conn
-    .prepare(
-      `SELECT COUNT(DISTINCT owner_id) AS count
-       FROM credential_refs
-       WHERE scope = 'portal' AND status = 'configured'`,
-    )
-    .get() as { count: number } | undefined;
-  const current = row?.count ?? 0;
+  const rows = await sql<{ count: string }[]>`
+    SELECT COUNT(DISTINCT owner_id) AS count
+    FROM credential_refs
+    WHERE scope = 'portal' AND status = 'configured'
+  `;
+  const current = Number(rows[0]?.count ?? 0);
 
   return {
     allowed: current < max,
@@ -69,12 +64,9 @@ export function canAddOnlineAccount(
   };
 }
 
-export function isUpgradeNearby(
-  db?: Database.Database,
-  tier: Tier = getTier(),
-): boolean {
+export async function isUpgradeNearby(tier: Tier = getTier()): Promise<boolean> {
   if (tier !== "free") return false;
-  const { current, max } = canAddOnlineAccount(db, tier);
+  const { current, max } = await canAddOnlineAccount(tier);
   if (!Number.isFinite(max)) return false;
   return current >= Math.max(1, max - 1);
 }

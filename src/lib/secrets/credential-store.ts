@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import {
   deleteOsSecret,
   isOsKeychainSupported,
@@ -77,33 +76,30 @@ async function writeToStore(
   storeName: StoreName,
   secretRef: string,
   secret: string,
-  db: Database.Database,
 ): Promise<void> {
   if (storeName === "os_keychain") {
     await writeOsSecret(secretRef, secret);
   } else {
-    writeDbSecret(secretRef, secret, db);
+    await writeDbSecret(secretRef, secret);
   }
 }
 
 async function readFromStore(
   storeName: StoreName,
   secretRef: string,
-  db: Database.Database,
 ): Promise<string | null> {
   if (storeName === "os_keychain") return readOsSecret(secretRef);
-  return readDbSecret(secretRef, db);
+  return readDbSecret(secretRef);
 }
 
 async function deleteFromStore(
   storeName: StoreName,
   secretRef: string,
-  db: Database.Database,
 ): Promise<void> {
   if (storeName === "os_keychain") {
     await deleteOsSecret(secretRef);
   } else {
-    deleteDbSecret(secretRef, db);
+    await deleteDbSecret(secretRef);
   }
 }
 
@@ -113,9 +109,7 @@ export async function saveCredentialSecret(input: {
   organizationId?: string | null;
   label: string;
   secret: string;
-  db?: Database.Database;
 }) {
-  const db = input.db || getDb();
   const ownerId = input.ownerId || "default";
   const secretRef = buildSecretRef(input.scope, ownerId, input.organizationId);
 
@@ -124,22 +118,25 @@ export async function saveCredentialSecret(input: {
   }
 
   const storeName = getActiveStoreName();
-  await writeToStore(storeName, secretRef, input.secret, db);
+  await writeToStore(storeName, secretRef, input.secret);
 
   if (!INTEGRATION_SCOPES.has(input.scope)) {
-    db.prepare(
-      `INSERT INTO credential_refs (scope, owner_id, label, secret_store, secret_ref, status, last_verified_at, organization_id)
-       VALUES (?, ?, ?, ?, ?, 'configured', CURRENT_TIMESTAMP, ?)
-       ON CONFLICT(secret_ref) DO UPDATE SET
-         scope            = excluded.scope,
-         owner_id         = excluded.owner_id,
-         label            = excluded.label,
-         secret_store     = excluded.secret_store,
-         status           = 'configured',
-         last_verified_at = CURRENT_TIMESTAMP,
-         organization_id  = excluded.organization_id,
-         updated_at       = CURRENT_TIMESTAMP`,
-    ).run(input.scope, ownerId, input.label, storeName, secretRef, input.organizationId ?? null);
+    await sql`
+      INSERT INTO credential_refs (scope, owner_id, label, secret_store, secret_ref, status, last_verified_at, organization_id)
+      VALUES (
+        ${input.scope}, ${ownerId}, ${input.label}, ${storeName}, ${secretRef},
+        'configured', CURRENT_TIMESTAMP, ${input.organizationId ?? null}
+      )
+      ON CONFLICT(secret_ref) DO UPDATE SET
+        scope            = excluded.scope,
+        owner_id         = excluded.owner_id,
+        label            = excluded.label,
+        secret_store     = excluded.secret_store,
+        status           = 'configured',
+        last_verified_at = CURRENT_TIMESTAMP,
+        organization_id  = excluded.organization_id,
+        updated_at       = CURRENT_TIMESTAMP
+    `;
   }
 
   return secretRef;
@@ -149,34 +146,32 @@ export async function deleteCredentialSecret(input: {
   scope: CredentialScope;
   ownerId?: string;
   organizationId?: string | null;
-  db?: Database.Database;
 }) {
-  const db = input.db || getDb();
   const ownerId = input.ownerId || "default";
   const secretRef = buildSecretRef(input.scope, ownerId, input.organizationId);
 
   if (INTEGRATION_SCOPES.has(input.scope)) {
     // Integration-Scopes haben keinen credential_refs-Eintrag — beide Stores bereinigen.
     await deleteOsSecret(secretRef);
-    deleteDbSecret(secretRef, db);
+    await deleteDbSecret(secretRef);
     return;
   }
 
   // Nachschlagen welcher Store beim Speichern verwendet wurde.
-  const row = db
-    .prepare(`SELECT secret_store FROM credential_refs WHERE secret_ref = ? LIMIT 1`)
-    .get(secretRef) as { secret_store: StoreName } | undefined;
+  const rows = await sql<{ secret_store: StoreName }[]>`
+    SELECT secret_store FROM credential_refs WHERE secret_ref = ${secretRef} LIMIT 1
+  `;
+  const row = rows[0];
 
   const storeName: StoreName = row?.secret_store ?? getActiveStoreName();
-  await deleteFromStore(storeName, secretRef, db);
-  db.prepare(`DELETE FROM credential_refs WHERE secret_ref = ?`).run(secretRef);
+  await deleteFromStore(storeName, secretRef);
+  await sql`DELETE FROM credential_refs WHERE secret_ref = ${secretRef}`;
 }
 
 export async function readCredentialSecret(input: {
   scope: CredentialScope;
   ownerId?: string;
   organizationId?: string | null;
-  db?: Database.Database;
 }) {
   if (input.scope === "mistral" && process.env.MISTRAL_API_KEY) {
     return process.env.MISTRAL_API_KEY;
@@ -192,85 +187,82 @@ export async function readCredentialSecret(input: {
     return readDbSecret(secretRef);
   }
 
-  const db = input.db || getDb();
-  const row = db
-    .prepare(
-      `SELECT status, secret_store
-       FROM credential_refs
-       WHERE secret_ref = ?
-       LIMIT 1`,
-    )
-    .get(secretRef) as { status: string; secret_store: StoreName } | undefined;
+  const rows = await sql<{ status: string; secret_store: StoreName }[]>`
+    SELECT status, secret_store
+    FROM credential_refs
+    WHERE secret_ref = ${secretRef}
+    LIMIT 1
+  `;
+  const row = rows[0];
 
   if (!row) return null;
 
-  return readFromStore(row.secret_store, secretRef, db);
+  return readFromStore(row.secret_store, secretRef);
 }
 
-export function updateCredentialVerificationStatus(input: {
+export async function updateCredentialVerificationStatus(input: {
   scope: CredentialScope;
   ownerId?: string;
   organizationId?: string | null;
   status: "configured" | "missing" | "invalid" | "locked";
-  db?: Database.Database;
-}) {
-  const db = input.db || getDb();
+}): Promise<void> {
   const ownerId = input.ownerId || "default";
   const secretRef = buildSecretRef(input.scope, ownerId, input.organizationId);
 
-  db.prepare(
-    `UPDATE credential_refs
-     SET status = ?, last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE secret_ref = ?`,
-  ).run(input.status, secretRef);
+  await sql`
+    UPDATE credential_refs
+    SET status = ${input.status}, last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE secret_ref = ${secretRef}
+  `;
 }
 
-export function hasConfiguredCredential(db: Database.Database, scope: CredentialScope, ownerId = "default", organizationId?: string | null) {
-  if (scope === "mistral" && process.env.MISTRAL_API_KEY) return true;
-
-  const secretRef = buildSecretRef(scope, ownerId, organizationId);
-  const row = db
-    .prepare(
-      `SELECT id
-       FROM credential_refs
-       WHERE secret_ref = ? AND status = 'configured'
-       LIMIT 1`,
-    )
-    .get(secretRef) as { id: number } | undefined;
-
-  return Boolean(row);
-}
-
-export function hasStoredCredentialRef(db: Database.Database, scope: CredentialScope, ownerId = "default", organizationId?: string | null) {
-  if (scope === "mistral" && process.env.MISTRAL_API_KEY) return true;
-
-  const secretRef = buildSecretRef(scope, ownerId, organizationId);
-  const row = db
-    .prepare(
-      `SELECT id
-       FROM credential_refs
-       WHERE secret_ref = ?
-       LIMIT 1`,
-    )
-    .get(secretRef) as { id: number } | undefined;
-
-  return Boolean(row);
-}
-
-export function getCredentialLastVerifiedAt(
-  db: Database.Database,
+export async function hasConfiguredCredential(
   scope: CredentialScope,
   ownerId = "default",
   organizationId?: string | null,
-): string | null {
+): Promise<boolean> {
+  if (scope === "mistral" && process.env.MISTRAL_API_KEY) return true;
+
   const secretRef = buildSecretRef(scope, ownerId, organizationId);
-  const row = db
-    .prepare(
-      `SELECT last_verified_at AS lastVerifiedAt
-       FROM credential_refs
-       WHERE secret_ref = ?
-       LIMIT 1`,
-    )
-    .get(secretRef) as { lastVerifiedAt: string | null } | undefined;
-  return row?.lastVerifiedAt ?? null;
+  const rows = await sql<{ id: number }[]>`
+    SELECT id
+    FROM credential_refs
+    WHERE secret_ref = ${secretRef} AND status = 'configured'
+    LIMIT 1
+  `;
+
+  return rows.length > 0;
+}
+
+export async function hasStoredCredentialRef(
+  scope: CredentialScope,
+  ownerId = "default",
+  organizationId?: string | null,
+): Promise<boolean> {
+  if (scope === "mistral" && process.env.MISTRAL_API_KEY) return true;
+
+  const secretRef = buildSecretRef(scope, ownerId, organizationId);
+  const rows = await sql<{ id: number }[]>`
+    SELECT id
+    FROM credential_refs
+    WHERE secret_ref = ${secretRef}
+    LIMIT 1
+  `;
+
+  return rows.length > 0;
+}
+
+export async function getCredentialLastVerifiedAt(
+  scope: CredentialScope,
+  ownerId = "default",
+  organizationId?: string | null,
+): Promise<string | null> {
+  const secretRef = buildSecretRef(scope, ownerId, organizationId);
+  const rows = await sql<{ lastVerifiedAt: string | null }[]>`
+    SELECT last_verified_at AS "lastVerifiedAt"
+    FROM credential_refs
+    WHERE secret_ref = ${secretRef}
+    LIMIT 1
+  `;
+  return rows[0]?.lastVerifiedAt ?? null;
 }

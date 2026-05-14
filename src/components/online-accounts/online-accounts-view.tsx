@@ -1,5 +1,5 @@
 import { CircleDot, ShieldCheck } from "lucide-react";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { listOnlineAccounts } from "@/portals/credential-meta";
 import { getVendors } from "@/lib/db/queries";
 import { hasStoredCredentialRef } from "@/lib/secrets/credential-store";
@@ -13,18 +13,57 @@ import { CommunitySyncButton } from "@/components/online-accounts/community-sync
 import { UpgradeCard } from "@/components/online-accounts/upgrade-card";
 import { canAddOnlineAccount, getTier } from "@/lib/tier";
 
-export function OnlineAccountsView() {
-  const db = getDb();
-  const accounts = listOnlineAccounts(db);
-  const recipes = listRecipes(undefined, db);
-  const allVendors = getVendors();
-  const communityStats = getCommunityRecipeStats();
-  const tier = getTier();
-  const accountLimit = canAddOnlineAccount(db, tier);
+export async function OnlineAccountsView() {
+  const [accounts, recipes, allVendors, communityStats, tier] = await Promise.all([
+    listOnlineAccounts(),
+    listRecipes(),
+    getVendors(),
+    getCommunityRecipeStats(),
+    getTier(),
+  ]);
+  const accountLimit = await canAddOnlineAccount(tier);
 
   // Vendoren ohne Online-Konto (kommen aus Mail-Pipeline) — Kandidaten fuer "Online-Konto hinzufuegen"
   const vendorsWithoutAccount = allVendors.filter(
     (vendor) => !accounts.some((account) => account.vendorKey === vendor.canonicalKey),
+  );
+
+  // Fetch per-account data
+  const accountData = await Promise.all(
+    accounts.map(async (account) => {
+      const [lastRunRows, runStatsRows, invoiceCountRows, hasTotp] = await Promise.all([
+        sql<{ status: string; startedAt: string; invoicesFound: number; errorMessage: string | null }[]>`
+          SELECT status, started_at AS "startedAt", invoices_found AS "invoicesFound",
+            error_message AS "errorMessage"
+          FROM portal_run_logs
+          WHERE vendor_key = ${account.vendorKey}
+          ORDER BY started_at DESC
+          LIMIT 1
+        `,
+        sql<{ successCount: string; failureCount: string }[]>`
+          SELECT
+            SUM(CASE WHEN status IN ('success','no_invoices') THEN 1 ELSE 0 END)::text AS "successCount",
+            SUM(CASE WHEN status NOT IN ('success','no_invoices') THEN 1 ELSE 0 END)::text AS "failureCount"
+          FROM portal_run_logs WHERE vendor_key = ${account.vendorKey}
+        `,
+        sql<{ count: string }[]>`
+          SELECT COUNT(*)::text AS count FROM invoices i
+          JOIN vendors v ON v.id = i.vendor_id
+          WHERE v.canonical_key = ${account.vendorKey} AND i.source = 'portal'
+        `,
+        hasStoredCredentialRef("totp", account.vendorKey),
+      ]);
+
+      return {
+        account,
+        lastRun: lastRunRows[0],
+        successCount: Number(runStatsRows[0]?.successCount ?? 0),
+        failureCount: Number(runStatsRows[0]?.failureCount ?? 0),
+        invoiceCount: Number(invoiceCountRows[0]?.count ?? 0),
+        hasTotp,
+        recipe: recipes.find((r) => r.vendorKey === account.vendorKey && r.status === "active"),
+      };
+    }),
   );
 
   return (
@@ -48,45 +87,13 @@ export function OnlineAccountsView() {
         </div>
       ) : (
         <div className="space-y-2">
-          {accounts.map((account) => {
-            const lastRun = db
-              .prepare(
-                `SELECT status, started_at AS startedAt, invoices_found AS invoicesFound, error_message AS errorMessage
-                 FROM portal_run_logs
-                 WHERE vendor_key = ?
-                 ORDER BY started_at DESC
-                 LIMIT 1`,
-              )
-              .get(account.vendorKey) as
-              | { status: string; startedAt: string; invoicesFound: number; errorMessage: string | null }
-              | undefined;
-            const runStats = db
-              .prepare(
-                `SELECT
-                   SUM(CASE WHEN status IN ('success','no_invoices') THEN 1 ELSE 0 END) AS successCount,
-                   SUM(CASE WHEN status NOT IN ('success','no_invoices') THEN 1 ELSE 0 END) AS failureCount
-                 FROM portal_run_logs WHERE vendor_key = ?`,
-              )
-              .get(account.vendorKey) as { successCount: number | null; failureCount: number | null } | undefined;
-            const invoiceCount = (db
-              .prepare(
-                `SELECT COUNT(*) AS count FROM invoices i
-                 JOIN vendors v ON v.id = i.vendor_id
-                 WHERE v.canonical_key = ? AND i.source = 'portal'`,
-              )
-              .get(account.vendorKey) as { count: number } | undefined)?.count ?? 0;
-            const recipe = recipes.find(
-              (r) => r.vendorKey === account.vendorKey && r.status === "active",
-            );
-            const hasTotp = hasStoredCredentialRef(db, "totp", account.vendorKey);
+          {accountData.map(({ account, lastRun, successCount, failureCount, invoiceCount, hasTotp, recipe }) => {
+            const total = successCount + failureCount;
+            const successRate = total > 0 ? Math.round((successCount / total) * 100) : null;
             const status = deriveStatus(lastRun);
             const categoryLabel = account.category
               ? PORTAL_CATEGORIES[account.category as PortalCategoryKey]?.label
               : null;
-            const successCount = runStats?.successCount ?? 0;
-            const failureCount = runStats?.failureCount ?? 0;
-            const total = successCount + failureCount;
-            const successRate = total > 0 ? Math.round((successCount / total) * 100) : null;
 
             return (
               <div

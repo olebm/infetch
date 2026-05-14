@@ -26,8 +26,8 @@ function Stat({
   );
 }
 
-export function StatRow() {
-  const stats = getAutomationStats();
+export async function StatRow() {
+  const stats = await getAutomationStats();
 
   return (
     <div className="flex items-start divide-x divide-line/50 overflow-x-auto">

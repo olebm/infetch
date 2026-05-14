@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { deriveInvoiceProductLabel } from "@/invoices/product-label";
 import { buildInvoiceStoragePath } from "@/invoices/storage";
 
@@ -15,40 +14,36 @@ type InvoiceFileRow = {
   invoiceDate: string | null;
 };
 
-export function syncStoredInvoiceFileNamesForInvoice(invoiceId: number, db: Database.Database = getDb()) {
-  const files = db
-    .prepare(
-      `SELECT invoice_files.id, invoice_files.original_filename AS originalFilename, invoice_files.stored_path AS storedPath,
-        invoice_files.created_at AS createdAt, invoices.raw_text_path AS rawTextPath, vendors.canonical_key AS vendorKey,
-        invoices.invoice_date AS invoiceDate
-       FROM invoice_files
-       JOIN invoices ON invoices.id = invoice_files.invoice_id
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       WHERE invoice_files.invoice_id = ?
-       ORDER BY invoice_files.id ASC`,
-    )
-    .all(invoiceId) as InvoiceFileRow[];
+export async function syncStoredInvoiceFileNamesForInvoice(invoiceId: number): Promise<{ updated: number; skipped: number }> {
+  const files = await sql<InvoiceFileRow[]>`
+    SELECT invoice_files.id, invoice_files.original_filename AS "originalFilename", invoice_files.stored_path AS "storedPath",
+      invoice_files.created_at AS "createdAt", invoices.raw_text_path AS "rawTextPath", vendors.canonical_key AS "vendorKey",
+      invoices.invoice_date AS "invoiceDate"
+    FROM invoice_files
+    JOIN invoices ON invoices.id = invoice_files.invoice_id
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    WHERE invoice_files.invoice_id = ${invoiceId}
+    ORDER BY invoice_files.id ASC
+  `;
 
-  return syncStoredInvoiceFileRows(files, db);
+  return syncStoredInvoiceFileRows(files);
 }
 
-export function syncAllStoredInvoiceFileNames(db: Database.Database = getDb()) {
-  const files = db
-    .prepare(
-      `SELECT invoice_files.id, invoice_files.original_filename AS originalFilename, invoice_files.stored_path AS storedPath,
-        invoice_files.created_at AS createdAt, invoices.raw_text_path AS rawTextPath, vendors.canonical_key AS vendorKey,
-        invoices.invoice_date AS invoiceDate
-       FROM invoice_files
-       JOIN invoices ON invoices.id = invoice_files.invoice_id
-       LEFT JOIN vendors ON vendors.id = invoices.vendor_id
-       ORDER BY invoice_files.id ASC`,
-    )
-    .all() as InvoiceFileRow[];
+export async function syncAllStoredInvoiceFileNames(): Promise<{ updated: number; skipped: number }> {
+  const files = await sql<InvoiceFileRow[]>`
+    SELECT invoice_files.id, invoice_files.original_filename AS "originalFilename", invoice_files.stored_path AS "storedPath",
+      invoice_files.created_at AS "createdAt", invoices.raw_text_path AS "rawTextPath", vendors.canonical_key AS "vendorKey",
+      invoices.invoice_date AS "invoiceDate"
+    FROM invoice_files
+    JOIN invoices ON invoices.id = invoice_files.invoice_id
+    LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    ORDER BY invoice_files.id ASC
+  `;
 
-  return syncStoredInvoiceFileRows(files, db);
+  return syncStoredInvoiceFileRows(files);
 }
 
-function syncStoredInvoiceFileRows(files: InvoiceFileRow[], db: Database.Database) {
+async function syncStoredInvoiceFileRows(files: InvoiceFileRow[]): Promise<{ updated: number; skipped: number }> {
   let updated = 0;
   let skipped = 0;
 
@@ -77,7 +72,7 @@ function syncStoredInvoiceFileRows(files: InvoiceFileRow[], db: Database.Databas
 
     fs.mkdirSync(path.dirname(nextPath), { recursive: true, mode: 0o700 });
     fs.renameSync(file.storedPath, nextPath);
-    db.prepare(`UPDATE invoice_files SET stored_path = ? WHERE id = ?`).run(nextPath, file.id);
+    await sql`UPDATE invoice_files SET stored_path = ${nextPath} WHERE id = ${file.id}`;
     updated += 1;
   }
 

@@ -1,13 +1,10 @@
-import { getDb } from "../src/lib/db/client";
+import { sql } from "../src/lib/db/client";
 import { evaluateAutoApproval } from "../src/lib/automation/auto-approval";
 import type { InvoiceAiExtraction } from "../src/ai/schemas";
 
-const db = getDb();
-
-const before = db
-  .prepare(`SELECT COUNT(*) AS c FROM invoices WHERE status = 'needs_review'`)
-  .get() as { c: number };
-console.log(`Vorher in needs_review: ${before.c}\n`);
+const beforeRows = await sql<{ c: string }[]>`SELECT COUNT(*) AS c FROM invoices WHERE status = 'needs_review'`;
+const beforeCount = Number(beforeRows[0].c);
+console.log(`Vorher in needs_review: ${beforeCount}\n`);
 
 type Row = {
   id: number;
@@ -18,15 +15,13 @@ type Row = {
   output_json: string | null;
 };
 
-const rows = db
-  .prepare(
-    `SELECT i.id, i.vendor_id, v.name AS vendor_name, i.invoice_date, i.amount_gross, ae.output_json
-     FROM invoices i
-     LEFT JOIN vendors v ON v.id = i.vendor_id
-     LEFT JOIN ai_extractions ae ON ae.invoice_id = i.id AND ae.status = 'succeeded'
-     WHERE i.status = 'needs_review'`,
-  )
-  .all() as Row[];
+const rows = await sql<Row[]>`
+  SELECT i.id, i.vendor_id, v.name AS vendor_name, i.invoice_date, i.amount_gross, ae.output_json
+  FROM invoices i
+  LEFT JOIN vendors v ON v.id = i.vendor_id
+  LEFT JOIN ai_extractions ae ON ae.invoice_id = i.id AND ae.status = 'succeeded'
+  WHERE i.status = 'needs_review'
+`;
 
 const INVOICE_TYPES = new Set(["invoice", "receipt", "payment_confirmation", "credit_note"]);
 
@@ -34,13 +29,6 @@ let ignored = 0;
 let approved = 0;
 let unchanged = 0;
 const reasonCounts: Record<string, number> = {};
-
-const updateIgnored = db.prepare(
-  `UPDATE invoices SET status = 'ignored', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-);
-const updateReady = db.prepare(
-  `UPDATE invoices SET status = 'ready', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-);
 
 for (const row of rows) {
   if (!row.output_json) {
@@ -52,13 +40,13 @@ for (const row of rows) {
 
   // Step 1: Non-Rechnungen → 'ignored'
   if (!INVOICE_TYPES.has(extraction.document_type)) {
-    updateIgnored.run(row.id);
+    await sql`UPDATE invoices SET status = 'ignored', updated_at = CURRENT_TIMESTAMP WHERE id = ${row.id}`;
     ignored++;
     continue;
   }
 
   // Step 2: Echte Rechnungen → Auto-Approval-Logik erneut anwenden
-  const decision = evaluateAutoApproval(db, extraction, {
+  const decision = await evaluateAutoApproval(extraction, {
     vendorId: row.vendor_id,
     vendorName: row.vendor_name,
     amountGross: row.amount_gross,
@@ -66,7 +54,7 @@ for (const row of rows) {
   });
 
   if (decision.autoApproved) {
-    updateReady.run(row.id);
+    await sql`UPDATE invoices SET status = 'ready', updated_at = CURRENT_TIMESTAMP WHERE id = ${row.id}`;
     approved++;
   } else {
     unchanged++;
@@ -74,9 +62,8 @@ for (const row of rows) {
   }
 }
 
-const after = db
-  .prepare(`SELECT COUNT(*) AS c FROM invoices WHERE status = 'needs_review'`)
-  .get() as { c: number };
+const afterRows = await sql<{ c: string }[]>`SELECT COUNT(*) AS c FROM invoices WHERE status = 'needs_review'`;
+const afterCount = Number(afterRows[0].c);
 
 console.log(`Verarbeitet: ${rows.length}`);
 console.log(`  → 'ignored' (keine Rechnung):  ${ignored}`);
@@ -86,4 +73,5 @@ console.log(`\nGründe für unverändert:`);
 for (const [reason, count] of Object.entries(reasonCounts).sort((a, b) => b[1] - a[1])) {
   console.log(`  ${count}× ${reason}`);
 }
-console.log(`\nNachher in needs_review: ${after.c} (Delta: -${before.c - after.c})\n`);
+console.log(`\nNachher in needs_review: ${afterCount} (Delta: -${beforeCount - afterCount})\n`);
+await sql.end();

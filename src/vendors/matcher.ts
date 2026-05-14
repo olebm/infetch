@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 
 export type VendorMatch = {
   vendorId: number | null;
@@ -16,17 +16,15 @@ type AliasRow = {
   priority: number;
 };
 
-export function matchVendor(db: Database.Database, signals: string[]): VendorMatch {
+export async function matchVendor(signals: string[]): Promise<VendorMatch> {
   const haystack = signals.filter(Boolean).join("\n").toLowerCase();
-  const aliases = db
-    .prepare(
-      `SELECT vendors.id AS vendorId, vendors.name AS vendorName, vendors.canonical_key AS canonicalKey,
-        vendor_aliases.alias, vendor_aliases.match_type AS matchType, vendor_aliases.priority
-       FROM vendor_aliases
-       JOIN vendors ON vendors.id = vendor_aliases.vendor_id
-       ORDER BY vendor_aliases.priority ASC, length(vendor_aliases.alias) DESC`,
-    )
-    .all() as AliasRow[];
+  const aliases = await sql<AliasRow[]>`
+    SELECT vendors.id AS "vendorId", vendors.name AS "vendorName", vendors.canonical_key AS "canonicalKey",
+      vendor_aliases.alias, vendor_aliases.match_type AS "matchType", vendor_aliases.priority
+    FROM vendor_aliases
+    JOIN vendors ON vendors.id = vendor_aliases.vendor_id
+    ORDER BY vendor_aliases.priority ASC, length(vendor_aliases.alias) DESC
+  `;
 
   let best: (VendorMatch & { priority: number }) | null = null;
 

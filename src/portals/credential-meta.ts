@@ -7,10 +7,9 @@
  * vom User manuell hinzugefuegt.
  */
 
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { readJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
 import { readCredentialSecret } from "@/lib/secrets/credential-store";
-import { getDb } from "@/lib/db/client";
 
 export type PortalCredentialMeta = {
   vendorKey: string;
@@ -20,16 +19,16 @@ export type PortalCredentialMeta = {
 
 const settingKey = "portal_credentials_meta";
 
-export function getPortalCredentialMetaMap() {
+export async function getPortalCredentialMetaMap(): Promise<Record<string, PortalCredentialMeta>> {
   return readJsonSetting<Record<string, PortalCredentialMeta>>(settingKey, {});
 }
 
-export function getPortalCredentialMetaList(): Array<{
+export async function getPortalCredentialMetaList(): Promise<Array<{
   vendorKey: string;
   username: string;
   updatedAt: string | null;
-}> {
-  const meta = getPortalCredentialMetaMap();
+}>> {
+  const meta = await getPortalCredentialMetaMap();
   return Object.values(meta).map((entry) => ({
     vendorKey: entry.vendorKey,
     username: entry.username,
@@ -37,31 +36,30 @@ export function getPortalCredentialMetaList(): Array<{
   }));
 }
 
-export function savePortalCredentialMeta(input: { vendorKey: string; username: string }) {
-  const meta = getPortalCredentialMetaMap();
+export async function savePortalCredentialMeta(input: { vendorKey: string; username: string }): Promise<void> {
+  const meta = await getPortalCredentialMetaMap();
   meta[input.vendorKey] = {
     vendorKey: input.vendorKey,
     username: input.username,
     updatedAt: new Date().toISOString(),
   };
-  writeJsonSetting(settingKey, meta);
+  await writeJsonSetting(settingKey, meta);
 }
 
-export function resetPortalCredentialMeta(vendorKey: string) {
-  const meta = getPortalCredentialMetaMap();
+export async function resetPortalCredentialMeta(vendorKey: string): Promise<void> {
+  const meta = await getPortalCredentialMetaMap();
   if (!meta[vendorKey]) return;
   delete meta[vendorKey];
-  writeJsonSetting(settingKey, meta);
+  await writeJsonSetting(settingKey, meta);
 }
 
-export async function readPortalCredential(vendorKey: string, db?: Database.Database) {
-  const meta = getPortalCredentialMetaMap()[vendorKey];
+export async function readPortalCredential(vendorKey: string) {
+  const meta = (await getPortalCredentialMetaMap())[vendorKey];
   if (!meta?.username) return null;
 
   const password = await readCredentialSecret({
     scope: "portal",
     ownerId: vendorKey,
-    db,
   });
   if (!password) return null;
 
@@ -86,26 +84,23 @@ export type OnlineAccount = {
   updatedAt: string | null;
 };
 
-export function listOnlineAccounts(db?: Database.Database): OnlineAccount[] {
-  const resolved = db ?? getDb();
-  const meta = getPortalCredentialMetaMap();
+export async function listOnlineAccounts(): Promise<OnlineAccount[]> {
+  const meta = await getPortalCredentialMetaMap();
   const vendorKeys = Object.keys(meta);
   if (vendorKeys.length === 0) return [];
-  const placeholders = vendorKeys.map(() => "?").join(",");
-  const rows = resolved
-    .prepare(
-      `SELECT id AS vendorId, name AS vendorName, canonical_key AS vendorKey,
-        portal_login_url AS loginUrl, portal_category AS category
-       FROM vendors WHERE canonical_key IN (${placeholders})
-       ORDER BY name COLLATE NOCASE`,
-    )
-    .all(...vendorKeys) as Array<{
-      vendorId: number;
-      vendorName: string;
-      vendorKey: string;
-      loginUrl: string | null;
-      category: string | null;
-    }>;
+
+  const rows = await sql<Array<{
+    vendorId: number;
+    vendorName: string;
+    vendorKey: string;
+    loginUrl: string | null;
+    category: string | null;
+  }>>`
+    SELECT id AS "vendorId", name AS "vendorName", canonical_key AS "vendorKey",
+      portal_login_url AS "loginUrl", portal_category AS category
+    FROM vendors WHERE canonical_key = ANY(${vendorKeys}::text[])
+    ORDER BY name
+  `;
 
   return rows.map((row) => ({
     vendorId: row.vendorId,

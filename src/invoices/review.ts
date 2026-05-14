@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { recordSyncEvent } from "@/lib/db/events";
 
 const reviewStatuses = ["new", "needs_review", "ready", "ignored", "duplicate", "exported", "failed"] as const;
@@ -23,14 +23,13 @@ export type InvoiceReviewInput = {
   preferredExportTargetId: number | null;
 };
 
-export function updateInvoiceReview(db: Database.Database, input: InvoiceReviewInput) {
-  const current = db
-    .prepare(
-      `SELECT id, vendor_id AS vendorId, invoice_date AS invoiceDate, status
-       FROM invoices
-       WHERE id = ?`,
-    )
-    .get(input.invoiceId) as { id: number; vendorId: number | null; invoiceDate: string | null; status: string } | undefined;
+export async function updateInvoiceReview(input: InvoiceReviewInput): Promise<void> {
+  const currentRows = await sql<{ id: number; vendorId: number | null; invoiceDate: string | null; status: string }[]>`
+    SELECT id, vendor_id AS "vendorId", invoice_date AS "invoiceDate", status
+    FROM invoices
+    WHERE id = ${input.invoiceId}
+  `;
+  const current = currentRows[0];
 
   if (!current) {
     throw new Error("Rechnung wurde nicht gefunden.");
@@ -49,8 +48,8 @@ export function updateInvoiceReview(db: Database.Database, input: InvoiceReviewI
   }
 
   if (input.vendorId !== null) {
-    const vendor = db.prepare(`SELECT id FROM vendors WHERE id = ?`).get(input.vendorId) as { id: number } | undefined;
-    if (!vendor) {
+    const vendorRows = await sql`SELECT id FROM vendors WHERE id = ${input.vendorId}`;
+    if (vendorRows.length === 0) {
       throw new Error("Ausgewählter Vendor existiert nicht.");
     }
   }
@@ -59,10 +58,8 @@ export function updateInvoiceReview(db: Database.Database, input: InvoiceReviewI
     if (input.duplicateOfInvoiceId === input.invoiceId) {
       throw new Error("Eine Rechnung kann nicht auf sich selbst als Dublette zeigen.");
     }
-    const duplicateTarget = db
-      .prepare(`SELECT id FROM invoices WHERE id = ?`)
-      .get(input.duplicateOfInvoiceId) as { id: number } | undefined;
-    if (!duplicateTarget) {
+    const dupRows = await sql`SELECT id FROM invoices WHERE id = ${input.duplicateOfInvoiceId}`;
+    if (dupRows.length === 0) {
       throw new Error("Zielrechnung für die Dublette wurde nicht gefunden.");
     }
   }
@@ -77,33 +74,27 @@ export function updateInvoiceReview(db: Database.Database, input: InvoiceReviewI
     }
   }
 
-  db.prepare(
-    `UPDATE invoices
-     SET vendor_id = ?, status = ?, invoice_number = ?, invoice_date = ?,
-       service_period_start = ?, service_period_end = ?, amount_gross = ?,
-       amount_net = ?, vat_amount = ?, currency = ?, duplicate_of_invoice_id = ?,
-       vat_rate = ?, doc_type = ?, preferred_export_target_id = ?,
-       updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  ).run(
-    input.vendorId,
-    input.status,
-    input.invoiceNumber,
-    input.invoiceDate,
-    input.servicePeriodStart,
-    input.servicePeriodEnd,
-    input.amountGross,
-    input.amountNet,
-    input.vatAmount,
-    input.currency,
-    input.status === "duplicate" ? input.duplicateOfInvoiceId : null,
-    input.vatRate,
-    input.docType ?? "invoice",
-    input.preferredExportTargetId,
-    input.invoiceId,
-  );
+  await sql`
+    UPDATE invoices
+    SET vendor_id = ${input.vendorId},
+        status = ${input.status},
+        invoice_number = ${input.invoiceNumber},
+        invoice_date = ${input.invoiceDate},
+        service_period_start = ${input.servicePeriodStart},
+        service_period_end = ${input.servicePeriodEnd},
+        amount_gross = ${input.amountGross},
+        amount_net = ${input.amountNet},
+        vat_amount = ${input.vatAmount},
+        currency = ${input.currency},
+        duplicate_of_invoice_id = ${input.status === "duplicate" ? input.duplicateOfInvoiceId : null},
+        vat_rate = ${input.vatRate},
+        doc_type = ${input.docType ?? "invoice"},
+        preferred_export_target_id = ${input.preferredExportTargetId},
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${input.invoiceId}
+  `;
 
-  recordSyncEvent(db, {
+  await recordSyncEvent({
     level: "info",
     eventType: "invoice_review_updated",
     vendorId: input.vendorId ?? current.vendorId,

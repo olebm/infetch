@@ -1,7 +1,7 @@
-import { getDb } from "../src/lib/db/client";
+import { sql } from "../src/lib/db/client";
 import { syncAllStoredInvoiceFileNames } from "../src/invoices/file-names";
 
-const db = getDb();
-const result = syncAllStoredInvoiceFileNames(db);
+const result = await syncAllStoredInvoiceFileNames();
 
 console.log(`Stored invoice PDFs renamed: ${result.updated} updated, ${result.skipped} skipped.`);
+await sql.end();

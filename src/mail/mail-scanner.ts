@@ -1,8 +1,7 @@
 import { subMonths } from "date-fns";
-import type Database from "better-sqlite3";
 import type { FetchMessageObject, ImapFlow } from "imapflow";
+import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
-import { getDb } from "@/lib/db/client";
 import { recordSyncEvent } from "@/lib/db/events";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 import {
@@ -38,19 +37,17 @@ function asConfiguredAccount(account: PrimaryImapAccount): ConfiguredImapAccount
 }
 
 export async function runPrimaryImapScan(input?: {
-  db?: Database.Database;
   client?: ImapClientLike;
   account?: PrimaryImapAccount;
   accountClients?: Array<{ account: PrimaryImapAccount; client: ImapClientLike }>;
 }): Promise<ImapScanResult> {
-  const db = input?.db || getDb();
-  const syncRun = db
-    .prepare(
-      `INSERT INTO sync_runs (type, status, triggered_by, started_at)
-       VALUES ('imap_scan', 'running', 'user', CURRENT_TIMESTAMP)`,
-    )
-    .run();
-  const syncRunId = Number(syncRun.lastInsertRowid);
+  const syncRunRows = await sql<{ id: number }[]>`
+    INSERT INTO sync_runs (type, status, triggered_by, started_at)
+    VALUES ('imap_scan', 'running', 'user', CURRENT_TIMESTAMP)
+    RETURNING id
+  `;
+  const syncRunId = Number(syncRunRows[0].id);
+
   const summary: Omit<ImapScanResult, "syncRunId"> = {
     messagesSeen: 0,
     messagesProcessed: 0,
@@ -72,7 +69,7 @@ export async function runPrimaryImapScan(input?: {
       ? input!.accountClients!.map(({ account }) => asConfiguredAccount(account))
       : useInjectedClient
       ? [asConfiguredAccount(input!.account!)]
-      : listConfiguredImapAccounts(db);
+      : await listConfiguredImapAccounts();
 
     if (!accounts.length) {
       throw new Error("Kein konfiguriertes IMAP-Postfach vorhanden.");
@@ -83,7 +80,7 @@ export async function runPrimaryImapScan(input?: {
         ? (input!.accountClients!.find((entry) => entry.account.id === account.id)?.client as ImapClientLike)
         : useInjectedClient && input?.client
           ? input.client
-          : (await createImapClientForAccount(account, db)).client;
+          : (await createImapClientForAccount(account)).client;
 
       createdClient = client;
       await client.connect();
@@ -93,7 +90,7 @@ export async function runPrimaryImapScan(input?: {
         const since = subMonths(new Date(), appConfig.syncMonthsBack);
         for await (const message of client.fetch({ since }, { uid: true, envelope: true, source: true })) {
           summary.messagesSeen += 1;
-          await processMessage(db, account.id, uidValidity, message, summary);
+          await processMessage(account.id, uidValidity, message, summary);
         }
       } finally {
         lock.release();
@@ -129,12 +126,12 @@ export async function runPrimaryImapScan(input?: {
       accountErrors: accountScanErrors.length ? accountScanErrors : undefined,
     };
 
-    db.prepare(
-      `UPDATE sync_runs
-       SET status = 'succeeded', finished_at = CURRENT_TIMESTAMP, summary_json = ?
-       WHERE id = ?`,
-    ).run(JSON.stringify(finalPayload), syncRunId);
-    recordSyncEvent(db, {
+    await sql`
+      UPDATE sync_runs
+      SET status = 'succeeded', finished_at = CURRENT_TIMESTAMP, summary_json = ${JSON.stringify(finalPayload)}
+      WHERE id = ${syncRunId}
+    `;
+    await recordSyncEvent({
       level: "info",
       eventType: "imap_scan_completed",
       message:
@@ -147,12 +144,12 @@ export async function runPrimaryImapScan(input?: {
   } catch (error) {
     const message = error instanceof Error ? error.message : "IMAP scan failed";
     summary.failed += 1;
-    db.prepare(
-      `UPDATE sync_runs
-       SET status = 'failed', finished_at = CURRENT_TIMESTAMP, summary_json = ?
-       WHERE id = ?`,
-    ).run(JSON.stringify({ ...summary, error: message, accountErrors: accountScanErrors }), syncRunId);
-    recordSyncEvent(db, {
+    await sql`
+      UPDATE sync_runs
+      SET status = 'failed', finished_at = CURRENT_TIMESTAMP, summary_json = ${JSON.stringify({ ...summary, error: message, accountErrors: accountScanErrors })}
+      WHERE id = ${syncRunId}
+    `;
+    await recordSyncEvent({
       level: "error",
       eventType: "imap_scan_failed",
       message: "IMAP Scan fehlgeschlagen.",
@@ -168,7 +165,6 @@ export async function runPrimaryImapScan(input?: {
 }
 
 async function processMessage(
-  db: Database.Database,
   mailAccountId: number,
   uidValidity: string,
   message: FetchMessageObject,
@@ -177,7 +173,7 @@ async function processMessage(
   if (!message.source) return;
 
   const parsed = await extractPdfAttachments(message.source);
-  const mailMessageId = upsertMailMessage(db, {
+  const mailMessageId = await upsertMailMessage({
     mailAccountId,
     uid: message.uid,
     uidValidity,
@@ -187,28 +183,28 @@ async function processMessage(
     date: parsed.date?.toISOString() || null,
   });
 
-  const existing = db
-    .prepare(`SELECT processed_at AS processedAt FROM mail_messages WHERE id = ?`)
-    .get(mailMessageId) as { processedAt: string | null } | undefined;
-  if (existing?.processedAt) return;
+  const existing = await sql<{ processedAt: string | null }[]>`
+    SELECT processed_at AS "processedAt" FROM mail_messages WHERE id = ${mailMessageId}
+  `;
+  if (existing[0]?.processedAt) return;
 
   summary.messagesProcessed += 1;
   summary.pdfsFound += parsed.pdfAttachments.length;
 
-  const senderBlocked = parsed.fromAddress ? isSenderBlocked(db, parsed.fromAddress) : false;
+  const senderBlocked = parsed.fromAddress ? await isSenderBlocked(parsed.fromAddress) : false;
   // Sender-Memory: spart Mistral-Call wenn der Sender Junk-PDFs sendet.
   const senderAutoIgnored =
-    !senderBlocked && parsed.fromAddress ? isSenderAutoIgnored(db, parsed.fromAddress) : false;
+    !senderBlocked && parsed.fromAddress ? await isSenderAutoIgnored(parsed.fromAddress) : false;
 
   if (!parsed.pdfAttachments.length) {
-    markMailMessage(db, mailMessageId, "no_pdf");
+    await markMailMessage(mailMessageId, "no_pdf");
     return;
   }
 
   if (senderBlocked || senderAutoIgnored) {
     summary.blockedSenders += 1;
     if (parsed.fromAddress) {
-      recordSenderObservation(db, {
+      await recordSenderObservation({
         fromAddress: parsed.fromAddress,
         displayName: parsed.fromName,
         hadPdfAttachments: true,
@@ -216,14 +212,13 @@ async function processMessage(
         blockedSkip: true,
       });
     }
-    markMailMessage(db, mailMessageId, senderAutoIgnored ? "auto_ignored_sender" : "blocked_sender");
+    await markMailMessage(mailMessageId, senderAutoIgnored ? "auto_ignored_sender" : "blocked_sender");
     return;
   }
 
   let importedForMessage = 0;
   for (const attachment of parsed.pdfAttachments) {
     const result = await importPdfBuffer({
-      db,
       buffer: attachment.content,
       originalFilename: attachment.filename,
       mimeType: attachment.contentType,
@@ -241,7 +236,7 @@ async function processMessage(
   }
 
   if (parsed.fromAddress) {
-    recordSenderObservation(db, {
+    await recordSenderObservation({
       fromAddress: parsed.fromAddress,
       displayName: parsed.fromName,
       hadPdfAttachments: true,
@@ -249,58 +244,45 @@ async function processMessage(
     });
   }
 
-  markMailMessage(db, mailMessageId, importedForMessage > 0 ? "processed" : "no_new_invoice");
+  await markMailMessage(mailMessageId, importedForMessage > 0 ? "processed" : "no_new_invoice");
 }
 
-function upsertMailMessage(
-  db: Database.Database,
-  input: {
-    mailAccountId: number;
-    uid: number;
-    uidValidity: string;
-    messageId: string | null;
-    fromAddress: string | null;
-    subject: string | null;
-    date: string | null;
-  },
-) {
-  db.prepare(
-    `INSERT INTO mail_messages (
+async function upsertMailMessage(input: {
+  mailAccountId: number;
+  uid: number;
+  uidValidity: string;
+  messageId: string | null;
+  fromAddress: string | null;
+  subject: string | null;
+  date: string | null;
+}): Promise<number> {
+  await sql`
+    INSERT INTO mail_messages (
       mail_account_id, mailbox, uid, uidvalidity, message_id, from_address, subject, date, seen_at, status
     )
-    VALUES (?, 'INBOX', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'pending')
+    VALUES (${input.mailAccountId}, 'INBOX', ${input.uid}, ${input.uidValidity}, ${input.messageId}, ${input.fromAddress}, ${input.subject}, ${input.date}, CURRENT_TIMESTAMP, 'pending')
     ON CONFLICT(mail_account_id, mailbox, uidvalidity, uid) DO UPDATE SET
       message_id = COALESCE(mail_messages.message_id, excluded.message_id),
       from_address = COALESCE(mail_messages.from_address, excluded.from_address),
       subject = COALESCE(mail_messages.subject, excluded.subject),
       date = COALESCE(mail_messages.date, excluded.date),
-      seen_at = CURRENT_TIMESTAMP`,
-  ).run(
-    input.mailAccountId,
-    input.uid,
-    input.uidValidity,
-    input.messageId,
-    input.fromAddress,
-    input.subject,
-    input.date,
-  );
+      seen_at = CURRENT_TIMESTAMP
+  `;
 
-  const row = db
-    .prepare(
-      `SELECT id
-       FROM mail_messages
-       WHERE mail_account_id = ? AND mailbox = 'INBOX' AND uidvalidity = ? AND uid = ?`,
-    )
-    .get(input.mailAccountId, input.uidValidity, input.uid) as { id: number };
-  return row.id;
+  const rows = await sql<{ id: number }[]>`
+    SELECT id
+    FROM mail_messages
+    WHERE mail_account_id = ${input.mailAccountId} AND mailbox = 'INBOX' AND uidvalidity = ${input.uidValidity} AND uid = ${input.uid}
+  `;
+  return rows[0].id;
 }
 
-function markMailMessage(db: Database.Database, id: number, status: string) {
-  db.prepare(
-    `UPDATE mail_messages
-     SET status = ?, processed_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  ).run(status, id);
+async function markMailMessage(id: number, status: string): Promise<void> {
+  await sql`
+    UPDATE mail_messages
+    SET status = ${status}, processed_at = CURRENT_TIMESTAMP
+    WHERE id = ${id}
+  `;
 }
 
 async function logoutImapClient(client: ImapClientLike | null) {

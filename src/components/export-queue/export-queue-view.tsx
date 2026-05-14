@@ -27,8 +27,8 @@ function formatSentAt(iso: string | null): string {
   return `vor ${diffD} Tagen`;
 }
 
-export function ExportQueueView() {
-  const all = getExportQueue();
+export async function ExportQueueView() {
+  const all = await getExportQueue();
 
   const queue   = all.filter((e) => ["pending", "retry", "failed"].includes(e.status));
   const history = all.filter((e) => e.status === "sent");

@@ -1,6 +1,5 @@
 import { ImapFlow } from "imapflow";
-import type Database from "better-sqlite3";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import {
   readCredentialSecret,
   updateCredentialVerificationStatus,
@@ -27,19 +26,16 @@ export type ConfiguredImapAccount = PrimaryImapAccount & {
   organizationId?: string | null;
 };
 
-export function listConfiguredImapAccounts(db: Database.Database = getDb()) {
-  const placeholders = IMAP_MAIL_ACCOUNT_SLOTS.map(() => "?").join(", ");
+export async function listConfiguredImapAccounts(): Promise<ConfiguredImapAccount[]> {
   const labels = IMAP_MAIL_ACCOUNT_SLOTS.map((s) => s.label);
-  const rows = db
-    .prepare(
-      `SELECT id, label, host, port, secure, username, organization_id
-       FROM mail_accounts
-       WHERE label IN (${placeholders}) AND status = 'configured'
-       ORDER BY id ASC`,
-    )
-    .all(...labels) as Array<
+  const rows = await sql<Array<
     Omit<PrimaryImapAccount, "label"> & { label: string; organization_id: string | null }
-  >;
+  >>`
+    SELECT id, label, host, port, secure, username, organization_id
+    FROM mail_accounts
+    WHERE label = ANY(${labels}::text[]) AND status = 'configured'
+    ORDER BY id ASC
+  `;
 
   const ordered: ConfiguredImapAccount[] = [];
   for (const slot of IMAP_MAIL_ACCOUNT_SLOTS) {
@@ -57,14 +53,13 @@ export function listConfiguredImapAccounts(db: Database.Database = getDb()) {
 
 export async function createImapClientForAccount(
   account: ConfiguredImapAccount,
-  db: Database.Database = getDb(),
 ) {
   const ownerId = imapCredentialOwnerIdForLabel(account.label);
   if (!ownerId) {
     throw new Error("Unbekanntes IMAP-Postfach-Label.");
   }
 
-  const password = await readCredentialSecret({ scope: "imap", ownerId, organizationId: account.organizationId, db });
+  const password = await readCredentialSecret({ scope: "imap", ownerId, organizationId: account.organizationId });
   if (!password) {
     throw new Error(`IMAP-Passwort fehlt im Secret Store (${account.label}).`);
   }
@@ -85,18 +80,17 @@ export async function createImapClientForAccount(
 }
 
 /** @deprecated Prefer listConfiguredImapAccounts + createImapClientForAccount */
-export async function createPrimaryImapClient(db: Database.Database = getDb()) {
-  const accounts = listConfiguredImapAccounts(db);
+export async function createPrimaryImapClient() {
+  const accounts = await listConfiguredImapAccounts();
   const first = accounts[0];
   if (!first) {
     throw new Error("Kein konfiguriertes IMAP-Postfach vorhanden.");
   }
-  return createImapClientForAccount(first, db);
+  return createImapClientForAccount(first);
 }
 
 export async function verifyImapAccountConnection(
   slotOwnerId: ImapCredentialOwnerId,
-  db: Database.Database = getDb(),
   organizationId?: string | null,
 ) {
   const slot = IMAP_MAIL_ACCOUNT_SLOTS.find((entry) => entry.ownerId === slotOwnerId);
@@ -104,15 +98,16 @@ export async function verifyImapAccountConnection(
     throw new Error("Unbekanntes IMAP-Postfach.");
   }
 
-  const account = db
-    .prepare(
-      `SELECT id, label, host, port, secure, username, organization_id
-       FROM mail_accounts
-       WHERE label = ?
-       ORDER BY id DESC
-       LIMIT 1`,
-    )
-    .get(slot.label) as (ConfiguredImapAccount & { organization_id?: string | null }) | undefined;
+  const rows = await sql<Array<
+    Omit<ConfiguredImapAccount, "credentialOwnerId"> & { organization_id?: string | null }
+  >>`
+    SELECT id, label, host, port, secure, username, organization_id
+    FROM mail_accounts
+    WHERE label = ${slot.label}
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+  const account = rows[0];
 
   if (!account) {
     throw new Error(`${slot.label} ist noch nicht konfiguriert.`);
@@ -123,32 +118,28 @@ export async function verifyImapAccountConnection(
   let createdClient: Awaited<ReturnType<typeof createImapClientForAccount>> | null = null;
 
   try {
-    createdClient = await createImapClientForAccount(
-      {
-        ...account,
-        label: slot.label,
-        credentialOwnerId: slot.ownerId,
-        organizationId: resolvedOrganizationId,
-      },
-      db,
-    );
+    createdClient = await createImapClientForAccount({
+      ...account,
+      label: slot.label,
+      credentialOwnerId: slot.ownerId,
+      organizationId: resolvedOrganizationId,
+    });
 
     await createdClient.client.connect();
     const lock = await createdClient.client.getMailboxLock("INBOX");
     lock.release();
 
-    updateCredentialVerificationStatus({
-      db,
+    await updateCredentialVerificationStatus({
       scope: "imap",
       ownerId: slot.ownerId,
       organizationId: resolvedOrganizationId,
       status: "configured",
     });
-    db.prepare(
-      `UPDATE mail_accounts
-       SET status = 'configured', last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-    ).run(account.id);
+    await sql`
+      UPDATE mail_accounts
+      SET status = 'configured', last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${account.id}
+    `;
 
     return {
       label: slot.label,
@@ -158,18 +149,17 @@ export async function verifyImapAccountConnection(
   } catch (error) {
     const message = error instanceof Error ? error.message : "IMAP-Verbindung fehlgeschlagen.";
     if (looksLikeImapCredentialError(message)) {
-      updateCredentialVerificationStatus({
-        db,
+      await updateCredentialVerificationStatus({
         scope: "imap",
         ownerId: slot.ownerId,
         organizationId: resolvedOrganizationId,
         status: "invalid",
       });
-      db.prepare(
-        `UPDATE mail_accounts
-         SET status = 'invalid', updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-      ).run(account.id);
+      await sql`
+        UPDATE mail_accounts
+        SET status = 'invalid', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${account.id}
+      `;
     }
     throw new Error(normalizeImapVerificationError(message, slot.label));
   } finally {

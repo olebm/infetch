@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
-import { getDb } from "@/lib/db/client";
 import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
 
 const STUB_EMAIL = "test@infetch.local";
@@ -50,12 +49,11 @@ export async function loginAsTestUser(formData: FormData) {
 
   if (!supabaseUserId) throw new Error("Test login failed: Supabase user not found");
 
-  // SQLite-Profil anlegen falls noch nicht vorhanden
+  // Postgres-Profil anlegen falls noch nicht vorhanden
   try {
-    const db = getDb();
-    const existing = findUserByEmail(STUB_EMAIL, db);
+    const existing = await findUserByEmail(STUB_EMAIL);
     if (!existing) {
-      createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, db, userId: supabaseUserId });
+      await createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, userId: supabaseUserId });
     }
   } catch {
     // Non-fatal

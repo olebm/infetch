@@ -8,7 +8,6 @@ import {
 } from "@/mail/inbound-addresses";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { recordSyncEvent } from "@/lib/db/events";
-import { getDb } from "@/lib/db/client";
 import { inboundGlobalLimiter, inboundIpLimiter } from "@/lib/rate-limit";
 
 // Resend Inbound Webhook Payload (vereinfachte Form fuer unsere Bedarfe).
@@ -130,8 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "no_recipient_match" }, { status: 422 });
   }
 
-  const db = getDb();
-  const address = findInboundAddressByLocalPart(localPart, db);
+  const address = await findInboundAddressByLocalPart(localPart);
   if (!address) {
     return NextResponse.json({ error: "address_not_found" }, { status: 404 });
   }
@@ -150,7 +148,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (pdfAttachments.length === 0) {
-    recordSyncEvent(db, {
+    await recordSyncEvent({
       level: "info",
       eventType: "resend_inbound_no_pdf",
       message: `Mail von ${fromAddress} ohne PDF-Anhang ignoriert.`,
@@ -171,7 +169,6 @@ export async function POST(request: NextRequest) {
         mimeType: attachment.content_type || "application/pdf",
         sourceType: "mail",
         sourceRefId: `resend:${address.id}`,
-        db,
       });
       results.push({
         filename: attachment.filename,
@@ -185,9 +182,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  recordInboundDelivery(address.id, db);
+  await recordInboundDelivery(address.id);
 
-  recordSyncEvent(db, {
+  await recordSyncEvent({
     level: "info",
     eventType: "resend_inbound_received",
     message: `Resend-Inbound: ${imported} PDF(s) importiert von ${fromAddress}.`,

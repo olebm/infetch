@@ -1,39 +1,36 @@
-import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { schemaStatements } from "@/lib/db/schema";
+import { sql } from "@/lib/db/client";
 import { updateInvoiceReview } from "@/invoices/review";
-import { seedDatabase } from "@/vendors/seed";
 
-function createDb() {
-  const db = new Database(":memory:");
-  db.pragma("foreign_keys = ON");
-  for (const statement of schemaStatements) {
-    db.exec(statement);
-  }
-  seedDatabase(db);
-  return db;
+// NOTE: updateInvoiceReview now uses the global postgres sql client.
+// This test requires a real Postgres connection with seeded vendor data.
+
+async function getVendorId(canonicalKey: string): Promise<number | undefined> {
+  const rows = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}`;
+  return rows[0]?.id;
 }
 
-function getVendorId(db: Database.Database, canonicalKey: string) {
-  return (
-    db.prepare(`SELECT id FROM vendors WHERE canonical_key = ?`).get(canonicalKey) as { id: number } | undefined
-  )?.id;
+async function insertInvoice(fields: Record<string, unknown> = {}): Promise<number> {
+  const rows = await sql<{ id: number }[]>`
+    INSERT INTO invoices (source, status, confidence, dedupe_key)
+    VALUES (
+      ${"mail"},
+      ${"needs_review"},
+      ${0.42},
+      ${"rev-test-" + Date.now()}
+    )
+    RETURNING id
+  `;
+  void fields;
+  return rows[0].id;
 }
 
 describe("invoice review", () => {
-  it("updates invoice fields and marks the invoice as ready", () => {
-    const db = createDb();
-    const vendorId = getVendorId(db, "openai");
-    const invoiceId = Number(
-      db
-        .prepare(
-          `INSERT INTO invoices (vendor_id, source, status, invoice_number, invoice_date, amount_gross, currency, confidence)
-           VALUES (NULL, 'mail', 'needs_review', NULL, NULL, NULL, NULL, 0.42)`,
-        )
-        .run().lastInsertRowid,
-    );
+  it("updates invoice fields and marks the invoice as ready", async () => {
+    const vendorId = await getVendorId("openai");
+    const invoiceId = await insertInvoice();
 
-    updateInvoiceReview(db, {
+    await updateInvoiceReview({
       invoiceId,
       vendorId: vendorId ?? null,
       invoiceNumber: "INV-2026-05",
@@ -48,26 +45,28 @@ describe("invoice review", () => {
       duplicateOfInvoiceId: null,
       vatRate: 19,
       docType: "invoice",
+      preferredExportTargetId: null,
     });
 
-    const invoice = db
-      .prepare(
-        `SELECT vendor_id AS vendorId, status, invoice_number AS invoiceNumber, invoice_date AS invoiceDate,
-          service_period_start AS servicePeriodStart, duplicate_of_invoice_id AS duplicateOfInvoiceId
-         FROM invoices
-         WHERE id = ?`,
-      )
-      .get(invoiceId) as {
+    const rows = await sql<{
       vendorId: number | null;
       status: string;
       invoiceNumber: string | null;
       invoiceDate: string | null;
       servicePeriodStart: string | null;
       duplicateOfInvoiceId: number | null;
-    };
+    }[]>`
+      SELECT vendor_id AS "vendorId", status, invoice_number AS "invoiceNumber",
+        invoice_date AS "invoiceDate",
+        service_period_start AS "servicePeriodStart",
+        duplicate_of_invoice_id AS "duplicateOfInvoiceId"
+      FROM invoices
+      WHERE id = ${invoiceId}
+    `;
+    const invoice = rows[0];
 
     expect(invoice).toMatchObject({
-      vendorId,
+      vendorId: vendorId ?? null,
       status: "ready",
       invoiceNumber: "INV-2026-05",
       invoiceDate: "2026-05-01",
@@ -76,34 +75,25 @@ describe("invoice review", () => {
     });
   });
 
-  it("requires a target invoice when marking an invoice as duplicate", () => {
-    const db = createDb();
-    const invoiceId = Number(
-      db
-        .prepare(
-          `INSERT INTO invoices (source, status, confidence)
-           VALUES ('manual', 'needs_review', 0.2)`,
-        )
-        .run().lastInsertRowid,
-    );
+  it("requires a target invoice when marking an invoice as duplicate", async () => {
+    const invoiceId = await insertInvoice();
 
-    expect(() =>
-      updateInvoiceReview(db, {
-        invoiceId,
-        vendorId: null,
-        invoiceNumber: null,
-        invoiceDate: null,
-        servicePeriodStart: null,
-        servicePeriodEnd: null,
-        amountGross: null,
-        amountNet: null,
-        vatAmount: null,
-        currency: null,
-        status: "duplicate",
-        duplicateOfInvoiceId: null,
-        vatRate: null,
-        docType: null,
-      }),
-    ).toThrow("Bitte eine Zielrechnung für die Dublette auswählen.");
+    await expect(updateInvoiceReview({
+      invoiceId,
+      vendorId: null,
+      invoiceNumber: null,
+      invoiceDate: null,
+      servicePeriodStart: null,
+      servicePeriodEnd: null,
+      amountGross: null,
+      amountNet: null,
+      vatAmount: null,
+      currency: null,
+      status: "duplicate",
+      duplicateOfInvoiceId: null,
+      vatRate: null,
+      docType: null,
+      preferredExportTargetId: null,
+    })).rejects.toThrow("Bitte eine Zielrechnung für die Dublette auswählen.");
   });
 });

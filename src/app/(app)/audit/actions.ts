@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { sql } from "@/lib/db/client";
 import { syncStoredInvoiceFileNamesForInvoice } from "@/invoices/file-names";
 import { importManualPdf } from "@/invoices/import-pipeline";
 import { runMissingInvoiceCheck } from "@/invoices/missing-check";
 import { updateInvoiceReview, type ReviewStatus } from "@/invoices/review";
-import { getDb } from "@/lib/db/client";
 import { learnFromManualMatch } from "@/vendors/auto-alias";
 import { recordSyncEvent } from "@/lib/db/events";
 import { blockSender } from "@/senders/discovered-senders";
@@ -61,16 +61,14 @@ export async function updateInvoiceReviewAction(
     const intent = String(formData.get("intent") || "save");
     const statusFromForm = String(formData.get("reviewStatus") || "needs_review") as ReviewStatus;
     const status = resolveReviewStatus(intent, statusFromForm);
-    const db = getDb();
 
     const newVendorId = parseOptionalInteger(formData.get("vendorId"));
-    const previousVendorId = (
-      db.prepare(`SELECT vendor_id AS vendorId FROM invoices WHERE id = ?`).get(invoiceId) as
-        | { vendorId: number | null }
-        | undefined
-    )?.vendorId ?? null;
+    const rows = await sql<{ vendorId: number | null }[]>`
+      SELECT vendor_id AS "vendorId" FROM invoices WHERE id = ${invoiceId}
+    `;
+    const previousVendorId = rows[0]?.vendorId ?? null;
 
-    updateInvoiceReview(db, {
+    await updateInvoiceReview({
       invoiceId,
       vendorId: newVendorId,
       invoiceNumber: parseOptionalString(formData.get("invoiceNumber")),
@@ -87,15 +85,15 @@ export async function updateInvoiceReviewAction(
       docType: parseOptionalString(formData.get("docType")),
       preferredExportTargetId: parseOptionalInteger(formData.get("exportTargetId")),
     });
-    syncStoredInvoiceFileNamesForInvoice(invoiceId, db);
+    await syncStoredInvoiceFileNamesForInvoice(invoiceId);
 
     // Auto-Alias-Lernen: Wenn User einen Vendor neu zugeordnet hat, speichern wir
     // die Sender-Domain als Domain-Alias — damit kuenftige Mails vom selben
     // Sender automatisch matchen und nicht erneut im Review landen.
     if (newVendorId && newVendorId !== previousVendorId) {
-      const result = learnFromManualMatch(db, { invoiceId, vendorId: newVendorId });
+      const result = await learnFromManualMatch({ invoiceId, vendorId: newVendorId });
       if (result.learned) {
-        recordSyncEvent(db, {
+        await recordSyncEvent({
           level: "info",
           eventType: "vendor_alias_learned",
           invoiceId,
@@ -106,7 +104,7 @@ export async function updateInvoiceReviewAction(
       }
     }
 
-    runMissingInvoiceCheck(db);
+    await runMissingInvoiceCheck();
 
     revalidatePath("/");
     revalidatePath("/audit");
@@ -133,7 +131,6 @@ function resolveReviewStatus(intent: string, currentStatus: string): ReviewStatu
   if (intent === "mark_ready") return "ready";
   if (intent === "mark_ignored") return "ignored";
   if (intent === "mark_duplicate") return "duplicate";
-  // "save" intent: preserve the current DB status as-is (including exported/failed for metadata edits)
   return ALL_DB_STATUSES.has(currentStatus) ? (currentStatus as ReviewStatus) : "needs_review";
 }
 
@@ -171,35 +168,30 @@ function getReviewSuccessMessage(status: ReviewStatus) {
 // ─── Privat markieren ────────────────────────────────────────────────────────
 
 export async function markInvoicePrivateAction(invoiceId: number): Promise<void> {
-  const db = getDb();
-  db.prepare(`UPDATE invoices SET is_private = 1 WHERE id = ?`).run(invoiceId);
+  await sql`UPDATE invoices SET is_private = TRUE WHERE id = ${invoiceId}`;
   revalidatePath("/audit");
 }
 
 export async function restoreInvoiceFromPrivateAction(invoiceId: number): Promise<void> {
-  const db = getDb();
-  db.prepare(`UPDATE invoices SET is_private = 0 WHERE id = ?`).run(invoiceId);
+  await sql`UPDATE invoices SET is_private = FALSE WHERE id = ${invoiceId}`;
   revalidatePath("/audit");
 }
 
 export async function markSenderDomainPrivateAction(domain: string): Promise<void> {
-  const db = getDb();
-  // Block all discovered_senders matching this domain
-  const senders = db
-    .prepare(`SELECT id FROM discovered_senders WHERE from_domain = ? AND blocked = 0`)
-    .all(domain) as Array<{ id: number }>;
+  const senders = await sql<Array<{ id: number }>>`
+    SELECT id FROM discovered_senders WHERE from_domain = ${domain} AND blocked = FALSE
+  `;
   for (const s of senders) {
-    blockSender(db, s.id, "Privat");
+    await blockSender(s.id, "Privat");
   }
-  // Also mark all existing invoices from this domain as private
-  db.prepare(
-    `UPDATE invoices SET is_private = 1
-     WHERE id IN (
-       SELECT i.id FROM invoices i
-       JOIN discovered_senders ds ON ds.matched_vendor_id = i.vendor_id
-       WHERE ds.from_domain = ?
-     )`,
-  ).run(domain);
+  await sql`
+    UPDATE invoices SET is_private = TRUE
+    WHERE id IN (
+      SELECT i.id FROM invoices i
+      JOIN discovered_senders ds ON ds.matched_vendor_id = i.vendor_id
+      WHERE ds.from_domain = ${domain}
+    )
+  `;
   revalidatePath("/audit");
   revalidatePath("/senders");
 }

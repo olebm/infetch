@@ -10,7 +10,7 @@
 
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db/client";
+import { sql } from "@/lib/db/client";
 import { sendWeeklyDigest } from "@/lib/mail/notify";
 import { appConfig } from "@/lib/config/env";
 
@@ -39,16 +39,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ skipped: true, reason: "no RESEND_API_KEY" });
   }
 
-  const db = getDb();
-
   // Hole alle Org-Owner-E-Mails
-  const owners = db
-    .prepare(
-      `SELECT u.email, o.id AS orgId
-       FROM users u
-       INNER JOIN organizations o ON o.owner_user_id = u.id`,
-    )
-    .all() as { email: string; orgId: string }[];
+  const owners = await sql<{ email: string; orgId: string }[]>`
+    SELECT u.email, o.id AS "orgId"
+    FROM users u
+    INNER JOIN organizations o ON o.owner_user_id = u.id
+  `;
 
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     .toISOString()
@@ -57,22 +53,22 @@ export async function POST(req: Request): Promise<NextResponse> {
   const results: { email: string; sent: boolean }[] = [];
 
   for (const { email, orgId } of owners) {
-    const { sent, reviewed, pending } = db
-      .prepare(
-        `SELECT
-           COUNT(CASE WHEN status = 'exported' AND updated_at >= ? THEN 1 END) AS sent,
-           COUNT(CASE WHEN status IN ('ready','exported') AND updated_at >= ? AND source != 'auto' THEN 1 END) AS reviewed,
-           COUNT(CASE WHEN status = 'needs_review' THEN 1 END) AS pending
-         FROM invoices
-         WHERE organization_id = ? OR organization_id IS NULL`,
-      )
-      .get(oneWeekAgo, oneWeekAgo, orgId) as {
-        sent: number;
-        reviewed: number;
-        pending: number;
-      };
+    const statsRows = await sql<{ sent: string; reviewed: string; pending: string }[]>`
+      SELECT
+        COUNT(CASE WHEN status = 'exported' AND updated_at >= ${oneWeekAgo}::timestamp THEN 1 END)::text AS sent,
+        COUNT(CASE WHEN status IN ('ready','exported') AND updated_at >= ${oneWeekAgo}::timestamp AND source != 'auto' THEN 1 END)::text AS reviewed,
+        COUNT(CASE WHEN status = 'needs_review' THEN 1 END)::text AS pending
+      FROM invoices
+      WHERE organization_id = ${orgId} OR organization_id IS NULL
+    `;
+    const stats = statsRows[0] ?? { sent: "0", reviewed: "0", pending: "0" };
 
-    const ok = await sendWeeklyDigest({ to: email, sent, reviewed, pending });
+    const ok = await sendWeeklyDigest({
+      to: email,
+      sent: Number(stats.sent),
+      reviewed: Number(stats.reviewed),
+      pending: Number(stats.pending),
+    });
     results.push({ email, sent: ok });
   }
 

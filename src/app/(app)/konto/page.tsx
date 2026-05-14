@@ -1,4 +1,3 @@
-import { getDb } from "@/lib/db/client";
 import { getInvoiceYears } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { loadOrgMembers, loadUserOrganizations, loadActiveSessions, getUserProfileFields } from "@/lib/auth/session";
@@ -32,13 +31,14 @@ function initials(name: string | null, email: string) {
 }
 
 export default async function KontoPage() {
-  const db = getDb();
   const auth = await getCurrentAuth();
-  const invoiceYears = getInvoiceYears();
-  const userOrgs = auth ? loadUserOrganizations(auth.user.id, db) : [];
-  const orgMembers = auth?.organization ? loadOrgMembers(auth.organization.id, db) : [];
-  const activeSessions = auth ? loadActiveSessions(auth.user.id, db) : [];
-  const profileFields = auth ? getUserProfileFields(auth.user.id, db) : null;
+  const [invoiceYears, userOrgs, orgMembers, activeSessions, profileFields] = await Promise.all([
+    getInvoiceYears(),
+    auth ? loadUserOrganizations(auth.user.id) : Promise.resolve([]),
+    auth?.organization ? loadOrgMembers(auth.organization.id) : Promise.resolve([]),
+    auth ? loadActiveSessions(auth.user.id) : Promise.resolve([]),
+    auth ? getUserProfileFields(auth.user.id) : Promise.resolve(null),
+  ]);
 
   return (
     <div className="screen-enter screen-enter-active">

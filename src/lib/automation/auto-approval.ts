@@ -1,4 +1,3 @@
-import type Database from "better-sqlite3";
 import { getAutoApprovalRulesForVendor } from "@/lib/db/queries";
 import type { InvoiceAiExtraction } from "@/ai/schemas";
 import { appConfig } from "@/lib/config/env";
@@ -16,11 +15,10 @@ export type AutoApprovalInput = {
   invoiceDate: string | null;
 };
 
-export function evaluateAutoApproval(
-  db: Database.Database,
+export async function evaluateAutoApproval(
   extraction: InvoiceAiExtraction,
   resolved: AutoApprovalInput,
-): AutoApprovalDecision {
+): Promise<AutoApprovalDecision> {
   if (!resolved.vendorId || !resolved.invoiceDate || resolved.amountGross === null) {
     return { autoApproved: false, reason: "missing core fields" };
   }
@@ -55,7 +53,7 @@ export function evaluateAutoApproval(
   if (minConfidence < PER_FIELD_RULE_THRESHOLD) {
     return { autoApproved: false, reason: "per-field confidence below threshold" };
   }
-  const rules = getAutoApprovalRulesForVendor(resolved.vendorId, resolved.vendorName, db);
+  const rules = await getAutoApprovalRulesForVendor(resolved.vendorId, resolved.vendorName);
   if (rules.length === 0) {
     return { autoApproved: false, reason: "no matching rule" };
   }

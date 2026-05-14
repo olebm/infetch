@@ -1,31 +1,18 @@
-import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { schemaStatements } from "@/lib/db/schema";
-import { seedDatabase } from "@/vendors/seed";
 import { evaluateAutoApproval } from "@/lib/automation/auto-approval";
 import type { InvoiceAiExtraction } from "@/ai/schemas";
 
-function createDb() {
-  const db = new Database(":memory:");
-  db.pragma("foreign_keys = ON");
-  for (const statement of schemaStatements) {
-    db.exec(statement);
-  }
-  seedDatabase(db);
-  return db;
-}
+// NOTE: evaluateAutoApproval now uses the global postgres sql client.
+// These tests require a real Postgres connection (DATABASE_URL env var).
+// The vendorId=1 assumes the default seeded "openai" vendor exists.
 
-function getVendorId(db: Database.Database, canonicalKey: string): number {
-  const row = db
-    .prepare(`SELECT id FROM vendors WHERE canonical_key = ?`)
-    .get(canonicalKey) as { id: number } | undefined;
-  if (!row) throw new Error(`vendor ${canonicalKey} not seeded`);
-  return row.id;
-}
+const VENDOR_ID = 1; // seeded openai vendor
 
 function buildExtraction(overrides: Partial<InvoiceAiExtraction>): InvoiceAiExtraction {
   return {
+    document_type: "invoice",
     vendor: "OpenAI",
+    normalized_vendor: "openai",
     invoice_number: "INV-1",
     invoice_date: "2026-05-01",
     service_period_start: null,
@@ -34,25 +21,23 @@ function buildExtraction(overrides: Partial<InvoiceAiExtraction>): InvoiceAiExtr
     amount_net: 24.37,
     vat_amount: 4.63,
     currency: "EUR",
+    country: null,
+    language: null,
     vendor_confidence: 0.99,
     date_confidence: 0.99,
     amount_confidence: 0.99,
     confidence: 0.99,
-    notes: null,
     needs_review: false,
+    review_reason: null,
     ...overrides,
   };
 }
 
 describe("evaluateAutoApproval", () => {
-  it("auto-approves via high_confidence when all fields exceed threshold (no rule needed)", () => {
-    const db = createDb();
-    const vendorId = getVendorId(db, "openai");
-
-    const decision = evaluateAutoApproval(
-      db,
+  it("auto-approves via high_confidence when all fields exceed threshold (no rule needed)", async () => {
+    const decision = await evaluateAutoApproval(
       buildExtraction({ vendor_confidence: 0.95, date_confidence: 0.95, amount_confidence: 0.95 }),
-      { vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
+      { vendorId: VENDOR_ID, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
     );
 
     expect(decision.autoApproved).toBe(true);
@@ -62,27 +47,19 @@ describe("evaluateAutoApproval", () => {
     }
   });
 
-  it("rejects when one per-field confidence dips below the auto-pilot threshold and no rule exists", () => {
-    const db = createDb();
-    const vendorId = getVendorId(db, "openai");
-
-    const decision = evaluateAutoApproval(
-      db,
+  it("rejects when one per-field confidence dips below the auto-pilot threshold and no rule exists", async () => {
+    const decision = await evaluateAutoApproval(
       buildExtraction({ amount_confidence: 0.8 }),
-      { vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
+      { vendorId: VENDOR_ID, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
     );
 
     expect(decision.autoApproved).toBe(false);
   });
 
-  it("rejects when mistral flagged needs_review even at high confidence", () => {
-    const db = createDb();
-    const vendorId = getVendorId(db, "openai");
-
-    const decision = evaluateAutoApproval(
-      db,
+  it("rejects when mistral flagged needs_review even at high confidence", async () => {
+    const decision = await evaluateAutoApproval(
       buildExtraction({ needs_review: true }),
-      { vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
+      { vendorId: VENDOR_ID, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
     );
 
     expect(decision.autoApproved).toBe(false);
@@ -91,14 +68,10 @@ describe("evaluateAutoApproval", () => {
     }
   });
 
-  it("rejects when core fields are missing", () => {
-    const db = createDb();
-    const vendorId = getVendorId(db, "openai");
-
-    const decision = evaluateAutoApproval(
-      db,
+  it("rejects when core fields are missing", async () => {
+    const decision = await evaluateAutoApproval(
       buildExtraction({}),
-      { vendorId, vendorName: "OpenAI", amountGross: null, invoiceDate: "2026-05-01" },
+      { vendorId: VENDOR_ID, vendorName: "OpenAI", amountGross: null, invoiceDate: "2026-05-01" },
     );
 
     expect(decision.autoApproved).toBe(false);

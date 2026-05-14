@@ -53,18 +53,18 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
   const start = Date.now();
   const credentials = await loadCredentials(input.vendorKey);
 
-  let recipeRow = getActiveRecipe(input.vendorKey);
+  let recipeRow = await getActiveRecipe(input.vendorKey);
   let recipe: Recipe | null = recipeRow?.recipe ?? null;
   if (!recipe) {
     const seed = getSeedRecipe(input.vendorKey);
     if (seed) {
-      recipeRow = saveRecipe({ vendorKey: input.vendorKey, recipe: seed, recordedBy: "local" });
+      recipeRow = await saveRecipe({ vendorKey: input.vendorKey, recipe: seed, recordedBy: "local" });
       recipe = seed;
     }
   }
 
   if (!credentials) {
-    return failureResult(
+    return await failureResult(
       input.vendorKey,
       recipeRow?.id ?? null,
       "replay",
@@ -95,7 +95,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
   let page: Page | null = null;
 
   try {
-    const session = getBrowserSession(input.vendorKey);
+    const session = await getBrowserSession(input.vendorKey);
     context = await browser.newContext({
       storageState: session ? session.storageStatePath : undefined,
       locale: "de-DE",
@@ -119,7 +119,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
 
       // Session-Recovery: bei login_required einmal Session leeren + neu versuchen
       if (!playResult.ok && playResult.status === "login_required" && session) {
-        invalidateBrowserSession(input.vendorKey);
+        await invalidateBrowserSession(input.vendorKey);
         try {
           await context.close();
         } catch {
@@ -140,9 +140,9 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
 
       // Erfolg/Fehler in Recipe-Statistik vermerken
       if (playResult.ok && recipeRow) {
-        markRecipeSuccess(recipeRow.id);
+        await markRecipeSuccess(recipeRow.id);
       } else if (!playResult.ok && playResult.status === "recipe_broken" && recipeRow) {
-        markRecipeFailure(recipeRow.id);
+        await markRecipeFailure(recipeRow.id);
       }
     }
 
@@ -153,7 +153,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
 
     if (shouldRerecord) {
       mode = playResult ? "replay_then_record" : "record";
-      const loginUrl = recipe?.loginUrl ?? deriveLoginUrl(input.vendorKey);
+      const loginUrl = recipe?.loginUrl ?? await deriveLoginUrl(input.vendorKey);
 
       // Frischer Context fuer das Recording (sauber starten)
       try {
@@ -175,13 +175,13 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
 
       if (recorded.ok && recorded.recipe) {
         // Validation-Step: einmal mit der neuen Recipe replay-testen, im selben Context
-        const saved = saveRecipe({ vendorKey: input.vendorKey, recipe: recorded.recipe });
+        const saved = await saveRecipe({ vendorKey: input.vendorKey, recipe: recorded.recipe });
         recipeRow = saved;
         playResult = await playRecipe(page, recorded.recipe, credentials, {
           targetYearMonth: input.targetYearMonth,
         });
-        if (playResult.ok) markRecipeSuccess(saved.id);
-        else markRecipeFailure(saved.id);
+        if (playResult.ok) await markRecipeSuccess(saved.id);
+        else await markRecipeFailure(saved.id);
       } else {
         playResult = {
           ok: false,
@@ -223,7 +223,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
       }
     }
 
-    logRun({
+    await logRun({
       vendorKey: input.vendorKey,
       recipeId: recipeRow?.id ?? null,
       mode,
@@ -271,13 +271,13 @@ async function loadCredentials(vendorKey: string): Promise<AgentCredentials | nu
   return { username: meta.username, password: meta.password, totpSecret };
 }
 
-function deriveLoginUrl(vendorKey: string): string {
-  const vendor = findVendorByCanonicalKey(vendorKey);
+async function deriveLoginUrl(vendorKey: string): Promise<string> {
+  const vendor = await findVendorByCanonicalKey(vendorKey);
   if (vendor?.portalLoginUrl) return vendor.portalLoginUrl;
   return `https://${vendorKey}.com/login`;
 }
 
-function failureResult(
+async function failureResult(
   vendorKey: string,
   recipeId: number | null,
   mode: "replay" | "record" | "replay_then_record",
@@ -286,8 +286,8 @@ function failureResult(
   durationMs: number,
   llmCalls: number,
   llmCostCents: number,
-): RunResult {
-  logRun({ vendorKey, recipeId, mode, status, invoicesFound: 0, durationMs, errorMessage: message, llmCalls, llmCostCents });
+): Promise<RunResult> {
+  await logRun({ vendorKey, recipeId, mode, status, invoicesFound: 0, durationMs, errorMessage: message, llmCalls, llmCostCents });
   return {
     vendorKey,
     recipeId,

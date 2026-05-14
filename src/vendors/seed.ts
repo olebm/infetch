@@ -1,51 +1,41 @@
-import type Database from "better-sqlite3";
+import { sql } from "@/lib/db/client";
 import { vendorSeeds } from "@/vendors/registry";
 
-export function seedDatabase(db: Database.Database) {
-  const insertVendor = db.prepare(`
-    INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
-    VALUES (@name, @canonicalKey, @category, 1, 1, 1)
-    ON CONFLICT(canonical_key) DO UPDATE SET
-      name = excluded.name,
-      category = excluded.category,
-      updated_at = CURRENT_TIMESTAMP
-  `);
+export async function seedDatabase() {
+  for (const vendor of vendorSeeds) {
+    await sql`
+      INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
+      VALUES (${vendor.name}, ${vendor.canonicalKey}, ${vendor.category}, TRUE, TRUE, TRUE)
+      ON CONFLICT(canonical_key) DO UPDATE SET
+        name = excluded.name,
+        category = excluded.category,
+        updated_at = CURRENT_TIMESTAMP
+    `;
 
-  const selectVendor = db.prepare<{ canonicalKey: string }, { id: number }>(
-    `SELECT id FROM vendors WHERE canonical_key = @canonicalKey`,
-  );
+    const rows = await sql<{ id: number }[]>`
+      SELECT id FROM vendors WHERE canonical_key = ${vendor.canonicalKey}
+    `;
+    const row = rows[0];
+    if (!row) continue;
 
-  const insertAlias = db.prepare(`
-    INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
-    VALUES (@vendorId, @alias, @matchType, @priority)
-    ON CONFLICT(vendor_id, alias, match_type) DO UPDATE SET priority = excluded.priority
-  `);
-
-  const insertExportTarget = db.prepare(`
-    INSERT INTO export_targets (target, label, recipient_email, enabled)
-    VALUES (@target, @label, NULL, 0)
-    ON CONFLICT(target) DO UPDATE SET label = excluded.label
-  `);
-
-  const tx = db.transaction(() => {
-    for (const vendor of vendorSeeds) {
-      insertVendor.run(vendor);
-      const row = selectVendor.get({ canonicalKey: vendor.canonicalKey });
-      if (!row) continue;
-
-      for (const alias of vendor.aliases) {
-        insertAlias.run({
-          vendorId: row.id,
-          alias: alias.alias,
-          matchType: alias.matchType || "contains",
-          priority: alias.priority || 100,
-        });
-      }
+    for (const alias of vendor.aliases) {
+      await sql`
+        INSERT INTO vendor_aliases (vendor_id, alias, match_type, priority)
+        VALUES (${row.id}, ${alias.alias}, ${alias.matchType || "contains"}, ${alias.priority || 100})
+        ON CONFLICT(vendor_id, alias, match_type) DO UPDATE SET priority = excluded.priority
+      `;
     }
+  }
 
-    insertExportTarget.run({ target: "kontist", label: "Kontist" });
-    insertExportTarget.run({ target: "accountable", label: "Accountable" });
-  });
+  await sql`
+    INSERT INTO export_targets (target, label, recipient_email, enabled)
+    VALUES ('kontist', 'Kontist', NULL, FALSE)
+    ON CONFLICT(target) DO UPDATE SET label = excluded.label
+  `;
 
-  tx();
+  await sql`
+    INSERT INTO export_targets (target, label, recipient_email, enabled)
+    VALUES ('accountable', 'Accountable', NULL, FALSE)
+    ON CONFLICT(target) DO UPDATE SET label = excluded.label
+  `;
 }
