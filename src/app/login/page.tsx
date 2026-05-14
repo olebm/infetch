@@ -33,7 +33,7 @@ export default async function LoginPage({
         <div className="hidden flex-col justify-between border-r border-line bg-white p-12 md:flex">
           {/* Logo */}
           <div>
-            <Link href="/landingpage" aria-label="Zur Startseite">
+            <Link href="https://infetch.de" aria-label="Zur Startseite">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/infetch-logo.svg" alt="Infetch" className="h-8 w-auto" />
             </Link>
@@ -74,7 +74,7 @@ export default async function LoginPage({
 
             {/* Mobile: logo + link back to landing */}
             <div className="mb-8 md:hidden">
-              <Link href="/landingpage" aria-label="Zur Startseite">
+              <Link href="https://infetch.de" aria-label="Zur Startseite">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/infetch-logo.svg" alt="Infetch" className="h-7 w-auto" />
               </Link>

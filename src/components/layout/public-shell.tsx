@@ -3,7 +3,7 @@ import Link from "next/link";
 
 /**
  * Minimal shell for public (non-authenticated) pages like legal, changelog, etc.
- * Header: logo → /landingpage  ·  Footer: copyright + legal links
+ * Header: logo → https://infetch.de  ·  Footer: copyright + legal links
  */
 export function PublicShell({
   title,
@@ -17,7 +17,7 @@ export function PublicShell({
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex h-14 max-w-[900px] items-center px-6">
-          <Link href="/landingpage" aria-label="Infetch — Startseite">
+          <a href="https://infetch.de" aria-label="Infetch — Startseite">
             <Image
               src="/infetch-logo.svg"
               alt="Infetch"
@@ -26,7 +26,7 @@ export function PublicShell({
               className="h-9 w-auto select-none"
               priority
             />
-          </Link>
+          </a>
         </div>
       </header>
 
