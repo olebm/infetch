@@ -1,8 +1,8 @@
 /**
- * Ausgehende Benachrichtigungen via Resend REST API.
+ * Ausgehende Benachrichtigungen via Brevo REST API.
  *
  * Kein npm-Paket nötig — direkter fetch-Call.
- * Ohne RESEND_API_KEY werden alle Calls still übersprungen (dev-safe).
+ * Ohne BREVO_API_KEY werden alle Calls still übersprungen (dev-safe).
  */
 
 import { appConfig } from "@/lib/config/env";
@@ -13,7 +13,7 @@ interface SendEmailOptions {
   html: string;
 }
 
-async function sendEmail(opts: SendEmailOptions): Promise<boolean> {
+async function sendEmail(opts: SendEmailOptions & { replyTo?: { name: string; email: string } }): Promise<boolean> {
   const { apiKey, fromEmail, fromName } = appConfig.brevo;
   if (!apiKey) return false; // kein Key → still überspringen
 
@@ -27,6 +27,7 @@ async function sendEmail(opts: SendEmailOptions): Promise<boolean> {
       body: JSON.stringify({
         sender: { name: fromName, email: fromEmail },
         to: [{ email: opts.to }],
+        ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
         subject: opts.subject,
         htmlContent: opts.html,
       }),
@@ -35,6 +36,40 @@ async function sendEmail(opts: SendEmailOptions): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ─── Kontaktformular ──────────────────────────────────────────────────────────
+
+export async function sendContactEmail(opts: {
+  fromName: string;
+  fromEmail: string;
+  message: string;
+}): Promise<boolean> {
+  const safeMessage = opts.message
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+
+  return sendEmail({
+    to: "hallo@infetch.de",
+    replyTo: { name: opts.fromName, email: opts.fromEmail },
+    subject: `Kontakt von ${opts.fromName}`,
+    html: base(`
+      <h1>Neue Kontaktanfrage</h1>
+      <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e2db;color:#6b6b67;font-size:13px;width:110px">Name</td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e2db;font-size:13px">${opts.fromName}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e2db;color:#6b6b67;font-size:13px">E-Mail</td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e2db;font-size:13px">${opts.fromEmail}</td>
+        </tr>
+      </table>
+      <p style="font-size:14px;line-height:1.6">${safeMessage}</p>
+    `),
+  });
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────
