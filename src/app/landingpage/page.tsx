@@ -67,7 +67,7 @@ export default function LandingPage() {
       {/* HERO                                                                */}
       {/* ================================================================== */}
       <section className="relative">
-        <div className="max-w-[1180px] mx-auto px-6 md:px-8 pt-16 md:pt-24 pb-12 md:pb-20 grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
+        <div className="max-w-[1180px] mx-auto px-6 md:px-8 pt-16 md:pt-24 pb-12 md:pb-20 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
 
           <div className="reveal">
             <div className="inline-flex items-center gap-2 text-xs text-ok">
@@ -96,7 +96,7 @@ export default function LandingPage() {
           </div>
 
           {/* HERO VISUAL: animated inbox */}
-          <div className="reveal">
+          <div className="reveal lg:-mr-8">
             <div className="mock-window shadow-lift">
               <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
                 <div className="font-display text-2xl text-ink">Heute</div>
