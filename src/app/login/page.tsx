@@ -5,6 +5,7 @@ import { loginAsTestUser } from "@/app/login/actions";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status/status-badge";
+import { LoginForm } from "@/components/auth/login-form";
 
 export const dynamic = "force-dynamic";
 
@@ -92,29 +93,8 @@ export default async function LoginPage({
               Wir schicken dir einen Magic-Link. Kein Passwort.
             </p>
 
-            {/* Form — magic link placeholder */}
-            <div className="mt-6 space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted">E-Mail</label>
-                <input
-                  type="email"
-                  disabled
-                  placeholder="du@studio.de"
-                  className="h-10 w-full rounded border border-line bg-surface px-3 text-sm text-muted placeholder:text-muted/60 outline-none cursor-not-allowed"
-                />
-              </div>
-              <button
-                type="button"
-                disabled
-                className="h-10 w-full cursor-not-allowed rounded bg-brand/20 text-sm font-medium text-muted"
-                title="Infetch ist aktuell im geschlossenen Beta-Test"
-              >
-                Magic-Link senden (bald verfügbar)
-              </button>
-              <p className="text-xs text-muted">
-                Infetch ist im geschlossenen Beta-Test. Zugang über Einladung.
-              </p>
-            </div>
+            {/* Magic-Link Form */}
+            <LoginForm next={next} />
 
             {/* Dev fallback */}
             {process.env.NODE_ENV !== "production" && (

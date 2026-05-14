@@ -1,13 +1,13 @@
-import { NextResponse, type NextRequest } from "next/server";
-
-const SESSION_COOKIE_NAME = "ia_session";
+import { type NextRequest, NextResponse } from "next/server";
+import { updateSupabaseSession } from "@/lib/supabase/middleware";
 
 const PUBLIC_PATH_PREFIXES = [
   "/login",
   "/logout",
+  "/auth",            // /auth/callback Supabase-Redirect
   "/landingpage",
   "/onboarding",
-  // Public info / legal pages
+  // Rechtliches / Info
   "/agb",
   "/datenschutz",
   "/impressum",
@@ -17,39 +17,44 @@ const PUBLIC_PATH_PREFIXES = [
 ];
 
 function isPublicPath(pathname: string): boolean {
-  // Static files (any extension) are always public
+  // Statische Dateien (jede Erweiterung) immer public
   if (/\.[a-z0-9]+$/i.test(pathname)) return true;
   return PUBLIC_PATH_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
+  // Supabase-Session in jedem Request refreshen (JWT-Rotation)
+  const { response, userId } = await updateSupabaseSession(request);
+
   if (isPublicPath(pathname)) {
-    return NextResponse.next();
+    return response;
   }
 
-  const hasSession = Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value);
-  if (hasSession) {
-    return NextResponse.next();
+  // Kein eingeloggter User → zum Login umleiten
+  if (!userId) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    if (pathname !== "/") {
+      loginUrl.searchParams.set("next", `${pathname}${search}`);
+    }
+    return NextResponse.redirect(loginUrl);
   }
 
-  const loginUrl = request.nextUrl.clone();
-  loginUrl.pathname = "/login";
-  loginUrl.search = "";
-  if (pathname !== "/") {
-    loginUrl.searchParams.set("next", `${pathname}${search}`);
-  }
-  return NextResponse.redirect(loginUrl);
+  return response;
 }
 
 export const config = {
-  // Auth-Middleware nicht anwenden auf:
+  // Middleware nicht anwenden auf:
   //   - statische Assets (_next/*)
   //   - PDF-Preview-iframe (api/invoice-files)
   //   - AI-Proxy-Endpoint (api/ai/*) — hat eigene Bearer-Auth
   //   - Resend-Inbound-Webhook (api/inbound/*) — hat eigene HMAC-Signatur-Verifikation
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/invoice-files|api/ai|api/inbound).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/invoice-files|api/ai|api/inbound).*)",
+  ],
 };

@@ -1,11 +1,9 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createSession, deleteSession } from "@/lib/auth/session";
-import { createUserWithDefaultOrg, findUserByEmail } from "@/lib/auth/users";
-import { SESSION_COOKIE_NAME, getSessionId } from "@/lib/auth/current";
+import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getDb } from "@/lib/db/client";
+import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
 
 const STUB_EMAIL = "test@infetch.local";
 const STUB_NAME = "Test User";
@@ -16,63 +14,68 @@ function sanitizeNext(value: unknown): string {
   return value;
 }
 
+/**
+ * Dev-only: einloggen als Test-User über Supabase Admin API.
+ * Erstellt den Supabase-User falls nötig und generiert einen Magic-Link,
+ * zu dem direkt weitergeleitet wird.
+ */
 export async function loginAsTestUser(formData: FormData) {
-  // SECURITY: Test-Login darf niemals in Production erreichbar sein.
-  // Der UI-Guard in page.tsx reicht nicht — Server Actions sind direkte POST-Endpunkte.
+  // SECURITY: Test-Login ist niemals in Production erreichbar.
   if ((process.env.NODE_ENV as string) === "production") {
     throw new Error("loginAsTestUser is not available in production");
   }
 
   const next = sanitizeNext(formData.get("next"));
-  const db = getDb();
 
-  let user = findUserByEmail(STUB_EMAIL, db);
-  let organizationId: string | null = null;
+  const supabaseAdmin = createSupabaseAdminClient();
 
-  if (!user) {
-    const created = createUserWithDefaultOrg({
+  // Test-User in Supabase anlegen (idempotent)
+  try {
+    await supabaseAdmin.auth.admin.createUser({
       email: STUB_EMAIL,
-      name: STUB_NAME,
-      db,
+      email_confirm: true,
+      user_metadata: { full_name: STUB_NAME },
     });
-    user = created.user;
-    organizationId = created.organization.id;
-  } else {
-    const row = db
-      .prepare(
-        `SELECT organization_id AS organizationId
-         FROM org_members
-         WHERE user_id = ?
-         ORDER BY created_at
-         LIMIT 1`,
-      )
-      .get(user.id) as { organizationId: string } | undefined;
-    organizationId = row?.organizationId ?? null;
+  } catch {
+    // User existiert bereits — kein Fehler
   }
 
-  const session = createSession(user.id, {
-    db,
-    activeOrganizationId: organizationId,
+  // SQLite-Profil anlegen falls noch nicht vorhanden
+  try {
+    const db = getDb();
+    const existing = findUserByEmail(STUB_EMAIL, db);
+    if (!existing) {
+      const { data: sbUser } = await supabaseAdmin.auth.admin.getUserByEmail(STUB_EMAIL) as { data: { user: { id: string } | null } };
+      if (sbUser?.user) {
+        createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, db, userId: sbUser.user.id });
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  // Magic-Link generieren und direkt dahin weiterleiten
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const redirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(next)}`;
+
+  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    type: "magiclink",
+    email: STUB_EMAIL,
+    options: { redirectTo },
   });
 
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, session.id, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: (process.env.NODE_ENV as string) === "production",
-    path: "/",
-    expires: new Date(session.expiresAt),
-  });
+  if (error || !data.properties?.action_link) {
+    throw new Error(`Test login failed: ${error?.message ?? "no action_link"}`);
+  }
 
-  redirect(next);
+  redirect(data.properties.action_link);
 }
 
+/**
+ * Abmelden — Supabase-Session beenden und zum Login weiterleiten.
+ */
 export async function logout() {
-  const sessionId = await getSessionId();
-  if (sessionId) {
-    deleteSession(sessionId);
-  }
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
   redirect("/login");
 }

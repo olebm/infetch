@@ -28,10 +28,12 @@ export function createUserWithDefaultOrg(input: {
   email: string;
   name?: string | null;
   db?: Database.Database;
+  /** Optionale User-ID (z. B. Supabase-Auth-UUID). Wird generiert falls nicht angegeben. */
+  userId?: string;
 }): { user: UserRow; organization: OrganizationRow } {
   const db = input.db ?? getDb();
   const email = input.email.toLowerCase();
-  const userId = crypto.randomUUID();
+  const userId = input.userId ?? crypto.randomUUID();
   const orgId = crypto.randomUUID();
   const baseSlug = slugify(input.name || email.split("@")[0] || "user");
   const slug = ensureUniqueSlug(db, baseSlug);
