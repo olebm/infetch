@@ -21,6 +21,7 @@ const config: Config = {
         },
         warn: {
           DEFAULT: "#7a5c14",
+          vivid:   "#e8a200",   // kräftiges Gelb für Dots / Status-Indikatoren
           soft:    "#f5efe1",
         },
         danger: {

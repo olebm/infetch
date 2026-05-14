@@ -138,7 +138,7 @@ export default function LandingPage() {
                   </div>
                   <div className="relative" style={{ minWidth: "72px", height: "20px" }}>
                     <span className="anim-badge absolute inset-0 inline-flex items-center justify-end gap-1.5 text-xs text-ink whitespace-nowrap">
-                      <span className="w-1.5 h-1.5 rounded-full bg-warn shrink-0"></span>erkannt
+                      <span className="w-1.5 h-1.5 rounded-full bg-warn-vivid shrink-0"></span>erkannt
                     </span>
                     <span className="anim-sent absolute inset-0 inline-flex items-center justify-end gap-1.5 text-xs text-ok whitespace-nowrap">
                       <span className="w-1.5 h-1.5 rounded-full bg-ok shrink-0"></span>versendet
