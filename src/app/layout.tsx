@@ -18,8 +18,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Infetch",
-  description: "Local-first invoice intake cockpit",
+  title: {
+    default: "Infetch – Rechnungen automatisch weiterleiten",
+    template: "%s · Infetch",
+  },
+  description:
+    "Infetch liest dein Postfach, erkennt jede Rechnung per KI und leitet sie automatisch an deine Buchhaltung weiter. DSGVO-konform, EU-Server, Setup in 4 Minuten.",
+  metadataBase: new URL("https://infetch.de"),
+  openGraph: {
+    siteName: "Infetch",
+    locale: "de_DE",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export const viewport: Viewport = {

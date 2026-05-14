@@ -92,9 +92,9 @@ export default function LandingPage() {
               </a>
             </div>
             <div className="mt-8 flex items-center gap-6 text-xs text-muted">
-              <div className="flex items-center gap-2"><span className="text-ink stat-num">99,1 %</span> Klassifikation korrekt</div>
               <div className="flex items-center gap-2"><span className="text-ink stat-num">≈ 4 Min</span> Einrichtung</div>
               <div className="flex items-center gap-2"><span className="text-ink stat-num">DSGVO</span> · EU-Server</div>
+              <div className="flex items-center gap-2"><span className="text-ink stat-num">KI</span> · automatisch</div>
             </div>
           </div>
 
@@ -122,7 +122,7 @@ export default function LandingPage() {
                   <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="adobe.com" alt="Adobe" /></div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-ink truncate">Adobe Systems · Creative Cloud</div>
-                    <div className="text-xs text-muted stat-num">11:02 · 71,98 €</div>
+                    <div className="text-xs text-muted stat-num">11:02 · 77,99 €</div>
                   </div>
                   <span className="inline-flex items-center gap-1.5 text-xs text-ok">
                     <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>versendet
@@ -196,8 +196,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div className="mt-6 text-center text-xs text-muted">
-            &amp; <span className="text-ink stat-num">240+</span> weitere Anbieter —{" "}
-            <a href="#" className="ul-link">vollständige Liste</a>
+            Und alle weiteren — die KI erkennt jeden Anbieter automatisch.
           </div>
         </div>
       </section>
@@ -505,7 +504,7 @@ export default function LandingPage() {
               Zwei Tarife. Kein Kleingedrucktes.
             </h2>
             <p className="mt-5 text-muted leading-relaxed">
-              Kostenlos starten. Kein Kreditkarte. Monatlich kündbar.
+              Kostenlos starten. Keine Kreditkarte. Monatlich kündbar.
             </p>
           </div>
 
@@ -551,7 +550,7 @@ export default function LandingPage() {
                 <li>· Prioritäts-Support</li>
               </ul>
               <Link href="/login" className="mt-6 inline-flex h-10 px-4 items-center justify-center rounded bg-ink text-white text-sm font-medium hover:opacity-90">
-                Kostenlos starten
+                Jetzt Pro testen
               </Link>
             </div>
           </div>
@@ -583,7 +582,7 @@ export default function LandingPage() {
             {[
               {
                 q: "Liest Infetch wirklich alle meine Mails?",
-                a: "Nein. Wir filtern auf der Postfach-Seite auf Rechnungsmerkmale (Absender-Muster, PDF-Anhang, Stichwörter). Privatkorrespondenz erreicht unsere Server nicht.",
+                a: "Nein. Wir scannen Mails auf Rechnungsmerkmale — Absender-Muster, PDF-Anhänge, Betreff-Stichwörter. Nur erkannte Belege werden gespeichert. Private Nachrichten werden nicht gespeichert und nicht weiterverarbeitet.",
               },
               {
                 q: "Was passiert, wenn die KI sich irrt?",
@@ -603,7 +602,7 @@ export default function LandingPage() {
               },
               {
                 q: "Wie kündige ich?",
-                a: "Monatlich, in den Einstellungen, ein Klick. Deine Daten werden auf Wunsch sofort gelöscht.",
+                a: "Monatlich kündbar, direkt über dein Stripe-Kundenkonto. Auf Wunsch löschen wir deine Daten vollständig — schreib uns einfach an.",
               },
             ].map(({ q, a }) => (
               <details key={q} className="py-5">
