@@ -240,8 +240,8 @@ details[open] .faq-icon { transform: rotate(45deg); }
   text-decoration-color: #1a1a1a;
 }
 
-/* font-display .accent — gedämpfte Farbe für Kontrast-Wörter */
+/* font-display .accent — gedämpfte Farbe für Kontrast-Wörter (≥4.5:1 auf weiß) */
 .font-display .accent {
-  color: #7a7a76;
+  color: #6a6a66;
   font-weight: 400;
 }

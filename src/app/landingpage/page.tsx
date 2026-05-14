@@ -72,7 +72,7 @@ export default function LandingPage() {
       <section className="relative">
         <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-16 md:pt-24 pb-12 md:pb-20 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
 
-          <div className="reveal">
+          <div>
             <Tip label="Scannt dein Postfach alle 5 Minuten nach neuen Rechnungen">
               <div className="inline-flex items-center gap-2 text-xs text-ok cursor-default">
                 <span className="w-1.5 h-1.5 rounded-full bg-ok pulse-dot"></span>
@@ -107,7 +107,7 @@ export default function LandingPage() {
           </div>
 
           {/* HERO VISUAL: animated inbox */}
-          <div className="reveal">
+          <div>
             <div className="mock-window shadow-lift">
               <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
                 <div className="font-display text-2xl text-ink">Heute</div>
@@ -203,6 +203,8 @@ export default function LandingPage() {
                   <img
                     src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`}
                     alt={alt}
+                    width={28}
+                    height={28}
                     referrerPolicy="no-referrer"
                     className="h-7 w-auto object-contain opacity-80"
                   />
@@ -497,13 +499,15 @@ export default function LandingPage() {
                   { domain: "icloud.com",  label: "Apple iCloud"      },
                   { domain: null,          label: "IMAP (universal)"  },
                 ].map(({ domain, label }) => (
-                  <Tip key={label} label={label}>
-                    <li className="h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
-                      {domain
-                        ? <VendorLogo domain={domain} name={label} size={48} />
-                        : <span className="text-sm text-muted font-medium">@</span>}
-                    </li>
-                  </Tip>
+                  <li key={label} className="relative group/tip h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
+                    {domain
+                      ? <VendorLogo domain={domain} name={label} size={48} />
+                      : <span className="text-sm text-muted font-medium">@</span>}
+                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50 shadow-pop">
+                      {label}
+                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-ink" />
+                    </span>
+                  </li>
                 ))}
               </ul>
             </div>
@@ -520,13 +524,15 @@ export default function LandingPage() {
                   { domain: "candis.io",      label: "Candis"              },
                   { domain: null,             label: "Beliebige E-Mail"    },
                 ].map(({ domain, label }) => (
-                  <Tip key={label} label={label}>
-                    <li className="h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
-                      {domain
-                        ? <VendorLogo domain={domain} name={label} size={48} />
-                        : <span className="text-sm text-muted font-medium">@</span>}
-                    </li>
-                  </Tip>
+                  <li key={label} className="relative group/tip h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
+                    {domain
+                      ? <VendorLogo domain={domain} name={label} size={48} />
+                      : <span className="text-sm text-muted font-medium">@</span>}
+                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50 shadow-pop">
+                      {label}
+                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-ink" />
+                    </span>
+                  </li>
                 ))}
               </ul>
               <p className="mt-4 text-xs text-muted">Dein Tool fehlt? Per E-Mail funktioniert immer.</p>
