@@ -7,6 +7,7 @@ import { updateSupabaseSession } from "@/lib/supabase/middleware";
 // localhost / *.vercel.app     → Wie app.infetch.de (lokale Entwicklung)
 
 const LANDING_HOSTNAMES = ["infetch.de", "www.infetch.de"];
+const DEV_HOSTNAMES = ["localhost", "127.0.0.1"];
 const APP_HOSTNAME = "app.infetch.de";
 
 // Pfade, die auch auf der Landing-Domain ausgeliefert werden
@@ -61,7 +62,7 @@ export async function proxy(request: NextRequest) {
   ).split(":")[0].toLowerCase();
 
   // ── Landing-Domain Routing ─────────────────────────────────────────────────
-  if (LANDING_HOSTNAMES.includes(hostname)) {
+  if (LANDING_HOSTNAMES.includes(hostname) || DEV_HOSTNAMES.includes(hostname)) {
     // Statische Assets immer durchlassen
     if (/\.[a-z0-9]+$/i.test(pathname)) return NextResponse.next();
 
