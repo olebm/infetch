@@ -1,13 +1,33 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSupabaseSession } from "@/lib/supabase/middleware";
 
-const PUBLIC_PATH_PREFIXES = [
+// ── Hostname-Routing ──────────────────────────────────────────────────────────
+// infetch.de / www.infetch.de  → Landing Page
+// app.infetch.de               → App (Auth-geschützt)
+// localhost / *.vercel.app     → Wie app.infetch.de (lokale Entwicklung)
+
+const LANDING_HOSTNAMES = ["infetch.de", "www.infetch.de"];
+const APP_HOSTNAME = "app.infetch.de";
+
+// Pfade, die auch auf der Landing-Domain ausgeliefert werden
+const LANDING_ALLOWED_PREFIXES = [
+  "/landingpage",
+  "/agb",
+  "/datenschutz",
+  "/impressum",
+  "/avv",
+  "/changelog",
+  "/ueber-uns",
+  "/auth",            // /auth/callback — falls Magic Link auf infetch.de landet
+];
+
+// ── App-Domain: öffentliche Pfade (kein Auth nötig) ───────────────────────────
+const APP_PUBLIC_PREFIXES = [
   "/login",
   "/logout",
-  "/auth",            // /auth/callback Supabase-Redirect
+  "/auth",
   "/landingpage",
   "/onboarding",
-  // Rechtliches / Info
   "/agb",
   "/datenschutz",
   "/impressum",
@@ -16,21 +36,50 @@ const PUBLIC_PATH_PREFIXES = [
   "/ueber-uns",
 ];
 
-function isPublicPath(pathname: string): boolean {
-  // Statische Dateien (jede Erweiterung) immer public
+function isPublicAppPath(pathname: string): boolean {
   if (/\.[a-z0-9]+$/i.test(pathname)) return true;
-  return PUBLIC_PATH_PREFIXES.some(
+  return APP_PUBLIC_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+function matchesPrefix(pathname: string, prefixes: string[]): boolean {
+  return prefixes.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const hostname = request.nextUrl.hostname;
 
+  // ── Landing-Domain Routing ─────────────────────────────────────────────────
+  if (LANDING_HOSTNAMES.includes(hostname)) {
+    // Statische Assets immer durchlassen
+    if (/\.[a-z0-9]+$/i.test(pathname)) return NextResponse.next();
+
+    // Root "/" → Landingpage
+    if (pathname === "/") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/landingpage";
+      return NextResponse.rewrite(url);
+    }
+
+    // Erlaubte Landing-Pfade → durchlassen
+    if (matchesPrefix(pathname, LANDING_ALLOWED_PREFIXES)) {
+      return NextResponse.next();
+    }
+
+    // Alles andere auf der Root-Domain → weiterleiten zu app.infetch.de
+    const appUrl = new URL(`https://${APP_HOSTNAME}${pathname}${search}`);
+    return NextResponse.redirect(appUrl, { status: 302 });
+  }
+
+  // ── App-Domain (app.infetch.de) + Lokale Entwicklung ─────────────────────
   // Supabase-Session in jedem Request refreshen (JWT-Rotation)
   const { response, userId } = await updateSupabaseSession(request);
 
-  if (isPublicPath(pathname)) {
+  if (isPublicAppPath(pathname)) {
     return response;
   }
 
