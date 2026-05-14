@@ -56,7 +56,7 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-ink">FAQ</a>
           </nav>
           <div className="flex items-center gap-2 ml-auto">
-<Link href="/" className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
+            <Link href="/login" className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
               Anmelden
             </Link>
           </div>
@@ -81,8 +81,8 @@ export default function LandingPage() {
               Infetch liest dein Postfach mit, erkennt jede Rechnung und schickt sie an deine Buchhaltung — automatisch.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="/" className="inline-flex h-11 px-5 rounded items-center bg-ink text-white text-sm font-medium hover:opacity-90">
-                Kostenlos testen
+              <Link href="/login" className="inline-flex h-11 px-5 rounded items-center bg-ink text-white text-sm font-medium hover:opacity-90">
+                Kostenlos starten
               </Link>
               <a href="#how" className="inline-flex h-11 px-4 rounded items-center text-sm text-ink ul-link">
                 Wie es funktioniert
@@ -218,7 +218,7 @@ export default function LandingPage() {
               <div className="text-xs text-muted stat-num">01</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Postfach verbinden</h3>
               <p className="mt-2 text-muted leading-relaxed min-h-[3.5rem]">
-                Gmail, Outlook, IMAP. OAuth, kein Passwort bei uns.
+                IMAP — Gmail, Outlook, iCloud und mehr. Kein Passwort wird bei uns gespeichert.
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -561,18 +561,19 @@ export default function LandingPage() {
           </div>
 
           <div className="mt-14 grid md:grid-cols-2 gap-6 max-w-2xl">
-            {/* Plan: Solo */}
+            {/* Plan: Free */}
             <div className="border border-line rounded-lg p-6 bg-white flex flex-col">
-              <div className="text-sm text-muted">Solo</div>
+              <div className="text-sm text-muted">Free</div>
               <div className="mt-3 font-display text-4xl text-ink stat-num">0 €</div>
-              <div className="text-xs text-muted">/ kostenlos</div>
+              <div className="text-xs text-muted">/ dauerhaft kostenlos</div>
               <p className="mt-4 text-sm text-muted leading-relaxed">
-                Für Freelancer und kleine Selbstständige.
+                Zum Ausprobieren — kein Ablaufdatum.
               </p>
               <ul className="mt-5 space-y-2 text-sm text-ink flex-1">
+                <li>· 30 Rechnungen / Monat</li>
                 <li>· 1 Postfach (IMAP)</li>
                 <li>· Auto-Pilot aktiv</li>
-                <li>· 1 Empfänger</li>
+                <li>· 500 MB Speicher</li>
                 <li>· E-Mail-Support</li>
               </ul>
               <Link href="/login" className="mt-6 inline-flex h-10 px-4 items-center justify-center rounded border border-line text-sm text-ink hover:bg-surface">
@@ -586,16 +587,18 @@ export default function LandingPage() {
                 empfohlen
               </div>
               <div className="text-sm text-muted">Pro</div>
-              <div className="mt-3 font-display text-4xl text-ink stat-num">9 €</div>
+              <div className="mt-3 font-display text-4xl text-ink stat-num">19 €</div>
               <div className="text-xs text-muted">/ Monat · zzgl. USt</div>
               <p className="mt-4 text-sm text-muted leading-relaxed">
                 Alles inklusive — für alle, die auf nichts verzichten wollen.
               </p>
               <ul className="mt-5 space-y-2 text-sm text-ink flex-1">
-                <li>· Mehrere Postfächer</li>
-                <li>· Mehrere Empfänger</li>
-                <li>· Anbieter-Übersicht</li>
-                <li>· Fehlt-Erkennung</li>
+                <li>· 150 Rechnungen / Monat</li>
+                <li>· Bis zu 3 Postfächer</li>
+                <li>· 2 GB Speicher</li>
+                <li>· Export zu Lexoffice & sevDesk</li>
+                <li>· Retroaktiver 12-Monats-Scan</li>
+                <li>· Bulk-Download (ZIP)</li>
                 <li>· Prioritäts-Support</li>
               </ul>
               <Link href="/login" className="mt-6 inline-flex h-10 px-4 items-center justify-center rounded bg-ink text-white text-sm font-medium hover:opacity-90">
@@ -671,18 +674,15 @@ export default function LandingPage() {
       {/* ================================================================== */}
       <section className="bg-ink text-white py-20 md:py-28">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 text-center">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-white/50">14 Tage kostenlos</div>
+          <div className="text-[11px] uppercase tracking-[0.14em] text-white/50">Dauerhaft kostenlos starten</div>
           <h2 className="mt-3 font-display text-5xl md:text-6xl leading-[1.02] max-w-3xl mx-auto text-white">
             Du suchst seit Jahren nach Belegen.<br />
             <span className="text-white/50">Ab Montag nicht mehr.</span>
           </h2>
           <div className="mt-10 flex flex-wrap justify-center items-center gap-4">
-            <Link href="/" className="inline-flex h-12 px-6 items-center rounded bg-white text-ink text-sm font-medium hover:opacity-90">
-              Kostenlos testen
+            <Link href="/login" className="inline-flex h-12 px-6 items-center rounded bg-white text-ink text-sm font-medium hover:opacity-90">
+              Kostenlos starten
             </Link>
-            <a href="#" className="inline-flex h-12 px-4 items-center text-sm text-white/70 hover:text-white">
-              Demo ansehen ›
-            </a>
           </div>
           <div className="mt-6 text-xs text-white/50">
             Keine Kreditkarte · Setup in 4 Min · DSGVO-konform
