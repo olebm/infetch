@@ -119,7 +119,7 @@ export default function LandingPage() {
                     <img
                       src={bfUrl(domain)}
                       alt={domain}
-                      width={36} height={36}
+                      width={44} height={44}
                       className="rounded-full shrink-0 object-contain"
                     />
                     <div className="flex-1 min-w-0">
@@ -175,14 +175,14 @@ export default function LandingPage() {
               { domain: "telekom.de",     alt: "Telekom"    },
             ].map(({ domain, alt }) => (
               <Tip key={domain} label={alt}>
-                <div className="h-7 flex items-center cursor-default">
+                <div className="h-9 flex items-center cursor-default">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={bfUrl(domain)}
                     alt={alt}
-                    width={28}
-                    height={28}
-                    className="h-7 w-auto object-contain opacity-80"
+                    width={36}
+                    height={36}
+                    className="h-9 w-auto object-contain opacity-80"
                   />
                 </div>
               </Tip>
