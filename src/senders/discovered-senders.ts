@@ -108,7 +108,7 @@ export async function isSenderAutoIgnored(
     WHERE m.from_address = ${normalized}
       AND f.source_type = 'mail'
       AND i.status IN ('ready', 'exported')
-      AND i.created_at >= NOW() - (${lookbackDays} || ' days')::INTERVAL
+      AND i.created_at::TIMESTAMPTZ >= NOW() - (${lookbackDays} || ' days')::INTERVAL
     LIMIT 1
   `;
   if (hasSuccess.length > 0) return false;

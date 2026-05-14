@@ -29,7 +29,7 @@ export async function cleanupIgnoredFiles(): Promise<CleanupResult> {
     FROM invoices i
     JOIN invoice_files f ON f.invoice_id = i.id
     WHERE i.status = 'ignored'
-      AND i.updated_at <= NOW() - (${days} || ' days')::INTERVAL
+      AND i.updated_at::TIMESTAMPTZ <= NOW() - (${days} || ' days')::INTERVAL
       AND f.stored_path IS NOT NULL
   `;
 
