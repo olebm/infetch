@@ -44,6 +44,20 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -53,5 +67,13 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Run database migrations
+        run: |
+          psql "$DATABASE_URL" -f supabase/migrations/0001_initial_schema.sql
+          psql "$DATABASE_URL" -f supabase/migrations/0003_stripe.sql
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       - name: Run unit tests
         run: npm run test
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
