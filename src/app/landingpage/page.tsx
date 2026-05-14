@@ -201,12 +201,13 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto px-6 md:px-8">
           <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
             {[
-              { title: "Rechnungen in jedem Postfach",  body: "Adobe, Hetzner, Telekom — jeder Anbieter schickt von einer anderen Adresse, in ein anderes Postfach." },
-              { title: "Jeden Monat manuell suchen",     body: "Filtern, runterladen, weiterleiten — für jede einzelne Rechnung, jeden Monat, von vorne." },
-              { title: "Die Buchhaltung fragt. Du suchst.", body: "Stunden damit verbracht, Belege zu finden, die längst hätten weitergeleitet sein sollen." },
-            ].map(({ title, body }) => (
+              { eyebrow: "Kein System",  title: "Rechnungen in jedem Postfach",      body: "Adobe, Hetzner, Telekom — jeder Anbieter schickt von einer anderen Adresse, in ein anderes Postfach." },
+              { eyebrow: "Zeitverlust", title: "Jeden Monat manuell suchen",          body: "Filtern, runterladen, weiterleiten — für jede einzelne Rechnung, jeden Monat, von vorne." },
+              { eyebrow: "Zu spät",     title: "Die Buchhaltung fragt. Du suchst.",  body: "Stunden damit verbracht, Belege zu finden, die längst hätten weitergeleitet sein sollen." },
+            ].map(({ eyebrow, title, body }) => (
               <div key={title} className="py-8 md:py-10 md:px-10 first:md:pl-0 last:md:pr-0">
-                <div className="font-display text-lg text-ink">{title}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] text-muted">{eyebrow}</div>
+                <div className="mt-2 font-display text-lg text-ink">{title}</div>
                 <p className="mt-2 text-sm text-muted leading-relaxed">{body}</p>
               </div>
             ))}
