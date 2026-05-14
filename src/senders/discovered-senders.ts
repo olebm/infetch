@@ -58,10 +58,10 @@ export async function recordSenderObservation(
     )
     VALUES (${fromAddress}, ${fromDomain}, ${displayName}, 1, ${pdfDelta}, ${importedDelta}, ${blockedDelta})
     ON CONFLICT(from_address) DO UPDATE SET
-      mail_count = mail_count + 1,
-      pdf_count = pdf_count + excluded.pdf_count,
-      imported_count = imported_count + excluded.imported_count,
-      blocked_count = blocked_count + excluded.blocked_count,
+      mail_count = discovered_senders.mail_count + 1,
+      pdf_count = discovered_senders.pdf_count + excluded.pdf_count,
+      imported_count = discovered_senders.imported_count + excluded.imported_count,
+      blocked_count = discovered_senders.blocked_count + excluded.blocked_count,
       display_name = COALESCE(NULLIF(excluded.display_name, ''), discovered_senders.display_name),
       last_seen_at = CURRENT_TIMESTAMP,
       updated_at = CURRENT_TIMESTAMP

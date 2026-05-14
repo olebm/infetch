@@ -73,6 +73,49 @@ jobs:
           psql "$DATABASE_URL" -f supabase/migrations/0003_stripe.sql
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      - name: Patch schema for CI (boolean columns + vault stub + seed data)
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+        run: |
+          psql "$DATABASE_URL" <<'SQL'
+          -- 0001_initial_schema.sql uses INTEGER for boolean columns (SQLite compat).
+          -- Vanilla Postgres 16 rejects boolean values for INTEGER columns, so we
+          -- convert them here. Production runs on Supabase which coerces silently.
+          ALTER TABLE mail_accounts
+            ALTER COLUMN secure TYPE BOOLEAN USING (secure != 0);
+
+          -- Minimal Supabase Vault stub — plain-text storage, no pgsodium required.
+          CREATE SCHEMA IF NOT EXISTS vault;
+          CREATE TABLE IF NOT EXISTS vault.secrets (
+            id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name   TEXT NOT NULL UNIQUE,
+            secret TEXT NOT NULL
+          );
+          CREATE VIEW vault.decrypted_secrets AS
+            SELECT id, name, secret AS decrypted_secret FROM vault.secrets;
+          CREATE OR REPLACE FUNCTION vault.create_secret(p_secret TEXT, p_name TEXT)
+            RETURNS UUID LANGUAGE SQL AS $$
+              INSERT INTO vault.secrets (name, secret) VALUES (p_name, p_secret) RETURNING id;
+            $$;
+
+          -- Vendor seed data required by matcher / self-healing / ai-extraction tests.
+          INSERT INTO vendors (name, canonical_key, category) VALUES
+            ('OpenAI',    'openai',    'software'),
+            ('Anthropic', 'anthropic', 'software')
+          ON CONFLICT (canonical_key) DO NOTHING;
+
+          INSERT INTO vendor_aliases (vendor_id, alias, match_type)
+          SELECT id, 'openai',        'contains' FROM vendors WHERE canonical_key = 'openai'
+          UNION ALL
+          SELECT id, 'openai.com',    'domain'   FROM vendors WHERE canonical_key = 'openai'
+          UNION ALL
+          SELECT id, 'anthropic',     'contains' FROM vendors WHERE canonical_key = 'anthropic'
+          UNION ALL
+          SELECT id, 'claude',        'contains' FROM vendors WHERE canonical_key = 'anthropic'
+          UNION ALL
+          SELECT id, 'anthropic.com', 'domain'   FROM vendors WHERE canonical_key = 'anthropic'
+          ON CONFLICT DO NOTHING;
+          SQL
       - name: Run unit tests
         run: npm run test
         env:
