@@ -207,7 +207,7 @@ export default function LandingPage() {
             ].map(({ eyebrow, title, body }) => (
               <div key={title} className="py-8 md:py-10 md:px-10 first:md:pl-0 last:md:pr-0">
                 <div className="text-[11px] uppercase tracking-[0.14em] text-muted">{eyebrow}</div>
-                <div className="mt-2 font-display text-lg text-ink">{title}</div>
+                <div className="mt-2 font-display text-2xl text-ink">{title}</div>
                 <p className="mt-2 text-sm text-muted leading-relaxed">{body}</p>
               </div>
             ))}
