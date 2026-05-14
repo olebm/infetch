@@ -53,8 +53,11 @@ export function VendorLogo({
 
   // Brandfetch CDN (token required) → monogram fallback.
   // 256 px — scharf bis 3× HiDPI, unabhängig von `size`.
+  // fallback/404 → CDN returns HTTP 404 when the brand has no icon, so our
+  // onError handler falls through to the monogram instead of showing the
+  // Brandfetch "bf" placeholder logo (the default fallback for type=icon).
   const sources: string[] = logoHost && BRANDFETCH_TOKEN
-    ? [`https://cdn.brandfetch.io/${logoHost}/w/256/h/256/icon?c=${BRANDFETCH_TOKEN}`]
+    ? [`https://cdn.brandfetch.io/${logoHost}/w/256/h/256/fallback/404/icon?c=${BRANDFETCH_TOKEN}`]
     : [];
 
   function advance() {
