@@ -1,10 +1,7 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ContactModal } from "@/components/ui/contact-modal";
 import { VendorLogo } from "@/components/ui/vendor-logo";
+import { ContactController } from "./contact-controller";
 
 // ─── Tooltip helper ───────────────────────────────────────────────────────────
 
@@ -26,18 +23,6 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
-  const [contactOpen, setContactOpen] = useState(false);
-
-  // Reveal on scroll
-  useEffect(() => {
-    const io = new IntersectionObserver(
-      (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("in"); }),
-      { threshold: 0.15 },
-    );
-    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, []);
-
   return (
     <>
       {/* ================================================================== */}
@@ -591,7 +576,7 @@ export default function LandingPage() {
 
           <div className="mt-8 text-xs text-muted">
             Besondere Anforderungen?{" "}
-            <button type="button" onClick={() => setContactOpen(true)} className="ul-link">Sprich mit uns.</button>
+            <button type="button" data-contact="" className="ul-link">Sprich mit uns.</button>
           </div>
         </div>
       </section>
@@ -608,7 +593,7 @@ export default function LandingPage() {
             </h2>
             <p className="mt-5 text-muted leading-relaxed">
               Noch eine andere Frage?{" "}
-              <button type="button" onClick={() => setContactOpen(true)} className="ul-link">hallo@infetch.de</button>
+              <button type="button" data-contact="" className="ul-link">hallo@infetch.de</button>
             </p>
           </div>
 
@@ -695,7 +680,7 @@ export default function LandingPage() {
           <div>
             <div className="text-xs uppercase tracking-[0.14em] text-muted">Unternehmen</div>
             <ul className="mt-3 space-y-2 text-sm text-ink">
-              <li><button type="button" onClick={() => setContactOpen(true)} className="hover:text-muted">Kontakt</button></li>
+              <li><button type="button" data-contact="" className="hover:text-muted">Kontakt</button></li>
               <li><a href="https://status.infetch.de" className="hover:text-muted" target="_blank" rel="noopener">Status</a></li>
             </ul>
           </div>
@@ -712,12 +697,12 @@ export default function LandingPage() {
         <div className="border-t border-line">
           <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-5 text-xs text-muted flex flex-col md:flex-row gap-2 md:gap-6">
             <div>© 2026 Infetch GmbH</div>
-            <button type="button" onClick={() => setContactOpen(true)} className="hover:text-ink transition-colors">hallo@infetch.de</button>
+            <button type="button" data-contact="" className="hover:text-ink transition-colors">hallo@infetch.de</button>
             <div className="md:ml-auto">Alle Markennamen und Logos sind Eigentum der jeweiligen Inhaber.</div>
           </div>
         </div>
       </footer>
-      <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
+      <ContactController />
     </>
   );
 }
