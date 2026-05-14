@@ -51,7 +51,14 @@ function matchesPrefix(pathname: string, prefixes: string[]): boolean {
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const hostname = request.nextUrl.hostname;
+
+  // Behind Coolify / Traefik the real hostname is forwarded via headers.
+  // Priority: x-forwarded-host → host → nextUrl.hostname (internal fallback).
+  const hostname = (
+    request.headers.get("x-forwarded-host") ??
+    request.headers.get("host") ??
+    request.nextUrl.hostname
+  ).split(":")[0].toLowerCase();
 
   // ── Landing-Domain Routing ─────────────────────────────────────────────────
   if (LANDING_HOSTNAMES.includes(hostname)) {
