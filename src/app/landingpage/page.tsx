@@ -131,10 +131,10 @@ export default function LandingPage() {
 
                 {/* ANIMATED ROW */}
                 <li className="px-3 py-3 flex items-center gap-3 border-b border-line anim-row">
-                  <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="stripe.com" alt="Stripe" /></div>
+                  <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="telekom.de" alt="Telekom" /></div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink truncate">Stripe Payments UK · Invoice 49 210</div>
-                    <div className="text-xs text-muted stat-num">jetzt · 146,53 €</div>
+                    <div className="text-sm text-ink truncate">Telekom Deutschland · Festnetz & Internet</div>
+                    <div className="text-xs text-muted stat-num">jetzt · 44,95 €</div>
                   </div>
                   <div className="relative" style={{ minWidth: "72px", height: "20px" }}>
                     <span className="anim-badge absolute inset-0 inline-flex items-center justify-end gap-1.5 text-xs text-ink whitespace-nowrap">
@@ -147,10 +147,10 @@ export default function LandingPage() {
                 </li>
 
                 <li className="row-hover px-3 py-3 flex items-center gap-3">
-                  <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="vercel.com" alt="Vercel" /></div>
+                  <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="canva.com" alt="Canva" /></div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink truncate">Vercel Inc. · Pro Subscription</div>
-                    <div className="text-xs text-muted stat-num">gestern · 19,42 €</div>
+                    <div className="text-sm text-ink truncate">Canva Pty Ltd · Pro Plan</div>
+                    <div className="text-xs text-muted stat-num">gestern · 14,99 €</div>
                   </div>
                   <span className="inline-flex items-center gap-1.5 text-xs text-ok">
                     <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>versendet
@@ -177,13 +177,13 @@ export default function LandingPage() {
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 md:gap-x-16">
             {[
-              { domain: "stripe.com",   alt: "Stripe"  },
-              { domain: "adobe.com",    alt: "Adobe"   },
-              { domain: "hetzner.com",  alt: "Hetzner" },
-              { domain: "telekom.de",   alt: "Telekom" },
-              { domain: "figma.com",    alt: "Figma"   },
-              { domain: "github.com",   alt: "GitHub"  },
-              { domain: "openai.com",   alt: "OpenAI"  },
+              { domain: "stripe.com",     alt: "Stripe"     },
+              { domain: "adobe.com",      alt: "Adobe"      },
+              { domain: "hetzner.com",    alt: "Hetzner"    },
+              { domain: "telekom.de",     alt: "Telekom"    },
+              { domain: "figma.com",      alt: "Figma"      },
+              { domain: "microsoft.com",  alt: "Microsoft"  },
+              { domain: "zoom.us",        alt: "Zoom"       },
             ].map(({ domain, alt }) => (
               <div key={domain} className="h-7 flex items-center">
                 <img
@@ -304,9 +304,9 @@ export default function LandingPage() {
               <div className="mt-6 mock-window">
                 <ul className="divide-y divide-line">
                   {[
-                    { domain: "hetzner.com", name: "Hetzner Online",   count: "14 Rechnungen · monatlich", sum: "385,70 €" },
-                    { domain: "stripe.com",  name: "Stripe Payments UK", count: "4 Rechnungen · monatlich",  sum: "586,12 €" },
-                    { domain: "adobe.com",   name: "Adobe Systems",    count: "5 Rechnungen · monatlich",  sum: "359,90 €" },
+                    { domain: "hetzner.com",   name: "Hetzner Online",      count: "14 Rechnungen · monatlich", sum: "385,70 €" },
+                    { domain: "microsoft.com", name: "Microsoft Corporation", count: "4 Rechnungen · monatlich",  sum: "250,00 €" },
+                    { domain: "adobe.com",     name: "Adobe Systems",        count: "5 Rechnungen · monatlich",  sum: "389,95 €" },
                   ].map(({ domain, name, count, sum }) => (
                     <li key={domain} className="px-4 py-3 flex items-center gap-3 row-hover">
                       <div className="h-9 w-9 logo-tile rounded"><LogoImg domain={domain} alt={name} /></div>
@@ -359,7 +359,7 @@ export default function LandingPage() {
                   {[
                     { domain: "telekom.de", name: "Telekom Mobilfunk",  expect: "erwartet 02. Mai · 59,90 €", label: "3 Tage spät",   cls: "text-warn" },
                     { domain: "figma.com",  name: "Figma Inc.",          expect: "erwartet 12. Mai · 45,00 €", label: "heute fällig",  cls: "text-muted" },
-                    { domain: "github.com", name: "GitHub Inc.",         expect: "erwartet 14. Mai · 21,00 €", label: "in 2 Tagen",   cls: "text-muted" },
+                    { domain: "zoom.us",    name: "Zoom Video Comm.",    expect: "erwartet 14. Mai · 13,99 €", label: "in 2 Tagen",   cls: "text-muted" },
                   ].map(({ domain, name, expect, label, cls }) => (
                     <li key={domain} className="px-4 py-3 flex items-center gap-3 row-hover">
                       <div className="h-9 w-9 logo-tile rounded"><LogoImg domain={domain} alt={name} /></div>
@@ -508,48 +508,48 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-14 grid md:grid-cols-2 gap-6 max-w-2xl">
+          <div className="mt-14 grid md:grid-cols-2 gap-8 max-w-4xl">
             {/* Plan: Free */}
-            <div className="border border-line rounded-lg p-6 bg-white flex flex-col">
+            <div className="border border-line rounded-2xl p-8 bg-white flex flex-col">
               <div className="text-sm text-muted">Free</div>
-              <div className="mt-3 font-display text-4xl text-ink stat-num">0 €</div>
-              <div className="text-xs text-muted">/ dauerhaft kostenlos</div>
-              <p className="mt-4 text-sm text-muted leading-relaxed">
+              <div className="mt-4 font-display text-5xl text-ink stat-num">0 €</div>
+              <div className="text-xs text-muted mt-1">/ dauerhaft kostenlos</div>
+              <p className="mt-5 text-sm text-muted leading-relaxed">
                 Zum Ausprobieren — kein Ablaufdatum.
               </p>
-              <ul className="mt-5 space-y-2 text-sm text-ink flex-1">
-                <li>· 30 Rechnungen / Monat</li>
-                <li>· 1 Postfach (IMAP)</li>
-                <li>· Auto-Pilot aktiv</li>
-                <li>· 500 MB Speicher</li>
-                <li>· E-Mail-Support</li>
+              <ul className="mt-6 space-y-3 text-sm text-ink flex-1">
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>30 Rechnungen / Monat</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>1 Postfach (IMAP)</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>Auto-Pilot aktiv</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>500 MB Speicher</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>E-Mail-Support</li>
               </ul>
-              <Link href="/login" className="mt-6 inline-flex h-10 px-4 items-center justify-center rounded border border-line text-sm text-ink hover:bg-surface">
+              <Link href="/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg border border-line text-sm text-ink hover:bg-surface">
                 Kostenlos starten
               </Link>
             </div>
 
             {/* Plan: Pro (highlighted) */}
-            <div className="border-2 border-ink rounded-lg p-6 bg-white flex flex-col relative">
-              <div className="absolute -top-3 left-6 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-ink text-white text-[10px] uppercase tracking-[0.14em]">
+            <div className="border-2 border-ink rounded-2xl p-8 bg-white flex flex-col relative">
+              <div className="absolute -top-3.5 left-7 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-ink text-white text-[10px] uppercase tracking-[0.14em]">
                 empfohlen
               </div>
               <div className="text-sm text-muted">Pro</div>
-              <div className="mt-3 font-display text-4xl text-ink stat-num">19 €</div>
-              <div className="text-xs text-muted">/ Monat · zzgl. USt</div>
-              <p className="mt-4 text-sm text-muted leading-relaxed">
+              <div className="mt-4 font-display text-5xl text-ink stat-num">19 €</div>
+              <div className="text-xs text-muted mt-1">/ Monat · zzgl. USt</div>
+              <p className="mt-5 text-sm text-muted leading-relaxed">
                 Alles inklusive — für alle, die auf nichts verzichten wollen.
               </p>
-              <ul className="mt-5 space-y-2 text-sm text-ink flex-1">
-                <li>· 150 Rechnungen / Monat</li>
-                <li>· Bis zu 3 Postfächer</li>
-                <li>· 2 GB Speicher</li>
-                <li>· Export zu Lexoffice & sevDesk</li>
-                <li>· Retroaktiver 12-Monats-Scan</li>
-                <li>· Bulk-Download (ZIP)</li>
-                <li>· Prioritäts-Support</li>
+              <ul className="mt-6 space-y-3 text-sm text-ink flex-1">
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>150 Rechnungen / Monat</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>Bis zu 3 Postfächer</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>2 GB Speicher</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>Export zu Lexoffice &amp; sevDesk</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>Retroaktiver 12-Monats-Scan</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>Bulk-Download (ZIP)</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>Prioritäts-Support</li>
               </ul>
-              <Link href="/login" className="mt-6 inline-flex h-10 px-4 items-center justify-center rounded bg-ink text-white text-sm font-medium hover:opacity-90">
+              <Link href="/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg bg-ink text-white text-sm font-medium hover:opacity-90">
                 Jetzt Pro testen
               </Link>
             </div>
