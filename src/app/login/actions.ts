@@ -54,21 +54,29 @@ export async function loginAsTestUser(formData: FormData) {
     // Non-fatal
   }
 
-  // Magic-Link generieren und direkt dahin weiterleiten
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const redirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(next)}`;
+  // Supabase-User-ID nachschlagen
+  const { data: sbUserData } = await supabaseAdmin.auth.admin.getUserByEmail(STUB_EMAIL) as {
+    data: { user: { id: string } | null };
+  };
+  const supabaseUserId = sbUserData?.user?.id;
+  if (!supabaseUserId) throw new Error("Test login failed: Supabase user not found");
 
-  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-    type: "magiclink",
-    email: STUB_EMAIL,
-    options: { redirectTo },
+  // Session serverseitig erstellen — kein externer Redirect nötig
+  const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.createSession({
+    user_id: supabaseUserId,
   });
-
-  if (error || !data.properties?.action_link) {
-    throw new Error(`Test login failed: ${error?.message ?? "no action_link"}`);
+  if (sessionError || !sessionData?.session) {
+    throw new Error(`Test login failed: ${sessionError?.message ?? "no session"}`);
   }
 
-  redirect(data.properties.action_link);
+  // Session in SSR-Cookies schreiben
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.setSession({
+    access_token: sessionData.session.access_token,
+    refresh_token: sessionData.session.refresh_token,
+  });
+
+  redirect(next);
 }
 
 /**
