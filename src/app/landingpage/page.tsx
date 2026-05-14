@@ -70,7 +70,7 @@ export default function LandingPage() {
       {/* HERO                                                                */}
       {/* ================================================================== */}
       <section className="relative">
-        <div className="max-w-[1180px] mx-auto px-6 md:px-8 pt-16 md:pt-24 pb-12 md:pb-20 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
+        <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-16 md:pt-24 pb-12 md:pb-20 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
 
           <div className="reveal">
             <div className="inline-flex items-center gap-2 text-xs text-ok">
@@ -99,7 +99,7 @@ export default function LandingPage() {
           </div>
 
           {/* HERO VISUAL: animated inbox */}
-          <div className="reveal lg:-mr-8">
+          <div className="reveal">
             <div className="mock-window shadow-lift">
               <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
                 <div className="font-display text-2xl text-ink">Heute</div>
@@ -441,7 +441,7 @@ export default function LandingPage() {
       {/* ================================================================== */}
       {/* INTEGRATIONEN                                                       */}
       {/* ================================================================== */}
-      <section className="py-20 md:py-28 bg-paper border-y border-line">
+      <section className="py-20 md:py-28 border-y border-line">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8">
           <div className="max-w-2xl">
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted">Integrationen</div>
@@ -452,26 +452,25 @@ export default function LandingPage() {
 
           <div className="mt-14 grid md:grid-cols-2 gap-12">
             <div>
-              <h3 className="text-xs uppercase tracking-[0.14em] text-muted">Postfächer</h3>
-              <ul className="mt-4 grid grid-cols-2 gap-3">
+              <div className="text-xs uppercase tracking-[0.14em] text-muted">Postfächer</div>
+              <ul className="mt-5 flex flex-wrap gap-3">
                 {[
                   { domain: "google.com",  label: "Gmail · Workspace" },
                   { domain: "outlook.com", label: "Microsoft 365"     },
                   { domain: "icloud.com",  label: "Apple iCloud"      },
                   { domain: null,          label: "IMAP (universal)"  },
                 ].map(({ domain, label }) => (
-                  <li key={label} className="px-4 py-3 border border-line rounded text-sm text-ink flex items-center gap-3">
-                    <span className="h-6 w-6 logo-tile rounded flex items-center justify-center">
-                      {domain ? <LogoImg domain={domain} alt={label} /> : <span className="text-[10px] text-muted">@</span>}
-                    </span>
-                    <span>{label}</span>
+                  <li key={label} title={label} className="h-12 w-12 logo-tile rounded-xl flex items-center justify-center cursor-default">
+                    {domain
+                      ? <LogoImg domain={domain} alt={label} />
+                      : <span className="text-sm text-muted font-medium">@</span>}
                   </li>
                 ))}
               </ul>
             </div>
             <div>
-              <h3 className="text-xs uppercase tracking-[0.14em] text-muted">Empfänger · Buchhaltung</h3>
-              <ul className="mt-4 grid grid-cols-2 gap-3">
+              <div className="text-xs uppercase tracking-[0.14em] text-muted">Empfänger · Buchhaltung</div>
+              <ul className="mt-5 flex flex-wrap gap-3">
                 {[
                   { domain: "datev.de",       label: "DATEV Belegtransfer" },
                   { domain: "kontist.com",    label: "Kontist"             },
@@ -482,68 +481,15 @@ export default function LandingPage() {
                   { domain: "candis.io",      label: "Candis"              },
                   { domain: null,             label: "Beliebige E-Mail"    },
                 ].map(({ domain, label }) => (
-                  <li key={label} className="px-4 py-3 border border-line rounded text-sm text-ink flex items-center gap-3">
-                    <span className="h-6 w-6 logo-tile rounded flex items-center justify-center">
-                      {domain ? <LogoImg domain={domain} alt={label} /> : <span className="text-[10px] text-muted">@</span>}
-                    </span>
-                    <span>{label}</span>
+                  <li key={label} title={label} className="h-12 w-12 logo-tile rounded-xl flex items-center justify-center cursor-default">
+                    {domain
+                      ? <LogoImg domain={domain} alt={label} />
+                      : <span className="text-sm text-muted font-medium">@</span>}
                   </li>
                 ))}
               </ul>
-              <div className="mt-3 text-xs text-muted">
-                Dein Tool fehlt? Per E-Mail funktioniert immer.
-              </div>
+              <p className="mt-4 text-xs text-muted">Dein Tool fehlt? Per E-Mail funktioniert immer.</p>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================== */}
-      {/* TESTIMONIALS                                                        */}
-      {/* ================================================================== */}
-      <section className="py-20 md:py-28">
-        <div className="max-w-[1180px] mx-auto px-6 md:px-8">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-muted">Aus der Praxis</div>
-          <h2 className="mt-3 font-display text-4xl md:text-5xl text-ink leading-[1.05] max-w-2xl">
-            Drei Stunden im Monat. Weniger.
-          </h2>
-
-          <div className="mt-14 grid md:grid-cols-3 gap-8 md:gap-10">
-            {[
-              {
-                quote: `„Ich habe sieben Monate lang jede Rechnung von Hand an die Buchhaltung weitergeleitet. Infetch macht das in zwei Minuten Setup — und seitdem habe ich keinen Beleg mehr vergessen."`,
-                initials: "LB",
-                name: "Lena B.",
-                role: "Freelance UX · Berlin",
-              },
-              {
-                quote: `„Was mich überzeugt hat: der Fehlt-Tab. Letzten Monat hat Telekom drei Tage später geschickt, ich hatte es schon vergessen — Infetch nicht."`,
-                initials: "JK",
-                name: "Jan K.",
-                role: "Geschäftsführer · 14 Mitarbeitende",
-              },
-              {
-                quote: `„Endlich eine App, die nicht laut wird. Sie macht den Job, ich werde nicht abgelenkt."`,
-                initials: "SM",
-                name: "Sophie M.",
-                role: "Steuerberaterin · Hamburg",
-              },
-            ].map(({ quote, initials, name, role }) => (
-              <figure key={initials}>
-                <blockquote className="font-display text-xl text-ink leading-[1.4]">
-                  {quote}
-                </blockquote>
-                <figcaption className="mt-4 flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full bg-surface flex items-center justify-center text-xs text-muted">
-                    {initials}
-                  </div>
-                  <div>
-                    <div className="text-sm text-ink">{name}</div>
-                    <div className="text-xs text-muted">{role}</div>
-                  </div>
-                </figcaption>
-              </figure>
-            ))}
           </div>
         </div>
       </section>
