@@ -81,4 +81,16 @@ export const appConfig = {
     // Pflicht in production — verhindert dass fremde Requests in die Error-Log schreiben.
     webhookSecret: process.env.SENTRY_WEBHOOK_SECRET?.trim() || null,
   },
+  stripe: {
+    // Secret Key für server-side Stripe API calls (Tier-Lookup, Abo-Status).
+    // Dashboard → Developers → API Keys → Secret key
+    secretKey: process.env.STRIPE_SECRET_KEY?.trim() || null,
+    // Webhook-Signing-Secret — verhindert gefälschte Webhook-Events.
+    // Dashboard → Webhooks → dein Endpoint → Signing secret
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET?.trim() || null,
+    // Price IDs für Upgrade-CTAs im Frontend (NEXT_PUBLIC — sicher im Browser).
+    // Dashboard → Products → Preisliste → Price ID
+    priceIdPro: process.env.STRIPE_PRICE_ID_PRO?.trim() || null,
+    priceIdBusiness: process.env.STRIPE_PRICE_ID_BUSINESS?.trim() || null,
+  },
 };

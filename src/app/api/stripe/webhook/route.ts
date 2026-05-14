@@ -1,0 +1,166 @@
+/**
+ * Stripe Webhook Handler
+ *
+ * Verarbeitet Checkout- und Subscription-Events von Stripe und aktualisiert
+ * organizations.tier in Supabase Postgres.
+ *
+ * Einrichten:
+ *   1. Stripe Dashboard → Webhooks → Endpoint hinzufügen
+ *      URL: https://app.infetch.de/api/stripe/webhook
+ *      Events: checkout.session.completed, customer.subscription.updated,
+ *              customer.subscription.deleted
+ *   2. Signing Secret als STRIPE_WEBHOOK_SECRET in Coolify setzen
+ *   3. STRIPE_SECRET_KEY setzen (Secret key aus Developers → API Keys)
+ *   4. STRIPE_PRICE_ID_PRO + STRIPE_PRICE_ID_BUSINESS auf deine Price IDs setzen
+ *
+ * Tier-Mapping:
+ *   STRIPE_PRICE_ID_PRO      → "pro"
+ *   STRIPE_PRICE_ID_BUSINESS → "business"
+ *   Kündigung / unbekannt    → "free"
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
+import { appConfig } from "@/lib/config/env";
+import { sql } from "@/lib/db/client";
+
+export const dynamic = "force-dynamic";
+
+// ── Stripe-Client (lazy, nur wenn Secret Key gesetzt) ─────────────────────────
+
+function getStripe(): Stripe {
+  const key = appConfig.stripe.secretKey;
+  if (!key) throw new Error("STRIPE_SECRET_KEY not configured");
+  return new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
+}
+
+// ── Tier aus Price ID ermitteln ───────────────────────────────────────────────
+
+function tierFromPriceId(priceId: string | null | undefined): "pro" | "business" | null {
+  if (!priceId) return null;
+  if (priceId === appConfig.stripe.priceIdPro) return "pro";
+  if (priceId === appConfig.stripe.priceIdBusiness) return "business";
+  return null;
+}
+
+// ── DB: org.tier aktualisieren via stripe_customer_id ────────────────────────
+
+async function setOrgTierByCustomer(
+  customerId: string,
+  tier: "free" | "pro" | "business",
+): Promise<boolean> {
+  const result = await sql`
+    UPDATE organizations
+    SET tier = ${tier}, updated_at = NOW()
+    WHERE stripe_customer_id = ${customerId}
+    RETURNING id
+  `;
+  return result.length > 0;
+}
+
+// ── DB: stripe_customer_id + org.tier nach Checkout setzen ───────────────────
+
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  const orgId = session.metadata?.organization_id;
+
+  if (!customerId || !orgId) {
+    console.warn("[stripe/webhook] checkout.session.completed: missing customer or org metadata", {
+      customerId,
+      orgId,
+    });
+    return;
+  }
+
+  // Tier aus Line Items / Subscription ermitteln
+  let tier: "free" | "pro" | "business" = "free";
+
+  if (session.subscription) {
+    const stripe = getStripe();
+    const sub = await stripe.subscriptions.retrieve(
+      typeof session.subscription === "string" ? session.subscription : session.subscription.id,
+    );
+    const priceId = sub.items.data[0]?.price.id;
+    tier = tierFromPriceId(priceId) ?? "free";
+  }
+
+  // Zuerst stripe_customer_id persistieren
+  await sql`
+    UPDATE organizations
+    SET stripe_customer_id = ${customerId}, tier = ${tier}, updated_at = NOW()
+    WHERE id = ${orgId}
+  `;
+
+  console.log(`[stripe/webhook] org ${orgId} → tier=${tier} (customer=${customerId})`);
+}
+
+// ── DB: Tier bei Subscription-Update anpassen ─────────────────────────────────
+
+async function handleSubscriptionChanged(sub: Stripe.Subscription): Promise<void> {
+  const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+  const priceId = sub.items.data[0]?.price.id;
+
+  let tier: "free" | "pro" | "business";
+
+  if (sub.status === "active" || sub.status === "trialing") {
+    tier = tierFromPriceId(priceId) ?? "free";
+  } else {
+    // canceled, past_due, unpaid, etc. → downgrade auf Free
+    tier = "free";
+  }
+
+  const updated = await setOrgTierByCustomer(customerId, tier);
+  if (!updated) {
+    console.warn(`[stripe/webhook] subscription changed: no org found for customer ${customerId}`);
+  } else {
+    console.log(`[stripe/webhook] customer ${customerId} → tier=${tier} (status=${sub.status})`);
+  }
+}
+
+// ── Route Handler ──────────────────────────────────────────────────────────────
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const webhookSecret = appConfig.stripe.webhookSecret;
+  if (!webhookSecret) {
+    console.error("[stripe/webhook] STRIPE_WEBHOOK_SECRET not configured");
+    return NextResponse.json({ error: "webhook not configured" }, { status: 500 });
+  }
+
+  const body = await request.text();
+  const signature = request.headers.get("stripe-signature");
+
+  if (!signature) {
+    return NextResponse.json({ error: "missing signature" }, { status: 400 });
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = getStripe().webhooks.constructEvent(body, signature, webhookSecret);
+  } catch (err) {
+    console.error("[stripe/webhook] signature verification failed:", err);
+    return NextResponse.json({ error: "invalid signature" }, { status: 400 });
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
+
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted":
+        await handleSubscriptionChanged(event.data.object as Stripe.Subscription);
+        break;
+
+      default:
+        // Unbekannte Events still ignorieren
+        break;
+    }
+  } catch (err) {
+    console.error(`[stripe/webhook] error handling ${event.type}:`, err);
+    // 200 zurückgeben damit Stripe nicht re-tried — der Fehler wird in Sentry geloggt
+    return NextResponse.json({ error: "handler error" }, { status: 200 });
+  }
+
+  return NextResponse.json({ received: true });
+}
