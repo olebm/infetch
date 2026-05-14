@@ -232,7 +232,7 @@ export type AutomationStats = {
 
 export async function getAutomationStats(): Promise<AutomationStats> {
   const exportedToday = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND (sent_at::TIMESTAMP)::DATE = CURRENT_DATE`)[0].count);
-  const exportedThisWeek = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND sent_at >= (NOW() - INTERVAL '7 days')`)[0].count);
+  const exportedThisWeek = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '7 days'`)[0].count);
   const exportedLifetime = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent'`)[0].count);
   const needsReview = Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count);
   const minutesSaved = exportedLifetime * 2;
@@ -1217,7 +1217,7 @@ export async function getDailyTimeseries(days: number): Promise<Array<{ date: st
     SELECT (COALESCE(invoice_date, created_at)::TIMESTAMP)::DATE::TEXT AS date, COUNT(*) AS count
     FROM invoices
     WHERE status = 'exported'
-      AND COALESCE(invoice_date, created_at) >= (NOW() - INTERVAL '1 day' * ${days})
+      AND COALESCE(invoice_date, created_at)::TIMESTAMPTZ >= NOW() - INTERVAL '1 day' * ${days}
     GROUP BY date
     ORDER BY date ASC`;
 
@@ -1355,7 +1355,7 @@ export async function getSecondaryStats(): Promise<SecondaryStats> {
     SELECT COUNT(*) * 1.0 / 30 AS rate
     FROM exports
     WHERE status = 'sent'
-      AND sent_at >= (NOW() - INTERVAL '30 days')`)[0] as { rate: number | null } | undefined;
+      AND sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '30 days'`)[0] as { rate: number | null } | undefined;
 
   let forecastRestMonth: number | null = null;
   if (dailyAvgRow?.rate != null && Number(dailyAvgRow.rate) > 0) {
