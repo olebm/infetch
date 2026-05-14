@@ -23,7 +23,7 @@ Sentry.init({
   // Nur in production + wenn DSN gesetzt
   enabled: isProduction && Boolean(dsn),
 
-  // Kein Performance-Tracing — wir wollen nur Fehler
+  // Kein Performance-Tracing — wir erfassen nur Fehler, keine Spans
   tracesSampleRate: 0,
 
   // Kein Session-Replay (server-side irrelevant, aber sicherheitshalber)
