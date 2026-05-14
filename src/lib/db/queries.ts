@@ -91,7 +91,7 @@ export function getPipelineSnapshot(): PipelineStep[] {
   ];
 }
 
-export function getSetupSnapshot() {
+export function getSetupSnapshot(organizationId?: string | null) {
   const db = getDb();
   const exportTargetActive = (db
     .prepare(`SELECT COUNT(*) AS count FROM export_targets WHERE enabled = 1 AND recipient_email IS NOT NULL`)
@@ -105,9 +105,9 @@ export function getSetupSnapshot() {
   return {
     mistralConfigured,
     imapConfigured:
-      hasConfiguredCredential(db, "imap", "primary") || hasConfiguredCredential(db, "imap", "secondary"),
+      hasConfiguredCredential(db, "imap", "primary", organizationId) || hasConfiguredCredential(db, "imap", "secondary", organizationId),
     smtpConfigured:
-      hasConfiguredCredential(db, "smtp", "primary") || hasConfiguredCredential(db, "smtp", "secondary"),
+      hasConfiguredCredential(db, "smtp", "primary", organizationId) || hasConfiguredCredential(db, "smtp", "secondary", organizationId),
     exportTargetActive,
   };
 }

@@ -46,13 +46,13 @@ export default async function SetupPage() {
   const mailboxSlots: MailboxSlot[] = [
     {
       key: "primary",
-      isConnected: hasConfiguredCredential(db, "imap", "primary") || hasStoredCredentialRef(db, "imap", "primary"),
+      isConnected: hasConfiguredCredential(db, "imap", "primary", auth?.organization?.id) || hasStoredCredentialRef(db, "imap", "primary", auth?.organization?.id),
       email: imapPrimary?.username ?? null,
       providerDomain: imapPrimary?.username ? (getProviderFromEmail(imapPrimary.username)?.domain ?? null) : null,
     },
     {
       key: "secondary",
-      isConnected: hasConfiguredCredential(db, "imap", "secondary") || hasStoredCredentialRef(db, "imap", "secondary"),
+      isConnected: hasConfiguredCredential(db, "imap", "secondary", auth?.organization?.id) || hasStoredCredentialRef(db, "imap", "secondary", auth?.organization?.id),
       email: imapSecondary?.username ?? null,
       providerDomain: imapSecondary?.username ? (getProviderFromEmail(imapSecondary.username)?.domain ?? null) : null,
     },

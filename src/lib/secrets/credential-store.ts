@@ -28,8 +28,15 @@ export type CredentialScope =
 // Token-Status wird in integration_targets getrackt; der eigentliche Token liegt im Secret-Store.
 const INTEGRATION_SCOPES = new Set<CredentialScope>(["lexoffice", "sevdesk", "datev"]);
 
-export function buildSecretRef(scope: CredentialScope, ownerId = "default") {
-  const digest = crypto.createHash("sha256").update(`${scope}:${ownerId}`).digest("hex").slice(0, 16);
+export function buildSecretRef(
+  scope: CredentialScope,
+  ownerId = "default",
+  organizationId?: string | null,
+) {
+  const key = organizationId
+    ? `${scope}:${organizationId}:${ownerId}`
+    : `${scope}:${ownerId}`;
+  const digest = crypto.createHash("sha256").update(key).digest("hex").slice(0, 16);
   return `invoice-agent:${scope}:${digest}`;
 }
 
@@ -103,13 +110,14 @@ async function deleteFromStore(
 export async function saveCredentialSecret(input: {
   scope: CredentialScope;
   ownerId?: string;
+  organizationId?: string | null;
   label: string;
   secret: string;
   db?: Database.Database;
 }) {
   const db = input.db || getDb();
   const ownerId = input.ownerId || "default";
-  const secretRef = buildSecretRef(input.scope, ownerId);
+  const secretRef = buildSecretRef(input.scope, ownerId, input.organizationId);
 
   if (!input.secret.trim()) {
     throw new Error("Secret darf nicht leer sein.");
@@ -120,8 +128,8 @@ export async function saveCredentialSecret(input: {
 
   if (!INTEGRATION_SCOPES.has(input.scope)) {
     db.prepare(
-      `INSERT INTO credential_refs (scope, owner_id, label, secret_store, secret_ref, status, last_verified_at)
-       VALUES (?, ?, ?, ?, ?, 'configured', CURRENT_TIMESTAMP)
+      `INSERT INTO credential_refs (scope, owner_id, label, secret_store, secret_ref, status, last_verified_at, organization_id)
+       VALUES (?, ?, ?, ?, ?, 'configured', CURRENT_TIMESTAMP, ?)
        ON CONFLICT(secret_ref) DO UPDATE SET
          scope            = excluded.scope,
          owner_id         = excluded.owner_id,
@@ -129,8 +137,9 @@ export async function saveCredentialSecret(input: {
          secret_store     = excluded.secret_store,
          status           = 'configured',
          last_verified_at = CURRENT_TIMESTAMP,
+         organization_id  = excluded.organization_id,
          updated_at       = CURRENT_TIMESTAMP`,
-    ).run(input.scope, ownerId, input.label, storeName, secretRef);
+    ).run(input.scope, ownerId, input.label, storeName, secretRef, input.organizationId ?? null);
   }
 
   return secretRef;
@@ -139,11 +148,12 @@ export async function saveCredentialSecret(input: {
 export async function deleteCredentialSecret(input: {
   scope: CredentialScope;
   ownerId?: string;
+  organizationId?: string | null;
   db?: Database.Database;
 }) {
   const db = input.db || getDb();
   const ownerId = input.ownerId || "default";
-  const secretRef = buildSecretRef(input.scope, ownerId);
+  const secretRef = buildSecretRef(input.scope, ownerId, input.organizationId);
 
   if (INTEGRATION_SCOPES.has(input.scope)) {
     // Integration-Scopes haben keinen credential_refs-Eintrag — beide Stores bereinigen.
@@ -165,6 +175,7 @@ export async function deleteCredentialSecret(input: {
 export async function readCredentialSecret(input: {
   scope: CredentialScope;
   ownerId?: string;
+  organizationId?: string | null;
   db?: Database.Database;
 }) {
   if (input.scope === "mistral" && process.env.MISTRAL_API_KEY) {
@@ -172,7 +183,7 @@ export async function readCredentialSecret(input: {
   }
 
   const ownerId = input.ownerId || "default";
-  const secretRef = buildSecretRef(input.scope, ownerId);
+  const secretRef = buildSecretRef(input.scope, ownerId, input.organizationId);
 
   if (INTEGRATION_SCOPES.has(input.scope)) {
     // Kein credential_refs-Eintrag — beide Stores versuchen (OS zuerst für Rückwärts-Kompatibilität).
@@ -199,12 +210,13 @@ export async function readCredentialSecret(input: {
 export function updateCredentialVerificationStatus(input: {
   scope: CredentialScope;
   ownerId?: string;
+  organizationId?: string | null;
   status: "configured" | "missing" | "invalid" | "locked";
   db?: Database.Database;
 }) {
   const db = input.db || getDb();
   const ownerId = input.ownerId || "default";
-  const secretRef = buildSecretRef(input.scope, ownerId);
+  const secretRef = buildSecretRef(input.scope, ownerId, input.organizationId);
 
   db.prepare(
     `UPDATE credential_refs
@@ -213,10 +225,10 @@ export function updateCredentialVerificationStatus(input: {
   ).run(input.status, secretRef);
 }
 
-export function hasConfiguredCredential(db: Database.Database, scope: CredentialScope, ownerId = "default") {
+export function hasConfiguredCredential(db: Database.Database, scope: CredentialScope, ownerId = "default", organizationId?: string | null) {
   if (scope === "mistral" && process.env.MISTRAL_API_KEY) return true;
 
-  const secretRef = buildSecretRef(scope, ownerId);
+  const secretRef = buildSecretRef(scope, ownerId, organizationId);
   const row = db
     .prepare(
       `SELECT id
@@ -229,10 +241,10 @@ export function hasConfiguredCredential(db: Database.Database, scope: Credential
   return Boolean(row);
 }
 
-export function hasStoredCredentialRef(db: Database.Database, scope: CredentialScope, ownerId = "default") {
+export function hasStoredCredentialRef(db: Database.Database, scope: CredentialScope, ownerId = "default", organizationId?: string | null) {
   if (scope === "mistral" && process.env.MISTRAL_API_KEY) return true;
 
-  const secretRef = buildSecretRef(scope, ownerId);
+  const secretRef = buildSecretRef(scope, ownerId, organizationId);
   const row = db
     .prepare(
       `SELECT id
@@ -249,8 +261,9 @@ export function getCredentialLastVerifiedAt(
   db: Database.Database,
   scope: CredentialScope,
   ownerId = "default",
+  organizationId?: string | null,
 ): string | null {
-  const secretRef = buildSecretRef(scope, ownerId);
+  const secretRef = buildSecretRef(scope, ownerId, organizationId);
   const row = db
     .prepare(
       `SELECT last_verified_at AS lastVerifiedAt

@@ -6,6 +6,7 @@ import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
 import { detectEmailProvider } from "@/lib/email-providers";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
+import { getCurrentAuth } from "@/lib/auth/current";
 
 export type OnboardingState = {
   status: "idle" | "success" | "error";
@@ -70,12 +71,15 @@ export async function completeOnboardingAction(
     }
 
     const db = getDb();
+    const auth = await getCurrentAuth();
+    const organizationId = auth?.organization?.id ?? null;
 
     // 1) IMAP Credential + mail_account
     const imapSecretRef = await saveCredentialSecret({
       db,
       scope: "imap",
       ownerId: "primary",
+      organizationId,
       label: "Primary IMAP Password",
       secret: password,
     });
@@ -91,14 +95,14 @@ export async function completeOnboardingAction(
       db.prepare(
         `UPDATE mail_accounts
          SET host = ?, port = ?, secure = ?, username = ?, credential_ref_id = ?,
-           status = 'configured', updated_at = CURRENT_TIMESTAMP
+           status = 'configured', organization_id = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredential?.id ?? null, existingImap.id);
+      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredential?.id ?? null, organizationId, existingImap.id);
     } else {
       db.prepare(
-        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status)
-         VALUES ('Primary IMAP', ?, ?, ?, ?, ?, 'configured')`,
-      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredential?.id ?? null);
+        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
+         VALUES ('Primary IMAP', ?, ?, ?, ?, ?, 'configured', ?)`,
+      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredential?.id ?? null, organizationId);
     }
 
     // 2) SMTP Credential + smtp_account JSON
@@ -106,6 +110,7 @@ export async function completeOnboardingAction(
       db,
       scope: "smtp",
       ownerId: "primary",
+      organizationId,
       label: "Primary SMTP Password",
       secret: password,
     });

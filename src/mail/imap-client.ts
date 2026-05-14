@@ -24,6 +24,7 @@ export type PrimaryImapAccount = {
 export type ConfiguredImapAccount = PrimaryImapAccount & {
   label: ImapMailAccountLabel;
   credentialOwnerId: ImapCredentialOwnerId;
+  organizationId?: string | null;
 };
 
 export function listConfiguredImapAccounts(db: Database.Database = getDb()) {
@@ -31,13 +32,13 @@ export function listConfiguredImapAccounts(db: Database.Database = getDb()) {
   const labels = IMAP_MAIL_ACCOUNT_SLOTS.map((s) => s.label);
   const rows = db
     .prepare(
-      `SELECT id, label, host, port, secure, username
+      `SELECT id, label, host, port, secure, username, organization_id
        FROM mail_accounts
        WHERE label IN (${placeholders}) AND status = 'configured'
        ORDER BY id ASC`,
     )
     .all(...labels) as Array<
-    Omit<PrimaryImapAccount, "label"> & { label: string }
+    Omit<PrimaryImapAccount, "label"> & { label: string; organization_id: string | null }
   >;
 
   const ordered: ConfiguredImapAccount[] = [];
@@ -48,6 +49,7 @@ export function listConfiguredImapAccounts(db: Database.Database = getDb()) {
       ...row,
       label: row.label as ImapMailAccountLabel,
       credentialOwnerId: slot.ownerId,
+      organizationId: row.organization_id,
     });
   }
   return ordered;
@@ -62,9 +64,9 @@ export async function createImapClientForAccount(
     throw new Error("Unbekanntes IMAP-Postfach-Label.");
   }
 
-  const password = await readCredentialSecret({ scope: "imap", ownerId, db });
+  const password = await readCredentialSecret({ scope: "imap", ownerId, organizationId: account.organizationId, db });
   if (!password) {
-    throw new Error(`IMAP-Passwort fehlt im OS Secret Store (${account.label}).`);
+    throw new Error(`IMAP-Passwort fehlt im Secret Store (${account.label}).`);
   }
 
   return {
@@ -95,6 +97,7 @@ export async function createPrimaryImapClient(db: Database.Database = getDb()) {
 export async function verifyImapAccountConnection(
   slotOwnerId: ImapCredentialOwnerId,
   db: Database.Database = getDb(),
+  organizationId?: string | null,
 ) {
   const slot = IMAP_MAIL_ACCOUNT_SLOTS.find((entry) => entry.ownerId === slotOwnerId);
   if (!slot) {
@@ -103,17 +106,19 @@ export async function verifyImapAccountConnection(
 
   const account = db
     .prepare(
-      `SELECT id, label, host, port, secure, username
+      `SELECT id, label, host, port, secure, username, organization_id
        FROM mail_accounts
        WHERE label = ?
        ORDER BY id DESC
        LIMIT 1`,
     )
-    .get(slot.label) as ConfiguredImapAccount | undefined;
+    .get(slot.label) as (ConfiguredImapAccount & { organization_id?: string | null }) | undefined;
 
   if (!account) {
     throw new Error(`${slot.label} ist noch nicht konfiguriert.`);
   }
+
+  const resolvedOrganizationId = organizationId ?? account.organization_id ?? null;
 
   let createdClient: Awaited<ReturnType<typeof createImapClientForAccount>> | null = null;
 
@@ -123,6 +128,7 @@ export async function verifyImapAccountConnection(
         ...account,
         label: slot.label,
         credentialOwnerId: slot.ownerId,
+        organizationId: resolvedOrganizationId,
       },
       db,
     );
@@ -135,6 +141,7 @@ export async function verifyImapAccountConnection(
       db,
       scope: "imap",
       ownerId: slot.ownerId,
+      organizationId: resolvedOrganizationId,
       status: "configured",
     });
     db.prepare(
@@ -155,6 +162,7 @@ export async function verifyImapAccountConnection(
         db,
         scope: "imap",
         ownerId: slot.ownerId,
+        organizationId: resolvedOrganizationId,
         status: "invalid",
       });
       db.prepare(

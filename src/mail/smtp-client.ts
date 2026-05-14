@@ -16,6 +16,7 @@ export type SmtpVerifyResult = {
 
 export type SendInvoiceMailOptions = {
   smtpSlot: SmtpCredentialOwnerId;
+  organizationId?: string | null;
   to: string;
   vendorName: string;
   invoiceDate: string | null;
@@ -33,7 +34,7 @@ export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<
     throw new Error(`SMTP Postfach "${options.smtpSlot}" ist nicht konfiguriert.`);
   }
 
-  const password = await readCredentialSecret({ scope: "smtp", ownerId: options.smtpSlot, db: resolvedDb });
+  const password = await readCredentialSecret({ scope: "smtp", ownerId: options.smtpSlot, organizationId: options.organizationId, db: resolvedDb });
   if (!password) {
     throw new Error(`Kein Passwort für SMTP Postfach "${options.smtpSlot}" gefunden.`);
   }
@@ -97,6 +98,7 @@ export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<
 export async function verifySmtpAccountConnection(
   ownerId: SmtpCredentialOwnerId,
   db?: Database.Database,
+  organizationId?: string | null,
 ): Promise<SmtpVerifyResult> {
   const resolvedDb = db || getDb();
   const account = getStoredSmtpAccount(ownerId, resolvedDb);
@@ -104,7 +106,7 @@ export async function verifySmtpAccountConnection(
     throw new Error(`SMTP Postfach "${ownerId}" ist nicht konfiguriert.`);
   }
 
-  const password = await readCredentialSecret({ scope: "smtp", ownerId, db: resolvedDb });
+  const password = await readCredentialSecret({ scope: "smtp", ownerId, organizationId, db: resolvedDb });
   if (!password) {
     throw new Error(`Kein gespeichertes Passwort für SMTP Postfach "${ownerId}" gefunden.`);
   }

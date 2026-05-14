@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { appConfig } from "@/lib/config/env";
 import { getDb } from "@/lib/db/client";
 import { IMAP_MAIL_ACCOUNT_SLOTS } from "@/mail/imap-account-slots";
 import { SMTP_ACCOUNT_SLOTS } from "@/mail/smtp-account-slots";
@@ -24,7 +23,7 @@ import {
 import { writeJsonSetting } from "@/lib/db/settings-store";
 import { verifyLexofficeConnection, LexofficeApiError } from "@/lib/integrations/lexoffice-client";
 import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sevdesk-client";
-import { getCurrentAuth } from "@/lib/auth/current";
+import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
 import { updateUserName, updateUserProfile, invalidateAllOtherSessions } from "@/lib/auth/session";
 
 export type CredentialFormState = {
@@ -39,7 +38,6 @@ export async function saveMistralCredentialAction(
   void _previousState;
 
   try {
-    assertLocalSecretActionsAllowed();
     const apiKey = String(formData.get("mistralApiKey") || "").trim();
     if (apiKey.length < 16) {
       return { status: "error", message: "Bitte einen gültigen Mistral API Key eingeben." };
@@ -54,7 +52,7 @@ export async function saveMistralCredentialAction(
 
     revalidatePath("/");
     revalidatePath("/einstellungen");
-    return { status: "success", message: "Mistral API Key wurde im OS Secret Store gespeichert." };
+    return { status: "success", message: "Mistral API Key wurde im Secret Store gespeichert." };
   } catch (error) {
     return { status: "error", message: sanitizeCredentialError(error) };
   }
@@ -67,7 +65,7 @@ export async function saveImapCredentialAction(
   void _previousState;
 
   try {
-    assertLocalSecretActionsAllowed();
+    const auth = await requireCurrentAuth();
     const slotParam = String(formData.get("imapSlot") || "primary").trim();
     const slot = IMAP_MAIL_ACCOUNT_SLOTS.find((s) => s.ownerId === slotParam);
     if (!slot) {
@@ -85,6 +83,7 @@ export async function saveImapCredentialAction(
     }
 
     const db = getDb();
+    const organizationId = auth.organization?.id ?? null;
     const credentialLabel = slot.label === "Primary IMAP" ? "Primary IMAP Password" : "Secondary IMAP Password";
 
     let credentialRefId: number | null = null;
@@ -94,6 +93,7 @@ export async function saveImapCredentialAction(
         db,
         scope: "imap",
         ownerId: slot.ownerId,
+        organizationId,
         label: credentialLabel,
         secret: password,
       });
@@ -101,7 +101,7 @@ export async function saveImapCredentialAction(
         .prepare(`SELECT id FROM credential_refs WHERE secret_ref = ?`)
         .get(secretRef) as { id: number } | undefined;
       credentialRefId = credential?.id ?? null;
-    } else if (!hasStoredCredentialRef(db, "imap", slot.ownerId)) {
+    } else if (!hasStoredCredentialRef(db, "imap", slot.ownerId, organizationId)) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     } else {
       const existing = db.prepare(`SELECT credential_ref_id FROM mail_accounts WHERE label = ? LIMIT 1`).get(slot.label) as
@@ -118,21 +118,21 @@ export async function saveImapCredentialAction(
       db.prepare(
         `UPDATE mail_accounts
          SET host = ?, port = ?, secure = ?, username = ?, credential_ref_id = ?,
-           status = 'configured', updated_at = CURRENT_TIMESTAMP
+           status = 'configured', organization_id = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-      ).run(host, port, secure ? 1 : 0, username, credentialRefId, existingAccount.id);
+      ).run(host, port, secure ? 1 : 0, username, credentialRefId, organizationId, existingAccount.id);
     } else {
       db.prepare(
-        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, 'configured')`,
-      ).run(slot.label, host, port, secure ? 1 : 0, username, credentialRefId);
+        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
+         VALUES (?, ?, ?, ?, ?, ?, 'configured', ?)`,
+      ).run(slot.label, host, port, secure ? 1 : 0, username, credentialRefId, organizationId);
     }
 
     revalidatePath("/");
     revalidatePath("/einstellungen");
     return {
       status: "success",
-      message: `${slot.label}: Zugang wurde gespeichert. Das Passwort liegt im OS Secret Store.`,
+      message: `${slot.label}: Zugang wurde gespeichert. Das Passwort liegt im Secret Store.`,
     };
   } catch (error) {
     return { status: "error", message: sanitizeCredentialError(error) };
@@ -146,7 +146,7 @@ export async function saveSmtpCredentialAction(
   void _previousState;
 
   try {
-    assertLocalSecretActionsAllowed();
+    const auth = await requireCurrentAuth();
     const slotParam = String(formData.get("smtpSlot") || "primary").trim();
     const slot = SMTP_ACCOUNT_SLOTS.find((s) => s.ownerId === slotParam);
     if (!slot) {
@@ -165,16 +165,18 @@ export async function saveSmtpCredentialAction(
     }
 
     const db = getDb();
+    const organizationId = auth.organization?.id ?? null;
 
     if (password.trim()) {
       await saveCredentialSecret({
         db,
         scope: "smtp",
         ownerId: slot.ownerId,
+        organizationId,
         label: `${slot.label} Password`,
         secret: password,
       });
-    } else if (!hasStoredCredentialRef(db, "smtp", slot.ownerId)) {
+    } else if (!hasStoredCredentialRef(db, "smtp", slot.ownerId, organizationId)) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     }
 
@@ -184,7 +186,7 @@ export async function saveSmtpCredentialAction(
     revalidatePath("/einstellungen");
     return {
       status: "success",
-      message: `${slot.label}: Zugang gespeichert. Das Passwort liegt im OS Secret Store.`,
+      message: `${slot.label}: Zugang gespeichert. Das Passwort liegt im Secret Store.`,
     };
   } catch (error) {
     return { status: "error", message: sanitizeCredentialError(error) };
@@ -201,7 +203,7 @@ export async function saveMailboxCredentialsAction(
 ): Promise<CredentialFormState> {
   void _previousState;
   try {
-    assertLocalSecretActionsAllowed();
+    const auth = await requireCurrentAuth();
 
     const mailSlot   = (String(formData.get("mailSlot") || "primary") === "secondary" ? "secondary" : "primary") as "primary" | "secondary";
     const slotLabel  = mailSlot === "secondary" ? "Secondary IMAP" : "Primary IMAP";
@@ -223,6 +225,7 @@ export async function saveMailboxCredentialsAction(
     if (!Number.isInteger(smtpPort) || smtpPort <= 0) return { status: "error", message: "Ungültiger SMTP-Port." };
 
     const db = getDb();
+    const organizationId = auth.organization?.id ?? null;
 
     // ── 1) IMAP credential + mail_account ─────────────────────────────────────
     let imapCredRefId: number | null = null;
@@ -231,6 +234,7 @@ export async function saveMailboxCredentialsAction(
         db,
         scope: "imap",
         ownerId: mailSlot,
+        organizationId,
         label: slotPwd,
         secret: password,
       });
@@ -238,7 +242,7 @@ export async function saveMailboxCredentialsAction(
         .prepare(`SELECT id FROM credential_refs WHERE secret_ref = ?`)
         .get(secretRef) as { id: number } | undefined;
       imapCredRefId = cred?.id ?? null;
-    } else if (!hasStoredCredentialRef(db, "imap", mailSlot)) {
+    } else if (!hasStoredCredentialRef(db, "imap", mailSlot, organizationId)) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     } else {
       const existing = db
@@ -255,14 +259,14 @@ export async function saveMailboxCredentialsAction(
       db.prepare(
         `UPDATE mail_accounts
            SET host = ?, port = ?, secure = ?, username = ?, credential_ref_id = ?,
-               status = 'configured', updated_at = CURRENT_TIMESTAMP
+               status = 'configured', organization_id = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredRefId, existingImap.id);
+      ).run(imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredRefId, organizationId, existingImap.id);
     } else {
       db.prepare(
-        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, 'configured')`,
-      ).run(slotLabel, imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredRefId);
+        `INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
+         VALUES (?, ?, ?, ?, ?, ?, 'configured', ?)`,
+      ).run(slotLabel, imapHost, imapPort, imapSecure ? 1 : 0, email, imapCredRefId, organizationId);
     }
 
     // ── 2) SMTP credential + smtp_account ─────────────────────────────────────
@@ -271,10 +275,11 @@ export async function saveMailboxCredentialsAction(
         db,
         scope: "smtp",
         ownerId: mailSlot,
+        organizationId,
         label: slotSmtpPwd,
         secret: password,
       });
-    } else if (!hasStoredCredentialRef(db, "smtp", mailSlot)) {
+    } else if (!hasStoredCredentialRef(db, "smtp", mailSlot, organizationId)) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein SMTP-Passwort gespeichert)." };
     }
 
@@ -425,18 +430,10 @@ export async function saveExportTargetAction(
   }
 }
 
-function assertLocalSecretActionsAllowed() {
-  const host = appConfig.host;
-  if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
-    throw new Error("Secret-Aktionen sind nur bei lokaler Serverbindung erlaubt.");
-  }
-}
-
 function sanitizeCredentialError(error: unknown) {
   const message = error instanceof Error ? error.message : "Credential konnte nicht gespeichert werden.";
   if (
-    message.includes("OS Secret Store") ||
-    message.includes("lokaler Serverbindung") ||
+    message.includes("Secret Store") ||
     message.includes("fehl") ||
     message.includes("nicht konfiguriert") ||
     message.includes("IMAP") ||
@@ -539,7 +536,6 @@ export async function saveLexofficeApiKeyAction(
 ): Promise<IntegrationFormState> {
   void _previousState;
   try {
-    assertLocalSecretActionsAllowed();
     const apiKey = String(formData.get("apiKey") || "").trim();
     if (apiKey.length < 16) {
       return { status: "error", message: "API-Key sieht zu kurz aus (min. 16 Zeichen)." };
@@ -588,7 +584,6 @@ export async function saveSevdeskApiKeyAction(
 ): Promise<IntegrationFormState> {
   void _previousState;
   try {
-    assertLocalSecretActionsAllowed();
     const apiKey = String(formData.get("apiKey") || "").trim();
     if (apiKey.length < 16) {
       return { status: "error", message: "API-Key sieht zu kurz aus (min. 16 Zeichen)." };
