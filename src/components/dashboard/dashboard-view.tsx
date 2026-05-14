@@ -299,17 +299,24 @@ export async function DashboardView() {
             </div>
 
             {/* Filtered this month */}
-            <div
-              className="hidden md:block md:mt-0 md:border-r md:border-line md:px-6 cursor-help"
-              title="Spam, Newsletter, Duplikate — nicht weitergeleitet."
-            >
-              <div className="font-display text-xl text-ink sm:text-2xl stat-num sm:text-3xl">
-                {secondary.filteredThisMonth > 0
-                  ? <>{secondary.filteredThisMonth} <span className="text-lg text-muted">gefiltert</span></>
-                  : "0 gefiltert"}
+            {secondary.filteredThisMonth > 0 ? (
+              <div
+                className="hidden md:block md:mt-0 md:border-r md:border-line md:px-6 cursor-help"
+                title="Spam, Newsletter, Duplikate — nicht weitergeleitet."
+              >
+                <div className="font-display text-xl text-ink sm:text-2xl stat-num sm:text-3xl">
+                  {secondary.filteredThisMonth} <span className="text-lg text-muted">gefiltert</span>
+                </div>
+                <div className="mt-1 text-xs text-muted">Spam · Duplikate · Newsletter</div>
               </div>
-              <div className="mt-1 text-xs text-muted">Spam · Duplikate · Newsletter</div>
-            </div>
+            ) : (
+              <div
+                className="hidden md:flex md:items-center md:border-r md:border-line md:px-6 cursor-help"
+                title="Infetch filtert Spam, Newsletter und Duplikate automatisch heraus. Diesen Monat noch nichts gefiltert."
+              >
+                <span className="text-muted/40 text-sm select-none">∅</span>
+              </div>
+            )}
 
             {/* Forecast rest of month */}
             <Link
