@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/status/status-badge";
 import { VendorLogo } from "@/components/ui/vendor-logo";
+import { sql } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,9 @@ function planLabel(tier: string, priceEur: number) {
 
 export default async function KontoPage() {
   const auth = await getCurrentAuth();
-  const [invoiceYears, vendors, userOrgs, orgMembers, pendingInvitations, activeSessions, profileFields, tier] = await Promise.all([
+  const orgId = auth?.organization?.id ?? null;
+
+  const [invoiceYears, vendors, userOrgs, orgMembers, pendingInvitations, activeSessions, profileFields, tier, orgRow] = await Promise.all([
     getInvoiceYears(),
     getVendors(),
     auth ? loadUserOrganizations(auth.user.id) : Promise.resolve([]),
@@ -29,8 +32,13 @@ export default async function KontoPage() {
     auth?.organization ? loadPendingInvitations(auth.organization.id) : Promise.resolve([]),
     auth ? loadActiveSessions(auth.user.id) : Promise.resolve([]),
     auth ? getUserProfileFields(auth.user.id) : Promise.resolve(null),
-    getOrgTier(auth?.organization?.id ?? null),
+    getOrgTier(orgId),
+    orgId
+      ? sql<{ stripe_customer_id: string | null }[]>`SELECT stripe_customer_id FROM organizations WHERE id = ${orgId} LIMIT 1`.catch(() => [] as { stripe_customer_id: string | null }[])
+      : Promise.resolve([] as { stripe_customer_id: string | null }[]),
   ]);
+
+  const hasStripeCustomer = Boolean((orgRow as { stripe_customer_id: string | null }[])[0]?.stripe_customer_id);
 
   const isPro = tier !== "free";
   const limits = getLimits(tier);
@@ -113,7 +121,7 @@ export default async function KontoPage() {
         </Card>
 
         {/* 4 ── Abrechnung ──────────────────────────────────────────────────── */}
-        <BillingCard tier={tier} limits={limits} />
+        <BillingCard tier={tier} limits={limits} hasStripeCustomer={hasStripeCustomer} />
 
         {/* 5 ── Sicherheit ──────────────────────────────────────────────────── */}
         <Card padding="lg">

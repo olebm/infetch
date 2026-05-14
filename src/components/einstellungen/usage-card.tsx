@@ -69,10 +69,11 @@ function UsageBar({ label, current, max, formatCurrent, formatMax, unit }: Usage
 
 type Props = {
   organizationId: string | null | undefined;
+  /** @deprecated Wird nicht mehr genutzt — Checkout läuft über /api/stripe/checkout */
   stripePaymentLinkPro?: string | null;
 };
 
-export async function UsageCard({ organizationId, stripePaymentLinkPro }: Props) {
+export async function UsageCard({ organizationId }: Props) {
   const tier   = await getOrgTier(organizationId);
   const limits = getLimits(tier);
 
@@ -146,18 +147,16 @@ export async function UsageCard({ organizationId, stripePaymentLinkPro }: Props)
               <PlanRow label="DATEV-Export" freeNo proOk />
             </tbody>
           </table>
-          {stripePaymentLinkPro && (
-            <div className="mt-4">
-              <a
-                href={stripePaymentLinkPro}
-                target="_blank"
-                rel="noopener noreferrer"
+          <div className="mt-4">
+            <form action="/api/stripe/checkout" method="post">
+              <button
+                type="submit"
                 className="block w-full rounded-md bg-brand py-2 text-center text-xs font-semibold text-white hover:bg-brand/90 transition-colors"
               >
                 Upgrade auf Pro
-              </a>
-            </div>
-          )}
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </Card>

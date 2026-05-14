@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, X as XIcon, Zap } from "lucide-react";
+import { useState } from "react";
+import { Check, X as XIcon, Zap, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useUpgrade } from "@/components/providers/upgrade-provider";
 
@@ -30,7 +31,30 @@ function Cell({ value, isPro }: { value: string | "check" | "x"; isPro: boolean 
 }
 
 export function UpgradeModal() {
-  const { open, closeModal, stripeLink, feature } = useUpgrade();
+  const { open, closeModal, stripeConfigured, feature } = useUpgrade();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleUpgrade() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      if (res.redirected) {
+        window.location.href = res.url;
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Unbekannter Fehler");
+      }
+      // Fallback: sollte bei 303 nicht vorkommen
+      window.location.href = "/einstellungen";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fehler beim Öffnen von Stripe.");
+      setLoading(false);
+    }
+  }
 
   return (
     <Modal open={open} onClose={closeModal} title="Upgrade auf Pro" size="sm">
@@ -59,24 +83,34 @@ export function UpgradeModal() {
         </tbody>
       </table>
 
+      {error && (
+        <p className="mt-3 rounded border border-danger/20 bg-danger-soft px-3 py-2 text-xs text-danger">
+          {error}
+        </p>
+      )}
+
       <div className="mt-5 space-y-2">
-        {stripeLink ? (
-          <a
-            href={stripeLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-brand py-2.5 text-sm font-semibold text-white hover:bg-brand/90 transition-colors"
+        {stripeConfigured ? (
+          <button
+            type="button"
+            onClick={handleUpgrade}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-brand py-2.5 text-sm font-semibold text-white hover:bg-brand/90 transition-colors disabled:opacity-60"
           >
-            <Zap className="h-4 w-4" aria-hidden />
-            Pro für €19 / Monat
-          </a>
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Zap className="h-4 w-4" aria-hidden />
+            )}
+            Pro wählen — 19&nbsp;€ / Monat
+          </button>
         ) : (
           <a
             href="mailto:hallo@infetch.de?subject=Pro-Plan"
             className="flex w-full items-center justify-center gap-2 rounded-md bg-brand py-2.5 text-sm font-semibold text-white hover:bg-brand/90 transition-colors"
           >
             <Zap className="h-4 w-4" aria-hidden />
-            Pro anfragen — €19 / Monat
+            Pro anfragen — 19&nbsp;€ / Monat
           </a>
         )}
         <button

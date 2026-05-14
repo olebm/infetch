@@ -253,8 +253,6 @@ export default async function SetupPage() {
     { key: "ki",            label: "KI & Auto-Pilot", content: aiTab            },
   ];
 
-  const stripePaymentLinkPro = process.env.STRIPE_PAYMENT_LINK_PRO ?? null;
-
   return (
     <div className="screen-enter screen-enter-active">
       <PageHeader
@@ -263,10 +261,7 @@ export default async function SetupPage() {
       />
       <Tabs tabs={tabs} defaultKey="buchhaltung" />
       <div className="mt-4">
-        <UsageCard
-          organizationId={auth?.organization?.id}
-          stripePaymentLinkPro={stripePaymentLinkPro}
-        />
+        <UsageCard organizationId={auth?.organization?.id} />
       </div>
     </div>
   );

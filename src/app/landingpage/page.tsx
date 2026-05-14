@@ -4,25 +4,22 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ContactModal } from "@/components/ui/contact-modal";
+import { VendorLogo } from "@/components/ui/vendor-logo";
 
-// ─── Logo tile helper ─────────────────────────────────────────────────────────
+// ─── Tooltip helper ───────────────────────────────────────────────────────────
 
-function LogoImg({ domain, alt }: { domain: string; alt: string }) {
-  const initial = (alt || domain)[0]?.toUpperCase() ?? "?";
+function Tip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <img
-      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`}
-      alt={alt}
-      referrerPolicy="no-referrer"
-      style={{ width: "70%", height: "70%", objectFit: "contain" }}
-      onError={(e) => {
-        const img = e.currentTarget;
-        const tile = img.parentElement;
-        if (tile) {
-          tile.innerHTML = `<span style="font-size:12px;color:#7a7a76;font-weight:500">${initial}</span>`;
-        }
-      }}
-    />
+    <span className="relative group/tip inline-flex">
+      {children}
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                       rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug
+                       whitespace-nowrap opacity-0 group-hover/tip:opacity-100
+                       transition-opacity duration-150 z-50 shadow-pop">
+        {label}
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-ink" />
+      </span>
+    </span>
   );
 }
 
@@ -59,6 +56,9 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-ink">FAQ</a>
           </nav>
           <div className="flex items-center gap-2 ml-auto">
+            <Link href="/login" className="hidden md:inline-flex h-9 px-4 text-sm items-center rounded border border-line text-ink hover:bg-surface transition-colors">
+              Kostenlos starten
+            </Link>
             <Link href="/login" className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
               Anmelden
             </Link>
@@ -73,10 +73,12 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-16 md:pt-24 pb-12 md:pb-20 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
 
           <div className="reveal">
-            <div className="inline-flex items-center gap-2 text-xs text-ok">
-              <span className="w-1.5 h-1.5 rounded-full bg-ok pulse-dot"></span>
-              Auto-Pilot · scannt jetzt
-            </div>
+            <Tip label="Scannt dein Postfach alle 5 Minuten nach neuen Rechnungen">
+              <div className="inline-flex items-center gap-2 text-xs text-ok cursor-default">
+                <span className="w-1.5 h-1.5 rounded-full bg-ok pulse-dot"></span>
+                Auto-Pilot · scannt jetzt
+              </div>
+            </Tip>
             <h1 className="mt-5 font-display text-5xl md:text-6xl lg:text-7xl text-ink leading-[1.02] max-w-[18ch]">
               Rechnungen, die sich <span className="accent">selbst</span> weiterleiten.
             </h1>
@@ -92,9 +94,15 @@ export default function LandingPage() {
               </a>
             </div>
             <div className="mt-8 flex items-center gap-6 text-xs text-muted">
-              <div className="flex items-center gap-2"><span className="text-ink stat-num">≈ 4 Min</span> Einrichtung</div>
-              <div className="flex items-center gap-2"><span className="text-ink stat-num">DSGVO</span> · EU-Server</div>
-              <div className="flex items-center gap-2"><span className="text-ink stat-num">KI</span> · automatisch</div>
+              <Tip label="Postfach verbinden, Empfänger eintragen — fertig.">
+                <div className="flex items-center gap-2 cursor-default"><span className="text-ink stat-num">≈ 4 Min</span> Einrichtung</div>
+              </Tip>
+              <Tip label="Daten auf Hetzner Frankfurt · AVV inklusive">
+                <div className="flex items-center gap-2 cursor-default"><span className="text-ink stat-num">DSGVO</span> · EU-Server</div>
+              </Tip>
+              <Tip label="Erkennt Anbieter, Betrag & Steuersatz automatisch">
+                <div className="flex items-center gap-2 cursor-default"><span className="text-ink stat-num">KI</span> · automatisch</div>
+              </Tip>
             </div>
           </div>
 
@@ -107,53 +115,58 @@ export default function LandingPage() {
               </div>
 
               <ul className="px-2 pb-3">
-                <li className="row-hover px-3 py-3 flex items-center gap-3 border-b border-line">
-                  <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="hetzner.com" alt="Hetzner" /></div>
+                <li className="row-hover px-3 py-3 flex items-center gap-4 border-b border-line">
+                  <VendorLogo domain="hetzner.com" name="Hetzner" size={36} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink truncate">Hetzner Online · Rechnung 2026-05</div>
-                    <div className="text-xs text-muted stat-num">09:14 · 27,55 €</div>
+                    <div className="text-sm font-medium text-ink truncate">Hetzner Online · Rechnung 2026-05</div>
+                    <div className="mt-0.5 text-xs text-muted stat-num">09:14 · 27,55 €</div>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 text-xs text-ok">
-                    <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>versendet
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
+                    <span className="text-xs text-muted">verschickt</span>
                   </span>
                 </li>
 
-                <li className="row-hover px-3 py-3 flex items-center gap-3 border-b border-line">
-                  <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="adobe.com" alt="Adobe" /></div>
+                <li className="row-hover px-3 py-3 flex items-center gap-4 border-b border-line">
+                  <VendorLogo domain="adobe.com" name="Adobe" size={36} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink truncate">Adobe Systems · Creative Cloud</div>
-                    <div className="text-xs text-muted stat-num">11:02 · 77,99 €</div>
+                    <div className="text-sm font-medium text-ink truncate">Adobe Systems · Creative Cloud</div>
+                    <div className="mt-0.5 text-xs text-muted stat-num">11:02 · 77,99 €</div>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 text-xs text-ok">
-                    <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>versendet
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
+                    <span className="text-xs text-muted">verschickt</span>
                   </span>
                 </li>
 
                 {/* ANIMATED ROW */}
-                <li className="px-3 py-3 flex items-center gap-3 border-b border-line anim-row">
-                  <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="telekom.de" alt="Telekom" /></div>
+                <li className="px-3 py-3 flex items-center gap-4 border-b border-line anim-row">
+                  <VendorLogo domain="telekom.de" name="Telekom" size={36} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink truncate">Telekom Deutschland · Festnetz & Internet</div>
-                    <div className="text-xs text-muted stat-num">jetzt · 44,95 €</div>
+                    <div className="text-sm font-medium text-ink truncate">Telekom Deutschland · Festnetz & Internet</div>
+                    <div className="mt-0.5 text-xs text-muted stat-num">jetzt · 44,95 €</div>
                   </div>
                   <div className="relative" style={{ minWidth: "72px", height: "20px" }}>
-                    <span className="anim-badge absolute inset-0 inline-flex items-center justify-end gap-1.5 text-xs text-ink whitespace-nowrap">
-                      <span className="w-1.5 h-1.5 rounded-full bg-warn-vivid shrink-0"></span>erkannt
+                    <span className="anim-badge absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-warn-vivid"></span>
+                      <span className="text-xs text-muted">erkannt</span>
                     </span>
-                    <span className="anim-sent absolute inset-0 inline-flex items-center justify-end gap-1.5 text-xs text-ok whitespace-nowrap">
-                      <span className="w-1.5 h-1.5 rounded-full bg-ok shrink-0"></span>versendet
+                    <span className="anim-sent absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
+                      <span className="text-xs text-muted">verschickt</span>
                     </span>
                   </div>
                 </li>
 
-                <li className="row-hover px-3 py-3 flex items-center gap-3">
-                  <div className="h-8 w-8 logo-tile rounded"><LogoImg domain="canva.com" alt="Canva" /></div>
+                <li className="row-hover px-3 py-3 flex items-center gap-4">
+                  <VendorLogo domain="canva.com" name="Canva" size={36} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink truncate">Canva Pty Ltd · Pro Plan</div>
-                    <div className="text-xs text-muted stat-num">gestern · 14,99 €</div>
+                    <div className="text-sm font-medium text-ink truncate">Canva Pty Ltd · Pro Plan</div>
+                    <div className="mt-0.5 text-xs text-muted stat-num">gestern · 14,99 €</div>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 text-xs text-ok">
-                    <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>versendet
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
+                    <span className="text-xs text-muted">verschickt</span>
                   </span>
                 </li>
               </ul>
@@ -173,31 +186,48 @@ export default function LandingPage() {
       <section className="border-y border-line bg-paper">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-10">
           <div className="text-[11px] uppercase tracking-[0.14em] text-muted text-center mb-7">
-            Versteht Rechnungen von
+            Erkennt Rechnungen von
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 md:gap-x-16">
             {[
-              { domain: "stripe.com",     alt: "Stripe"     },
-              { domain: "adobe.com",      alt: "Adobe"      },
-              { domain: "hetzner.com",    alt: "Hetzner"    },
               { domain: "telekom.de",     alt: "Telekom"    },
-              { domain: "figma.com",      alt: "Figma"      },
               { domain: "microsoft.com",  alt: "Microsoft"  },
-              { domain: "zoom.us",        alt: "Zoom"       },
+              { domain: "adobe.com",      alt: "Adobe"      },
+              { domain: "canva.com",      alt: "Canva"      },
+              { domain: "amazon.de",      alt: "Amazon"     },
+              { domain: "figma.com",      alt: "Figma"      },
+              { domain: "hetzner.com",    alt: "Hetzner"    },
             ].map(({ domain, alt }) => (
-              <div key={domain} className="h-7 flex items-center">
-                <img
-                  src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`}
-                  alt={alt}
-                  referrerPolicy="no-referrer"
-                  className="h-7 w-auto object-contain opacity-80"
-                />
-              </div>
+              <Tip key={domain} label={alt}>
+                <div className="h-7 flex items-center cursor-default">
+                  <img
+                    src={`https://www.google.com/s2/favicons?domain=${domain}&sz=128`}
+                    alt={alt}
+                    referrerPolicy="no-referrer"
+                    className="h-7 w-auto object-contain opacity-80"
+                  />
+                </div>
+              </Tip>
             ))}
           </div>
           <div className="mt-6 text-center text-xs text-muted">
             Und alle weiteren — die KI erkennt jeden Anbieter automatisch.
           </div>
+        </div>
+      </section>
+
+      {/* ================================================================== */}
+      {/* PROBLEM FRAME                                                       */}
+      {/* ================================================================== */}
+      <section className="py-14 md:py-20">
+        <div className="max-w-[860px] mx-auto px-6 md:px-8 text-center reveal">
+          <p className="font-display text-2xl md:text-3xl text-ink leading-snug max-w-2xl mx-auto">
+            Jede Rechnung kommt von einer anderen Adresse, in einem anderen Format, in einem anderen Postfach.
+          </p>
+          <p className="mt-5 text-muted leading-relaxed max-w-xl mx-auto">
+            Selbstständige und kleine Teams verbringen Stunden damit, Belege zusammenzusuchen — manuell, jeden Monat, aufs Neue.
+            Infetch macht das automatisch.
+          </p>
         </div>
       </section>
 
@@ -224,7 +254,7 @@ export default function LandingPage() {
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
-                  <div className="h-6 w-6 logo-tile rounded"><LogoImg domain="google.com" alt="Gmail" /></div>
+                  <VendorLogo domain="google.com" name="Gmail" size={24}/>
                   <div className="text-xs text-ink">kontakt@beispiel.de</div>
                   <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-ok">
                     <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>verbunden
@@ -239,13 +269,14 @@ export default function LandingPage() {
               <div className="text-xs text-muted stat-num">02</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Wir erkennen</h3>
               <p className="mt-2 text-muted leading-relaxed min-h-[3.5rem]">
-                KI liest Anbieter, Betrag, Steuersatz. Unsichere Fälle fragen nach.
+                KI liest Anbieter, Betrag, Steuersatz. Unsichere Fälle fragen nach.{" "}
+                <span className="text-ink/70">Nur Anhänge — nie der Mail-Text.</span>
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
-                  <div className="h-6 w-6 logo-tile rounded"><LogoImg domain="adobe.com" alt="Adobe" /></div>
+                  <VendorLogo domain="adobe.com" name="Adobe" size={24}/>
                   <div className="text-xs text-ink truncate">Adobe · Creative Cloud</div>
-                  <span className="ml-auto text-[11px] text-ink stat-num">71,98 €</span>
+                  <span className="ml-auto text-[11px] text-ink stat-num">77,99 €</span>
                 </div>
                 <div className="px-4 py-3 flex items-center justify-between text-xs">
                   <span className="text-muted">Konfidenz</span>
@@ -259,7 +290,8 @@ export default function LandingPage() {
               <div className="text-xs text-muted stat-num">03</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Automatisch weiter</h3>
               <p className="mt-2 text-muted leading-relaxed min-h-[3.5rem]">
-                PDF geht an deinen Buchhaltungs-Empfänger. Du machst nichts.
+                PDF geht an deinen Buchhaltungs-Empfänger. Du machst nichts.{" "}
+                <span className="text-ink/70">Du siehst jeden Schritt im Audit-Log.</span>
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -308,11 +340,11 @@ export default function LandingPage() {
                     { domain: "microsoft.com", name: "Microsoft Corporation", count: "4 Rechnungen · monatlich",  sum: "250,00 €" },
                     { domain: "adobe.com",     name: "Adobe Systems",        count: "5 Rechnungen · monatlich",  sum: "389,95 €" },
                   ].map(({ domain, name, count, sum }) => (
-                    <li key={domain} className="px-4 py-3 flex items-center gap-3 row-hover">
-                      <div className="h-9 w-9 logo-tile rounded"><LogoImg domain={domain} alt={name} /></div>
+                    <li key={domain} className="px-4 py-3 flex items-center gap-4 row-hover">
+                      <VendorLogo domain={domain} name={name} size={36} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-ink">{name}</div>
-                        <div className="text-[11px] text-muted stat-num">{count}</div>
+                        <div className="text-sm font-medium text-ink truncate">{name}</div>
+                        <div className="mt-0.5 text-xs text-muted stat-num">{count}</div>
                       </div>
                       <div className="text-sm text-ink stat-num">{sum}</div>
                     </li>
@@ -328,11 +360,11 @@ export default function LandingPage() {
                 Ein Klick auf „privat" — Anbieter oder Mail landet nie in der Buchhaltung.
               </p>
               <div className="mt-6 mock-window">
-                <div className="px-4 py-3 border-b border-line flex items-center gap-3">
-                  <div className="h-9 w-9 logo-tile rounded"><LogoImg domain="spotify.com" alt="Spotify" /></div>
+                <div className="px-4 py-3 border-b border-line flex items-center gap-4">
+                  <VendorLogo domain="spotify.com" name="Spotify" size={36} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink">Spotify · Premium Familie</div>
-                    <div className="text-[11px] text-muted stat-num">spotify.com · 9,99 €</div>
+                    <div className="text-sm font-medium text-ink truncate">Spotify · Premium Familie</div>
+                    <div className="mt-0.5 text-xs text-muted stat-num">spotify.com · 9,99 €</div>
                   </div>
                 </div>
                 <div className="px-4 py-3 flex flex-col gap-2">
@@ -361,11 +393,11 @@ export default function LandingPage() {
                     { domain: "figma.com",  name: "Figma Inc.",          expect: "erwartet 12. Mai · 45,00 €", label: "heute fällig",  cls: "text-muted" },
                     { domain: "zoom.us",    name: "Zoom Video Comm.",    expect: "erwartet 14. Mai · 13,99 €", label: "in 2 Tagen",   cls: "text-muted" },
                   ].map(({ domain, name, expect, label, cls }) => (
-                    <li key={domain} className="px-4 py-3 flex items-center gap-3 row-hover">
-                      <div className="h-9 w-9 logo-tile rounded"><LogoImg domain={domain} alt={name} /></div>
+                    <li key={domain} className="px-4 py-3 flex items-center gap-4 row-hover">
+                      <VendorLogo domain={domain} name={name} size={36} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-ink">{name}</div>
-                        <div className="text-[11px] text-muted stat-num">{expect}</div>
+                        <div className="text-sm font-medium text-ink truncate">{name}</div>
+                        <div className="mt-0.5 text-xs text-muted stat-num">{expect}</div>
                       </div>
                       <span className={`text-xs ${cls}`}>{label}</span>
                     </li>
@@ -419,12 +451,13 @@ export default function LandingPage() {
 
             <dl className="grid grid-cols-2 gap-y-8 gap-x-8">
               {[
-                { label: "Standort",         value: "EU · Frankfurt",    detail: "Hetzner · ISO 27001"          },
-                { label: "Verschlüsselung",  value: "AES-256",           detail: "at rest · in transit"         },
-                { label: "DSGVO",            value: "AVV inklusive",     detail: "Art. 28 DSGVO"                },
-                { label: "Postfach-Zugriff", value: "OAuth · IMAP",      detail: "jederzeit widerrufbar"        },
-                { label: "Datenhaltung",     value: "nur Belege",        detail: "Mail-Body wird verworfen"     },
-                { label: "Audit-Log",        value: "vollständig",       detail: "jede Aktion nachvollziehbar"  },
+                { label: "Standort",           value: "EU · Frankfurt",    detail: "Hetzner · ISO 27001"          },
+                { label: "Verschlüsselung",    value: "AES-256",           detail: "at rest · in transit"         },
+                { label: "DSGVO",              value: "AVV inklusive",     detail: "Art. 28 DSGVO"                },
+                { label: "Postfach-Zugriff",   value: "OAuth · IMAP",      detail: "jederzeit widerrufbar"        },
+                { label: "Datenhaltung",       value: "nur Belege",        detail: "Mail-Body wird verworfen"     },
+                { label: "Audit-Log",          value: "vollständig",       detail: "jede Aktion nachvollziehbar"  },
+                { label: "KI-Training",        value: "keine",             detail: "Deine Daten trainieren nichts" },
               ].map(({ label, value, detail }) => (
                 <div key={label}>
                   <dt className="text-xs text-muted">{label}</dt>
@@ -433,6 +466,11 @@ export default function LandingPage() {
                 </div>
               ))}
             </dl>
+            <div className="mt-8">
+              <Link href="/datenschutz" className="text-sm ul-link text-muted hover:text-ink">
+                Datenschutzerklärung lesen
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -459,11 +497,13 @@ export default function LandingPage() {
                   { domain: "icloud.com",  label: "Apple iCloud"      },
                   { domain: null,          label: "IMAP (universal)"  },
                 ].map(({ domain, label }) => (
-                  <li key={label} title={label} className="h-12 w-12 logo-tile rounded-xl flex items-center justify-center cursor-default">
-                    {domain
-                      ? <LogoImg domain={domain} alt={label} />
-                      : <span className="text-sm text-muted font-medium">@</span>}
-                  </li>
+                  <Tip key={label} label={label}>
+                    <li className="h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
+                      {domain
+                        ? <VendorLogo domain={domain} name={label} size={48} />
+                        : <span className="text-sm text-muted font-medium">@</span>}
+                    </li>
+                  </Tip>
                 ))}
               </ul>
             </div>
@@ -480,11 +520,13 @@ export default function LandingPage() {
                   { domain: "candis.io",      label: "Candis"              },
                   { domain: null,             label: "Beliebige E-Mail"    },
                 ].map(({ domain, label }) => (
-                  <li key={label} title={label} className="h-12 w-12 logo-tile rounded-xl flex items-center justify-center cursor-default">
-                    {domain
-                      ? <LogoImg domain={domain} alt={label} />
-                      : <span className="text-sm text-muted font-medium">@</span>}
-                  </li>
+                  <Tip key={label} label={label}>
+                    <li className="h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
+                      {domain
+                        ? <VendorLogo domain={domain} name={label} size={48} />
+                        : <span className="text-sm text-muted font-medium">@</span>}
+                    </li>
+                  </Tip>
                 ))}
               </ul>
               <p className="mt-4 text-xs text-muted">Dein Tool fehlt? Per E-Mail funktioniert immer.</p>
@@ -524,7 +566,7 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>500 MB Speicher</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>E-Mail-Support</li>
               </ul>
-              <Link href="/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg border border-line text-sm text-ink hover:bg-surface">
+              <Link href="/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg border border-ink/30 text-sm text-ink hover:bg-surface">
                 Kostenlos starten
               </Link>
             </div>
@@ -550,7 +592,7 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>Prioritäts-Support</li>
               </ul>
               <Link href="/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg bg-ink text-white text-sm font-medium hover:opacity-90">
-                Jetzt Pro testen
+                Pro wählen
               </Link>
             </div>
           </div>
@@ -655,13 +697,11 @@ export default function LandingPage() {
               <li><a href="#how" className="hover:text-muted">Wie es funktioniert</a></li>
               <li><a href="#features" className="hover:text-muted">Funktionen</a></li>
               <li><a href="#preise" className="hover:text-muted">Preise</a></li>
-              <li><a href="/changelog" className="hover:text-muted">Changelog</a></li>
             </ul>
           </div>
           <div>
             <div className="text-xs uppercase tracking-[0.14em] text-muted">Unternehmen</div>
             <ul className="mt-3 space-y-2 text-sm text-ink">
-              <li><a href="/ueber-uns" className="hover:text-muted">Über uns</a></li>
               <li><button type="button" onClick={() => setContactOpen(true)} className="hover:text-muted">Kontakt</button></li>
               <li><a href="https://status.infetch.de" className="hover:text-muted" target="_blank" rel="noopener">Status</a></li>
             </ul>
@@ -680,6 +720,7 @@ export default function LandingPage() {
           <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-5 text-xs text-muted flex flex-col md:flex-row gap-2 md:gap-6">
             <div>© 2026 Infetch GmbH</div>
             <button type="button" onClick={() => setContactOpen(true)} className="hover:text-ink transition-colors">hallo@infetch.de</button>
+            <div className="md:ml-auto">Alle Markennamen und Logos sind Eigentum der jeweiligen Inhaber.</div>
           </div>
         </div>
       </footer>

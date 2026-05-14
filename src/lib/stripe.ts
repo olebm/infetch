@@ -1,22 +1,44 @@
 /**
- * Stripe-Stub — generiert Checkout-URLs aus env-Variablen.
+ * Stripe — Server-side client + helpers.
  *
- * Echte Stripe-Integration (server-side checkout session create) kommt mit
- * dem ersten zahlenden Kunden. Bis dahin sind PRICE_LINK_PRO/TEAM einfach
- * Stripe Payment-Links (https://buy.stripe.com/...).
+ * Verwendung:
+ *   import { getStripeClient, isStripeConfigured } from "@/lib/stripe";
+ *   const stripe = getStripeClient();            // throws wenn STRIPE_SECRET_KEY fehlt
+ *   const stripe = getStripeClientOrNull();     // null wenn nicht konfiguriert
  */
 
-import type { Tier } from "@/lib/tier";
+import Stripe from "stripe";
+import { appConfig } from "@/lib/config/env";
 
 export type CheckoutTarget = "pro";
 
-export function getCheckoutUrl(_target: CheckoutTarget): string | null {
-  const url = process.env.STRIPE_PAYMENT_LINK_PRO?.trim();
-  if (!url) return null;
-  if (!url.startsWith("https://")) return null;
-  return url;
+// ── Client factory ─────────────────────────────────────────────────────────────
+
+let _client: Stripe | null = null;
+
+export function getStripeClientOrNull(): Stripe | null {
+  if (_client) return _client;
+  const key = appConfig.stripe.secretKey;
+  if (!key) return null;
+  _client = new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
+  return _client;
+}
+
+export function getStripeClient(): Stripe {
+  const client = getStripeClientOrNull();
+  if (!client) throw new Error("STRIPE_SECRET_KEY not configured");
+  return client;
 }
 
 export function isStripeConfigured(): boolean {
-  return Boolean(getCheckoutUrl("pro"));
+  return Boolean(appConfig.stripe.secretKey && appConfig.stripe.priceIdPro);
+}
+
+// ── Price ID → Tier ───────────────────────────────────────────────────────────
+
+export function tierFromPriceId(priceId: string | null | undefined): "pro" | "business" | null {
+  if (!priceId) return null;
+  if (priceId === appConfig.stripe.priceIdPro) return "pro";
+  if (priceId === appConfig.stripe.priceIdBusiness) return "business";
+  return null;
 }

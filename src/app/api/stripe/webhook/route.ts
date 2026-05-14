@@ -20,27 +20,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
+import type Stripe from "stripe";
 import { appConfig } from "@/lib/config/env";
 import { sql } from "@/lib/db/client";
+import { getStripeClient, tierFromPriceId } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
-// ── Stripe-Client (lazy, nur wenn Secret Key gesetzt) ─────────────────────────
-
-function getStripe(): Stripe {
-  const key = appConfig.stripe.secretKey;
-  if (!key) throw new Error("STRIPE_SECRET_KEY not configured");
-  return new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
-}
-
-// ── Tier aus Price ID ermitteln ───────────────────────────────────────────────
-
-function tierFromPriceId(priceId: string | null | undefined): "pro" | "business" | null {
-  if (!priceId) return null;
-  if (priceId === appConfig.stripe.priceIdPro) return "pro";
-  if (priceId === appConfig.stripe.priceIdBusiness) return "business";
-  return null;
+function getStripe() {
+  return getStripeClient();
 }
 
 // ── DB: org.tier aktualisieren via stripe_customer_id ────────────────────────

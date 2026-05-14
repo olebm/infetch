@@ -35,7 +35,7 @@ export default async function LoginPage({
           <div>
             <Link href="https://infetch.de" aria-label="Zur Startseite">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/infetch-logo.svg" alt="Infetch" className="h-8 w-auto" />
+              <img src="/infetch-logo.svg" alt="Infetch" className="h-9 w-auto" />
             </Link>
           </div>
 
@@ -76,7 +76,7 @@ export default async function LoginPage({
             <div className="mb-8 md:hidden">
               <Link href="https://infetch.de" aria-label="Zur Startseite">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/infetch-logo.svg" alt="Infetch" className="h-7 w-auto" />
+                <img src="/infetch-logo.svg" alt="Infetch" className="h-9 w-auto" />
               </Link>
             </div>
 

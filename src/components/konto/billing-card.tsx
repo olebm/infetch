@@ -1,6 +1,7 @@
 "use client";
 
-import { Zap, Check } from "lucide-react";
+import { useState } from "react";
+import { Zap, Check, Loader2, ExternalLink } from "lucide-react";
 import { useUpgrade } from "@/components/providers/upgrade-provider";
 import { Card } from "@/components/ui/card";
 import type { Tier, TierLimits } from "@/lib/tier";
@@ -35,12 +36,36 @@ const PLAN_FEATURES: Record<Tier, string[]> = {
 type Props = {
   tier: Tier;
   limits: TierLimits;
+  /** true wenn stripe_customer_id vorhanden (Portal-Link zeigen) */
+  hasStripeCustomer?: boolean;
 };
 
-export function BillingCard({ tier, limits }: Props) {
+export function BillingCard({ tier, limits, hasStripeCustomer = false }: Props) {
   const { openModal } = useUpgrade();
   const isFree = tier === "free";
+  const isPaidTier = !isFree;
   const features = PLAN_FEATURES[tier];
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
+
+  async function handlePortal() {
+    setPortalLoading(true);
+    setPortalError(null);
+    try {
+      const res = await fetch("/api/stripe/portal-session", { method: "POST" });
+      if (res.redirected) {
+        window.location.href = res.url;
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Unbekannter Fehler");
+      }
+    } catch (err) {
+      setPortalError(err instanceof Error ? err.message : "Fehler beim Öffnen des Portals.");
+      setPortalLoading(false);
+    }
+  }
 
   return (
     <Card padding="none">
@@ -48,7 +73,9 @@ export function BillingCard({ tier, limits }: Props) {
         <div>
           <div className="text-sm font-medium text-ink">Abrechnung</div>
           <div className="text-xs text-muted">
-            {isFree ? "Kostenlos — kein Kreditkarte erforderlich." : `${limits.priceMonthlyEur} € / Monat · jederzeit kündbar.`}
+            {isFree
+              ? "Kostenlos — keine Kreditkarte erforderlich."
+              : `${limits.priceMonthlyEur} € / Monat · jederzeit kündbar.`}
           </div>
         </div>
 
@@ -74,6 +101,22 @@ export function BillingCard({ tier, limits }: Props) {
               Upgrade
             </button>
           )}
+
+          {isPaidTier && hasStripeCustomer && (
+            <button
+              type="button"
+              onClick={handlePortal}
+              disabled={portalLoading}
+              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink shadow-soft hover:bg-surface transition-colors disabled:opacity-60"
+            >
+              {portalLoading ? (
+                <Loader2 size={11} className="animate-spin" aria-hidden />
+              ) : (
+                <ExternalLink size={11} aria-hidden />
+              )}
+              Abonnement verwalten
+            </button>
+          )}
         </div>
       </div>
 
@@ -86,6 +129,12 @@ export function BillingCard({ tier, limits }: Props) {
           </li>
         ))}
       </ul>
+
+      {portalError && (
+        <div className="border-t border-line px-5 py-3 text-xs text-danger">
+          {portalError}
+        </div>
+      )}
 
       {/* Free → Pro nudge */}
       {isFree && (

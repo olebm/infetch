@@ -210,9 +210,9 @@ select {
   66%, 78% { opacity: 1; transform: none; }
   86%, 100%{ opacity: 0; }
 }
-.anim-row   { animation: inboxArrive 8s ease-in-out infinite; }
-.anim-badge { animation: inboxBadge  8s ease-in-out infinite; }
-.anim-sent  { animation: inboxSent   8s ease-in-out infinite; }
+.anim-row   { animation: inboxArrive 8s ease-in-out infinite both; }
+.anim-badge { opacity: 0; animation: inboxBadge  8s ease-in-out infinite both; }
+.anim-sent  { opacity: 0; animation: inboxSent   8s ease-in-out infinite both; }
 
 /* Pulse-Dot (Hero-Status-Indikator) */
 .pulse-dot {

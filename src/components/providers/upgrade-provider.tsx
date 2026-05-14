@@ -3,7 +3,8 @@
 import { createContext, useContext, useState } from "react";
 
 type UpgradeContextValue = {
-  stripeLink: string | null;
+  /** true wenn STRIPE_SECRET_KEY + STRIPE_PRICE_ID_PRO gesetzt sind */
+  stripeConfigured: boolean;
   open: boolean;
   feature: string | null;
   openModal: (feature?: string) => void;
@@ -11,7 +12,7 @@ type UpgradeContextValue = {
 };
 
 const UpgradeContext = createContext<UpgradeContextValue>({
-  stripeLink: null,
+  stripeConfigured: false,
   open: false,
   feature: null,
   openModal: () => {},
@@ -23,10 +24,10 @@ export function useUpgrade() {
 }
 
 export function UpgradeProvider({
-  stripeLink,
+  stripeConfigured,
   children,
 }: {
-  stripeLink: string | null;
+  stripeConfigured: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -35,7 +36,7 @@ export function UpgradeProvider({
   return (
     <UpgradeContext.Provider
       value={{
-        stripeLink,
+        stripeConfigured,
         open,
         feature,
         openModal: (f) => { setFeature(f ?? null); setOpen(true); },
