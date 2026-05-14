@@ -26,55 +26,60 @@ export async function loginAsTestUser(formData: FormData) {
   }
 
   const next = sanitizeNext(formData.get("next"));
-
   const supabaseAdmin = createSupabaseAdminClient();
 
-  // Test-User in Supabase anlegen (idempotent)
-  try {
-    await supabaseAdmin.auth.admin.createUser({
-      email: STUB_EMAIL,
-      email_confirm: true,
-      user_metadata: { full_name: STUB_NAME },
-    });
-  } catch {
-    // User existiert bereits — kein Fehler
+  // Test-User anlegen — gibt bei Erfolg direkt die ID zurück
+  let supabaseUserId: string | undefined;
+
+  const { data: createData } = await supabaseAdmin.auth.admin.createUser({
+    email: STUB_EMAIL,
+    email_confirm: true,
+    user_metadata: { full_name: STUB_NAME },
+  });
+
+  if (createData?.user?.id) {
+    supabaseUserId = createData.user.id;
+  } else {
+    // User existiert bereits — per listUsers suchen
+    const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+    const found = (listData?.users ?? []).find(
+      (u: { email?: string; id: string }) => u.email === STUB_EMAIL,
+    );
+    supabaseUserId = found?.id;
   }
+
+  if (!supabaseUserId) throw new Error("Test login failed: Supabase user not found");
 
   // SQLite-Profil anlegen falls noch nicht vorhanden
   try {
     const db = getDb();
     const existing = findUserByEmail(STUB_EMAIL, db);
     if (!existing) {
-      const { data: sbUser } = await supabaseAdmin.auth.admin.getUserByEmail(STUB_EMAIL) as { data: { user: { id: string } | null } };
-      if (sbUser?.user) {
-        createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, db, userId: sbUser.user.id });
-      }
+      createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, db, userId: supabaseUserId });
     }
   } catch {
     // Non-fatal
   }
 
-  // Supabase-User-ID nachschlagen
-  const { data: sbUserData } = await supabaseAdmin.auth.admin.getUserByEmail(STUB_EMAIL) as {
-    data: { user: { id: string } | null };
-  };
-  const supabaseUserId = sbUserData?.user?.id;
-  if (!supabaseUserId) throw new Error("Test login failed: Supabase user not found");
-
-  // Session serverseitig erstellen — kein externer Redirect nötig
-  const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.createSession({
-    user_id: supabaseUserId,
+  // Magic-Link generieren und hashed_token extrahieren — kein Versand, kein externer Redirect
+  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+    type: "magiclink",
+    email: STUB_EMAIL,
+    options: { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}${next}` },
   });
-  if (sessionError || !sessionData?.session) {
-    throw new Error(`Test login failed: ${sessionError?.message ?? "no session"}`);
+  if (linkError || !linkData?.properties?.hashed_token) {
+    throw new Error(`Test login failed: ${linkError?.message ?? "no link"}`);
   }
 
-  // Session in SSR-Cookies schreiben
+  // Token serverseitig einlösen — setzt JWT-Cookies direkt ohne externen Redirect
   const supabase = await createSupabaseServerClient();
-  await supabase.auth.setSession({
-    access_token: sessionData.session.access_token,
-    refresh_token: sessionData.session.refresh_token,
+  const { error: verifyError } = await supabase.auth.verifyOtp({
+    token_hash: linkData.properties.hashed_token,
+    type: "magiclink",
   });
+  if (verifyError) {
+    throw new Error(`Test login failed: ${verifyError.message}`);
+  }
 
   redirect(next);
 }
