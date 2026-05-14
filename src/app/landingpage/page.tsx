@@ -46,7 +46,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-40 nav-blur border-b border-line">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 h-16 flex items-center gap-6">
           <Link href="/" className="flex items-center" aria-label="Infetch">
-            <Image src="/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-9 w-auto" />
+            <Image src="/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-9 w-auto" priority />
           </Link>
           <nav className="hidden md:flex items-center gap-6 ml-6 text-sm text-muted">
             <a href="#how" className="hover:text-ink">Wie es funktioniert</a>
@@ -56,16 +56,17 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-ink">FAQ</a>
           </nav>
           <div className="flex items-center gap-2 ml-auto">
-            <Link href="/login" className="hidden md:inline-flex h-9 px-4 text-sm items-center rounded border border-line text-ink hover:bg-surface transition-colors">
+            <Link href="https://app.infetch.de/login" className="hidden md:inline-flex h-9 px-4 text-sm items-center rounded border border-line text-ink hover:bg-surface transition-colors">
               Kostenlos starten
             </Link>
-            <Link href="/login" className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
+            <Link href="https://app.infetch.de/login" className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
               Anmelden
             </Link>
           </div>
         </div>
       </header>
 
+      <main>
       {/* ================================================================== */}
       {/* HERO                                                                */}
       {/* ================================================================== */}
@@ -86,7 +87,7 @@ export default function LandingPage() {
               Infetch liest dein Postfach mit, erkennt jede Rechnung und schickt sie an deine Buchhaltung — automatisch.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="/login" className="inline-flex h-11 px-5 rounded items-center bg-ink text-white text-sm font-medium hover:opacity-90">
+              <Link href="https://app.infetch.de/login" className="inline-flex h-11 px-5 rounded items-center bg-ink text-white text-sm font-medium hover:opacity-90">
                 Kostenlos starten
               </Link>
               <a href="#how" className="inline-flex h-11 px-4 rounded items-center text-sm text-ink ul-link">
@@ -115,60 +116,45 @@ export default function LandingPage() {
               </div>
 
               <ul className="px-2 pb-3">
-                <li className="row-hover px-3 py-3 flex items-center gap-4 border-b border-line">
-                  <VendorLogo domain="hetzner.com" name="Hetzner" size={36} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-ink truncate">Hetzner Online · Rechnung 2026-05</div>
-                    <div className="mt-0.5 text-xs text-muted stat-num">09:14 · 27,55 €</div>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
-                    <span className="text-xs text-muted">verschickt</span>
-                  </span>
-                </li>
-
-                <li className="row-hover px-3 py-3 flex items-center gap-4 border-b border-line">
-                  <VendorLogo domain="adobe.com" name="Adobe" size={36} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-ink truncate">Adobe Systems · Creative Cloud</div>
-                    <div className="mt-0.5 text-xs text-muted stat-num">11:02 · 77,99 €</div>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
-                    <span className="text-xs text-muted">verschickt</span>
-                  </span>
-                </li>
-
-                {/* ANIMATED ROW */}
-                <li className="px-3 py-3 flex items-center gap-4 border-b border-line anim-row">
-                  <VendorLogo domain="telekom.de" name="Telekom" size={36} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-ink truncate">Telekom Deutschland · Festnetz & Internet</div>
-                    <div className="mt-0.5 text-xs text-muted stat-num">jetzt · 44,95 €</div>
-                  </div>
-                  <div className="relative" style={{ minWidth: "72px", height: "20px" }}>
-                    <span className="anim-badge absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-warn-vivid"></span>
-                      <span className="text-xs text-muted">erkannt</span>
-                    </span>
-                    <span className="anim-sent absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
-                      <span className="text-xs text-muted">verschickt</span>
-                    </span>
-                  </div>
-                </li>
-
-                <li className="row-hover px-3 py-3 flex items-center gap-4">
-                  <VendorLogo domain="canva.com" name="Canva" size={36} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-ink truncate">Canva Pty Ltd · Pro Plan</div>
-                    <div className="mt-0.5 text-xs text-muted stat-num">gestern · 14,99 €</div>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
-                    <span className="text-xs text-muted">verschickt</span>
-                  </span>
-                </li>
+                {[
+                  { domain: "hetzner.com", label: "Hetzner Online · Rechnung 2026-05",           meta: "09:14 · 27,55 €",  animated: false },
+                  { domain: "adobe.com",   label: "Adobe Systems · Creative Cloud",               meta: "11:02 · 77,99 €",  animated: false },
+                  { domain: "telekom.de",  label: "Telekom Deutschland · Festnetz & Internet",    meta: "jetzt · 44,95 €",  animated: true  },
+                  { domain: "canva.com",   label: "Canva Pty Ltd · Pro Plan",                     meta: "gestern · 14,99 €", animated: false },
+                ].map(({ domain, label, meta, animated }, i, arr) => (
+                  <li key={domain}
+                    className={`${animated ? "anim-row" : "row-hover"} px-3 py-3 flex items-center gap-4 ${i < arr.length - 1 ? "border-b border-line" : ""}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=72`}
+                      alt={domain}
+                      width={36} height={36}
+                      referrerPolicy="no-referrer"
+                      className="rounded-full shrink-0 object-contain"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-ink truncate">{label}</div>
+                      <div className="mt-0.5 text-xs text-muted stat-num">{meta}</div>
+                    </div>
+                    {animated ? (
+                      <div className="relative" style={{ minWidth: "72px", height: "20px" }}>
+                        <span className="anim-badge absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-warn-vivid"></span>
+                          <span className="text-xs text-muted">erkannt</span>
+                        </span>
+                        <span className="anim-sent absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
+                          <span className="text-xs text-muted">verschickt</span>
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
+                        <span className="text-xs text-muted">verschickt</span>
+                      </span>
+                    )}
+                  </li>
+                ))}
               </ul>
 
               <div className="px-5 py-3 border-t border-line bg-surface flex items-center justify-between text-xs text-muted">
@@ -572,7 +558,7 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>500 MB Speicher</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>E-Mail-Support</li>
               </ul>
-              <Link href="/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg border border-ink/30 text-sm text-ink hover:bg-surface">
+              <Link href="https://app.infetch.de/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg border border-ink/30 text-sm text-ink hover:bg-surface">
                 Kostenlos starten
               </Link>
             </div>
@@ -597,7 +583,7 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>Bulk-Download (ZIP)</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-ink shrink-0"></span>Prioritäts-Support</li>
               </ul>
-              <Link href="/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg bg-ink text-white text-sm font-medium hover:opacity-90">
+              <Link href="https://app.infetch.de/login" className="mt-8 inline-flex h-11 px-5 items-center justify-center rounded-lg bg-ink text-white text-sm font-medium hover:opacity-90">
                 Pro wählen
               </Link>
             </div>
@@ -665,6 +651,7 @@ export default function LandingPage() {
         </div>
       </section>
 
+      </main>
       {/* ================================================================== */}
       {/* FOOTER CTA                                                          */}
       {/* ================================================================== */}
@@ -676,7 +663,7 @@ export default function LandingPage() {
             <span className="text-white/50">Ab Montag nicht mehr.</span>
           </h2>
           <div className="mt-10 flex flex-wrap justify-center items-center gap-4">
-            <Link href="/login" className="inline-flex h-12 px-6 items-center rounded bg-white text-ink text-sm font-medium hover:opacity-90">
+            <Link href="https://app.infetch.de/login" className="inline-flex h-12 px-6 items-center rounded bg-white text-ink text-sm font-medium hover:opacity-90">
               Kostenlos starten
             </Link>
           </div>
