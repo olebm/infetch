@@ -71,7 +71,6 @@ export function VendorLogo({
     if (img && img.complete && img.naturalWidth === 0) {
       advance();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [srcIndex]);
 
   // ── Monogram fallback ────────────────────────────────────────────────────────

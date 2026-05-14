@@ -1,4 +1,4 @@
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { getExportQueue } from "@/lib/db/queries";
 import { DispatchButton } from "@/components/export-queue/dispatch-button";
 import { EmptyState } from "@/components/status/empty-state";

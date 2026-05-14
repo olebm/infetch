@@ -13,7 +13,6 @@ import postgres from "postgres";
 
 // Prevent multiple connections in Next.js hot-reload (dev mode)
 declare global {
-  // eslint-disable-next-line no-var
   var __pgSql: postgres.Sql | undefined;
 }
 

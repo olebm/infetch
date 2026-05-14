@@ -13,6 +13,21 @@ const eslintConfig = [
       "public/pdf.worker.min.mjs", // vendored, minified PDF.js worker
     ],
   },
+  {
+    rules: {
+      // Allow underscore-prefixed identifiers as intentionally-unused
+      // (Server Action signatures, deprecated legacy params, etc.).
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;

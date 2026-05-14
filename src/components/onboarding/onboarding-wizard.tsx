@@ -3,7 +3,7 @@
 import { Fragment, useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, CheckCircle, ArrowLeft, ArrowRight, Info } from "lucide-react";
+import { Check, ArrowLeft, ArrowRight, Info } from "lucide-react";
 import { completeOnboardingAction, type OnboardingState } from "@/app/onboarding/actions";
 import { Button } from "@/components/ui/button";
 import { MailboxConnectContent, type MailboxData } from "@/components/credentials/mailbox-connect-content";
@@ -37,17 +37,6 @@ const TEMPLATES: Record<string, { name: string; email: string }> = {
   accountable: { name: "Accountable",         email: "belege@accountable.de" },
   datev:       { name: "DATEV Unternehmen",   email: "" },
 };
-
-const PERMISSIONS = [
-  ["Dein Postfach scannen",
-   "alle 5 Min · nur Mails mit Rechnungsmerkmalen"],
-  ["Rechnungs-Daten extrahieren",
-   "über unser DSGVO-konformes EU-Modell · ≥ 90 % Konfidenz wird durchgewunken"],
-  ["Erkannte Rechnungen weiterleiten",
-   "mit PDF im Anhang · klarer Betreff"],
-  ["Unsichere Fälle hier zeigen",
-   "du entscheidest in < 30 Sek"],
-] as const;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

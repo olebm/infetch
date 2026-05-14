@@ -54,7 +54,6 @@ function scrubValue(value: unknown, depth = 0): unknown {
 
 // ── Haupt-Scrubber ────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function scrubSentryEvent(event: ErrorEvent, _hint: EventHint): ErrorEvent | null {
   // 1) User-Kontext — nie senden
   delete event.user;
