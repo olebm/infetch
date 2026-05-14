@@ -4,9 +4,9 @@ import { VendorLogo } from "@/components/ui/vendor-logo";
 import { ContactController } from "./contact-controller";
 
 const BF = process.env.NEXT_PUBLIC_BRANDFETCH_TOKEN ?? "";
-/** Brandfetch CDN — SVG symbol (skalierbar, scharf auf allen Auflösungen). */
-function bfUrl(domain: string) {
-  return `https://cdn.brandfetch.io/${domain}/symbol.svg?c=${BF}`;
+/** Brandfetch CDN — icon type, 2× für Retina. displayPx = CSS-Anzeigebreite. */
+function bfUrl(domain: string, displayPx: number) {
+  return `https://cdn.brandfetch.io/${domain}/w/${displayPx * 2}/h/${displayPx * 2}/icon?c=${BF}`;
 }
 
 // ─── Tooltip helper ───────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ export default function LandingPage() {
                     className={`${animated ? "anim-row" : "row-hover"} px-3 py-3 flex items-center gap-4 ${i < arr.length - 1 ? "border-b border-line" : ""}`}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={bfUrl(domain)}
+                      src={bfUrl(domain, 44)}
                       alt={domain}
                       width={44} height={44}
                       className="rounded-full shrink-0 object-contain"
@@ -178,7 +178,7 @@ export default function LandingPage() {
                 <div className="h-9 flex items-center cursor-default">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={bfUrl(domain)}
+                    src={bfUrl(domain, 36)}
                     alt={alt}
                     width={36}
                     height={36}
