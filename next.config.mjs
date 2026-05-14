@@ -5,7 +5,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["better-sqlite3", "playwright"],
+  serverExternalPackages: ["playwright"],
   outputFileTracingRoot: __dirname,
   webpack(config) {
     config.cache = false;
