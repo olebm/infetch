@@ -51,9 +51,16 @@ export function DailyCalendar({ data }: DailyCalendarProps) {
   const max = Math.max(...days.map((d) => d.count), 1);
   const total = days.reduce((s, d) => s + d.count, 0);
 
-  // Reset mount-animation when range changes
-  useEffect(() => {
+  // Reset mount-animation when range changes.
+  // setMounted(false) is called during render via the "store previous value"
+  // pattern (https://react.dev/reference/react/useState#storing-information-from-previous-renders),
+  // while the setTimeout(setMounted(true)) stays in an effect.
+  const [prevRange, setPrevRange] = useState(range);
+  if (prevRange !== range) {
+    setPrevRange(range);
     setMounted(false);
+  }
+  useEffect(() => {
     const t = setTimeout(() => setMounted(true), 30);
     return () => clearTimeout(t);
   }, [range]);

@@ -5,7 +5,13 @@ const eslintConfig = [
   ...nextVitals,
   ...nextTypescript,
   {
-    ignores: [".next/**", "node_modules/**", "data/**", "coverage/**"],
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "data/**",
+      "coverage/**",
+      "public/pdf.worker.min.mjs", // vendored, minified PDF.js worker
+    ],
   },
 ];
 

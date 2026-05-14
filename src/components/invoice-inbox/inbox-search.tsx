@@ -26,10 +26,16 @@ export function InboxSearch({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
+  // Sync `value` to the `initialValue` prop when it changes (URL navigation).
+  // Uses the "store previous value" pattern instead of an effect, per the
+  // react-hooks/set-state-in-effect rule
+  // (https://react.dev/reference/react/useState#storing-information-from-previous-renders).
+  const [prevInitialValue, setPrevInitialValue] = useState(initialValue);
+  if (prevInitialValue !== initialValue) {
+    setPrevInitialValue(initialValue);
     setValue(initialValue);
     if (initialValue) setOpen(true);
-  }, [initialValue]);
+  }
 
   useEffect(() => {
     // Im expanded-Modus nie schließen; sonst auf open-Änderung fokussieren

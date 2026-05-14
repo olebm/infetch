@@ -110,13 +110,18 @@ export function RecipientModal({ open, onClose }: RecipientModalProps) {
     if (state.status === "success") onClose();
   }, [state.status, onClose]);
 
-  useEffect(() => {
+  // Reset form when the modal opens. Uses the "store previous value" pattern
+  // (https://react.dev/reference/react/useState#storing-information-from-previous-renders)
+  // instead of an effect, per the react-hooks/set-state-in-effect rule.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
       setSelected(null);
       setEmail("");
       setSlot("kontist");
     }
-  }, [open]);
+  }
 
   function pick(r: Recipient) {
     setSelected(r);

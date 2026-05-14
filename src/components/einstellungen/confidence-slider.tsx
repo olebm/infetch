@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import {
   updateConfidenceThresholdAction,
   type ConfidenceThresholdState,
@@ -19,12 +19,17 @@ export function ConfidenceSlider({ initialValue }: ConfidenceSliderProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
 
-  // Sync if server value changed
-  useEffect(() => {
+  // Sync if server value changed.
+  // Uses the "store previous value" pattern instead of an effect
+  // (https://react.dev/reference/react/useState#storing-information-from-previous-renders),
+  // so React 19's react-hooks/set-state-in-effect rule stays happy.
+  const [lastSyncedState, setLastSyncedState] = useState(state);
+  if (lastSyncedState !== state) {
+    setLastSyncedState(state);
     if (state.status === "success" && state.value !== undefined) {
       setDisplayValue(Math.round(state.value * 100));
     }
-  }, [state]);
+  }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const pct = Number(e.target.value);

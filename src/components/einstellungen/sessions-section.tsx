@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   invalidateAllOtherSessionsAction,
   switchOrganizationAction,
@@ -21,9 +21,14 @@ export function SessionsSection({
     idle,
   );
 
+  // Snapshot `now` once at mount — keeps `fmtRelative` pure during render
+  // (react-hooks/purity rule). Trade-off: the "vor X Min" label doesn't
+  // refresh while the page stays open; acceptable for a settings screen.
+  const [now] = useState(() => Date.now());
+
   function fmtRelative(iso: string | null): string {
     if (!iso) return "–";
-    const diff = Date.now() - new Date(iso).getTime();
+    const diff = now - new Date(iso).getTime();
     const mins = Math.floor(diff / 60_000);
     if (mins < 1) return "gerade eben";
     if (mins < 60) return `vor ${mins} Min.`;
