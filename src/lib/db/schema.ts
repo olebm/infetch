@@ -472,8 +472,15 @@ export const schemaStatements = [
 
   // Migration: credential_refs.secret_store CHECK um 'encrypted_db' erweitern.
   // Läuft bei jedem Start (idempotent — kopiert Daten in neue Tabellenversion und benennt um).
-  // PRAGMA foreign_keys = OFF ist nötig weil mail_accounts.credential_ref_id darauf zeigt.
+  //
+  // Reihenfolge ist SQLite-kritisch:
+  //   PRAGMA foreign_keys = OFF  muss VOR BEGIN stehen (innerhalb einer Transaktion
+  //   ist es ein No-op, daher außerhalb setzen).
+  //   BEGIN … COMMIT schützt das DROP + RENAME: ein Crash zwischen beiden würde sonst
+  //   credential_refs dauerhaft vernichten und den nächsten Start crashen.
+  //   PRAGMA foreign_keys = ON   nach COMMIT zurücksetzen.
   `PRAGMA foreign_keys = OFF;
+BEGIN;
 CREATE TABLE IF NOT EXISTS _credential_refs_new (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   scope            TEXT NOT NULL CHECK (scope IN ('imap', 'smtp', 'portal', 'mistral')),
@@ -495,5 +502,6 @@ INSERT INTO _credential_refs_new
 DROP TABLE credential_refs;
 ALTER TABLE _credential_refs_new RENAME TO credential_refs;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_credential_refs_secret_ref ON credential_refs(secret_ref);
+COMMIT;
 PRAGMA foreign_keys = ON`,
 ];
