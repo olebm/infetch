@@ -190,13 +190,13 @@ export default function LandingPage() {
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 md:gap-x-16">
             {[
-              { domain: "telekom.de",     alt: "Telekom"    },
-              { domain: "microsoft.com",  alt: "Microsoft"  },
               { domain: "adobe.com",      alt: "Adobe"      },
-              { domain: "canva.com",      alt: "Canva"      },
               { domain: "amazon.de",      alt: "Amazon"     },
+              { domain: "canva.com",      alt: "Canva"      },
               { domain: "figma.com",      alt: "Figma"      },
               { domain: "hetzner.com",    alt: "Hetzner"    },
+              { domain: "microsoft.com",  alt: "Microsoft"  },
+              { domain: "telekom.de",     alt: "Telekom"    },
             ].map(({ domain, alt }) => (
               <Tip key={domain} label={alt}>
                 <div className="h-7 flex items-center cursor-default">
