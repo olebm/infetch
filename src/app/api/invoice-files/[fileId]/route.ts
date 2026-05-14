@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createReadStream, statSync } from "node:fs";
-import { Readable } from "node:stream";
 import { sql } from "@/lib/db/client";
 import { getCurrentAuth } from "@/lib/auth/current";
+import { downloadFromStorage, BUCKETS } from "@/lib/supabase/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +37,11 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ fi
   }
 
   try {
-    const stat = statSync(row.storedPath);
-    const stream = createReadStream(row.storedPath);
-    return new NextResponse(Readable.toWeb(stream) as ReadableStream, {
+    const buffer = await downloadFromStorage(BUCKETS.INVOICES, row.storedPath);
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "content-type": "application/pdf",
-        "content-length": String(stat.size),
+        "content-length": String(buffer.byteLength),
         "content-disposition": `inline; filename="${encodeURIComponent(row.originalFilename)}"`,
       },
     });

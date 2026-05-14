@@ -1,27 +1,27 @@
-import fs from "node:fs";
-import path from "node:path";
 import { sql } from "@/lib/db/client";
-import { appConfig } from "@/lib/config/env";
+import { BUCKETS, uploadToStorage, downloadFromStorage, deleteFromStorage } from "@/lib/supabase/storage";
 
 export type BrowserSession = {
   vendorKey: string;
-  storageStatePath: string;
+  storageState: unknown;      // parsed JSON, ready for Playwright
+  storageStateKey: string;    // Storage bucket key (for DB)
   lastLoginAt: string;
   expiresAt: string | null;
 };
 
-function sessionDir() {
-  const dir = path.join(appConfig.portalStoragePath, "browser-sessions");
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  return dir;
-}
+type SessionDbRow = {
+  vendorKey: string;
+  storageStatePath: string;   // DB column — now holds Storage key
+  lastLoginAt: string;
+  expiresAt: string | null;
+};
 
-export function pathForVendor(vendorKey: string): string {
-  return path.join(sessionDir(), `${vendorKey}.storage.json`);
+function storageKeyForVendor(vendorKey: string): string {
+  return `${vendorKey}.storage.json`;
 }
 
 export async function getBrowserSession(vendorKey: string): Promise<BrowserSession | null> {
-  const rows = await sql<BrowserSession[]>`
+  const rows = await sql<SessionDbRow[]>`
     SELECT vendor_key AS "vendorKey", storage_state_path AS "storageStatePath",
       last_login_at AS "lastLoginAt", expires_at AS "expiresAt"
     FROM portal_browser_sessions
@@ -30,8 +30,21 @@ export async function getBrowserSession(vendorKey: string): Promise<BrowserSessi
   `;
   const row = rows[0];
   if (!row) return null;
-  if (!fs.existsSync(row.storageStatePath)) return null;
-  return row;
+
+  try {
+    const buf = await downloadFromStorage(BUCKETS.PORTAL_SESSIONS, row.storageStatePath);
+    const storageState = JSON.parse(buf.toString("utf8"));
+    return {
+      vendorKey: row.vendorKey,
+      storageState,
+      storageStateKey: row.storageStatePath,
+      lastLoginAt: row.lastLoginAt,
+      expiresAt: row.expiresAt,
+    };
+  } catch {
+    // Storage file not found or unreadable — treat as no session
+    return null;
+  }
 }
 
 export async function saveBrowserSession(input: {
@@ -39,12 +52,15 @@ export async function saveBrowserSession(input: {
   storageState: unknown;
   expiresAt?: string | null;
 }): Promise<BrowserSession> {
-  const filePath = pathForVendor(input.vendorKey);
-  fs.writeFileSync(filePath, JSON.stringify(input.storageState), { mode: 0o600 });
+  const storageKey = storageKeyForVendor(input.vendorKey);
+  const json = JSON.stringify(input.storageState);
+  await uploadToStorage(BUCKETS.PORTAL_SESSIONS, storageKey, json, {
+    contentType: "application/json",
+  });
 
   await sql`
     INSERT INTO portal_browser_sessions (vendor_key, storage_state_path, expires_at, last_login_at, updated_at)
-    VALUES (${input.vendorKey}, ${filePath}, ${input.expiresAt ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    VALUES (${input.vendorKey}, ${storageKey}, ${input.expiresAt ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(vendor_key) DO UPDATE SET
       storage_state_path = excluded.storage_state_path,
       expires_at = excluded.expires_at,
@@ -52,23 +68,24 @@ export async function saveBrowserSession(input: {
       updated_at = CURRENT_TIMESTAMP
   `;
 
-  const rows = await sql<BrowserSession[]>`
+  const rows = await sql<SessionDbRow[]>`
     SELECT vendor_key AS "vendorKey", storage_state_path AS "storageStatePath",
       last_login_at AS "lastLoginAt", expires_at AS "expiresAt"
     FROM portal_browser_sessions
     WHERE vendor_key = ${input.vendorKey}
   `;
-  return rows[0];
+  const row = rows[0];
+  return {
+    vendorKey: row.vendorKey,
+    storageState: input.storageState,
+    storageStateKey: row.storageStatePath,
+    lastLoginAt: row.lastLoginAt,
+    expiresAt: row.expiresAt,
+  };
 }
 
 export async function invalidateBrowserSession(vendorKey: string): Promise<void> {
-  const existing = await getBrowserSession(vendorKey);
-  if (existing && fs.existsSync(existing.storageStatePath)) {
-    try {
-      fs.unlinkSync(existing.storageStatePath);
-    } catch {
-      // ignore
-    }
-  }
+  const storageKey = storageKeyForVendor(vendorKey);
+  await deleteFromStorage(BUCKETS.PORTAL_SESSIONS, storageKey);
   await sql`DELETE FROM portal_browser_sessions WHERE vendor_key = ${vendorKey}`;
 }

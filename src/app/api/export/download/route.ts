@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import JSZip from "jszip";
 import { sql } from "@/lib/db/client";
 import { getCurrentAuth } from "@/lib/auth/current";
+import { downloadFromStorage, BUCKETS } from "@/lib/supabase/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -237,9 +237,9 @@ export async function GET(request: NextRequest) {
   // 2. PDFs — grouped in subfolders by vendor
   let pdfCount = 0;
   for (const row of rows) {
-    if (!row.storedPath || !existsSync(row.storedPath)) continue;
+    if (!row.storedPath) continue;
     try {
-      const buffer = readFileSync(row.storedPath);
+      const buffer = await downloadFromStorage(BUCKETS.INVOICES, row.storedPath);
       const folder  = row.vendorKey ?? "unbekannt";
       const name    = row.originalFilename ?? `rechnung-${row.invoiceId}.pdf`;
       zip.folder(folder)!.file(name, buffer);

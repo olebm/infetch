@@ -97,7 +97,8 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
   try {
     const session = await getBrowserSession(input.vendorKey);
     context = await browser.newContext({
-      storageState: session ? session.storageStatePath : undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      storageState: session ? (session.storageState as any) : undefined,
       locale: "de-DE",
       timezoneId: "Europe/Berlin",
       viewport: { width: 1280, height: 800 },

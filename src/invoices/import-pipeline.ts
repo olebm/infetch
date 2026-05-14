@@ -1,10 +1,7 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 import { sql } from "@/lib/db/client";
-import { appConfig } from "@/lib/config/env";
-import { ensureDataDirs } from "@/lib/filesystem/ensure-data-dirs";
 import { recordSyncEvent } from "@/lib/db/events";
+import { BUCKETS, uploadToStorage, buildInvoiceStorageKey } from "@/lib/supabase/storage";
 import { runInvoiceAiExtraction } from "@/ai/extract-invoice";
 import { attemptAutoTransfer } from "@/lib/automation/auto-transfer";
 import { sendReviewNotification } from "@/lib/mail/notify";
@@ -14,7 +11,6 @@ import { classifyFilenameAsJunk } from "@/invoices/filename-junk-filter";
 import { parseInvoiceFields } from "@/invoices/parser";
 import { isLikelyPdf, maxPdfSizeBytes } from "@/invoices/pdf-validation";
 import { deriveInvoiceProductLabel } from "@/invoices/product-label";
-import { buildInvoiceStoragePath } from "@/invoices/storage";
 import { matchVendor } from "@/vendors/matcher";
 
 export type ImportInvoiceResult =
@@ -104,8 +100,6 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     };
   }
 
-  ensureDataDirs();
-
   // Pre-Filter: Filename signalisiert eindeutig Non-Invoice — kein AI-Call nötig.
   const junkCheck = classifyFilenameAsJunk(input.originalFilename);
 
@@ -123,19 +117,20 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     originalFilename: input.originalFilename,
     text: extraction.text,
   });
-  const storedPath = buildInvoiceStoragePath({
-    originalFilename: input.originalFilename,
+
+  // Determine Storage keys and upload to Supabase Storage
+  const storageKey = buildInvoiceStorageKey({
+    orgId: null, // TODO Phase 2.5: pass real orgId through
     vendorKey: vendor.canonicalKey,
     productLabel,
     invoiceDate: parsed.invoiceDate,
     fallbackDate: new Date().toISOString().slice(0, 10),
   });
-  const rawTextPath = path.join(appConfig.rawTextStoragePath, `${sha256}.txt`);
-
-  fs.mkdirSync(path.dirname(rawTextPath), { recursive: true, mode: 0o700 });
-  fs.mkdirSync(path.dirname(storedPath), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(storedPath, buffer, { mode: 0o600 });
-  fs.writeFileSync(rawTextPath, extraction.text, { mode: 0o600 });
+  const rawTextKey = `${sha256}.txt`;
+  await uploadToStorage(BUCKETS.INVOICES, storageKey, buffer, { contentType: "application/pdf" });
+  await uploadToStorage(BUCKETS.RAW_TEXT, rawTextKey, extraction.text, { contentType: "text/plain; charset=utf-8" });
+  const storedPath = storageKey;   // DB column now stores Storage key
+  const rawTextPath = rawTextKey;  // DB column now stores Storage key
 
   // Insert invoice
   const invoiceRows = await sql<{ id: number }[]>`
