@@ -192,15 +192,20 @@ export default function LandingPage() {
       {/* ================================================================== */}
       {/* PROBLEM FRAME                                                       */}
       {/* ================================================================== */}
-      <section className="py-14 md:py-20">
-        <div className="max-w-[860px] mx-auto px-6 md:px-8 text-center reveal">
-          <p className="font-display text-2xl md:text-3xl text-ink leading-snug max-w-2xl mx-auto">
-            Jede Rechnung kommt von einer anderen Adresse, in einem anderen Format, in einem anderen Postfach.
-          </p>
-          <p className="mt-5 text-muted leading-relaxed max-w-xl mx-auto">
-            Selbstständige und kleine Teams verbringen Stunden damit, Belege zusammenzusuchen — manuell, jeden Monat, aufs Neue.
-            Infetch macht das automatisch.
-          </p>
+      <section className="border-b border-line">
+        <div className="max-w-[1180px] mx-auto px-6 md:px-8">
+          <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
+            {[
+              { title: "Rechnungen in jedem Postfach",  body: "Adobe, Hetzner, Telekom — jeder Anbieter schickt von einer anderen Adresse, in ein anderes Postfach." },
+              { title: "Jeden Monat manuell suchen",     body: "Filtern, runterladen, weiterleiten — für jede einzelne Rechnung, jeden Monat, von vorne." },
+              { title: "Die Buchhaltung fragt. Du suchst.", body: "Stunden damit verbracht, Belege zu finden, die längst hätten weitergeleitet sein sollen." },
+            ].map(({ title, body }) => (
+              <div key={title} className="py-8 md:py-10 md:px-10 first:md:pl-0 last:md:pr-0">
+                <div className="font-display text-lg text-ink">{title}</div>
+                <p className="mt-2 text-sm text-muted leading-relaxed">{body}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
