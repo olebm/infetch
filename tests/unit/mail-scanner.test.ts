@@ -4,6 +4,10 @@ import { runPrimaryImapScan } from "@/mail/mail-scanner";
 
 // NOTE: runPrimaryImapScan now uses the global postgres sql client.
 // This test requires a real Postgres connection (DATABASE_URL env var).
+// It also calls the PDF import pipeline which uploads to Supabase Storage —
+// SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY must be set. The test is skipped
+// in CI environments that only have a plain Postgres instance.
+const hasSupabase = Boolean(process.env.SUPABASE_URL);
 
 function buildMail(options: { messageId: string; subject: string; pdfName: string; pdfBody: string }) {
   return Buffer.from(
@@ -50,7 +54,7 @@ function createClient(messages: Buffer[], uidValidity: bigint) {
 }
 
 describe("mail scanner", () => {
-  it("scans two configured mailboxes and feeds both through the import pipeline", async () => {
+  it.skipIf(!hasSupabase)("scans two configured mailboxes and feeds both through the import pipeline", async () => {
     // Insert test mail accounts
     const acct1Rows = await sql<{ id: number }[]>`
       INSERT INTO mail_accounts (label, host, port, secure, username, status)

@@ -201,8 +201,8 @@ export async function backfillFromMailMessages(): Promise<BackfillResult> {
       COUNT(*) AS "mailCount",
       SUM(CASE WHEN mm.status NOT IN ('no_pdf', 'pending') THEN 1 ELSE 0 END) AS "pdfCount",
       SUM(CASE WHEN mm.status = 'processed' THEN 1 ELSE 0 END) AS "importedCount",
-      MIN(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP)) AS "firstSeen",
-      MAX(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP)) AS "lastSeen"
+      MIN(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP::TEXT)) AS "firstSeen",
+      MAX(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP::TEXT)) AS "lastSeen"
     FROM mail_messages mm
     WHERE mm.from_address IS NOT NULL AND mm.from_address != ''
     GROUP BY LOWER(mm.from_address)
