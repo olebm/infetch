@@ -52,9 +52,9 @@ export function VendorLogo({
   const logoHost = rootDomain(domain);
 
   // Brandfetch CDN (token required) → monogram fallback.
-  const px = size * 2;
+  // 256 px — scharf bis 3× HiDPI, unabhängig von `size`.
   const sources: string[] = logoHost && BRANDFETCH_TOKEN
-    ? [`https://cdn.brandfetch.io/${logoHost}/w/${px}/h/${px}/icon?c=${BRANDFETCH_TOKEN}`]
+    ? [`https://cdn.brandfetch.io/${logoHost}/w/256/h/256/icon?c=${BRANDFETCH_TOKEN}`]
     : [];
 
   function advance() {
@@ -104,8 +104,8 @@ export function VendorLogo({
         ref={imgRef}
         src={sources[srcIndex]}
         alt=""
-        width={px}
-        height={px}
+        width={256}
+        height={256}
         onError={advance}
         onLoad={(e) => {
           // Catch 0-byte responses that don't trigger onError
