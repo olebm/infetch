@@ -36,8 +36,21 @@ function createClient(): postgres.Sql {
   });
 }
 
-export const sql: postgres.Sql =
-  globalThis.__pgSql ?? (globalThis.__pgSql = createClient());
+// Lazy singleton — only connects on first query.
+// This allows `next build` to succeed without DATABASE_URL (all routes are
+// force-dynamic and don't execute DB queries at build time).
+function getOrCreateSql(): postgres.Sql {
+  return globalThis.__pgSql ?? (globalThis.__pgSql = createClient());
+}
+
+export const sql: postgres.Sql = new Proxy({} as postgres.Sql, {
+  get(_t, prop) {
+    return Reflect.get(getOrCreateSql(), prop, getOrCreateSql());
+  },
+  apply(_t, _thisArg, args) {
+    return Reflect.apply(getOrCreateSql() as unknown as (...a: unknown[]) => unknown, getOrCreateSql(), args);
+  },
+});
 
 /**
  * @deprecated Verwende `sql` direkt. Diese Funktion existiert nur für die

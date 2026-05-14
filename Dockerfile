@@ -8,18 +8,23 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-ENV NODE_ENV=production \
-    HOST=0.0.0.0 \
-    PORT=3000 \
-    NEXT_TELEMETRY_DISABLED=1
+# NEXT_TELEMETRY_DISABLED applies to both build and runtime.
+# NODE_ENV is intentionally set AFTER npm ci so that devDependencies
+# (tailwindcss, typescript, etc.) are installed — they are required for `next build`.
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install dependencies first for better layer caching.
+# Install ALL dependencies (including devDeps needed for the build).
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # Copy source and build.
 COPY . .
 RUN npm run build
+
+# Switch to production mode for runtime — devDeps are no longer needed.
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000
 
 EXPOSE 3000
 
