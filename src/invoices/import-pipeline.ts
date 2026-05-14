@@ -12,11 +12,15 @@ import { parseInvoiceFields } from "@/invoices/parser";
 import { isLikelyPdf, maxPdfSizeBytes } from "@/invoices/pdf-validation";
 import { deriveInvoiceProductLabel } from "@/invoices/product-label";
 import { matchVendor } from "@/vendors/matcher";
+import { canImportInvoice, canStoreFile } from "@/lib/tier";
+import { sendUpgradeNudge } from "@/lib/mail/notify";
+import { readJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
 
 export type ImportInvoiceResult =
   | { ok: true; status: "imported"; invoiceId: number; fileId: number; message: string }
   | { ok: true; status: "duplicate"; invoiceId: number | null; fileId: number; message: string }
-  | { ok: false; status: "failed"; message: string };
+  | { ok: false; status: "failed"; message: string }
+  | { ok: false; status: "quota_exceeded"; message: string; current: number; max: number };
 
 type ImportPdfSource = "manual" | "mail" | "portal";
 
@@ -26,6 +30,10 @@ type ImportPdfBufferInput = {
   mimeType?: string | null;
   sourceType: ImportPdfSource;
   sourceRefId?: string | null;
+  /** Organisations-ID für Tier-Quota-Check. Wenn null → keine Quota-Prüfung (legacy). */
+  organizationId?: string | null;
+  /** Quota-Prüfung überspringen (z. B. für retroaktiven 12-Monats-Scan). */
+  bypassQuota?: boolean;
 };
 
 type ExistingFileRow = {
@@ -34,7 +42,40 @@ type ExistingFileRow = {
   originalFilename: string;
 };
 
-export async function importManualPdf(input: { file: File }): Promise<ImportInvoiceResult> {
+// ─── Upgrade-Nudge (fire & forget, max. 1× pro 7 Tage pro Org) ───────────────
+
+async function fireUpgradeNudgeIfNeeded(
+  orgId: string,
+  current: number,
+  max: number,
+): Promise<void> {
+  try {
+    const settingKey = `upgrade_nudge_sent_${orgId}`;
+    const lastSent = await readJsonSetting<string | null>(settingKey, null);
+    if (lastSent) {
+      const daysSince = (Date.now() - new Date(lastSent).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince < 7) return; // nicht spammen
+    }
+    const ownerRows = await sql<{ email: string; name: string | null }[]>`
+      SELECT u.email, u.name
+      FROM users u
+      INNER JOIN organizations o ON o.owner_user_id = u.id
+      WHERE o.id = ${orgId}
+      LIMIT 1
+    `;
+    const owner = ownerRows[0];
+    if (!owner) return;
+    const sent = await sendUpgradeNudge({ to: owner.email, current, max });
+    if (sent) await writeJsonSetting(settingKey, new Date().toISOString());
+  } catch (err) {
+    console.error("[upgrade-nudge]", err);
+  }
+}
+
+export async function importManualPdf(input: {
+  file: File;
+  organizationId?: string | null;
+}): Promise<ImportInvoiceResult> {
   if (!input.file || input.file.size === 0) {
     return { ok: false, status: "failed", message: "Keine PDF-Datei ausgewählt." };
   }
@@ -53,6 +94,7 @@ export async function importManualPdf(input: { file: File }): Promise<ImportInvo
     mimeType: input.file.type || "application/pdf",
     sourceType: "manual",
     sourceRefId: null,
+    organizationId: input.organizationId,
   });
 }
 
@@ -73,6 +115,41 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   if (!isLikelyPdf(buffer)) {
     return { ok: false, status: "failed", message: "Datei hat keinen gültigen PDF-Header und wurde nicht importiert." };
   }
+
+  // ── Tier-Quota-Check ────────────────────────────────────────────────────────
+  if (input.organizationId !== undefined && !input.bypassQuota) {
+    const orgId = input.organizationId;
+
+    const [invoiceQuota, storageQuota] = await Promise.all([
+      canImportInvoice(orgId),
+      canStoreFile(orgId, input.buffer.byteLength),
+    ]);
+
+    if (!invoiceQuota.allowed) {
+      if (orgId) void fireUpgradeNudgeIfNeeded(orgId, invoiceQuota.current, invoiceQuota.max);
+      return {
+        ok: false,
+        status: "quota_exceeded",
+        message: `Monatslimit erreicht: ${invoiceQuota.current} von ${invoiceQuota.max} Rechnungen importiert. Bitte auf Pro upgraden.`,
+        current: invoiceQuota.current,
+        max: invoiceQuota.max,
+      };
+    }
+
+    if (!storageQuota.allowed) {
+      const usedMb  = Math.round(storageQuota.usedBytes  / (1024 * 1024));
+      const maxMb   = Math.round(storageQuota.maxBytes   / (1024 * 1024));
+      if (orgId) void fireUpgradeNudgeIfNeeded(orgId, storageQuota.usedBytes, storageQuota.maxBytes);
+      return {
+        ok: false,
+        status: "quota_exceeded",
+        message: `Speicherlimit erreicht: ${usedMb} MB von ${maxMb} MB belegt. Bitte auf Pro upgraden.`,
+        current: storageQuota.usedBytes,
+        max: storageQuota.maxBytes,
+      };
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
   const existingRows = await sql<ExistingFileRow[]>`

@@ -1,128 +1,66 @@
 /**
- * AES-256-GCM Credential Store auf Postgres-Basis (INFETCH-XX).
+ * Supabase Vault Secret Store für Infetch.
  *
- * Wird als Fallback verwendet wenn kein macOS Keychain verfügbar ist (Linux, Docker).
- * Setzt SECRET_ENCRYPTION_KEY als Umgebungsvariable voraus — ein 64-Zeichen-Hex-String
- * (= 32 Bytes), erzeugt mit: `openssl rand -hex 32`
+ * Ersetzt den AES-256-GCM Encrypted-DB-Store.  Secrets werden via Supabase Vault
+ * (pgsodium Extension) serverseitig verschlüsselt gespeichert — kein eigener
+ * SECRET_ENCRYPTION_KEY mehr nötig, Supabase verwaltet die Schlüssel.
  *
- * Gespeichertes Format in encrypted_secrets.ciphertext:
- *   {iv_hex}:{authTag_hex}:{ciphertext_hex}
+ * Vault-API (Postgres-Seite):
+ *   vault.create_secret(secret text, name text)  → uuid
+ *   vault.decrypted_secrets                      → view (name, decrypted_secret, …)
+ *   vault.secrets                                → raw-Tabelle (name, secret, …)
  *
- * Sicherheits-Eigenschaften:
- * - AES-256-GCM: Authenticated Encryption — erkennt Manipulation am Ciphertext.
- * - Zufälliger 96-bit IV pro Schreib-Operation — kein IV-Wiederverwendungs-Problem.
- * - 128-bit Auth-Tag — standardmäßige GCM-Stärke.
- * - Key nie in der DB — liegt nur in der Umgebungsvariable.
+ * Aufruf-Muster:
+ *   Write:  DELETE WHERE name + vault.create_secret()   (Upsert ohne nativen ON CONFLICT)
+ *   Read:   SELECT … FROM vault.decrypted_secrets WHERE name = …
+ *   Delete: DELETE FROM vault.secrets WHERE name = …
  */
 
-import crypto from "node:crypto";
 import { sql } from "@/lib/db/client";
 
-const ALGORITHM = "aes-256-gcm" as const;
-const IV_BYTES = 12;    // 96 Bit — optimal für GCM
-const TAG_BYTES = 16;   // 128 Bit — GCM-Standard
-
-function getEncryptionKey(): Buffer {
-  const hex = process.env.SECRET_ENCRYPTION_KEY?.trim();
-  if (!hex) {
-    throw new Error(
-      "SECRET_ENCRYPTION_KEY ist nicht konfiguriert. " +
-      "Bitte einen 64-stelligen Hex-String (openssl rand -hex 32) als Umgebungsvariable setzen.",
-    );
-  }
-  const key = Buffer.from(hex, "hex");
-  if (key.length !== 32) {
-    throw new Error(
-      `SECRET_ENCRYPTION_KEY muss exakt 64 Hex-Zeichen (32 Bytes) lang sein, hat aber ${hex.length} Zeichen.`,
-    );
-  }
-  return key;
-}
-
 /**
- * Gibt an ob der DB-Encrypted-Store verfügbar ist.
- * Muss SECRET_ENCRYPTION_KEY gesetzt haben.
+ * Gibt an ob der Vault-Store verfügbar ist.
+ * Supabase Vault (pgsodium) ist in jedem Supabase-Projekt immer aktiv → true.
  */
 export function isDbStoreAvailable(): boolean {
-  return Boolean(process.env.SECRET_ENCRYPTION_KEY?.trim());
+  return true;
 }
 
 /**
- * Verschlüsselt `secret` mit AES-256-GCM und speichert das Ergebnis in der DB.
- * Überschreibt einen vorhandenen Eintrag für `secretRef`.
+ * Speichert `secret` in Supabase Vault unter dem Schlüssel `secretRef`.
+ * Überschreibt einen vorhandenen Eintrag (DELETE then CREATE — Vault hat kein natives Upsert).
  */
 export async function writeDbSecret(
   secretRef: string,
   secret: string,
 ): Promise<void> {
-  const key = getEncryptionKey();
-  const iv = crypto.randomBytes(IV_BYTES);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-
-  const ciphertext = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-
-  if (authTag.length !== TAG_BYTES) {
-    throw new Error(`Unerwartete Auth-Tag-Länge: ${authTag.length}`);
-  }
-
-  // Format: iv_hex:authTag_hex:ciphertext_hex
-  const stored = `${iv.toString("hex")}:${authTag.toString("hex")}:${ciphertext.toString("hex")}`;
-
-  await sql`
-    INSERT INTO encrypted_secrets (secret_ref, ciphertext)
-    VALUES (${secretRef}, ${stored})
-    ON CONFLICT(secret_ref) DO UPDATE SET
-      ciphertext = excluded.ciphertext,
-      updated_at = CURRENT_TIMESTAMP
-  `;
+  // Alten Eintrag entfernen (kein Fehler wenn nicht vorhanden)
+  await sql`DELETE FROM vault.secrets WHERE name = ${secretRef}`;
+  // Neu anlegen — Vault verschlüsselt mit dem projekteigenen pgsodium-Key
+  await sql`SELECT vault.create_secret(${secret}, ${secretRef})`;
 }
 
 /**
- * Liest und entschlüsselt einen Secret aus der DB.
- * Gibt null zurück wenn der Eintrag nicht gefunden wird oder die Entschlüsselung fehlschlägt.
+ * Liest und entschlüsselt einen Secret aus Supabase Vault.
+ * Gibt null zurück wenn kein Eintrag unter `secretRef` vorhanden ist.
  */
 export async function readDbSecret(
   secretRef: string,
 ): Promise<string | null> {
-  const rows = await sql<{ ciphertext: string }[]>`
-    SELECT ciphertext FROM encrypted_secrets WHERE secret_ref = ${secretRef} LIMIT 1
+  const rows = await sql<{ decryptedSecret: string }[]>`
+    SELECT decrypted_secret AS "decryptedSecret"
+    FROM vault.decrypted_secrets
+    WHERE name = ${secretRef}
+    LIMIT 1
   `;
-  const row = rows[0];
-  if (!row) return null;
-
-  let key: Buffer;
-  try {
-    key = getEncryptionKey();
-  } catch {
-    // Key nicht konfiguriert — kann nicht entschlüsseln.
-    return null;
-  }
-
-  const parts = row.ciphertext.split(":");
-  if (parts.length !== 3) return null;
-
-  try {
-    const iv         = Buffer.from(parts[0], "hex");
-    const authTag    = Buffer.from(parts[1], "hex");
-    const ciphertext = Buffer.from(parts[2], "hex");
-
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
-
-    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    return plaintext.toString("utf8");
-  } catch {
-    // Entschlüsselung fehlgeschlagen — falscher Key oder manipulierte Daten.
-    return null;
-  }
+  return rows[0]?.decryptedSecret ?? null;
 }
 
 /**
- * Löscht einen Secret aus der DB. Kein Fehler wenn nicht vorhanden.
+ * Löscht einen Secret aus Supabase Vault. Kein Fehler wenn nicht vorhanden.
  */
 export async function deleteDbSecret(
   secretRef: string,
 ): Promise<void> {
-  await sql`DELETE FROM encrypted_secrets WHERE secret_ref = ${secretRef}`;
+  await sql`DELETE FROM vault.secrets WHERE name = ${secretRef}`;
 }

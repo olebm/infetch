@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { sql } from "@/lib/db/client";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { downloadFromStorage, BUCKETS } from "@/lib/supabase/storage";
+import { canBulkDownload } from "@/lib/tier";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +118,18 @@ export async function GET(request: NextRequest) {
 
   // SECURITY (INFETCH-87): Org-Scoping — nur Rechnungen der eigenen Organisation.
   const orgId = auth.organization?.id ?? null;
+
+  // Tier-Check: Bulk-Download (kein Vendor-Filter) ist Pro-only.
+  // Free-User können Rechnungen pro Anbieter (vendorId gesetzt) herunterladen.
+  if (!vendorId) {
+    const bulkAllowed = await canBulkDownload(orgId);
+    if (!bulkAllowed) {
+      return new Response(
+        JSON.stringify({ error: "bulk_download_not_allowed", message: "Bulk-Export ist nur im Pro-Plan verfügbar. Nutze den Download pro Anbieter." }),
+        { status: 403, headers: { "content-type": "application/json" } },
+      );
+    }
+  }
 
   // Build query with optional filters
   let rows: InvoiceRow[];

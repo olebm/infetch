@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Mail, Settings as SettingsIcon, Store, UserCircle } from "lucide-react";
+import { ChevronDown, Settings as SettingsIcon, Store, UserCircle } from "lucide-react";
 import { logout } from "@/app/login/actions";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ interface TopBarProps {
   initials: string;
   userName: string;
   userEmail?: string;
+  avatarUrl?: string;
   autoPilotEnabled: boolean;
 }
 
@@ -40,6 +41,7 @@ export function TopBar({
   initials,
   userName,
   userEmail,
+  avatarUrl,
   autoPilotEnabled,
 }: TopBarProps) {
   const pathname = usePathname() || "/";
@@ -143,8 +145,13 @@ export function TopBar({
               aria-label="Profil"
               className="inline-flex h-9 items-center gap-1 rounded pl-1 pr-1.5 hover:bg-paper"
             >
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-ink text-[11px] font-medium text-white">
-                {initials || "·"}
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-ink text-[11px] font-medium text-white overflow-hidden">
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  initials || "·"
+                )}
               </span>
               <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden />
             </button>
@@ -198,15 +205,6 @@ export function TopBar({
                     <SettingsIcon className="h-3.5 w-3.5 text-muted" aria-hidden />
                     Einstellungen
                   </Link>
-                  <a
-                    href="mailto:support@infetch.de"
-                    role="menuitem"
-                    onClick={() => setProfileOpen(false)}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-ink hover:bg-[#f5f2ec] focus-visible:bg-[#f5f2ec] focus-visible:outline-none"
-                  >
-                    <Mail className="h-3.5 w-3.5 text-muted" aria-hidden />
-                    Support
-                  </a>
                 </div>
                 <div className="border-t border-line py-1">
                   <form action={logout}>

@@ -1,10 +1,7 @@
 import { Lock, Globe2, FileCode, Shield } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { loginAsTestUser } from "@/app/login/actions";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/status/status-badge";
 import { LoginForm } from "@/components/auth/login-form";
 
 export const dynamic = "force-dynamic";
@@ -34,15 +31,12 @@ export default async function LoginPage({
 
         {/* ── Left — white brand panel ──────────────────────────────────── */}
         <div className="hidden flex-col justify-between border-r border-line bg-white p-12 md:flex">
-          {/* Logo + beta badge */}
+          {/* Logo */}
           <div>
             <Link href="/landingpage" aria-label="Zur Startseite">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/infetch-logo.svg" alt="Infetch" className="h-8 w-auto" />
             </Link>
-            <div className="mt-3">
-              <StatusBadge status="new" label="v0.4 · public beta" />
-            </div>
           </div>
 
           {/* Headline */}
@@ -95,16 +89,6 @@ export default async function LoginPage({
 
             {/* Magic-Link Form */}
             <LoginForm next={next} />
-
-            {/* Dev fallback */}
-            {process.env.NODE_ENV !== "production" && (
-              <form action={loginAsTestUser} className="mt-4">
-                <input type="hidden" name="next" value={next} />
-                <Button type="submit" variant="ghost" fullWidth className="text-xs text-muted">
-                  Als Test-User einloggen →
-                </Button>
-              </form>
-            )}
 
             <p className="mt-6 text-xs text-muted">
               Mit Klick auf „Magic-Link senden" akzeptierst du{" "}

@@ -19,9 +19,11 @@ function sanitizeNext(value: unknown): string {
  * zu dem direkt weitergeleitet wird.
  */
 export async function loginAsTestUser(formData: FormData) {
-  // SECURITY: Test-Login ist niemals in Production erreichbar.
-  if ((process.env.NODE_ENV as string) === "production") {
-    throw new Error("loginAsTestUser is not available in production");
+  // SECURITY (INFETCH-85): Test-Login nur wenn explizit aktiviert.
+  // NODE_ENV-Check ist nicht ausreichend — Staging-Envs können NODE_ENV=development haben.
+  // Einziger Weg: ENABLE_TEST_LOGIN=true muss bewusst gesetzt werden.
+  if (process.env.ENABLE_TEST_LOGIN !== "true") {
+    throw new Error("loginAsTestUser is not enabled in this environment");
   }
 
   const next = sanitizeNext(formData.get("next"));

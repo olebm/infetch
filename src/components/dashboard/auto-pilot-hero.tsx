@@ -4,9 +4,6 @@ import { appConfig } from "@/lib/config/env";
 import { getAutoPilotStatus } from "@/lib/auto-pilot";
 import { getAutomationStats, getSetupSnapshot, getPrimaryMailAccount } from "@/lib/db/queries";
 import { getExportTargets } from "@/exports/export-pipeline";
-import { ensureInboundAddressForOrg } from "@/mail/inbound-addresses";
-import { getCurrentAuth } from "@/lib/auth/current";
-import { CopyField } from "@/components/ui/copy-field";
 
 type Setup = Awaited<ReturnType<typeof getSetupSnapshot>>;
 
@@ -55,11 +52,7 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
   if (isBlocked) return <HeroBlocked setup={setup} />;
 
   if (isFresh) {
-    const auth = await getCurrentAuth();
-    const inboundAddress = auth?.organization
-      ? await ensureInboundAddressForOrg(auth.organization.id)
-      : null;
-    return <HeroFresh setup={setup} inboundAddress={inboundAddress?.fullAddress ?? null} />;
+    return <HeroFresh setup={setup} />;
   }
 
   return (
@@ -186,7 +179,7 @@ function HeroBlocked({ setup }: { setup: Setup }) {
   );
 }
 
-function HeroFresh({ setup, inboundAddress }: { setup: Setup; inboundAddress: string | null }) {
+function HeroFresh({ setup }: { setup: Setup }) {
   return (
     <div className="grid items-start gap-12 py-2 md:grid-cols-2">
       <div>
@@ -195,13 +188,8 @@ function HeroFresh({ setup, inboundAddress }: { setup: Setup; inboundAddress: st
           Wir warten auf deine <em>erste Rechnung.</em>
         </h2>
         <p className="mt-5 max-w-md text-muted">
-          Leite eine Rechnung an deine Inbound-Adresse — oder warte, bis automatisch eine ankommt. Wir übernehmen den Rest.
+          Infetch scannt dein Postfach alle 5 Minuten. Sobald eine Rechnung ankommt, übernehmen wir den Rest.
         </p>
-        {inboundAddress && (
-          <div className="mt-6">
-            <CopyField label="Deine Inbound-Adresse" value={inboundAddress} />
-          </div>
-        )}
       </div>
       <FreshChecklist setup={setup} />
     </div>

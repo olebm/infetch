@@ -431,6 +431,16 @@ export const schemaStatements = [
   `ALTER TABLE users ADD COLUMN vat_id TEXT`,
 
   // ─────────────────────────────────────────────────────────────
+  // Profil: Profilbild-URL
+  // ─────────────────────────────────────────────────────────────
+  `ALTER TABLE users ADD COLUMN avatar_url TEXT`,
+
+  // ─────────────────────────────────────────────────────────────
+  // Resend Inbound entfernt — Tabelle nicht mehr benötigt
+  // ─────────────────────────────────────────────────────────────
+  `DROP TABLE IF EXISTS mail_inbound_addresses`,
+
+  // ─────────────────────────────────────────────────────────────
   // Pricing: 2-Tier-Modell (Solo / Pro) — 'power' abgelöst
   // ─────────────────────────────────────────────────────────────
   `UPDATE organizations SET tier = 'pro' WHERE tier = 'power'`,

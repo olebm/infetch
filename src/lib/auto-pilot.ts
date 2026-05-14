@@ -13,6 +13,9 @@ import { reevaluateReviewQueue } from "@/lib/automation/reeval-queue";
 import { cleanupIgnoredFiles } from "@/lib/automation/cleanup-ignored";
 import { escalateStuckReviews } from "@/lib/automation/stuck-escalation";
 import { backfillDomainAliases } from "@/lib/automation/alias-backfill";
+import { runMonthlyReport } from "@/lib/automation/monthly-report";
+import { runWeeklyDigest } from "@/lib/automation/weekly-digest";
+import { runReactivationCheck } from "@/lib/automation/reactivation-check";
 import { appConfig } from "@/lib/config/env";
 
 type JobName =
@@ -25,7 +28,10 @@ type JobName =
   | "reevalQueue"
   | "cleanupIgnored"
   | "escalateStuck"
-  | "backfillAliases";
+  | "backfillAliases"
+  | "monthlyReport"
+  | "weeklyDigest"
+  | "reactivationCheck";
 
 type JobState = {
   cron: string;
@@ -52,6 +58,12 @@ const jobs: Record<JobName, JobState> = {
   escalateStuck: { cron: "0 1 * * *", task: null, lastRunAt: null, lastError: null, running: false },
   // Alias-Backfill: täglich 4 Uhr — Domain-Aliase für Vendors die nur contains haben.
   backfillAliases: { cron: "0 4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  // Monatlicher Report: am 1. jeden Monats um 8 Uhr — Zusammenfassung des Vormonats.
+  monthlyReport: { cron: "0 8 1 * *", task: null, lastRunAt: null, lastError: null, running: false },
+  // Wöchentlicher Digest: montags um 8 Uhr — Zusammenfassung der letzten 7 Tage.
+  weeklyDigest: { cron: "0 8 * * 1", task: null, lastRunAt: null, lastError: null, running: false },
+  // Reaktivierungs-Check: sonntags um 9 Uhr — Nudge bei > 30 Tage Inaktivität.
+  reactivationCheck: { cron: "0 9 * * 0", task: null, lastRunAt: null, lastError: null, running: false },
 };
 
 let started = false;
@@ -121,6 +133,9 @@ async function runJob(name: JobName) {
     else if (name === "cleanupIgnored") await cleanupIgnoredFiles();
     else if (name === "escalateStuck") await escalateStuckReviews();
     else if (name === "backfillAliases") await backfillDomainAliases();
+    else if (name === "monthlyReport") await runMonthlyReport();
+    else if (name === "weeklyDigest") await runWeeklyDigest();
+    else if (name === "reactivationCheck") await runReactivationCheck();
     job.lastRunAt = new Date();
     job.lastError = null;
   } catch (error) {
@@ -185,6 +200,9 @@ const JOB_LABELS: Record<JobName, string> = {
   cleanupIgnored: "Disk-Müll aufräumen",
   escalateStuck: "Vergessene Reviews abschließen",
   backfillAliases: "Vendor-Aliase ergänzen",
+  monthlyReport: "Monatsbericht versenden",
+  weeklyDigest: "Wöchentlichen Digest versenden",
+  reactivationCheck: "Reaktivierungs-Check",
 };
 
 function nextCronTickSeconds(_cronExpr: string, lastRunAt: Date | null): number | null {

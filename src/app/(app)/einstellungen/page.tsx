@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/config/env";
-import { getPrimaryMailAccount, getSecondaryMailAccount } from "@/lib/db/queries";
+import { getPrimaryMailAccount, getSecondaryMailAccount, listIntegrationTargets } from "@/lib/db/queries";
 import {
   hasConfiguredCredential,
   hasStoredCredentialRef,
@@ -18,8 +18,10 @@ import { Tabs, type TabItem } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { ensureInboundAddressForOrg } from "@/mail/inbound-addresses";
-import { InboundAddressCard } from "@/components/credentials/inbound-address-card";
+import { UsageCard } from "@/components/einstellungen/usage-card";
+import { IntegrationsSection, type IntegrationStatus } from "@/components/einstellungen/integrations-section";
+import { RetroactiveScanCard } from "@/components/einstellungen/retroactive-scan-card";
+import { getOrgTier } from "@/lib/tier";
 
 
 export const dynamic = "force-dynamic";
@@ -31,24 +33,36 @@ export default async function SetupPage() {
   const [
     exportTargets,
     confidenceThreshold,
-    inboundAddress,
     imapPrimary,
     imapSecondary,
     primaryHasCredential,
     primaryHasRef,
     secondaryHasCredential,
     secondaryHasRef,
+    integrationTargets,
+    tier,
   ] = await Promise.all([
     getExportTargets(),
     readJsonSetting<number>("auto_approve_confidence", appConfig.features.autoApprovalConfidenceThreshold),
-    auth?.organization ? ensureInboundAddressForOrg(auth.organization.id) : Promise.resolve(null),
     getPrimaryMailAccount(),
     getSecondaryMailAccount(),
     hasConfiguredCredential("imap", "primary", auth?.organization?.id),
     hasStoredCredentialRef("imap", "primary", auth?.organization?.id),
     hasConfiguredCredential("imap", "secondary", auth?.organization?.id),
     hasStoredCredentialRef("imap", "secondary", auth?.organization?.id),
+    listIntegrationTargets(),
+    getOrgTier(auth?.organization?.id ?? null),
   ]);
+
+  const isPro = tier !== "free";
+
+  const integrations: IntegrationStatus[] = integrationTargets.map((t) => ({
+    provider: t.provider as IntegrationStatus["provider"],
+    enabled: t.enabled,
+    label: t.label,
+    externalAccountId: t.externalAccountId,
+    lastVerifiedAt: t.lastVerifiedAt,
+  }));
 
   const mailboxSlots: MailboxSlot[] = [
     {
@@ -142,17 +156,10 @@ export default async function SetupPage() {
               Wähle deinen Anbieter — wir konfigurieren IMAP und SMTP automatisch.
             </div>
           </div>
-          <MailboxConnectCard slots={mailboxSlots} />
+          <MailboxConnectCard slots={mailboxSlots} isPro={isPro} />
         </div>
       </Card>
 
-      {inboundAddress && (
-        <InboundAddressCard
-          address={inboundAddress.fullAddress}
-          receivedCount={inboundAddress.receivedCount}
-          lastReceivedAt={inboundAddress.lastReceivedAt}
-        />
-      )}
     </div>
   );
 
@@ -226,16 +233,27 @@ export default async function SetupPage() {
           </div>
         </div>
       </Card>
+
+      <Card padding="lg">
+        <RetroactiveScanCard isPro={isPro} />
+      </Card>
     </div>
   );
 
   // ─── Tab assembly ────────────────────────────────────────────────────────────
 
+  const integrationsTab = (
+    <IntegrationsSection integrations={integrations} isPro={isPro} />
+  );
+
   const tabs: TabItem[] = [
-    { key: "buchhaltung", label: "Buchhaltung",    content: buchhaltungTab },
-    { key: "postfach",    label: "Postfächer",      content: postfachTab    },
-    { key: "ki",          label: "KI & Auto-Pilot", content: aiTab          },
+    { key: "buchhaltung",   label: "Buchhaltung",    content: buchhaltungTab   },
+    { key: "postfach",      label: "Postfächer",      content: postfachTab      },
+    { key: "integrationen", label: "Integrationen",   content: integrationsTab  },
+    { key: "ki",            label: "KI & Auto-Pilot", content: aiTab            },
   ];
+
+  const stripePaymentLinkPro = process.env.STRIPE_PAYMENT_LINK_PRO ?? null;
 
   return (
     <div className="screen-enter screen-enter-active">
@@ -244,6 +262,12 @@ export default async function SetupPage() {
         subline="Postfächer, Empfänger und Auto-Pilot."
       />
       <Tabs tabs={tabs} defaultKey="buchhaltung" />
+      <div className="mt-4">
+        <UsageCard
+          organizationId={auth?.organization?.id}
+          stripePaymentLinkPro={stripePaymentLinkPro}
+        />
+      </div>
     </div>
   );
 }

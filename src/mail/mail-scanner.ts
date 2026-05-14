@@ -4,6 +4,7 @@ import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
+import { getOrgTier, getScanSinceDate, canRetroactiveScan } from "@/lib/tier";
 import {
   createImapClientForAccount,
   listConfiguredImapAccounts,
@@ -40,10 +41,17 @@ export async function runPrimaryImapScan(input?: {
   client?: ImapClientLike;
   account?: PrimaryImapAccount;
   accountClients?: Array<{ account: PrimaryImapAccount; client: ImapClientLike }>;
+  /** Festes Datum überschreibt die tier-basierte Berechnung (z. B. retroaktiver Scan). */
+  sinceOverride?: Date;
+  /** Quota-Prüfung überspringen (für retroaktiven 12-Monats-Scan). */
+  bypassQuota?: boolean;
+  /** Nur Accounts dieser Organisation scannen. */
+  limitToOrgId?: string | null;
 }): Promise<ImapScanResult> {
+  const triggeredBy = input?.bypassQuota ? "retroactive_scan" : "user";
   const syncRunRows = await sql<{ id: number }[]>`
     INSERT INTO sync_runs (type, status, triggered_by, started_at)
-    VALUES ('imap_scan', 'running', 'user', CURRENT_TIMESTAMP)
+    VALUES ('imap_scan', 'running', ${triggeredBy}, CURRENT_TIMESTAMP)
     RETURNING id
   `;
   const syncRunId = Number(syncRunRows[0].id);
@@ -65,15 +73,29 @@ export async function runPrimaryImapScan(input?: {
   const useInjectedAccountClients = Boolean(input?.accountClients?.length);
 
   try {
-    const accounts: ConfiguredImapAccount[] = useInjectedAccountClients
+    let accounts: ConfiguredImapAccount[] = useInjectedAccountClients
       ? input!.accountClients!.map(({ account }) => asConfiguredAccount(account))
       : useInjectedClient
       ? [asConfiguredAccount(input!.account!)]
       : await listConfiguredImapAccounts();
 
+    // Wenn auf eine Org begrenzt, nur deren Accounts scannen.
+    if (input?.limitToOrgId) {
+      accounts = accounts.filter((a) => a.organizationId === input.limitToOrgId);
+    }
+
     if (!accounts.length) {
       throw new Error("Kein konfiguriertes IMAP-Postfach vorhanden.");
     }
+
+    // Tier-Cache: pro Org einmal abfragen, nicht pro Nachricht.
+    const tierCache = new Map<string | null, Awaited<ReturnType<typeof getOrgTier>>>();
+    const getTierCached = async (orgId: string | null) => {
+      if (!tierCache.has(orgId)) {
+        tierCache.set(orgId, await getOrgTier(orgId));
+      }
+      return tierCache.get(orgId)!;
+    };
 
     const scanOne = async (account: ConfiguredImapAccount) => {
       const client = useInjectedAccountClients
@@ -87,10 +109,13 @@ export async function runPrimaryImapScan(input?: {
       const lock = await client.getMailboxLock("INBOX");
       try {
         const uidValidity = client.mailbox ? String(client.mailbox.uidValidity) : "unknown";
-        const since = subMonths(new Date(), appConfig.syncMonthsBack);
+        // Tier-aware since-Datum: Free = Monatsbeginn, Pro = syncMonthsBack
+        const tier = await getTierCached(account.organizationId ?? null);
+        const since = input?.sinceOverride ?? getScanSinceDate(tier, appConfig.syncMonthsBack);
+        const bypassQuota = input?.bypassQuota ?? false;
         for await (const message of client.fetch({ since }, { uid: true, envelope: true, source: true })) {
           summary.messagesSeen += 1;
-          await processMessage(account.id, uidValidity, message, summary);
+          await processMessage(account.id, uidValidity, message, summary, bypassQuota);
         }
       } finally {
         lock.release();
@@ -169,6 +194,7 @@ async function processMessage(
   uidValidity: string,
   message: FetchMessageObject,
   summary: Omit<ImapScanResult, "syncRunId">,
+  bypassQuota = false,
 ) {
   if (!message.source) return;
 
@@ -216,6 +242,12 @@ async function processMessage(
     return;
   }
 
+  // Org-ID für Quota-Check aus mail_accounts laden (einmalig pro Nachricht)
+  const orgRows = await sql<{ organizationId: string | null }[]>`
+    SELECT organization_id AS "organizationId" FROM mail_accounts WHERE id = ${mailAccountId} LIMIT 1
+  `;
+  const organizationId = orgRows[0]?.organizationId ?? null;
+
   let importedForMessage = 0;
   for (const attachment of parsed.pdfAttachments) {
     const result = await importPdfBuffer({
@@ -224,6 +256,8 @@ async function processMessage(
       mimeType: attachment.contentType,
       sourceType: "mail",
       sourceRefId: String(mailMessageId),
+      organizationId,
+      bypassQuota,
     });
     if (result.ok && result.status === "imported") {
       summary.imported += 1;

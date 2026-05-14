@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
+import { SupportFooterLink } from "@/components/support/support-fab";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { getInvoiceStatusCounts } from "@/lib/db/queries";
 import { appConfig } from "@/lib/config/env";
@@ -21,6 +22,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   const displayName = auth.user.name ?? auth.organization?.name ?? auth.user.email ?? "";
   const userEmail = auth.user.email ?? undefined;
+  const avatarUrl = auth.user.avatarUrl ?? undefined;
   const initials =
     displayName
       .split(/\s+/)
@@ -43,6 +45,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         initials={initials}
         userName={displayName}
         userEmail={userEmail}
+        avatarUrl={avatarUrl}
         autoPilotEnabled={appConfig.features.autoPilotEnabled}
       />
       <main
@@ -77,7 +80,7 @@ function AppFooter() {
           <a href="#" className="hover:text-ink">Datenschutz</a>
           <a href="#" className="hover:text-ink">AGB</a>
           <a href="#" className="hover:text-ink">Impressum</a>
-          <a href="mailto:tools@ole-beekmann.de" className="hover:text-ink">help@infetch.de</a>
+          <SupportFooterLink />
         </nav>
       </div>
     </footer>

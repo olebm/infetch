@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Applies supabase/migrations/0001_initial_schema.sql to the Postgres DB.
- * Usage: DATABASE_URL=... node scripts/apply-migration.mjs
- *   or:  node scripts/apply-migration.mjs  (picks up .env.local automatically)
+ * Applies a Supabase migration SQL file to the Postgres DB.
+ * Usage: node scripts/apply-migration.mjs [migration-file]
+ *   Default: supabase/migrations/0001_initial_schema.sql
+ *   Example: node scripts/apply-migration.mjs supabase/migrations/0010_rls.sql
  */
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 // Load .env.local manually if DATABASE_URL not set
 if (!process.env.DATABASE_URL) {
@@ -31,18 +32,21 @@ if (!url || !url.startsWith("postgresql")) {
 }
 
 const sql = postgres(url, { prepare: false });
-const migrationPath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../supabase/migrations/0001_initial_schema.sql",
-);
+
+const arg = process.argv[2];
+const migrationPath = arg
+  ? resolve(arg)
+  : join(dirname(fileURLToPath(import.meta.url)), "../supabase/migrations/0001_initial_schema.sql");
+
+const migrationName = migrationPath.split("/").pop();
 const migrationSql = readFileSync(migrationPath, "utf8");
 
-console.log("Applying migration 0001_initial_schema.sql …");
+console.log(`Applying ${migrationName} …`);
 try {
   await sql.unsafe(migrationSql);
-  console.log("✅ Migration applied successfully");
+  console.log(`✅ ${migrationName} applied successfully`);
 } catch (err) {
-  console.error("❌ Migration failed:", err.message);
+  console.error(`❌ Migration failed:`, err.message);
   process.exit(1);
 } finally {
   await sql.end();

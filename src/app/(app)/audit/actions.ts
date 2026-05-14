@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db/client";
 import { syncStoredInvoiceFileNamesForInvoice } from "@/invoices/file-names";
 import { importManualPdf } from "@/invoices/import-pipeline";
+import { getCurrentAuth } from "@/lib/auth/current";
 import { runMissingInvoiceCheck } from "@/invoices/missing-check";
 import { updateInvoiceReview, type ReviewStatus } from "@/invoices/review";
 import { learnFromManualMatch } from "@/vendors/auto-alias";
@@ -30,7 +31,8 @@ export async function importManualPdfAction(
     return { status: "error", message: "Bitte eine PDF-Datei auswählen." };
   }
 
-  const result = await importManualPdf({ file });
+  const auth = await getCurrentAuth();
+  const result = await importManualPdf({ file, organizationId: auth?.organization?.id ?? null });
 
   revalidatePath("/");
   revalidatePath("/audit");

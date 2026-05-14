@@ -1,9 +1,11 @@
-import { getInvoiceYears } from "@/lib/db/queries";
+import { getInvoiceYears, getVendors } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { loadOrgMembers, loadUserOrganizations, loadActiveSessions, getUserProfileFields } from "@/lib/auth/session";
+import { loadOrgMembers, loadUserOrganizations, loadActiveSessions, getUserProfileFields, loadPendingInvitations } from "@/lib/auth/session";
 import { ExportDownloadCard } from "@/components/einstellungen/export-download-card";
+import { getOrgTier, getLimits } from "@/lib/tier";
 import { ProfilForm } from "@/components/einstellungen/profil-form";
 import { SessionsSection, SwitchOrgButton } from "@/components/einstellungen/sessions-section";
+import { MembersCard } from "@/components/konto/members-card";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/status/status-badge";
@@ -11,34 +13,29 @@ import { VendorLogo } from "@/components/ui/vendor-logo";
 
 export const dynamic = "force-dynamic";
 
-function roleLabel(role: string) {
-  if (role === "owner") return "Inhaber";
-  if (role === "admin") return "Bearbeiter";
-  return "Nur lesen";
-}
-
-function planLabel(tier: string) {
-  if (tier === "pro") return "Pro · 9 € / Monat";
-  return "Solo · kostenlos";
-}
-
-function initials(name: string | null, email: string) {
-  if (name) {
-    const parts = name.trim().split(/\s+/);
-    return (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "");
-  }
-  return email.slice(0, 2).toUpperCase();
+function planLabel(tier: string, priceEur: number) {
+  if (tier === "free") return "Free · kostenlos";
+  return `${tier.charAt(0).toUpperCase() + tier.slice(1)} · ${priceEur} € / Monat`;
 }
 
 export default async function KontoPage() {
   const auth = await getCurrentAuth();
-  const [invoiceYears, userOrgs, orgMembers, activeSessions, profileFields] = await Promise.all([
+  const [invoiceYears, vendors, userOrgs, orgMembers, pendingInvitations, activeSessions, profileFields, tier] = await Promise.all([
     getInvoiceYears(),
+    getVendors(),
     auth ? loadUserOrganizations(auth.user.id) : Promise.resolve([]),
     auth?.organization ? loadOrgMembers(auth.organization.id) : Promise.resolve([]),
+    auth?.organization ? loadPendingInvitations(auth.organization.id) : Promise.resolve([]),
     auth ? loadActiveSessions(auth.user.id) : Promise.resolve([]),
     auth ? getUserProfileFields(auth.user.id) : Promise.resolve(null),
+    getOrgTier(auth?.organization?.id ?? null),
   ]);
+
+  const isPro = tier !== "free";
+  const limits = getLimits(tier);
+
+  // Aktuelle Mitglieder-Rolle des eingeloggten Nutzers ermitteln
+  const currentUserRole = orgMembers.find((m) => m.userId === auth?.user?.id)?.role ?? "member";
 
   return (
     <div className="screen-enter screen-enter-active">
@@ -49,7 +46,7 @@ export default async function KontoPage() {
 
       <div className="mt-8 space-y-4">
 
-        {/* ── Dein Profil ───────────────────────────────────────────────────── */}
+        {/* 1 ── Dein Profil ─────────────────────────────────────────────────── */}
         <Card padding="lg">
           <div className="mb-3 text-sm font-medium text-ink">Dein Profil</div>
           <ProfilForm
@@ -57,37 +54,11 @@ export default async function KontoPage() {
             initialEmail={auth?.user?.email ?? ""}
             initialCompanyName={profileFields?.companyName ?? ""}
             initialVatId={profileFields?.vatId ?? ""}
+            initialAvatarUrl={profileFields?.avatarUrl ?? null}
           />
         </Card>
 
-        {/* ── Sicherheit ────────────────────────────────────────────────────── */}
-        <Card padding="lg">
-          <div className="mb-3 text-sm font-medium text-ink">Sicherheit</div>
-          <ul className="divide-y divide-line border-y border-line">
-            <li className="flex items-center gap-3 py-3">
-              <div className="flex-1">
-                <div className="text-sm text-ink">Magic-Link</div>
-                <div className="text-xs text-muted">Login per E-Mail — kein Passwort.</div>
-              </div>
-              <StatusBadge status="configured" label="aktiv" />
-            </li>
-            <li className="flex items-center gap-3 py-3">
-              <div className="flex-1">
-                <div className="text-sm text-ink">Zwei-Faktor (TOTP)</div>
-                <div className="text-xs text-muted">
-                  Empfohlen, wenn mehrere Personen Zugriff haben.
-                </div>
-              </div>
-              <span className="text-xs text-muted">geplant</span>
-            </li>
-            <SessionsSection
-              sessionCount={activeSessions.length}
-              lastUsedAt={activeSessions[0]?.lastUsedAt ?? null}
-            />
-          </ul>
-        </Card>
-
-        {/* ── Arbeitsbereich ────────────────────────────────────────────────── */}
+        {/* 2 ── Arbeitsbereich ──────────────────────────────────────────────── */}
         <Card padding="none">
           <div className="flex items-start justify-between gap-4 p-5">
             <div>
@@ -106,7 +77,7 @@ export default async function KontoPage() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-ink">{org.name}</div>
                     <div className="text-xs text-muted">
-                      {org.slug} · {planLabel(org.tier)}
+                      {org.slug} · {planLabel(org.tier, getLimits(org.tier as "free" | "pro" | "business").priceMonthlyEur)}
                     </div>
                   </div>
                   {isCurrent ? (
@@ -125,81 +96,55 @@ export default async function KontoPage() {
           </ul>
         </Card>
 
-        {/* ── Mitglieder ────────────────────────────────────────────────────── */}
+        {/* 3 ── Mitglieder ──────────────────────────────────────────────────── */}
         <Card padding="none">
-          <div className="flex items-start justify-between gap-4 p-5">
-            <div>
-              <div className="text-sm font-medium text-ink">
-                Mitglieder{auth?.organization ? ` · ${auth.organization.name}` : ""}
-              </div>
-              <div className="text-xs text-muted">
-                Wer sieht und bearbeitet Rechnungen in diesem Arbeitsbereich.
-              </div>
-            </div>
-          </div>
-          <ul className="divide-y divide-line border-t border-line">
-            {orgMembers.map((m) => {
-              const isMe = m.userId === auth?.user?.id;
-              return (
-                <li key={m.userId} className="flex items-center gap-3 px-5 py-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-[11px] font-medium text-white">
-                    {initials(m.name, m.email)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-ink">
-                      {m.name || m.email}
-                      {isMe && <span className="ml-2 text-xs text-muted">(du)</span>}
-                    </div>
-                    <div className="truncate text-xs text-muted">{m.email}</div>
-                  </div>
-                  <span className="text-xs text-muted">{roleLabel(m.role)}</span>
-                </li>
-              );
-            })}
-            {orgMembers.length === 0 && (
-              <li className="px-5 py-3 text-sm text-muted">
-                Keine Mitglieder gefunden.
-              </li>
-            )}
-          </ul>
+          <MembersCard
+            members={orgMembers}
+            pendingInvitations={pendingInvitations}
+            currentUserId={auth?.user?.id ?? ""}
+            currentUserRole={currentUserRole}
+            orgName={auth?.organization?.name ?? ""}
+            maxUsers={limits.maxUsers}
+            isPro={isPro}
+          />
         </Card>
 
-        {/* ── Abrechnung ────────────────────────────────────────────────────── */}
+        {/* 4 ── Abrechnung ──────────────────────────────────────────────────── */}
         <Card padding="lg">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-sm font-medium text-ink">Abrechnung</div>
               <div className="text-xs text-muted">
-                {auth?.organization ? planLabel(auth.organization.tier) : "Solo · kostenlos"}
+                {auth?.organization ? planLabel(auth.organization.tier, limits.priceMonthlyEur) : "Free · kostenlos"}
               </div>
             </div>
           </div>
         </Card>
 
-        {/* ── Daten & Konto ─────────────────────────────────────────────────── */}
-        <ExportDownloadCard years={invoiceYears} />
-
-        {/* ── Demnächst ─────────────────────────────────────────────────────── */}
+        {/* 5 ── Sicherheit ──────────────────────────────────────────────────── */}
         <Card padding="lg">
-          <div className="mb-3 text-sm font-medium text-ink">Demnächst</div>
-          <ul className="space-y-2">
-            {[
-              { label: "Zwei-Faktor-Auth (TOTP)",    detail: "Zusätzlicher Login-Schutz per Authenticator-App" },
-              { label: "Mitglieder einladen",         detail: "Teammitglieder in den Arbeitsbereich holen" },
-              { label: "Rollen & Berechtigungen",     detail: "Differenzierter Zugriff für Inhaber, Bearbeiter und Lesende" },
-              { label: "Weitere Arbeitsbereiche",     detail: "Mehrere Organisationen unter einem Account verwalten" },
-              { label: "Abrechnung & Rechnungen",     detail: "Plan wechseln und Rechnungsbelege herunterladen" },
-            ].map((item) => (
-              <li key={item.label} className="flex items-start gap-3">
-                <span className="mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-line" aria-hidden />
-                <div>
-                  <div className="text-sm text-ink">{item.label}</div>
-                  <div className="text-xs text-muted">{item.detail}</div>
-                </div>
-              </li>
-            ))}
+          <div className="mb-3 text-sm font-medium text-ink">Sicherheit</div>
+          <ul className="divide-y divide-line border-y border-line">
+            <li className="flex items-center gap-3 py-3">
+              <div className="flex-1">
+                <div className="text-sm text-ink">Magic-Link</div>
+                <div className="text-xs text-muted">Login per E-Mail — kein Passwort.</div>
+              </div>
+              <StatusBadge status="configured" label="aktiv" />
+            </li>
+            <SessionsSection
+              sessionCount={activeSessions.length}
+              lastUsedAt={activeSessions[0]?.lastUsedAt ?? null}
+            />
           </ul>
         </Card>
+
+        {/* 6 ── Daten & Konto ───────────────────────────────────────────────── */}
+        <ExportDownloadCard
+          years={invoiceYears}
+          vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
+          isPro={isPro}
+        />
 
       </div>
     </div>

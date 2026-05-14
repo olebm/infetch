@@ -14,21 +14,21 @@ interface SendEmailOptions {
 }
 
 async function sendEmail(opts: SendEmailOptions): Promise<boolean> {
-  const { apiKey, fromAddress } = appConfig.resendOutbound;
+  const { apiKey, fromEmail, fromName } = appConfig.brevo;
   if (!apiKey) return false; // kein Key → still überspringen
 
   try {
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "api-key": apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: fromAddress,
-        to: [opts.to],
+        sender: { name: fromName, email: fromEmail },
+        to: [{ email: opts.to }],
         subject: opts.subject,
-        html: opts.html,
+        htmlContent: opts.html,
       }),
     });
     return res.ok;
@@ -65,6 +65,87 @@ function base(content: string): string {
 </div>
 </body>
 </html>`;
+}
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+
+export async function sendOnboardingEmail(opts: {
+  to: string;
+  name?: string | null;
+  appUrl?: string;
+}): Promise<boolean> {
+  const url = opts.appUrl ?? "https://app.infetch.de";
+  const greeting = opts.name ? `Hallo ${opts.name.split(" ")[0]},` : "Hallo,";
+  return sendEmail({
+    to: opts.to,
+    subject: "Willkommen bei Infetch — so geht's los",
+    html: base(`
+      <h1>Dein Konto ist bereit.</h1>
+      <p>${greeting} schön, dass du da bist.</p>
+      <p>Infetch sammelt deine Rechnungen automatisch ein und leitet sie an deine Steuersoftware weiter — ohne dass du etwas tun musst.</p>
+      <p><strong>Ein Schritt fehlt noch:</strong> Verbinde dein Postfach, damit Infetch loslegen kann.</p>
+      <a href="${url}/einstellungen" class="btn">Postfach verbinden →</a>
+      <p style="font-size:12px;color:#a0a09a">Das dauert ungefähr 2 Minuten. Danach läuft alles automatisch.</p>
+    `),
+  });
+}
+
+// ─── Upgrade-Nudge ────────────────────────────────────────────────────────────
+
+export async function sendUpgradeNudge(opts: {
+  to: string;
+  current: number;
+  max: number;
+  appUrl?: string;
+}): Promise<boolean> {
+  const url = opts.appUrl ?? "https://app.infetch.de";
+  return sendEmail({
+    to: opts.to,
+    subject: `Dein Infetch-Limit ist erreicht (${opts.current}/${opts.max} Rechnungen)`,
+    html: base(`
+      <h1>Du hast dein Monatslimit erreicht.</h1>
+      <p>Diesen Monat wurden bereits <strong>${opts.current} von ${opts.max} Rechnungen</strong> importiert.</p>
+      <p>Weitere Rechnungen werden erst im nächsten Monat verarbeitet — es sei denn, du wechselst auf Pro.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0 24px">
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e2db;color:#6b6b67;font-size:13px">Rechnungen / Monat</td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e2db;text-align:right;font-size:13px"><span style="text-decoration:line-through;color:#a0a09a">${opts.max}</span> → <strong>150</strong></td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e2db;color:#6b6b67;font-size:13px">Speicher</td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e2db;text-align:right;font-size:13px"><span style="text-decoration:line-through;color:#a0a09a">500 MB</span> → <strong>2 GB</strong></td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0;color:#6b6b67;font-size:13px">lexoffice / sevDesk Export</td>
+          <td style="padding:10px 0;text-align:right;font-size:13px;color:#2d7a3a">✓ inklusive</td>
+        </tr>
+      </table>
+      <a href="${url}/konto" class="btn">Jetzt auf Pro upgraden →</a>
+    `),
+  });
+}
+
+// ─── Reaktivierungs-Nudge ─────────────────────────────────────────────────────
+
+export async function sendReactivationEmail(opts: {
+  to: string;
+  name?: string | null;
+  daysSinceLastInvoice: number;
+  appUrl?: string;
+}): Promise<boolean> {
+  const url = opts.appUrl ?? "https://app.infetch.de";
+  const greeting = opts.name ? `Hallo ${opts.name.split(" ")[0]},` : "Hallo,";
+  return sendEmail({
+    to: opts.to,
+    subject: "Alles ok bei Infetch?",
+    html: base(`
+      <h1>Wir haben dich vermisst.</h1>
+      <p>${greeting} seit ${opts.daysSinceLastInvoice} Tagen hat Infetch keine neue Rechnung für dich verarbeitet.</p>
+      <p>Möglicherweise ist die Verbindung zu deinem Postfach unterbrochen — das passiert manchmal nach Passwortänderungen.</p>
+      <a href="${url}/einstellungen" class="btn">Verbindung prüfen →</a>
+      <p style="font-size:12px;color:#a0a09a">Falls alles in Ordnung ist und du gerade einfach keine Rechnungen hattest, kannst du diese Mail ignorieren.</p>
+    `),
+  });
 }
 
 // ─── Review-Benachrichtigung ──────────────────────────────────────────────────

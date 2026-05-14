@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { CheckCircle2, Link2, X } from "lucide-react";
+import { ProBadge } from "@/components/ui/pro-badge";
 import {
   saveLexofficeApiKeyAction,
   saveSevdeskApiKeyAction,
@@ -19,14 +20,20 @@ export type IntegrationStatus = {
   lastVerifiedAt: string | null;
 };
 
-export function IntegrationsSection({ integrations }: { integrations: IntegrationStatus[] }) {
+export function IntegrationsSection({
+  integrations,
+  isPro,
+}: {
+  integrations: IntegrationStatus[];
+  isPro: boolean;
+}) {
   const lexoffice = integrations.find((i) => i.provider === "lexoffice");
   const sevdesk = integrations.find((i) => i.provider === "sevdesk");
 
   return (
     <div className="space-y-4">
-      <LexofficeIntegrationCard status={lexoffice} />
-      <SevdeskIntegrationCard status={sevdesk} />
+      <LexofficeIntegrationCard status={lexoffice} isPro={isPro} />
+      <SevdeskIntegrationCard status={sevdesk} isPro={isPro} />
       <ComingSoonCard
         provider="datev"
         title="DATEV Belegtransfer"
@@ -36,7 +43,7 @@ export function IntegrationsSection({ integrations }: { integrations: Integratio
   );
 }
 
-function LexofficeIntegrationCard({ status }: { status?: IntegrationStatus }) {
+function LexofficeIntegrationCard({ status, isPro }: { status?: IntegrationStatus; isPro: boolean }) {
   const isConnected = status?.enabled === true;
 
   return (
@@ -65,8 +72,10 @@ function LexofficeIntegrationCard({ status }: { status?: IntegrationStatus }) {
 
           {isConnected ? (
             <DisconnectForm provider="lexoffice" />
-          ) : (
+          ) : isPro ? (
             <LexofficeApiKeyForm />
+          ) : (
+            <ProOnlyHint feature="lexoffice-Integration" />
           )}
         </div>
       </div>
@@ -74,7 +83,7 @@ function LexofficeIntegrationCard({ status }: { status?: IntegrationStatus }) {
   );
 }
 
-function SevdeskIntegrationCard({ status }: { status?: IntegrationStatus }) {
+function SevdeskIntegrationCard({ status, isPro }: { status?: IntegrationStatus; isPro: boolean }) {
   const isConnected = status?.enabled === true;
   return (
     <div className="rounded border border-line bg-white p-4 shadow-soft">
@@ -99,7 +108,7 @@ function SevdeskIntegrationCard({ status }: { status?: IntegrationStatus }) {
               </span>
             )}
           </div>
-          {isConnected ? <DisconnectForm provider="sevdesk" /> : <SevdeskApiKeyForm />}
+          {isConnected ? <DisconnectForm provider="sevdesk" /> : isPro ? <SevdeskApiKeyForm /> : <ProOnlyHint feature="sevDesk-Integration" />}
         </div>
       </div>
     </div>
@@ -231,6 +240,15 @@ function DisconnectForm({ provider }: { provider: "lexoffice" | "sevdesk" | "dat
         Trennen
       </button>
     </form>
+  );
+}
+
+function ProOnlyHint({ feature }: { feature: string }) {
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <ProBadge feature={feature} />
+      <span className="text-xs text-muted">Nur im Pro-Plan verfügbar</span>
+    </div>
   );
 }
 

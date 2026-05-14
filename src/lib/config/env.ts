@@ -34,6 +34,7 @@ export const appConfig = {
     mailFirst: process.env.MAIL_FIRST_STRATEGY !== "false",
     portalFallback: process.env.PORTAL_FALLBACK_ENABLED === "true",
     enablePortals: process.env.ENABLE_PORTALS === "true",
+    enableInboundMail: process.env.ENABLE_INBOUND_MAIL === "true",
     enableApiIntegrations: process.env.ENABLE_API_INTEGRATIONS === "true",
     enableCommunityRecipes: process.env.ENABLE_COMMUNITY_RECIPES === "true",
     enableMissingMatrix: process.env.ENABLE_MISSING_MATRIX !== "false",
@@ -65,20 +66,14 @@ export const appConfig = {
     // Produktiv: Pflicht. Beidseitig in App + Proxy gesetzt.
     token: process.env.AI_PROXY_TOKEN?.trim() || null,
   },
-  resendInbound: {
-    // Inbound-Domain z.B. "in.infetch.de" — pro-User-Adressen werden als
-    // {local_part}@{inboundDomain} generiert.
-    domain: process.env.RESEND_INBOUND_DOMAIN?.trim() || "in.infetch.de",
-    // Shared Secret fuer Webhook-Signatur (HMAC-SHA256). In dev: optional.
-    // Produktiv: Pflicht, in Resend-Webhook-Settings + hier identisch setzen.
-    webhookSecret: process.env.RESEND_INBOUND_WEBHOOK_SECRET?.trim() || null,
-  },
-  resendOutbound: {
-    // API-Key für ausgehende E-Mails (Benachrichtigungen, Digest).
-    // Ohne Key: Notifications werden still übersprungen.
-    apiKey: process.env.RESEND_API_KEY?.trim() || null,
-    // Absenderadresse für ausgehende Mails.
-    fromAddress: process.env.NOTIFICATION_FROM_EMAIL?.trim() || "Infetch <noreply@infetch.de>",
+  brevo: {
+    // API-Key für ausgehende E-Mails (Benachrichtigungen, Digest) via Brevo.
+    // Ohne Key: Notifications werden still übersprungen (dev-safe).
+    // Erzeugen unter: app.brevo.com → SMTP & API → API Keys
+    apiKey: process.env.BREVO_API_KEY?.trim() || null,
+    // Absender — muss in Brevo als verifizierte Absenderadresse hinterlegt sein.
+    fromEmail: process.env.BREVO_FROM_EMAIL?.trim() || "noreply@infetch.de",
+    fromName: process.env.BREVO_FROM_NAME?.trim() || "Infetch",
   },
   sentry: {
     dsn: process.env.SENTRY_DSN?.trim() || null,

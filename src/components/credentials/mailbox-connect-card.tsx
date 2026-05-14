@@ -9,6 +9,7 @@
 
 import { useState } from "react";
 import { Check, Plus } from "lucide-react";
+import { ProBadge } from "@/components/ui/pro-badge";
 import { Modal } from "@/components/ui/modal";
 import { MailboxConnectContent } from "@/components/credentials/mailbox-connect-content";
 import { VendorLogo } from "@/components/ui/vendor-logo";
@@ -23,9 +24,10 @@ export interface MailboxSlot {
 
 interface MailboxConnectCardProps {
   slots: MailboxSlot[];
+  isPro: boolean;
 }
 
-export function MailboxConnectCard({ slots }: MailboxConnectCardProps) {
+export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
   const [openSlot, setOpenSlot] = useState<"primary" | "secondary" | null>(null);
 
   const primary   = slots.find((s) => s.key === "primary")!;
@@ -112,19 +114,34 @@ export function MailboxConnectCard({ slots }: MailboxConnectCardProps) {
         ) : (
           /* Show "add secondary" only once primary is connected */
           primary.isConnected && (
-            <button
-              type="button"
-              onClick={() => setOpenSlot("secondary")}
-              className="flex w-full items-center gap-3 py-3 text-left hover:opacity-80"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-dashed border-line bg-surface text-muted">
-                <Plus size={14} aria-hidden />
+            isPro ? (
+              <button
+                type="button"
+                onClick={() => setOpenSlot("secondary")}
+                className="flex w-full items-center gap-3 py-3 text-left hover:opacity-80"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-dashed border-line bg-surface text-muted">
+                  <Plus size={14} aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-muted">Weiteres Postfach verbinden</div>
+                  <div className="text-xs text-muted">Sekundäres Konto für zusätzliche Postfächer.</div>
+                </div>
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 py-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-dashed border-line bg-surface text-muted">
+                  <Plus size={14} aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted">Weiteres Postfach verbinden</span>
+                    <ProBadge feature="Sekundäres Postfach" />
+                  </div>
+                  <div className="text-xs text-muted">Sekundäres Konto für zusätzliche Postfächer.</div>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm text-muted">Weiteres Postfach verbinden</div>
-                <div className="text-xs text-muted">Sekundäres Konto für zusätzliche Postfächer.</div>
-              </div>
-            </button>
+            )
           )
         )}
       </div>

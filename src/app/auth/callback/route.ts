@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
+import { findUserByEmail, createUserWithDefaultOrg, createUserAndJoinOrg } from "@/lib/auth/users";
+import { sendOnboardingEmail } from "@/lib/mail/notify";
 
 /**
  * Supabase Auth Callback — tauscht den One-Time-Code gegen eine Session.
@@ -36,11 +37,31 @@ export async function GET(request: NextRequest) {
   try {
     const existing = await findUserByEmail(data.user.email);
     if (!existing) {
-      await createUserWithDefaultOrg({
-        email: data.user.email,
-        name: (data.user.user_metadata?.full_name as string | undefined) ?? null,
-        userId: data.user.id,
-      });
+      // Eingeladener Nutzer: user_metadata enthält invited_org_id + invited_role
+      const invitedOrgId = data.user.user_metadata?.invited_org_id as string | undefined;
+      const invitedRole = (data.user.user_metadata?.invited_role as string | undefined) ?? "member";
+      const validRole = (["owner", "admin", "member"] as const).includes(invitedRole as "owner" | "admin" | "member")
+        ? (invitedRole as "owner" | "admin" | "member")
+        : "member";
+
+      if (invitedOrgId) {
+        // Einlade-Flow: User anlegen + zur bestehenden Org hinzufügen
+        await createUserAndJoinOrg({
+          email: data.user.email,
+          name: (data.user.user_metadata?.full_name as string | undefined) ?? null,
+          userId: data.user.id,
+          organizationId: invitedOrgId,
+          role: validRole,
+        });
+      } else {
+        // Normaler Magic-Link-Login: eigene Org anlegen
+        const name = (data.user.user_metadata?.full_name as string | undefined) ?? null;
+        await createUserWithDefaultOrg({ email: data.user.email, name, userId: data.user.id });
+        // Onboarding-Mail — fire & forget, blockiert den Login nicht
+        void sendOnboardingEmail({ to: data.user.email, name }).catch((err) =>
+          console.error("[auth/callback] onboarding email failed:", err),
+        );
+      }
     }
   } catch (err) {
     // Kein harter Fehler — App bleibt nutzbar, Profil wird ggf. beim nächsten Login angelegt

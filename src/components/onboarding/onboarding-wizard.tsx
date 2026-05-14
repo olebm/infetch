@@ -3,18 +3,14 @@
 import { Fragment, useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, CheckCircle, ChevronRight, ArrowLeft, ArrowRight, AlertTriangle, Info } from "lucide-react";
-import { completeOnboardingAction, saveRecipientOnlyAction, type OnboardingState } from "@/app/onboarding/actions";
+import { Check, CheckCircle, ArrowLeft, ArrowRight, Info } from "lucide-react";
+import { completeOnboardingAction, type OnboardingState } from "@/app/onboarding/actions";
 import { Button } from "@/components/ui/button";
-import { CopyField } from "@/components/ui/copy-field";
 import { MailboxConnectContent, type MailboxData } from "@/components/credentials/mailbox-connect-content";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Method = "inbound" | "imap";
-
 type WizardData = {
-  method: Method;
   // IMAP/SMTP — filled by MailboxConnectContent in onboarding mode
   imapEmail: string;
   imapPassword: string;
@@ -43,7 +39,7 @@ const TEMPLATES: Record<string, { name: string; email: string }> = {
 };
 
 const PERMISSIONS = [
-  ["Deine Inbound-Adresse überwachen",
+  ["Dein Postfach scannen",
    "alle 5 Min · nur Mails mit Rechnungsmerkmalen"],
   ["Rechnungs-Daten extrahieren",
    "über unser DSGVO-konformes EU-Modell · ≥ 90 % Konfidenz wird durchgewunken"],
@@ -57,11 +53,10 @@ const PERMISSIONS = [
 
 const initialActionState: OnboardingState = { status: "idle", message: "" };
 
-export function OnboardingWizard({ inboundAddress }: { inboundAddress: string | null }) {
+export function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<WizardData>({
-    method: "inbound",
     imapEmail: "",
     imapPassword: "",
     imapHost: "",
@@ -79,10 +74,6 @@ export function OnboardingWizard({ inboundAddress }: { inboundAddress: string | 
     completeOnboardingAction,
     initialActionState,
   );
-  const [inboundState, inboundFormAction, inboundPending] = useActionState(
-    saveRecipientOnlyAction,
-    initialActionState,
-  );
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const set = (key: keyof WizardData) =>
@@ -91,7 +82,7 @@ export function OnboardingWizard({ inboundAddress }: { inboundAddress: string | 
 
   const next = () => {
     setValidationError(null);
-    if (step === 1 && data.method === "imap") {
+    if (step === 1) {
       if (!data.imapEmail) { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
       if (!data.imapHost)  { setValidationError("Bitte Postfach-Anbieter auswählen oder IMAP-Host eingeben."); return; }
     }
@@ -103,7 +94,7 @@ export function OnboardingWizard({ inboundAddress }: { inboundAddress: string | 
   };
   const back = () => { setValidationError(null); setStep((s) => Math.max(0, s - 1)); };
 
-  if (actionState.status === "success" || inboundState.status === "success") {
+  if (actionState.status === "success") {
     router.push("/onboarding/erstabruf");
   }
 
@@ -200,104 +191,40 @@ export function OnboardingWizard({ inboundAddress }: { inboundAddress: string | 
               Mit welchem Postfach sollen wir arbeiten?
             </h1>
             <p className="mt-2 text-sm text-muted">
-              Empfehlung: leite Rechnungen an deine private Inbound-Adresse weiter. Sicherer als
-              IMAP-Zugang.
+              Infetch scannt dein Postfach alle 5 Minuten und erkennt Rechnungen automatisch.
             </p>
-
-            {/* Inbound card */}
-            <div
-              onClick={() => setData((d) => ({ ...d, method: "inbound" }))}
-              className={`mt-6 cursor-pointer rounded-md border p-5 transition-colors ${
-                data.method === "inbound"
-                  ? "border-brand ring-2 ring-brand/20 bg-paper"
-                  : "border-line bg-paper hover:bg-surface"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <input
-                  type="radio"
-                  readOnly
-                  checked={data.method === "inbound"}
-                  className="mt-1 accent-brand"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
-                    Eigene Inbound-Adresse
-                    <span className="inline-flex items-center gap-1 rounded-full bg-ok-soft px-2 py-0.5 text-[11px] font-medium text-ok">
-                      empfohlen
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted">
-                    Du leitest Rechnungen einfach hierher weiter. Kein Passwort, keine OAuth.
-                  </p>
-                  {inboundAddress ? (
-                    <div className="mt-3">
-                      <CopyField label="Deine Inbound-Adresse" value={inboundAddress} />
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-xs text-muted italic">
-                      Adresse wird nach der Einrichtung angezeigt.
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs text-muted">
-                    Tipp: in Gmail/Outlook eine Weiterleitungsregel für „Rechnung", „Invoice", „Beleg" anlegen.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* IMAP toggle */}
-            <button
-              onClick={() =>
-                setData((d) => ({ ...d, method: d.method === "imap" ? "inbound" : "imap" }))
-              }
-              className="mt-4 inline-flex items-center gap-1 text-sm text-muted hover:text-ink"
-            >
-              <ChevronRight
-                size={14}
-                className={`transition-transform ${data.method === "imap" ? "rotate-90" : ""}`}
+            <div className="mt-6 rounded-md border border-line bg-paper p-5">
+              <MailboxConnectContent
+                mode="onboarding"
+                onDataChange={(d: MailboxData | null) => {
+                  if (d) {
+                    setData((prev) => ({
+                      ...prev,
+                      imapEmail: d.email,
+                      imapPassword: d.password,
+                      imapHost: d.imapHost,
+                      imapPort: d.imapPort,
+                      imapSecure: d.imapSecure,
+                      smtpHost: d.smtpHost,
+                      smtpPort: d.smtpPort,
+                      smtpSecure: d.smtpSecure,
+                    }));
+                  } else {
+                    setData((prev) => ({
+                      ...prev,
+                      imapEmail: "",
+                      imapPassword: "",
+                      imapHost: "",
+                      imapPort: 993,
+                      imapSecure: true,
+                      smtpHost: "",
+                      smtpPort: 465,
+                      smtpSecure: true,
+                    }));
+                  }
+                }}
               />
-              Andere Optionen (IMAP-Zugang)
-            </button>
-
-            {data.method === "imap" && (
-              <div className="mt-3 rounded-md border border-line bg-paper p-5">
-                <div className="mb-4 flex items-start gap-2 text-xs text-warn">
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />
-                  <span>IMAP gibt uns Lesezugriff auf alle Mails. Nur nutzen, wenn Weiterleitung wirklich nicht geht.</span>
-                </div>
-                <MailboxConnectContent
-                  mode="onboarding"
-                  onDataChange={(d: MailboxData | null) => {
-                    if (d) {
-                      setData((prev) => ({
-                        ...prev,
-                        imapEmail: d.email,
-                        imapPassword: d.password,
-                        imapHost: d.imapHost,
-                        imapPort: d.imapPort,
-                        imapSecure: d.imapSecure,
-                        smtpHost: d.smtpHost,
-                        smtpPort: d.smtpPort,
-                        smtpSecure: d.smtpSecure,
-                      }));
-                    } else {
-                      setData((prev) => ({
-                        ...prev,
-                        imapEmail: "",
-                        imapPassword: "",
-                        imapHost: "",
-                        imapPort: 993,
-                        imapSecure: true,
-                        smtpHost: "",
-                        smtpPort: 465,
-                        smtpSecure: true,
-                      }));
-                    }
-                  }}
-                />
-              </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -385,9 +312,7 @@ export function OnboardingWizard({ inboundAddress }: { inboundAddress: string | 
               <div className="flex items-baseline gap-3 px-4 py-3">
                 <dt className="w-28 shrink-0 text-xs text-muted">Postfach</dt>
                 <dd className="text-sm text-ink">
-                  {data.method === "inbound"
-                    ? "Inbound-Weiterleitung (empfohlen)"
-                    : data.imapEmail || "IMAP-Zugang"}
+                  {data.imapEmail || "IMAP-Zugang"}
                 </dd>
               </div>
               <div className="flex items-baseline gap-3 px-4 py-3">
@@ -414,9 +339,9 @@ export function OnboardingWizard({ inboundAddress }: { inboundAddress: string | 
               </div>
             </div>
 
-            {(actionState.status === "error" || inboundState.status === "error") && (
+            {actionState.status === "error" && (
               <div className="mt-4 rounded-md border border-danger/20 bg-danger-soft p-3 text-sm text-danger">
-                {actionState.status === "error" ? actionState.message : inboundState.message}
+                {actionState.message}
               </div>
             )}
           </div>
@@ -437,14 +362,6 @@ export function OnboardingWizard({ inboundAddress }: { inboundAddress: string | 
             <Button onClick={next} className="gap-1.5">
               weiter <ArrowRight size={16} aria-hidden />
             </Button>
-          ) : data.method === "inbound" ? (
-            <form action={inboundFormAction}>
-              <input type="hidden" name="recipientEmail" value={data.recipientEmail} />
-              <input type="hidden" name="exportTarget"   value={data.recipientTemplate} />
-              <Button type="submit" disabled={inboundPending} className="gap-1.5">
-                {inboundPending ? "Wird gespeichert…" : <><span>Setup abschließen</span><ArrowRight size={16} aria-hidden /></>}
-              </Button>
-            </form>
           ) : (
             <form action={formAction}>
               <input type="hidden" name="email"          value={data.imapEmail} />

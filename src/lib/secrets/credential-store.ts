@@ -60,15 +60,15 @@ type StoreName = "os_keychain" | "encrypted_db";
 
 /**
  * Gibt den aktiven Store zurück.
- * Priorität: macOS Keychain (darwin) > Encrypted-DB-Store (SECRET_ENCRYPTION_KEY gesetzt).
- * Wirft wenn keiner verfügbar ist — verhindert stille Datenverluste.
+ * Priorität: macOS Keychain (darwin) > Supabase Vault (immer verfügbar in Supabase Cloud).
+ * Wirft nur wenn beide nicht verfügbar sind (sollte im normalen Betrieb nie passieren).
  */
 function getActiveStoreName(): StoreName {
   if (isOsKeychainSupported()) return "os_keychain";
   if (isDbStoreAvailable()) return "encrypted_db";
   throw new Error(
     "Kein Secret Store verfügbar. " +
-    "Bitte SECRET_ENCRYPTION_KEY als Umgebungsvariable setzen (openssl rand -hex 32).",
+    "Stelle sicher dass das Projekt mit Supabase Vault (pgsodium) verbunden ist.",
   );
 }
 

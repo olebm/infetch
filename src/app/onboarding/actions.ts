@@ -151,36 +151,3 @@ export async function completeOnboardingAction(
   }
 }
 
-/**
- * Inbound-only onboarding: speichert nur den Empfänger (kein IMAP).
- * Wird aufgerufen wenn der User die Inbound-Adresse statt IMAP nutzt.
- */
-export async function saveRecipientOnlyAction(
-  _prev: OnboardingState,
-  formData: FormData,
-): Promise<OnboardingState> {
-  void _prev;
-  try {
-    const recipientEmail = String(formData.get("recipientEmail") || "").trim();
-    const exportTarget = String(formData.get("exportTarget") || "kontist").trim();
-
-    if (!recipientEmail) {
-      return { status: "error", message: "Bitte gib eine Empfänger-Adresse ein." };
-    }
-
-    const exportTargetKey = exportTarget === "accountable" ? "accountable" : "kontist";
-    await sql`
-      UPDATE export_targets
-      SET recipient_email = ${recipientEmail}, enabled = TRUE, updated_at = CURRENT_TIMESTAMP
-      WHERE target = ${exportTargetKey}
-    `;
-
-    revalidatePath("/");
-    revalidatePath("/einstellungen");
-
-    return { status: "success", message: "Empfänger gespeichert." };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : "Speichern fehlgeschlagen.";
-    return { status: "error", message: msg };
-  }
-}

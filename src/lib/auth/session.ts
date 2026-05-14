@@ -16,6 +16,7 @@ export type UserRow = {
   email: string;
   name: string | null;
   emailVerifiedAt: string | null;
+  avatarUrl: string | null;
 };
 
 export type OrganizationRow = {
@@ -76,7 +77,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export async function loadUser(userId: string): Promise<UserRow | null> {
   const rows = await sql<UserRow[]>`
-    SELECT id, email, name, email_verified_at AS "emailVerifiedAt"
+    SELECT id, email, name, email_verified_at AS "emailVerifiedAt", avatar_url AS "avatarUrl"
     FROM users
     WHERE id = ${userId} AND deleted_at IS NULL
   `;
@@ -118,12 +119,21 @@ export type SessionSummary = {
 };
 
 export async function loadActiveSessions(userId: string): Promise<SessionSummary[]> {
-  return sql<SessionSummary[]>`
-    SELECT id, last_used_at AS "lastUsedAt", created_at AS "createdAt"
-    FROM sessions
-    WHERE user_id = ${userId} AND expires_at > CURRENT_TIMESTAMP
-    ORDER BY last_used_at DESC
-  `;
+  try {
+    const rows = await sql<{ id: string; lastUsedAt: string; createdAt: string }[]>`
+      SELECT
+        id,
+        COALESCE(refreshed_at, created_at) AS "lastUsedAt",
+        created_at AS "createdAt"
+      FROM auth.sessions
+      WHERE user_id = ${userId}
+        AND (not_after IS NULL OR not_after > CURRENT_TIMESTAMP)
+      ORDER BY COALESCE(refreshed_at, created_at) DESC
+    `;
+    return rows;
+  } catch {
+    return [];
+  }
 }
 
 export async function invalidateAllOtherSessions(
@@ -158,15 +168,22 @@ export async function updateUserProfile(
 
 export async function getUserProfileFields(
   userId: string,
-): Promise<{ companyName: string | null; vatId: string | null }> {
-  const rows = await sql<{ company_name: string | null; vat_id: string | null }[]>`
-    SELECT company_name, vat_id FROM users WHERE id = ${userId}
+): Promise<{ companyName: string | null; vatId: string | null; avatarUrl: string | null }> {
+  const rows = await sql<{ company_name: string | null; vat_id: string | null; avatar_url: string | null }[]>`
+    SELECT company_name, vat_id, avatar_url FROM users WHERE id = ${userId}
   `;
   const row = rows[0];
   return {
     companyName: row?.company_name ?? null,
     vatId: row?.vat_id ?? null,
+    avatarUrl: row?.avatar_url ?? null,
   };
+}
+
+export async function updateUserAvatar(userId: string, avatarUrl: string | null): Promise<void> {
+  await sql`
+    UPDATE users SET avatar_url = ${avatarUrl}, updated_at = CURRENT_TIMESTAMP WHERE id = ${userId}
+  `;
 }
 
 export async function loadUserOrganizations(userId: string): Promise<OrganizationRow[]> {
@@ -177,4 +194,37 @@ export async function loadUserOrganizations(userId: string): Promise<Organizatio
     WHERE m.user_id = ${userId} AND o.deleted_at IS NULL
     ORDER BY o.created_at
   `;
+}
+
+export type PendingInvitation = {
+  userId: string;
+  email: string;
+  role: string;
+  invitedAt: string;
+};
+
+/**
+ * Lädt offene (nicht akzeptierte) Einladungen für eine Organisation.
+ * Nutzt Supabase Auth — eingeladene, aber nicht bestätigte Nutzer haben
+ * `email_confirmed_at IS NULL` und `invited_org_id` in ihren Metadaten.
+ */
+export async function loadPendingInvitations(orgId: string): Promise<PendingInvitation[]> {
+  try {
+    const rows = await sql<{ id: string; email: string; raw_user_meta_data: unknown; invited_at: string | null }[]>`
+      SELECT id, email, raw_user_meta_data, invited_at
+      FROM auth.users
+      WHERE email_confirmed_at IS NULL
+        AND invited_at IS NOT NULL
+        AND raw_user_meta_data->>'invited_org_id' = ${orgId}
+      ORDER BY invited_at DESC
+    `;
+    return rows.map((r) => ({
+      userId: r.id,
+      email: r.email,
+      role: (r.raw_user_meta_data as Record<string, string> | null)?.invited_role ?? "member",
+      invitedAt: r.invited_at ?? new Date().toISOString(),
+    }));
+  } catch {
+    return [];
+  }
 }

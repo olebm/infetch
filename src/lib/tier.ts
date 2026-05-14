@@ -1,72 +1,269 @@
 /**
- * Tier-Management — Solo (free) / Pro.
+ * Tier-Management — Free / Pro / Business (coming later).
  *
- * Aktuell env-basiert: setze INVOICE_AGENT_TIER=free|pro in .env.
- * Später wird hier per Stripe-Webhook auf den effektiven Tier umgeschaltet
- * (Datenbank-Spalte oder externes Lookup).
+ * Die Tier-Zuordnung pro Organisation liegt in organizations.tier (DB).
+ * Fallback für lokale Instanzen ohne Auth: INVOICE_AGENT_TIER env-var.
+ *
+ * Preise (Stand Mai 2026):
+ *   Free:  €0        — 30 Rechnungen/Monat, 1 Postfach, 500 MB
+ *   Pro:   €19/Monat — 200 Rechnungen/Monat, 3 Postfächer, 5 GB
+ *   Business: kommt später (Portal-Agent, Multi-Org, Datev)
  */
 
 import { sql } from "@/lib/db/client";
 
-export type Tier = "free" | "pro";
+export type Tier = "free" | "pro" | "business";
 
 export type TierLimits = {
-  maxOnlineAccounts: number; // Infinity = unbegrenzt
-  communityRecipeShareEnabled: boolean;
-  prioritySupport: boolean;
+  /** Maximale Rechnungsimporte pro Kalendermonat. Infinity = unbegrenzt. */
+  maxInvoicesPerMonth: number;
+  /** Maximale Anzahl konfigurierter IMAP/SMTP-Postfächer. */
+  maxMailAccounts: number;
+  /** Maximale Anzahl Nutzer in der Organisation. */
+  maxUsers: number;
+  /** Maximaler Speicherplatz in Bytes (invoice_files.size_bytes summiert). */
+  maxStorageBytes: number;
+  /** Maximale Portal-/Online-Konten (Portal-Agent, aktuell deaktiviert). */
+  maxOnlineAccounts: number;
+  /** Auto-Approval (regelbasiert + lernend) verfügbar. */
+  autoApprovalEnabled: boolean;
+  /** Export zu Lexoffice / sevDesk. */
+  exportEnabled: boolean;
+  /** Export zu Datev (API, kommt später). */
+  datevExportEnabled: boolean;
+  /** Bulk-Download aller Rechnungen (ZIP ohne Vendor-Filter). Free = false. */
+  bulkDownloadEnabled: boolean;
+  /** Retroaktiver IMAP-Scan (12 Monate zurück), manuell auslösbar. Free = false. */
+  retroactiveScanEnabled: boolean;
+  /** Anzeige-Label für UI. */
   label: string;
+  /** Monatspreis in Euro (ohne MwSt.). */
   priceMonthlyEur: number;
 };
 
-const LIMITS: Record<Tier, TierLimits> = {
+const MB = 1024 * 1024;
+const GB = 1024 * MB;
+
+export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
-    maxOnlineAccounts: 3,
-    communityRecipeShareEnabled: true,
-    prioritySupport: false,
-    label: "Solo",
-    priceMonthlyEur: 0,
+    maxInvoicesPerMonth:   30,
+    maxMailAccounts:       1,
+    maxUsers:              1,
+    maxStorageBytes:       500 * MB,
+    maxOnlineAccounts:     0,
+    autoApprovalEnabled:   true,
+    exportEnabled:         false,
+    datevExportEnabled:    false,
+    bulkDownloadEnabled:     false,
+    retroactiveScanEnabled:  false,
+    label:                   "Free",
+    priceMonthlyEur:       0,
   },
   pro: {
-    maxOnlineAccounts: Number.POSITIVE_INFINITY,
-    communityRecipeShareEnabled: true,
-    prioritySupport: true,
-    label: "Pro",
-    priceMonthlyEur: 9,
+    maxInvoicesPerMonth:   150,
+    maxMailAccounts:       3,
+    maxUsers:              3,
+    maxStorageBytes:       2 * GB,
+    maxOnlineAccounts:     0,
+    autoApprovalEnabled:   true,
+    exportEnabled:         true,
+    datevExportEnabled:    true,
+    bulkDownloadEnabled:     true,
+    retroactiveScanEnabled:  true,
+    label:                   "Pro",
+    priceMonthlyEur:       19,
+  },
+  business: {
+    maxInvoicesPerMonth:   Number.POSITIVE_INFINITY,
+    maxMailAccounts:       Number.POSITIVE_INFINITY,
+    maxUsers:              Number.POSITIVE_INFINITY,
+    maxStorageBytes:       50 * GB,
+    maxOnlineAccounts:     Number.POSITIVE_INFINITY,
+    autoApprovalEnabled:   true,
+    exportEnabled:         true,
+    datevExportEnabled:    true,
+    bulkDownloadEnabled:     true,
+    retroactiveScanEnabled:  true,
+    label:                   "Business",
+    priceMonthlyEur:       49,
   },
 };
 
-export function getTier(): Tier {
+// ── Tier-Lookup ───────────────────────────────────────────────────────────────
+
+/**
+ * Gibt den Tier einer Organisation aus der DB zurück.
+ * Fallback: INVOICE_AGENT_TIER env-var, dann "free".
+ */
+export async function getOrgTier(organizationId: string | null | undefined): Promise<Tier> {
+  if (organizationId) {
+    const rows = await sql<{ tier: string }[]>`
+      SELECT tier FROM organizations WHERE id = ${organizationId} LIMIT 1
+    `;
+    const raw = rows[0]?.tier;
+    if (raw === "pro" || raw === "business") return raw;
+    if (raw === "free") return "free";
+  }
+  // Fallback für lokale / test Instanzen
+  return getEnvTier();
+}
+
+/** Liest Tier aus INVOICE_AGENT_TIER env-var. Fallback: "free". */
+export function getEnvTier(): Tier {
   const raw = process.env.INVOICE_AGENT_TIER?.trim().toLowerCase();
   if (raw === "pro") return "pro";
+  if (raw === "business") return "business";
   return "free";
 }
 
-export function getLimits(tier: Tier = getTier()): TierLimits {
-  return LIMITS[tier];
+export function getLimits(tier: Tier): TierLimits {
+  return TIER_LIMITS[tier];
 }
 
-export async function canAddOnlineAccount(
-  tier: Tier = getTier(),
-): Promise<{ allowed: boolean; current: number; max: number }> {
-  const max = LIMITS[tier].maxOnlineAccounts;
+// ── Quota-Checks ──────────────────────────────────────────────────────────────
 
+/**
+ * Prüft ob ein weiterer Rechnungsimport im aktuellen Kalendermonat erlaubt ist.
+ */
+export async function canImportInvoice(
+  organizationId: string | null | undefined,
+): Promise<{ allowed: boolean; current: number; max: number; tier: Tier }> {
+  const tier  = await getOrgTier(organizationId);
+  const max   = TIER_LIMITS[tier].maxInvoicesPerMonth;
+
+  if (!Number.isFinite(max)) {
+    return { allowed: true, current: 0, max, tier };
+  }
+
+  const current = await getMonthlyImportCount(organizationId);
+  return { allowed: current < max, current, max, tier };
+}
+
+/**
+ * Zählt importierte Rechnungen im laufenden Kalendermonat für eine Organisation.
+ */
+export async function getMonthlyImportCount(
+  organizationId: string | null | undefined,
+): Promise<number> {
   const rows = await sql<{ count: string }[]>`
-    SELECT COUNT(DISTINCT owner_id) AS count
-    FROM credential_refs
-    WHERE scope = 'portal' AND status = 'configured'
+    SELECT COUNT(*) AS count
+    FROM invoices
+    WHERE (organization_id = ${organizationId ?? null} OR organization_id IS NULL)
+      AND created_at >= TO_CHAR(DATE_TRUNC('month', NOW()), 'YYYY-MM-DD')
   `;
-  const current = Number(rows[0]?.count ?? 0);
+  return Number(rows[0]?.count ?? 0);
+}
 
+/**
+ * Gibt genutzten Speicherplatz in Bytes für eine Organisation zurück.
+ */
+export async function getStorageUsageBytes(
+  organizationId: string | null | undefined,
+): Promise<number> {
+  const rows = await sql<{ bytes: string }[]>`
+    SELECT COALESCE(SUM(f.size_bytes), 0) AS bytes
+    FROM invoice_files f
+    INNER JOIN invoices i ON i.id = f.invoice_id
+    WHERE i.organization_id = ${organizationId ?? null}
+       OR i.organization_id IS NULL
+  `;
+  return Number(rows[0]?.bytes ?? 0);
+}
+
+/**
+ * Prüft ob der Storage-Limit für eine Organisation überschritten wäre.
+ */
+export async function canStoreFile(
+  organizationId: string | null | undefined,
+  fileSizeBytes: number,
+): Promise<{ allowed: boolean; usedBytes: number; maxBytes: number; tier: Tier }> {
+  const tier     = await getOrgTier(organizationId);
+  const maxBytes = TIER_LIMITS[tier].maxStorageBytes;
+  const usedBytes = await getStorageUsageBytes(organizationId);
   return {
-    allowed: current < max,
-    current,
-    max,
+    allowed: usedBytes + fileSizeBytes <= maxBytes,
+    usedBytes,
+    maxBytes,
+    tier,
   };
 }
 
-export async function isUpgradeNearby(tier: Tier = getTier()): Promise<boolean> {
-  if (tier !== "free") return false;
-  const { current, max } = await canAddOnlineAccount(tier);
+/**
+ * Prüft ob Export (Lexoffice / sevDesk) für eine Organisation erlaubt ist.
+ */
+export async function canExport(
+  organizationId: string | null | undefined,
+): Promise<boolean> {
+  const tier = await getOrgTier(organizationId);
+  return TIER_LIMITS[tier].exportEnabled;
+}
+
+/**
+ * Prüft ob Bulk-Download (alle Rechnungen ohne Vendor-Filter) erlaubt ist.
+ * Free = nur Download mit vendorId-Filter erlaubt.
+ * Pro/Business = ungefilterter ZIP-Download erlaubt.
+ */
+export async function canBulkDownload(
+  organizationId: string | null | undefined,
+): Promise<boolean> {
+  const tier = await getOrgTier(organizationId);
+  return TIER_LIMITS[tier].bulkDownloadEnabled;
+}
+
+/**
+ * Gibt das früheste Datum zurück, ab dem der IMAP-Scanner Mails abholen soll.
+ *
+ * Free  → Erster Tag des laufenden Kalendermonats (nur aktuelle Mails).
+ * Pro/Business → Nutzt globalen SYNC_MONTHS_BACK-Wert (Standard: 6 Monate).
+ *
+ * Wird im regulären Autopilot-Scan pro Mail-Account genutzt.
+ * Der manuelle retroaktive Scan (Pro) verwendet immer 12 Monate.
+ */
+export function getScanSinceDate(tier: Tier, syncMonthsBack: number): Date {
+  if (tier === "free") {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  const d = new Date();
+  d.setMonth(d.getMonth() - syncMonthsBack);
+  return d;
+}
+
+/**
+ * Prüft ob retroaktiver 12-Monats-Scan für eine Organisation erlaubt ist.
+ */
+export async function canRetroactiveScan(
+  organizationId: string | null | undefined,
+): Promise<boolean> {
+  const tier = await getOrgTier(organizationId);
+  return TIER_LIMITS[tier].retroactiveScanEnabled;
+}
+
+// ── Upgrade-Hint ──────────────────────────────────────────────────────────────
+
+/**
+ * Gibt true zurück wenn die Org nahe am Rechnungs-Monats-Limit ist (≥ 80 %).
+ */
+export async function isNearInvoiceLimit(
+  organizationId: string | null | undefined,
+): Promise<boolean> {
+  const tier  = await getOrgTier(organizationId);
+  const max   = TIER_LIMITS[tier].maxInvoicesPerMonth;
   if (!Number.isFinite(max)) return false;
-  return current >= Math.max(1, max - 1);
+  const current = await getMonthlyImportCount(organizationId);
+  return current >= Math.floor(max * 0.8);
+}
+
+// ── Legacy-Compat (wird von online-accounts verwendet) ────────────────────────
+
+/** @deprecated Portale sind deaktiviert — immer { allowed: false, current: 0, max: 0 } */
+export async function canAddOnlineAccount(
+  _tier?: Tier,
+): Promise<{ allowed: boolean; current: number; max: number }> {
+  return { allowed: false, current: 0, max: 0 };
+}
+
+/** @deprecated Nutze getOrgTier() */
+export function getTier(): Tier {
+  return getEnvTier();
 }

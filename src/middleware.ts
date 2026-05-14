@@ -53,8 +53,7 @@ export const config = {
   //   - statische Assets (_next/*)
   //   - PDF-Preview-iframe (api/invoice-files)
   //   - AI-Proxy-Endpoint (api/ai/*) — hat eigene Bearer-Auth
-  //   - Resend-Inbound-Webhook (api/inbound/*) — hat eigene HMAC-Signatur-Verifikation
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/invoice-files|api/ai|api/inbound).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/invoice-files|api/ai).*)",
   ],
 };

@@ -25,6 +25,7 @@ import { verifyLexofficeConnection, LexofficeApiError } from "@/lib/integrations
 import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sevdesk-client";
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
 import { updateUserProfile, invalidateAllOtherSessions } from "@/lib/auth/session";
+import { canExport } from "@/lib/tier";
 
 export type CredentialFormState = {
   status: "idle" | "success" | "error";
@@ -530,6 +531,12 @@ export async function saveLexofficeApiKeyAction(
 ): Promise<IntegrationFormState> {
   void _previousState;
   try {
+    const auth = await getCurrentAuth();
+    const exportAllowed = await canExport(auth?.organization?.id ?? null);
+    if (!exportAllowed) {
+      return { status: "error", message: "Integrationen sind nur im Pro-Plan verfügbar.", provider: "lexoffice" };
+    }
+
     const apiKey = String(formData.get("apiKey") || "").trim();
     if (apiKey.length < 16) {
       return { status: "error", message: "API-Key sieht zu kurz aus (min. 16 Zeichen)." };
@@ -578,6 +585,12 @@ export async function saveSevdeskApiKeyAction(
 ): Promise<IntegrationFormState> {
   void _previousState;
   try {
+    const auth = await getCurrentAuth();
+    const exportAllowed = await canExport(auth?.organization?.id ?? null);
+    if (!exportAllowed) {
+      return { status: "error", message: "Integrationen sind nur im Pro-Plan verfügbar.", provider: "sevdesk" };
+    }
+
     const apiKey = String(formData.get("apiKey") || "").trim();
     if (apiKey.length < 16) {
       return { status: "error", message: "API-Key sieht zu kurz aus (min. 16 Zeichen)." };

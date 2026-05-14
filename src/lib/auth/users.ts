@@ -13,7 +13,7 @@ function slugify(input: string): string {
 
 export async function findUserByEmail(email: string): Promise<UserRow | null> {
   const rows = await sql<UserRow[]>`
-    SELECT id, email, name, email_verified_at AS "emailVerifiedAt"
+    SELECT id, email, name, email_verified_at AS "emailVerifiedAt", avatar_url AS "avatarUrl"
     FROM users
     WHERE email = ${email.toLowerCase()} AND deleted_at IS NULL
   `;
@@ -55,6 +55,7 @@ export async function createUserWithDefaultOrg(input: {
       email,
       name: input.name ?? null,
       emailVerifiedAt: now,
+      avatarUrl: null,
     },
     organization: {
       id: orgId,
@@ -63,6 +64,46 @@ export async function createUserWithDefaultOrg(input: {
       tier: "free",
       ownerUserId: userId,
     },
+  };
+}
+
+/**
+ * Legt einen neuen User an und fügt ihn einer bestehenden Organisation hinzu.
+ * Wird im Auth-Callback verwendet, wenn ein Nutzer per Einlade-Link kommt.
+ */
+export async function createUserAndJoinOrg(input: {
+  email: string;
+  name?: string | null;
+  userId?: string;
+  organizationId: string;
+  role: "owner" | "admin" | "member";
+}): Promise<UserRow> {
+  const email = input.email.toLowerCase();
+  const userId = input.userId ?? crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  await sql`
+    INSERT INTO users (id, email, name, email_verified_at)
+    VALUES (${userId}, ${email}, ${input.name ?? null}, ${now})
+    ON CONFLICT (email) DO NOTHING
+  `;
+
+  // Hol die tatsächliche User-ID (falls bereits vorhanden)
+  const rows = await sql<{ id: string }[]>`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
+  const resolvedUserId = rows[0]?.id ?? userId;
+
+  await sql`
+    INSERT INTO org_members (organization_id, user_id, role)
+    VALUES (${input.organizationId}, ${resolvedUserId}, ${input.role})
+    ON CONFLICT (organization_id, user_id) DO NOTHING
+  `;
+
+  return {
+    id: resolvedUserId,
+    email,
+    name: input.name ?? null,
+    emailVerifiedAt: now,
+    avatarUrl: null,
   };
 }
 

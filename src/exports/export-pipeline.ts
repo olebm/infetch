@@ -1,6 +1,7 @@
 import { sql } from "@/lib/db/client";
 import { sendInvoiceMail } from "@/mail/smtp-client";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
+import { canExport } from "@/lib/tier";
 
 export type DispatchResult = {
   enqueued: number;
@@ -19,6 +20,7 @@ type PendingExportRow = {
   invoiceDate: string | null;
   amountGross: number | null;
   currency: string | null;
+  organizationId: string | null;
 };
 
 type PdfRow = {
@@ -58,7 +60,8 @@ export async function dispatchPendingExports(): Promise<DispatchResult> {
       vendors.name AS "vendorName",
       invoices.invoice_date AS "invoiceDate",
       invoices.amount_gross AS "amountGross",
-      invoices.currency
+      invoices.currency,
+      invoices.organization_id AS "organizationId"
     FROM exports
     JOIN export_targets ON export_targets.id = exports.export_target_id
     JOIN invoices ON invoices.id = exports.invoice_id
@@ -71,6 +74,19 @@ export async function dispatchPendingExports(): Promise<DispatchResult> {
   let failed = 0;
 
   for (const row of rows) {
+    // Tier-Check: Export nur im Pro-Plan verfügbar
+    const exportAllowed = await canExport(row.organizationId);
+    if (!exportAllowed) {
+      await sql`
+        UPDATE exports
+        SET status = 'blocked', last_error = 'Export nicht im aktuellen Plan enthalten.',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${row.id}
+      `;
+      failed += 1;
+      continue;
+    }
+
     try {
       const fileRows = await sql<PdfRow[]>`
         SELECT stored_path AS "storedPath", original_filename AS "originalFilename"
