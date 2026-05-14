@@ -1,0 +1,61 @@
+{
+  "name": "infetch",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1 --webpack",
+    "build": "next build --webpack",
+    "start": "next start -H 127.0.0.1",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "db:init": "tsx scripts/init-db.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.1",
+    "@mistralai/mistralai": "^1.9.0",
+    "@sentry/nextjs": "^10.53.1",
+    "@types/archiver": "^7.0.0",
+    "@types/jszip": "^3.4.1",
+    "archiver": "^8.0.0",
+    "better-sqlite3": "^11.9.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "imapflow": "^1.0.194",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.475.0",
+    "mailparser": "^3.7.2",
+    "next": "^16.2.6",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.7",
+    "otplib": "^13.4.0",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^4.10.38",
+    "playwright": "^1.50.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/mailparser": "^3.4.5",
+    "@types/node": "^22.13.1",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^6.4.17",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.19.0",
+    "eslint-config-next": "^16.2.6",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

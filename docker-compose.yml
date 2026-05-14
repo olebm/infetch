@@ -1,0 +1,33 @@
+services:
+  invoice-agent:
+    build: .
+    image: invoice-agent:local
+    container_name: invoice-agent
+    restart: unless-stopped
+    # Bind to localhost only by default. Change to "3000:3000" if you want LAN
+    # access — but read SECURITY.md first.
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Required overrides for container runtime — do not override in .env.
+      HOST: 0.0.0.0
+      DATABASE_URL: /app/data/invoice-agent.db
+      INVOICE_STORAGE_PATH: /app/data/invoices
+      RAW_TEXT_STORAGE_PATH: /app/data/raw-text
+      PORTAL_STORAGE_PATH: /app/data/sessions
+      AI_CACHE_STORAGE_PATH: /app/data/ai-cache
+      LOG_STORAGE_PATH: /app/data/logs
+    volumes:
+      - invoice-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  invoice-data:
+    name: invoice-agent-data

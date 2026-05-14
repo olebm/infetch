@@ -1,0 +1,247 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #fbfaf7;
+  color: #1a1a1a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  background: #fbfaf7;
+  color: #1a1a1a;
+  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: -0.005em;
+  /* Safe-area: Home-Indicator auf Notch-iPhones */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* iOS Safari: auto-zoom bei fokussierten Inputs verhindern (font-size < 16px triggert Zoom) */
+@media screen and (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: #eeece6;
+}
+
+/* ---------------------------------------------------------------------------
+ * Design-System: utilities von Claude Design (intake/project/index.html)
+ * --------------------------------------------------------------------------- */
+
+/* Fokus-Ring konsistent mit Brand */
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid #151a22;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Display-Typografie — Geist Medium, enger Tracking */
+.font-display {
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+/* Display accent — `<em>` in a font-display heading renders as
+   Geist Light (300) — NOT italic. Weight contrast alone creates the
+   editorial rhythm (matches design prototype: font-style: normal). */
+.font-display em,
+.font-display .it {
+  font-style: normal;
+  font-weight: 300;
+  color: inherit;
+  letter-spacing: -0.025em;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Numerische Stats + .font-mono — gleichbreite Ziffern fuer ruhige Counter */
+.stat-num,
+.font-mono {
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* PDF-Placeholder + leere Vorschau: diagonale Streifen */
+.stripe {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(21, 26, 34, 0.04) 0 8px,
+    rgba(21, 26, 34, 0) 8px 18px
+  );
+}
+
+/* Tabellen-Zeilen subtiles Hover */
+.row-hover {
+  transition: background-color 0.12s ease-out;
+}
+.row-hover:hover {
+  background: #f5f2ec;
+}
+
+/* Auto-Pilot pulse — sanfter Atem-Effekt fuer den Status-Dot */
+@keyframes ap-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(61, 105, 72, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(61, 105, 72, 0); }
+}
+.ap-pulse {
+  animation: ap-pulse 2.2s ease-out infinite;
+}
+
+/* Tastatur-Shortcut-Pille (z.B. ⌘↵ im Review) */
+.kbd {
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid #e8e6e0;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #151a22;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Scrollbar versteckt aber Scroll bleibt */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* Sanfter Fade beim Screen-Wechsel (Tab-Inhalte, Modale) */
+.screen-enter {
+  opacity: 0;
+  transform: translateY(4px);
+}
+.screen-enter-active {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+/* ---------------------------------------------------------------------------
+ * Landingpage-spezifisch
+ * --------------------------------------------------------------------------- */
+
+/* Nav-Blur (sticky Marketing-Nav) */
+.nav-blur {
+  backdrop-filter: saturate(180%) blur(10px);
+  background: rgba(251, 250, 247, 0.85);
+}
+
+/* Mock-Browser-Fenster */
+.mock-window {
+  background: #fff;
+  border: 1px solid #e8e6e0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.mock-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8e6e0;
+}
+.mock-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #e8e6e0;
+}
+
+/* Brand-Logo-Kachel */
+.logo-tile {
+  background: #fff;
+  border: 1px solid #e8e6e0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Scroll-Reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero-Inbox-Animationen */
+@keyframes inboxArrive {
+  0%,  4%  { opacity: 0; transform: translateY(-6px); }
+  14%, 70% { opacity: 1; transform: none; }
+  78%, 100%{ opacity: 0; transform: translateY(0); }
+}
+@keyframes inboxBadge {
+  0%,  20% { opacity: 0; transform: scale(0.92); }
+  28%, 48% { opacity: 1; transform: none; }
+  56%, 100%{ opacity: 0; transform: scale(0.92); }
+}
+@keyframes inboxSent {
+  0%,  58% { opacity: 0; transform: scale(0.92); }
+  66%, 78% { opacity: 1; transform: none; }
+  86%, 100%{ opacity: 0; }
+}
+.anim-row   { animation: inboxArrive 8s ease-in-out infinite; }
+.anim-badge { animation: inboxBadge  8s ease-in-out infinite; }
+.anim-sent  { animation: inboxSent   8s ease-in-out infinite; }
+
+/* Pulse-Dot (Hero-Status-Indikator) */
+.pulse-dot {
+  box-shadow: 0 0 0 0 rgba(61, 105, 72, 0.45);
+  animation: pulse-ring 2.2s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(61, 105, 72, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(61, 105, 72, 0); }
+}
+
+/* FAQ-Akkordeon */
+details > summary { list-style: none; cursor: pointer; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] .faq-icon { transform: rotate(45deg); }
+.faq-icon { transition: transform 0.2s ease; display: inline-block; }
+
+/* Underline-Link */
+.ul-link {
+  text-decoration: underline;
+  text-decoration-color: #e8e6e0;
+  text-underline-offset: 4px;
+}
+.ul-link:hover {
+  text-decoration-color: #1a1a1a;
+}
+
+/* font-display .accent — gedämpfte Farbe für Kontrast-Wörter */
+.font-display .accent {
+  color: #7a7a76;
+  font-weight: 400;
+}

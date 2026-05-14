@@ -1,0 +1,303 @@
+/**
+ * Agent-Connector — der Einstiegspunkt fuer Portal-Abrufe.
+ *
+ * Ablauf:
+ *   1. Recipe aus DB laden (oder Seed-Recipe einspielen, wenn keine vorhanden)
+ *   2. Browser starten, vorhandene Session laden (Cookies)
+ *   3. Recipe deterministisch abspielen
+ *   4. Bei Erfolg: Downloads zurueckgeben, Recipe-Erfolg markieren
+ *   5. Bei Fehlschlag: je nach Status verschiedene Recovery-Strategien
+ *      - login_required -> Session invalidieren, einmal mit frischem Login retry
+ *      - recipe_broken (>=2 Fails) -> Recorder anwerfen, neue Version speichern, retry
+ *      - captcha/two_factor -> sofort an UI eskalieren
+ */
+
+import fs from "node:fs/promises";
+import path from "node:path";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { appConfig } from "@/lib/config/env";
+import { readPortalCredential } from "@/portals/credential-meta";
+import { findVendorByCanonicalKey } from "@/lib/db/queries";
+import { playRecipe, type PlayResult } from "@/portals/agent/recipe-player";
+import { recordRecipe } from "@/portals/agent/recipe-recorder";
+import {
+  getActiveRecipe,
+  logRun,
+  markRecipeFailure,
+  markRecipeSuccess,
+  saveRecipe,
+} from "@/portals/agent/recipe-cache";
+import {
+  getBrowserSession,
+  invalidateBrowserSession,
+  saveBrowserSession,
+} from "@/portals/agent/session-store";
+import { getSeedRecipe } from "@/portals/agent/seeds";
+import type { AgentCredentials, Recipe, RunResult, RunStatus } from "@/portals/agent/types";
+
+export type AgentRunInput = {
+  vendorKey: string;
+  targetYearMonth?: string;
+  headless?: boolean;
+  /**
+   * Optional: shared Browser-Instance (z.B. fuer Cron-Laeufe mit mehreren Vendors hintereinander).
+   * Wenn gesetzt, wird die Browser-Lifecycle nicht in dieser Funktion verwaltet —
+   * der Aufrufer ist fuer browser.close() zustaendig.
+   */
+  sharedBrowser?: Browser;
+};
+
+const RECIPE_FAILURES_BEFORE_RECORD = 2;
+
+export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult> {
+  const start = Date.now();
+  const credentials = await loadCredentials(input.vendorKey);
+
+  let recipeRow = getActiveRecipe(input.vendorKey);
+  let recipe: Recipe | null = recipeRow?.recipe ?? null;
+  if (!recipe) {
+    const seed = getSeedRecipe(input.vendorKey);
+    if (seed) {
+      recipeRow = saveRecipe({ vendorKey: input.vendorKey, recipe: seed, recordedBy: "local" });
+      recipe = seed;
+    }
+  }
+
+  if (!credentials) {
+    return failureResult(
+      input.vendorKey,
+      recipeRow?.id ?? null,
+      "replay",
+      "login_required",
+      "Kein Login gespeichert. Bitte unter Einstellungen verbinden.",
+      Date.now() - start,
+      0,
+      0,
+    );
+  }
+
+  const headless = input.headless ?? appConfig.portalAgent.headless;
+  const browser =
+    input.sharedBrowser ??
+    (await chromium.launch({
+      headless,
+      slowMo: appConfig.portalAgent.slowMoMs > 0 ? appConfig.portalAgent.slowMoMs : undefined,
+      args: [
+        "--disable-blink-features=AutomationControlled",
+        "--disable-dev-shm-usage",
+      ],
+    }));
+  if (appConfig.portalAgent.verbose) {
+    console.log(`[portal-agent] vendor=${input.vendorKey} headless=${headless} slowMo=${appConfig.portalAgent.slowMoMs}ms`);
+  }
+  const ownsBrowser = !input.sharedBrowser;
+  let context: BrowserContext | null = null;
+  let page: Page | null = null;
+
+  try {
+    const session = getBrowserSession(input.vendorKey);
+    context = await browser.newContext({
+      storageState: session ? session.storageStatePath : undefined,
+      locale: "de-DE",
+      timezoneId: "Europe/Berlin",
+      viewport: { width: 1280, height: 800 },
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    });
+    page = await context.newPage();
+
+    let playResult: PlayResult | null = null;
+    let mode: "replay" | "record" | "replay_then_record" = "replay";
+    let llmCalls = 0;
+    let llmCostCents = 0;
+
+    // Erster Versuch: Recipe abspielen (falls vorhanden)
+    if (recipe) {
+      playResult = await playRecipe(page, recipe, credentials, {
+        targetYearMonth: input.targetYearMonth,
+      });
+
+      // Session-Recovery: bei login_required einmal Session leeren + neu versuchen
+      if (!playResult.ok && playResult.status === "login_required" && session) {
+        invalidateBrowserSession(input.vendorKey);
+        try {
+          await context.close();
+        } catch {
+          // ignore
+        }
+        context = await browser.newContext({
+          locale: "de-DE",
+          timezoneId: "Europe/Berlin",
+          viewport: { width: 1280, height: 800 },
+          userAgent:
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        });
+        page = await context.newPage();
+        playResult = await playRecipe(page, recipe, credentials, {
+          targetYearMonth: input.targetYearMonth,
+        });
+      }
+
+      // Erfolg/Fehler in Recipe-Statistik vermerken
+      if (playResult.ok && recipeRow) {
+        markRecipeSuccess(recipeRow.id);
+      } else if (!playResult.ok && playResult.status === "recipe_broken" && recipeRow) {
+        markRecipeFailure(recipeRow.id);
+      }
+    }
+
+    // Re-Record-Logik: nur wenn kein Recipe vorhanden ODER Recipe nach Fail-Schwelle als broken markiert
+    const recipeIsBroken = recipeRow?.failureCount !== undefined && recipeRow.failureCount + 1 >= RECIPE_FAILURES_BEFORE_RECORD;
+    const shouldRerecord =
+      !recipe || (playResult?.status === "recipe_broken" && !playResult.ok && recipeIsBroken);
+
+    if (shouldRerecord) {
+      mode = playResult ? "replay_then_record" : "record";
+      const loginUrl = recipe?.loginUrl ?? deriveLoginUrl(input.vendorKey);
+
+      // Frischer Context fuer das Recording (sauber starten)
+      try {
+        await context.close();
+      } catch {
+        // ignore
+      }
+      context = await browser.newContext();
+      page = await context.newPage();
+
+      const recorded = await recordRecipe({
+        page,
+        vendorKey: input.vendorKey,
+        loginUrl,
+        credentials,
+      });
+      llmCalls = recorded.llmCalls;
+      llmCostCents = recorded.llmCostCents;
+
+      if (recorded.ok && recorded.recipe) {
+        // Validation-Step: einmal mit der neuen Recipe replay-testen, im selben Context
+        const saved = saveRecipe({ vendorKey: input.vendorKey, recipe: recorded.recipe });
+        recipeRow = saved;
+        playResult = await playRecipe(page, recorded.recipe, credentials, {
+          targetYearMonth: input.targetYearMonth,
+        });
+        if (playResult.ok) markRecipeSuccess(saved.id);
+        else markRecipeFailure(saved.id);
+      } else {
+        playResult = {
+          ok: false,
+          status: "failed",
+          message: recorded.errorMessage ?? "Recipe konnte nicht aufgenommen werden.",
+          downloads: [],
+        };
+      }
+    }
+
+    // Session-Snapshot speichern (oder invalidieren) basierend auf Ergebnis
+    if (playResult?.ok) {
+      try {
+        const storage = await context.storageState();
+        saveBrowserSession({ vendorKey: input.vendorKey, storageState: storage });
+      } catch {
+        // Storage-State kann fehlschlagen — nicht kritisch
+      }
+    } else if (playResult?.status === "login_required") {
+      invalidateBrowserSession(input.vendorKey);
+    }
+
+    const durationMs = Date.now() - start;
+    const status = (playResult?.status ?? "failed") as RunStatus;
+    const message = playResult?.message ?? null;
+
+    if (!playResult?.ok && appConfig.portalAgent.screenshotOnFailure && page) {
+      try {
+        const debugDir = path.join(appConfig.logStoragePath, "portal-failures");
+        await fs.mkdir(debugDir, { recursive: true });
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const screenshotPath = path.join(debugDir, `${input.vendorKey}-${stamp}.png`);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        if (appConfig.portalAgent.verbose) {
+          console.log(`[portal-agent] failure screenshot saved: ${screenshotPath}`);
+        }
+      } catch {
+        // Screenshot ist Best-Effort — Fehler hier sind unkritisch.
+      }
+    }
+
+    logRun({
+      vendorKey: input.vendorKey,
+      recipeId: recipeRow?.id ?? null,
+      mode,
+      status,
+      invoicesFound: playResult?.downloads.length ?? 0,
+      durationMs,
+      errorMessage: message,
+      llmCalls,
+      llmCostCents,
+    });
+
+    return {
+      vendorKey: input.vendorKey,
+      recipeId: recipeRow?.id ?? null,
+      mode,
+      status,
+      invoicesFound: playResult?.downloads.length ?? 0,
+      durationMs,
+      errorMessage: message,
+      llmCalls,
+      llmCostCents,
+      downloads: playResult?.downloads ?? [],
+    };
+  } finally {
+    try {
+      await context?.close();
+    } catch {
+      // ignore
+    }
+    if (ownsBrowser) {
+      try {
+        await browser.close();
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
+async function loadCredentials(vendorKey: string): Promise<AgentCredentials | null> {
+  const meta = await readPortalCredential(vendorKey);
+  if (!meta) return null;
+  const { readCredentialSecret } = await import("@/lib/secrets/credential-store");
+  const totpSecret = (await readCredentialSecret({ scope: "totp", ownerId: vendorKey })) ?? undefined;
+  return { username: meta.username, password: meta.password, totpSecret };
+}
+
+function deriveLoginUrl(vendorKey: string): string {
+  const vendor = findVendorByCanonicalKey(vendorKey);
+  if (vendor?.portalLoginUrl) return vendor.portalLoginUrl;
+  return `https://${vendorKey}.com/login`;
+}
+
+function failureResult(
+  vendorKey: string,
+  recipeId: number | null,
+  mode: "replay" | "record" | "replay_then_record",
+  status: RunStatus,
+  message: string,
+  durationMs: number,
+  llmCalls: number,
+  llmCostCents: number,
+): RunResult {
+  logRun({ vendorKey, recipeId, mode, status, invoicesFound: 0, durationMs, errorMessage: message, llmCalls, llmCostCents });
+  return {
+    vendorKey,
+    recipeId,
+    mode,
+    status,
+    invoicesFound: 0,
+    durationMs,
+    errorMessage: message,
+    llmCalls,
+    llmCostCents,
+    downloads: [],
+  };
+}

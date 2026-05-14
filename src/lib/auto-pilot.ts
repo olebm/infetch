@@ -1,0 +1,233 @@
+import cron, { type ScheduledTask } from "node-cron";
+import fs from "node:fs/promises";
+import { runPrimaryImapScan } from "@/mail/mail-scanner";
+import { runMissingInvoiceCheck } from "@/invoices/missing-check";
+import { dispatchPendingExports } from "@/exports/export-pipeline";
+import { importPdfBuffer } from "@/invoices/import-pipeline";
+import { runAgentForVendor } from "@/portals/agent/agent-connector";
+import { syncCommunityRecipes } from "@/portals/agent/community-sync";
+import { getPortalCredentialMetaList } from "@/portals/credential-meta";
+import { hasConfiguredCredential } from "@/lib/secrets/credential-store";
+import { provisionAutoApprovalRules } from "@/lib/automation/self-provisioning";
+import { reevaluateReviewQueue } from "@/lib/automation/reeval-queue";
+import { cleanupIgnoredFiles } from "@/lib/automation/cleanup-ignored";
+import { escalateStuckReviews } from "@/lib/automation/stuck-escalation";
+import { backfillDomainAliases } from "@/lib/automation/alias-backfill";
+import { getDb } from "@/lib/db/client";
+import { appConfig } from "@/lib/config/env";
+
+type JobName =
+  | "mailScan"
+  | "missingCheck"
+  | "exportDispatch"
+  | "portalFetch"
+  | "communitySync"
+  | "provisionRules"
+  | "reevalQueue"
+  | "cleanupIgnored"
+  | "escalateStuck"
+  | "backfillAliases";
+
+type JobState = {
+  cron: string;
+  task: ScheduledTask | null;
+  lastRunAt: Date | null;
+  lastError: string | null;
+  running: boolean;
+};
+
+const jobs: Record<JobName, JobState> = {
+  mailScan: { cron: "*/30 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  missingCheck: { cron: "0 6 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  exportDispatch: { cron: "*/15 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  portalFetch: { cron: "0 */4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  communitySync: { cron: "0 4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  // Selbstheilungs-Jobs — laufen in dieser Reihenfolge nachts:
+  // 1) Rules provisionieren basierend auf Bestand,
+  // 2) Review-Queue mit neuen Rules erneut evaluieren,
+  // 3) Disk-Müll aufräumen (wöchentlich).
+  provisionRules: { cron: "0 3 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  reevalQueue: { cron: "0 5 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  cleanupIgnored: { cron: "0 2 * * 0", task: null, lastRunAt: null, lastError: null, running: false },
+  // Stuck-Eskalation: täglich 1 Uhr — Rechnungen die zu lange im Review hängen → 'ignored'.
+  escalateStuck: { cron: "0 1 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  // Alias-Backfill: täglich 4 Uhr — Domain-Aliase für Vendors die nur contains haben.
+  backfillAliases: { cron: "0 4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+};
+
+let started = false;
+
+async function runPortalFetch() {
+  const db = getDb();
+  const accounts = getPortalCredentialMetaList()
+    .filter((entry) => entry.username && hasConfiguredCredential(db, "portal", entry.vendorKey));
+  if (accounts.length === 0) return;
+
+  const { chromium } = await import("playwright");
+  const sharedBrowser = await chromium.launch({
+    headless: true,
+    args: ["--disable-blink-features=AutomationControlled", "--disable-dev-shm-usage"],
+  });
+
+  try {
+    for (const account of accounts) {
+      try {
+        const result = await runAgentForVendor({
+          vendorKey: account.vendorKey,
+          sharedBrowser,
+        });
+        for (const download of result.downloads) {
+          try {
+            const buffer = await fs.readFile(download.filePath);
+            await importPdfBuffer({
+              buffer,
+              originalFilename: download.originalFilename,
+              sourceType: "portal",
+              sourceRefId: account.vendorKey,
+            });
+          } catch {
+            // import-Fehler werden in portal_run_logs ohnehin protokolliert
+          }
+        }
+      } catch {
+        // pro-Vendor-Fehler darf nicht den ganzen Job stoppen
+      }
+    }
+  } finally {
+    try {
+      await sharedBrowser.close();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+async function runJob(name: JobName) {
+  const job = jobs[name];
+  if (job.running) return;
+  job.running = true;
+  try {
+    if (name === "mailScan") await runPrimaryImapScan();
+    else if (name === "missingCheck") runMissingInvoiceCheck();
+    else if (name === "exportDispatch") await dispatchPendingExports();
+    else if (name === "portalFetch") await runPortalFetch();
+    else if (name === "communitySync") await syncCommunityRecipes();
+    else if (name === "provisionRules") provisionAutoApprovalRules(getDb());
+    else if (name === "reevalQueue") reevaluateReviewQueue(getDb());
+    else if (name === "cleanupIgnored") cleanupIgnoredFiles(getDb());
+    else if (name === "escalateStuck") escalateStuckReviews(getDb());
+    else if (name === "backfillAliases") backfillDomainAliases(getDb());
+    job.lastRunAt = new Date();
+    job.lastError = null;
+  } catch (error) {
+    job.lastError = error instanceof Error ? error.message : String(error);
+    job.lastRunAt = new Date();
+  } finally {
+    job.running = false;
+  }
+}
+
+function isJobEnabled(name: JobName): boolean {
+  if (!appConfig.features.autoPilotEnabled) return false;
+  if (name === "portalFetch") return appConfig.features.enablePortals;
+  if (name === "communitySync") return appConfig.features.enableCommunityRecipes;
+  if (name === "missingCheck") return appConfig.features.enableMissingMatrix;
+  return true;
+}
+
+export function startAutoPilot() {
+  if (started) return;
+  started = true;
+
+  if (!appConfig.features.autoPilotEnabled) {
+    return;
+  }
+
+  for (const name of Object.keys(jobs) as JobName[]) {
+    if (!isJobEnabled(name)) continue;
+    const job = jobs[name];
+    job.task = cron.schedule(job.cron, () => {
+      runJob(name).catch(() => {
+        /* errors captured in job.lastError */
+      });
+    });
+  }
+
+  // Catch-up: trigger immediate mail-scan + export-dispatch on startup
+  setTimeout(() => {
+    runJob("mailScan").catch(() => {});
+    runJob("exportDispatch").catch(() => {});
+  }, 5_000);
+}
+
+export type AutoPilotStatus = {
+  job: JobName;
+  label: string;
+  cron: string;
+  lastRunAt: string | null;
+  lastError: string | null;
+  running: boolean;
+  nextRunSec: number | null;
+};
+
+const JOB_LABELS: Record<JobName, string> = {
+  mailScan: "Rechnungen abholen",
+  missingCheck: "Was fehlt prüfen",
+  exportDispatch: "An Buchhaltung verschicken",
+  portalFetch: "Online-Konten prüfen",
+  communitySync: "Community-Recipes synchronisieren",
+  provisionRules: "Vendor-Regeln selbst anlegen",
+  reevalQueue: "Review-Queue selbst heilen",
+  cleanupIgnored: "Disk-Müll aufräumen",
+  escalateStuck: "Vergessene Reviews abschließen",
+  backfillAliases: "Vendor-Aliase ergänzen",
+};
+
+function nextCronTickSeconds(_cronExpr: string, lastRunAt: Date | null): number | null {
+  if (!_cronExpr) return null;
+  const match = /^\*\/(\d+) \* \* \* \*$/.exec(_cronExpr);
+  if (match) {
+    const n = parseInt(match[1], 10);
+    const now = new Date();
+    const minutesNow = now.getMinutes();
+    const remainder = n - (minutesNow % n);
+    const next = new Date(now);
+    next.setMinutes(minutesNow + remainder, 0, 0);
+    return Math.max(0, Math.round((next.getTime() - now.getTime()) / 1000));
+  }
+  const daily = /^0 (\d+) \* \* \*$/.exec(_cronExpr);
+  if (daily) {
+    const hour = parseInt(daily[1], 10);
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(hour, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    return Math.max(0, Math.round((next.getTime() - now.getTime()) / 1000));
+  }
+  const everyNHours = /^0 \*\/(\d+) \* \* \*$/.exec(_cronExpr);
+  if (everyNHours) {
+    const n = parseInt(everyNHours[1], 10);
+    const now = new Date();
+    const hoursNow = now.getHours();
+    const remainder = n - (hoursNow % n);
+    const next = new Date(now);
+    next.setHours(hoursNow + remainder, 0, 0, 0);
+    return Math.max(0, Math.round((next.getTime() - now.getTime()) / 1000));
+  }
+  return null;
+  void lastRunAt;
+}
+
+export function getAutoPilotStatus(): AutoPilotStatus[] {
+  return (Object.keys(jobs) as JobName[])
+    .filter((name) => isJobEnabled(name))
+    .map((name) => ({
+      job: name,
+      label: JOB_LABELS[name],
+      cron: jobs[name].cron,
+      lastRunAt: jobs[name].lastRunAt ? jobs[name].lastRunAt!.toISOString() : null,
+      lastError: jobs[name].lastError,
+      running: jobs[name].running,
+      nextRunSec: nextCronTickSeconds(jobs[name].cron, jobs[name].lastRunAt),
+    }));
+}

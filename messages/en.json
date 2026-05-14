@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "inbox": "Inbox",
+    "missing": "Missing",
+    "settings": "Settings"
+  },
+  "common": {
+    "fetchNow": "Fetch now",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "loading": "Loading…",
+    "error": "Error",
+    "success": "Success",
+    "back": "Back",
+    "next": "Next"
+  },
+  "status": {
+    "processing": "Processing",
+    "needsReview": "Needs review",
+    "ready": "Ready",
+    "done": "Done",
+    "missing": "Missing",
+    "problem": "Problem",
+    "duplicate": "Already exists"
+  },
+  "onboarding": {
+    "welcomeTitle": "Welcome to Infetch",
+    "welcomeBody": "A few steps to connect your mailbox and your accountant.",
+    "stepLabel": "Step {current} of {total}",
+    "mailboxTitle": "Where do your invoices arrive?",
+    "accountantTitle": "Who should receive your invoices?",
+    "kiTitle": "Should we read amounts and dates automatically?",
+    "kiBenefit": "Saves you the manual data entry.",
+    "startScan": "Collect first invoices"
+  },
+  "tier": {
+    "free": "Free",
+    "pro": "Pro",
+    "team": "Team",
+    "upgrade": "Upgrade to Pro",
+    "limitReached": "Using {current} of {max} online accounts (Free tier)."
+  }
+}

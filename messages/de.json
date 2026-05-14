@@ -1,0 +1,47 @@
+{
+  "nav": {
+    "overview": "Übersicht",
+    "inbox": "Posteingang",
+    "missing": "Fehlt",
+    "settings": "Einstellungen"
+  },
+  "common": {
+    "fetchNow": "Jetzt holen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "close": "Schließen",
+    "loading": "Lädt …",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "back": "Zurück",
+    "next": "Weiter"
+  },
+  "status": {
+    "processing": "Wird bearbeitet",
+    "needsReview": "Bitte prüfen",
+    "ready": "Bereit",
+    "done": "Erledigt",
+    "missing": "Fehlt",
+    "problem": "Problem",
+    "duplicate": "Schon vorhanden"
+  },
+  "onboarding": {
+    "welcomeTitle": "Willkommen bei Infetch",
+    "welcomeBody": "In ein paar Schritten verbinden wir dein Postfach und deinen Buchhalter.",
+    "stepLabel": "Schritt {current} von {total}",
+    "mailboxTitle": "Wo kommen deine Rechnungen an?",
+    "accountantTitle": "Wer soll deine Rechnungen bekommen?",
+    "kiTitle": "Sollen wir Beträge und Daten automatisch lesen?",
+    "kiBenefit": "Spart dir das manuelle Eintippen.",
+    "startScan": "Erste Rechnungen einsammeln"
+  },
+  "tier": {
+    "free": "Free",
+    "pro": "Pro",
+    "team": "Team",
+    "upgrade": "Auf Pro upgraden",
+    "limitReached": "Du nutzt {current} von {max} Online-Konten (Free-Tier)."
+  }
+}
