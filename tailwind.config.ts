@@ -49,10 +49,10 @@ const config: Config = {
         "3xl": ["30px", { lineHeight: "38px", letterSpacing: "-0.025em" }],
       },
       fontFamily: {
-        sans:    ["var(--font-geist)", "ui-sans-serif", "system-ui", "-apple-system", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
+        sans:    ['"Söhne"', "var(--font-geist)", "ui-sans-serif", "system-ui", "-apple-system", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
         serif:   ['"Instrument Serif"', "ui-serif", "Georgia", '"Times New Roman"', "serif"],
         mono:    ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", '"SF Mono"', "Menlo", "Consolas", "monospace"],
-        display: ["var(--font-geist)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ['"Söhne"', "var(--font-geist)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       keyframes: {
         "ap-pulse": {
