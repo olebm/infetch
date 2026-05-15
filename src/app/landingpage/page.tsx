@@ -4,12 +4,6 @@ import { VendorLogo } from "@/components/ui/vendor-logo";
 import { ContactController } from "./contact-controller";
 import { MobileNav } from "./mobile-nav";
 
-const BF = process.env.NEXT_PUBLIC_BRANDFETCH_TOKEN ?? "";
-/** Brandfetch CDN — 256 px icon, scharf bis 3× HiDPI (z.B. iPhone). */
-function bfUrl(domain: string) {
-  return `https://cdn.brandfetch.io/${domain}/w/256/h/256/icon?c=${BF}`;
-}
-
 // ─── Tooltip helper ───────────────────────────────────────────────────────────
 
 function Tip({ label, children }: { label: string; children: React.ReactNode }) {
@@ -172,7 +166,7 @@ export default function LandingPage() {
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
             {[
               { domain: "adobe.com",     alt: "Adobe"     },
-              { domain: "amazon.de",     alt: "Amazon"    },
+              { domain: "amazon.com",    alt: "Amazon"    },
               { domain: "canva.com",     alt: "Canva"     },
               { domain: "figma.com",     alt: "Figma"     },
               { domain: "hetzner.com",   alt: "Hetzner"   },
@@ -180,16 +174,7 @@ export default function LandingPage() {
               { domain: "spotify.com",   alt: "Spotify"   },
             ].map(({ domain, alt }) => (
               <Tip key={domain} label={alt}>
-                <div className="rounded-full h-12 w-12 overflow-hidden shrink-0 cursor-default">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={bfUrl(domain)}
-                    alt={alt}
-                    width={48}
-                    height={48}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                <VendorLogo domain={domain} name={alt} size={48} />
               </Tip>
             ))}
           </div>
