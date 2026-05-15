@@ -86,3 +86,34 @@ export const contactIpLimiter = new InMemoryRateLimiter(5, 10 * 60_000);
  * über alle IPs. Schützt vor verteilten Spam-Wellen (Brevo-Kontingent).
  */
 export const contactGlobalLimiter = new InMemoryRateLimiter(60, 10 * 60_000);
+
+// ── AI-Proxy (/api/ai/extract) ────────────────────────────────────────────────
+
+/**
+ * Globaler Deckel auf den AI-Proxy: 120 Extraktionen pro Minute.
+ * Schützt das Mistral-Budget des Betreibers, falls das Bearer-Token leakt.
+ */
+export const aiProxyGlobalLimiter = new InMemoryRateLimiter(120, 60_000);
+
+/**
+ * Pro-IP-Limit auf den AI-Proxy: 20 Extraktionen pro Minute.
+ * Verhindert, dass eine einzelne (kompromittierte) Quelle das Budget leerräumt.
+ */
+export const aiProxyIpLimiter = new InMemoryRateLimiter(20, 60_000);
+
+// ── Globales API-Limit (Middleware) ───────────────────────────────────────────
+
+/**
+ * Per-IP-Deckel auf mutierende API-Requests: 100 pro Minute.
+ * Grobmaschiger Schutz vor Scraping/Brute-Force/DoS; legitime Nutzung
+ * bleibt deutlich darunter. Webhooks/Cron/AI/Inbound sind ausgenommen
+ * (eigene Auth bzw. eigene Limiter).
+ */
+export const apiIpLimiter = new InMemoryRateLimiter(100, 60_000);
+
+/** Client-IP aus Proxy-Headern ableiten (Coolify/Traefik setzt x-forwarded-for). */
+export function clientIpFromHeaders(headers: Headers): string {
+  const fwd = headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim();
+  return headers.get("x-real-ip")?.trim() || "unknown";
+}

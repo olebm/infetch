@@ -4,13 +4,71 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// ── Content-Security-Policy ───────────────────────────────────────────────────
+// Erlaubte Cross-Origin-Ziele werden aus den Env-URLs abgeleitet, damit die
+// CSP zwischen Umgebungen (lokal / staging / prod) automatisch korrekt ist.
+function safeOrigin(value) {
+  try {
+    return value ? new URL(value).origin : "";
+  } catch {
+    return "";
+  }
+}
+
+function buildCsp() {
+  const isProd = process.env.NODE_ENV === "production";
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseOrigin = safeOrigin(supabaseUrl);
+  let supabaseWs = "";
+  try {
+    if (supabaseUrl) supabaseWs = `wss://${new URL(supabaseUrl).host}`;
+  } catch {
+    /* ignore */
+  }
+  const sentryOrigin = safeOrigin(process.env.SENTRY_DSN);
+
+  // Plausible (cookielose Analytics): Script + Event-Endpoint freigeben.
+  // Origin aus NEXT_PUBLIC_PLAUSIBLE_SRC ableiten (Default: plausible.io).
+  const plausibleOrigin = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN
+    ? safeOrigin(
+        process.env.NEXT_PUBLIC_PLAUSIBLE_SRC ||
+          "https://plausible.io/js/script.js",
+      )
+    : "";
+
+  const connectSrc = ["'self'", supabaseOrigin, supabaseWs, sentryOrigin, plausibleOrigin]
+    .filter(Boolean)
+    .join(" ");
+  const scriptSrc = ["'self'", "'unsafe-inline'", plausibleOrigin]
+    .filter(Boolean)
+    .join(" ");
+
+  return [
+    "default-src 'self'",
+    // Next.js injiziert Inline-Bootstrap-Skripte; im Dev zusätzlich eval (HMR).
+    `script-src ${scriptSrc}${isProd ? "" : " 'unsafe-eval'"}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    `connect-src ${connectSrc}`,
+    // PDF-Vorschau läuft same-origin über /api/invoice-files (+ blob:-Fallback).
+    "frame-src 'self' blob:",
+    "frame-ancestors 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "report-uri /api/csp-report",
+  ].join("; ");
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ["playwright"],
   outputFileTracingRoot: __dirname,
-  webpack(config) {
-    config.cache = false;
-    return config;
+  // Moderne Bildformate: Next liefert große Quell-Bilder automatisch als
+  // AVIF/WebP aus (deutlich kleiner als PNG/JPEG) — wichtig für LCP/CWV.
+  images: {
+    formats: ["image/avif", "image/webp"],
   },
   // SECURITY (INFETCH-91): HTTP Security Headers für alle Routen.
   async headers() {
@@ -28,6 +86,14 @@ const nextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
           // Mikrofon, Kamera etc. deaktivieren — App braucht keine Geräte-APIs
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // CSP zunächst im Report-Only-Modus: meldet Verstöße an
+          // /api/csp-report, blockt aber nichts (kein UI-Bruch-Risiko).
+          // Nach sauberer Beobachtung auf "Content-Security-Policy" umstellen.
+          { key: "Content-Security-Policy-Report-Only", value: buildCsp() },
+          // Cross-Origin-Isolation-Härtung
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
         ],
       },
     ];
