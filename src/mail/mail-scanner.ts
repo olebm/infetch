@@ -1,10 +1,9 @@
-import { subMonths } from "date-fns";
 import type { FetchMessageObject, ImapFlow } from "imapflow";
 import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
-import { getOrgTier, getScanSinceDate, canRetroactiveScan } from "@/lib/tier";
+import { getOrgTier, getScanSinceDate } from "@/lib/tier";
 import {
   createImapClientForAccount,
   listConfiguredImapAccounts,

@@ -24,10 +24,10 @@ export async function escalateStuckReviews(): Promise<StuckEscalationResult> {
 
   const rows = await sql<Row[]>`
     SELECT id, vendor_id AS "vendorId",
-      EXTRACT(EPOCH FROM (NOW() - updated_at))::INTEGER / 86400 AS "ageDays"
+      EXTRACT(EPOCH FROM (NOW() - updated_at::TIMESTAMPTZ))::INTEGER / 86400 AS "ageDays"
     FROM invoices
     WHERE status = 'needs_review'
-      AND updated_at <= NOW() - (${days} || ' days')::INTERVAL
+      AND updated_at::TIMESTAMPTZ <= NOW() - (${days} || ' days')::INTERVAL
   `;
 
   const result: StuckEscalationResult = { scanned: rows.length, escalated: 0 };

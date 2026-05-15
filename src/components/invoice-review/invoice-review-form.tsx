@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { updateInvoiceReviewAction, type InvoiceReviewState } from "@/app/(app)/audit/actions";
 import { StatusBadge } from "@/components/status/status-badge";
 import { Alert } from "@/components/ui/alert";
@@ -155,9 +155,7 @@ type Invoice = {
 
 function ConfirmPanel({
   invoice,
-  vendors,
   exportTargets,
-  duplicateCandidates,
   extraction,
   isPending,
   onEdit,

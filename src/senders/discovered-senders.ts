@@ -58,10 +58,10 @@ export async function recordSenderObservation(
     )
     VALUES (${fromAddress}, ${fromDomain}, ${displayName}, 1, ${pdfDelta}, ${importedDelta}, ${blockedDelta})
     ON CONFLICT(from_address) DO UPDATE SET
-      mail_count = mail_count + 1,
-      pdf_count = pdf_count + excluded.pdf_count,
-      imported_count = imported_count + excluded.imported_count,
-      blocked_count = blocked_count + excluded.blocked_count,
+      mail_count = discovered_senders.mail_count + 1,
+      pdf_count = discovered_senders.pdf_count + excluded.pdf_count,
+      imported_count = discovered_senders.imported_count + excluded.imported_count,
+      blocked_count = discovered_senders.blocked_count + excluded.blocked_count,
       display_name = COALESCE(NULLIF(excluded.display_name, ''), discovered_senders.display_name),
       last_seen_at = CURRENT_TIMESTAMP,
       updated_at = CURRENT_TIMESTAMP
@@ -108,7 +108,7 @@ export async function isSenderAutoIgnored(
     WHERE m.from_address = ${normalized}
       AND f.source_type = 'mail'
       AND i.status IN ('ready', 'exported')
-      AND i.created_at >= NOW() - (${lookbackDays} || ' days')::INTERVAL
+      AND i.created_at::TIMESTAMPTZ >= NOW() - (${lookbackDays} || ' days')::INTERVAL
     LIMIT 1
   `;
   if (hasSuccess.length > 0) return false;
@@ -201,8 +201,8 @@ export async function backfillFromMailMessages(): Promise<BackfillResult> {
       COUNT(*) AS "mailCount",
       SUM(CASE WHEN mm.status NOT IN ('no_pdf', 'pending') THEN 1 ELSE 0 END) AS "pdfCount",
       SUM(CASE WHEN mm.status = 'processed' THEN 1 ELSE 0 END) AS "importedCount",
-      MIN(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP)) AS "firstSeen",
-      MAX(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP)) AS "lastSeen"
+      MIN(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP::TEXT)) AS "firstSeen",
+      MAX(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP::TEXT)) AS "lastSeen"
     FROM mail_messages mm
     WHERE mm.from_address IS NOT NULL AND mm.from_address != ''
     GROUP BY LOWER(mm.from_address)

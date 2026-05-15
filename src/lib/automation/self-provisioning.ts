@@ -42,7 +42,7 @@ export async function provisionAutoApprovalRules(): Promise<ProvisioningResult> 
       MAX(CASE WHEN i.status IN ('ready', 'exported') THEN i.amount_gross END) AS "maxAmount"
     FROM vendors v
     JOIN invoices i ON i.vendor_id = v.id
-    WHERE i.created_at >= NOW() - INTERVAL '90 days'
+    WHERE i.created_at::TIMESTAMPTZ >= NOW() - INTERVAL '90 days'
       AND NOT EXISTS (
         SELECT 1 FROM auto_approval_rules r
         WHERE r.vendor_id = v.id AND r.enabled = TRUE

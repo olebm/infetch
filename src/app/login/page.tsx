@@ -91,7 +91,7 @@ export default async function LoginPage({
             <LoginForm next={next} />
 
             <p className="mt-6 text-xs text-muted">
-              Mit Klick auf „Magic-Link senden" akzeptierst du{" "}
+              Mit Klick auf „Magic-Link senden“ akzeptierst du{" "}
               <Link href="/agb" className="underline underline-offset-4 decoration-line hover:text-ink">Nutzungsbedingungen</Link>{" "}
               und{" "}
               <Link href="/datenschutz" className="underline underline-offset-4 decoration-line hover:text-ink">Datenschutz</Link>.

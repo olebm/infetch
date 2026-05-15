@@ -16,7 +16,7 @@ export default function AgbPage() {
       <hr />
 
       <h2>§ 1 Geltungsbereich</h2>
-      <p>Diese Allgemeinen Geschäftsbedingungen gelten für alle Verträge zwischen <strong>betaform | Ole Beekmann</strong>, Hamburg (nachfolgend „Infetch"), und ihren Kunden (nachfolgend „Nutzer") über die Nutzung der Software-as-a-Service-Plattform Infetch unter infetch.de.</p>
+      <p>Diese Allgemeinen Geschäftsbedingungen gelten für alle Verträge zwischen <strong>betaform | Ole Beekmann</strong>, Hamburg (nachfolgend „Infetch“), und ihren Kunden (nachfolgend „Nutzer“) über die Nutzung der Software-as-a-Service-Plattform Infetch unter infetch.de.</p>
       <p>Entgegenstehende oder abweichende Bedingungen des Nutzers werden nicht anerkannt, es sei denn, Infetch hat deren Geltung ausdrücklich schriftlich zugestimmt.</p>
 
       <h2>§ 2 Leistungsbeschreibung</h2>

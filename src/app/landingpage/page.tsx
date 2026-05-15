@@ -343,7 +343,7 @@ export default function LandingPage() {
             <div className="flex flex-col">
               <h3 className="font-display text-2xl text-ink">Privat bleibt privat</h3>
               <p className="mt-2 text-muted leading-relaxed min-h-[3rem]">
-                Ein Klick auf „privat" — Anbieter oder Mail landet nie in der Buchhaltung.
+                Ein Klick auf „privat“ — Anbieter oder Mail landet nie in der Buchhaltung.
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-4">

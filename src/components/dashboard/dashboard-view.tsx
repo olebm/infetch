@@ -135,10 +135,15 @@ export async function DashboardView() {
     }
   }
 
-  // Last scan timestamp for Trust-Band
+  // Last scan timestamp for Trust-Band.
+  // DashboardView is an async Server Component (runs once per request), so
+  // Date.now() is deterministic for the rendered HTML; the react-hooks/purity
+  // rule can't distinguish server- from client-components and would otherwise
+  // flag this.
   const lastScanLabel = (() => {
     if (!setup.imapConfigured) return "—";
     if (!lastScanAt) return "noch kein Scan";
+    // eslint-disable-next-line react-hooks/purity -- server component, single render per request
     const diffMin = Math.round((Date.now() - new Date(lastScanAt).getTime()) / 60_000);
     if (diffMin < 2) return "gerade eben";
     if (diffMin < 60) return `vor ${diffMin} Min`;

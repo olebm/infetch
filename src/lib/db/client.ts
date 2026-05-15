@@ -13,7 +13,6 @@ import postgres from "postgres";
 
 // Prevent multiple connections in Next.js hot-reload (dev mode)
 declare global {
-  // eslint-disable-next-line no-var
   var __pgSql: postgres.Sql | undefined;
 }
 
@@ -37,6 +36,18 @@ function createClient(): postgres.Sql {
   return postgres(url, {
     // Supabase Pooler (Transaction Mode): prepared statements not supported.
     prepare: false,
+    // BIGINT (OID 20) values (BIGSERIAL IDs) are returned as strings by default
+    // to avoid precision loss for very large numbers. For this app's ID space
+    // (<= 2^53) returning them as JS numbers is safe and avoids type assertion
+    // noise throughout the codebase.
+    types: {
+      bigint: {
+        to: 20,
+        from: [20],
+        serialize: (v: number | bigint | string) => String(v),
+        parse: (v: string) => Number(v),
+      },
+    },
   });
 }
 

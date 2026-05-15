@@ -14,8 +14,6 @@ export type MemberActionState = {
   message: string;
 };
 
-const idle: MemberActionState = { status: "idle", message: "" };
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function assertOwnerOrAdmin(orgId: string, userId: string) {

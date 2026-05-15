@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useSupportModal } from "@/components/support/support-provider";
@@ -42,10 +42,15 @@ export function SupportModal({ userEmail }: { userEmail?: string }) {
     message: "",
   });
 
-  // Reset form state when modal is closed and reopened
-  useEffect(() => {
+  // Reset form state when modal is closed and reopened.
+  // Uses the "store previous value" pattern
+  // (https://react.dev/reference/react/useState#storing-information-from-previous-renders)
+  // instead of an effect, per the react-hooks/set-state-in-effect rule.
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) setCategory(null);
-  }, [isOpen]);
+  }
 
   return (
     <Modal open={isOpen} onClose={close} title="Wie können wir helfen?" size="sm">

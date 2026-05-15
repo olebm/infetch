@@ -82,10 +82,6 @@ export async function UsageCard({ organizationId }: Props) {
     getStorageUsageBytes(organizationId),
   ]);
 
-  const invoicePct = Math.round((invoiceCount / limits.maxInvoicesPerMonth) * 100);
-  const storagePct = Math.round((storageBytes / limits.maxStorageBytes) * 100);
-  const showUpgrade = tier === "free" && (invoicePct >= 80 || storagePct >= 80);
-
   return (
     <Card padding="lg">
       {/* Header */}
