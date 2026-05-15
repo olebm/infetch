@@ -48,7 +48,8 @@ function buildCsp() {
     // Next.js injiziert Inline-Bootstrap-Skripte; im Dev zusätzlich eval (HMR).
     `script-src ${scriptSrc}${isProd ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // Vendor-Logos auf der Landingpage kommen vom Brandfetch-CDN.
+    "img-src 'self' data: blob: https://cdn.brandfetch.io",
     "font-src 'self' data:",
     `connect-src ${connectSrc}`,
     // PDF-Vorschau läuft same-origin über /api/invoice-files (+ blob:-Fallback).
