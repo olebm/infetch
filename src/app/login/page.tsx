@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { LoginForm } from "@/components/auth/login-form";
+import { AuthErrorBanner } from "@/components/auth/auth-error-banner";
 import { loginAsTestUser } from "@/app/login/actions";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +19,11 @@ const TRUST_ITEMS = [
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   const params = await searchParams;
   const rawNext = params.next ?? "/";
+  const queryError = params.error;
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
 
   const auth = await getCurrentAuth();
@@ -39,6 +41,16 @@ export default async function LoginPage({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/images/brand/infetch-logo.svg" alt="Infetch" className="h-9 w-auto" />
             </Link>
+          </div>
+
+          {/* Tagline */}
+          <div className="mt-6">
+            <p className="font-display text-2xl text-ink leading-[1.08] max-w-[22ch]">
+              Rechnungen, die sich <em>selbst</em> weiterleiten.
+            </p>
+            <p className="mt-3 text-sm text-muted leading-relaxed max-w-[30ch]">
+              Postfach verbinden — Infetch erledigt den Rest automatisch.
+            </p>
           </div>
 
           {/* Photo */}
@@ -93,14 +105,17 @@ export default async function LoginPage({
               Wir schicken dir einen Magic-Link. Kein Passwort.
             </p>
 
+            <AuthErrorBanner queryError={queryError} />
+
             {/* Magic-Link Form */}
             <LoginForm next={next} />
 
             <p className="mt-6 text-xs text-muted">
               Mit Klick auf &bdquo;Magic-Link senden&ldquo; akzeptierst du{" "}
-              <Link href="/agb" className="underline underline-offset-4 decoration-line hover:text-ink">Nutzungsbedingungen</Link>{" "}
+              <Link href="/agb" className="underline underline-offset-4 decoration-line hover:text-ink">Nutzungsbedingungen</Link>,{" "}
+              <Link href="/datenschutz" className="underline underline-offset-4 decoration-line hover:text-ink">Datenschutz</Link>{" "}
               und{" "}
-              <Link href="/datenschutz" className="underline underline-offset-4 decoration-line hover:text-ink">Datenschutz</Link>.
+              <Link href="/avv" className="underline underline-offset-4 decoration-line hover:text-ink">Auftragsverarbeitungsvertrag</Link>.
             </p>
 
             {process.env.ENABLE_TEST_LOGIN === "true" && (

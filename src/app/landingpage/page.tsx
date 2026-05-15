@@ -43,11 +43,8 @@ export default function LandingPage() {
             <a href="#faq" className="hover:text-ink">FAQ</a>
           </nav>
           <div className="hidden md:flex items-center gap-2 ml-auto">
-            <Link href="https://app.infetch.de/login" className="h-9 px-4 text-sm items-center rounded border border-line text-ink hover:bg-surface transition-colors inline-flex">
-              Kostenlos starten
-            </Link>
             <Link href="https://app.infetch.de/login" className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
-              Anmelden
+              Kostenlos starten
             </Link>
           </div>
           {/* Mobile: Anmelden + Hamburger */}
@@ -65,7 +62,7 @@ export default function LandingPage() {
       {/* HERO                                                                */}
       {/* ================================================================== */}
       <section className="relative">
-        <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-16 md:pt-24 pb-12 md:pb-20 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
+        <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-16 md:pt-24 pb-12 md:pb-20 grid md:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
 
           <div className="min-w-0">
             <Tip label="Scannt dein Postfach alle 5 Minuten nach neuen Rechnungen">
@@ -75,7 +72,7 @@ export default function LandingPage() {
               </div>
             </Tip>
             <h1 className="mt-5 font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-ink leading-[1.02] max-w-[18ch]">
-              Rechnungen, die sich <span className="accent">selbst</span> weiterleiten.
+              Rechnungen, die <span className="whitespace-nowrap">sich <span className="accent">selbst</span></span> weiterleiten.
             </h1>
             <p className="mt-6 text-lg text-muted max-w-[42ch] leading-relaxed">
               Infetch liest dein Postfach mit, erkennt jede Rechnung und schickt sie an deine Buchhaltung — automatisch.
@@ -88,6 +85,8 @@ export default function LandingPage() {
                 Wie es funktioniert
               </a>
             </div>
+
+
             <p className="md:hidden mt-6 text-xs text-muted">
               <span className="text-ink stat-num">≈ 4 Min</span> Einrichtung · <span className="text-ink stat-num">DSGVO</span> · EU-Server · <span className="text-ink stat-num">KI</span> · automatisch
             </p>
@@ -249,7 +248,7 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          <div className="mt-14 grid md:grid-cols-3 gap-x-10 gap-y-12 reveal">
+          <div className="mt-14 grid md:grid-cols-3 gap-x-10 gap-y-12 reveal" id="how-steps">
             {/* step 1 */}
             <div className="flex flex-col">
               <div className="text-xs text-muted stat-num">01</div>
@@ -313,20 +312,36 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+
+          {/* CTA nach Steps */}
+          <div className="mt-14 pt-10 border-t border-line">
+            <Link href="https://app.infetch.de/login" className="inline-flex h-12 px-8 rounded items-center bg-ink text-white text-base font-medium hover:opacity-90">
+              Jetzt kostenlos starten
+            </Link>
+            <p className="mt-3 text-sm text-muted">
+              Setup in 4 Minuten · keine Kreditkarte · monatlich kündbar
+            </p>
+          </div>
         </div>
       </section>
 
       {/* ================================================================== */}
-      {/* FOTO — Vollbild-Break                                              */}
+      {/* STATS STRIP                                                         */}
       {/* ================================================================== */}
-      <section className="border-b border-line relative h-64 md:h-[380px] overflow-hidden">
-        <Image
-          src="/images/photos/hands-keyboard.png"
-          alt="Hände auf einem MacBook — Infetch arbeitet automatisch im Hintergrund"
-          fill
-          className="object-cover object-center"
-          sizes="100vw"
-        />
+      <section className="bg-ink text-white border-b border-white/10">
+        <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
+          {[
+            { value: "< 5 Min",  label: "bis erste Rechnung erkannt" },
+            { value: "99%",      label: "Erkennungsrate bei bekannten Anbietern" },
+            { value: "0",        label: "manuelle Schritte — vollautomatisch" },
+            { value: "EU",       label: "Server · DSGVO · kein US-Cloud-Anbieter" },
+          ].map(({ value, label }) => (
+            <div key={label}>
+              <div className="font-display text-4xl md:text-5xl text-white stat-num">{value}</div>
+              <div className="mt-2 text-sm text-white/50 leading-snug">{label}</div>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* ================================================================== */}
@@ -470,6 +485,11 @@ export default function LandingPage() {
                 Alles, was wir speichern, liegt in Frankfurt. Verschlüsselt.
                 Du kannst es jederzeit löschen.
               </p>
+              <div className="mt-6">
+                <Link href="/datenschutz" className="text-sm ul-link text-muted hover:text-ink">
+                  Datenschutzerklärung lesen
+                </Link>
+              </div>
             </div>
 
             <div className="flex flex-col gap-8">
@@ -484,13 +504,10 @@ export default function LandingPage() {
               </div>
             <dl className="grid grid-cols-2 gap-y-8 gap-x-8">
               {[
-                { label: "Standort",           value: "EU · Frankfurt",    detail: "Hetzner · ISO 27001"          },
-                { label: "Verschlüsselung",    value: "AES-256",           detail: "at rest · in transit"         },
-                { label: "DSGVO",              value: "AVV inklusive",     detail: "Art. 28 DSGVO"                },
-                { label: "Postfach-Zugriff",   value: "OAuth · IMAP",      detail: "jederzeit widerrufbar"        },
-                { label: "Datenhaltung",       value: "nur Belege",        detail: "Mail-Body wird verworfen"     },
-                { label: "Audit-Log",          value: "vollständig",       detail: "jede Aktion nachvollziehbar"  },
-                { label: "KI-Training",        value: "keine",             detail: "Deine Daten trainieren nichts" },
+                { label: "Standort",        value: "EU · Frankfurt", detail: "Hetzner · ISO 27001"           },
+                { label: "Verschlüsselung", value: "AES-256",        detail: "at rest · in transit"          },
+                { label: "DSGVO",           value: "AVV inklusive",  detail: "Art. 28 DSGVO"                 },
+                { label: "KI-Training",     value: "keine",          detail: "Deine Daten trainieren nichts" },
               ].map(({ label, value, detail }) => (
                 <div key={label}>
                   <dt className="text-xs text-muted">{label}</dt>
@@ -499,11 +516,6 @@ export default function LandingPage() {
                 </div>
               ))}
             </dl>
-            </div>
-            <div className="mt-8">
-              <Link href="/datenschutz" className="text-sm ul-link text-muted hover:text-ink">
-                Datenschutzerklärung lesen
-              </Link>
             </div>
           </div>
         </div>
@@ -534,7 +546,7 @@ export default function LandingPage() {
                   <li key={label} className="relative group/tip h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
                     {domain
                       ? <VendorLogo domain={domain} name={label} size={40} />
-                      : <span className="text-sm text-muted font-medium">@</span>}
+                      : <span className="text-xl text-muted font-medium">@</span>}
                     <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50 shadow-pop">
                       {label}
                       <span className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-ink" />
@@ -559,7 +571,7 @@ export default function LandingPage() {
                   <li key={label} className="relative group/tip h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
                     {domain
                       ? <VendorLogo domain={domain} name={label} size={40} />
-                      : <span className="text-sm text-muted font-medium">@</span>}
+                      : <span className="text-xl text-muted font-medium">@</span>}
                     <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50 shadow-pop">
                       {label}
                       <span className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-ink" />
@@ -595,6 +607,11 @@ export default function LandingPage() {
             <p className="mt-5 text-muted leading-relaxed">
               Infetch arbeitet im Hintergrund — auch wenn du es nicht tust. Jede Rechnung landet dort, wo sie hingehört.
             </p>
+            <div className="mt-8">
+              <Link href="https://app.infetch.de/login" className="inline-flex h-11 px-6 rounded items-center bg-ink text-white text-sm font-medium hover:opacity-90">
+                Jetzt kostenlos starten
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -642,7 +659,7 @@ export default function LandingPage() {
               </div>
               <div className="text-sm text-muted">Pro</div>
               <div className="mt-4 font-display text-5xl text-ink stat-num">19 €</div>
-              <div className="text-xs text-muted mt-1">/ Monat · zzgl. USt</div>
+              <div className="text-xs text-muted mt-1">/ Monat · inkl. Umsatzsteuer</div>
               <p className="mt-5 text-sm text-muted leading-relaxed">
                 Alles inklusive — für alle, die auf nichts verzichten wollen.
               </p>
@@ -732,7 +749,7 @@ export default function LandingPage() {
           <div className="text-[11px] uppercase tracking-[0.14em] text-white/50">Dauerhaft kostenlos starten</div>
           <h2 className="mt-3 font-display text-5xl md:text-6xl leading-[1.02] max-w-3xl mx-auto text-white">
             Du suchst seit Jahren nach Belegen.<br className="hidden md:block" />
-            {" "}<span className="text-white/50">Ab Montag nicht mehr.</span>
+            {" "}<span className="text-white/50">Ab heute nicht mehr.</span>
           </h2>
           <div className="mt-10 flex flex-wrap justify-center items-center gap-4">
             <Link href="https://app.infetch.de/login" className="inline-flex h-12 px-6 items-center rounded bg-white text-ink text-sm font-medium hover:opacity-90">
@@ -768,7 +785,6 @@ export default function LandingPage() {
             <div className="text-xs uppercase tracking-[0.14em] text-muted">Unternehmen</div>
             <ul className="mt-3 space-y-2 text-sm text-ink">
               <li><button type="button" data-contact="" className="hover:text-muted">Kontakt</button></li>
-              <li><a href="https://status.infetch.de" className="hover:text-muted" target="_blank" rel="noopener">Status</a></li>
             </ul>
           </div>
           <div>
