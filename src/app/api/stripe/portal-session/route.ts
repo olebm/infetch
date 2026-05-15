@@ -14,12 +14,21 @@ import { sql } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
+// SECURITY: Wie /api/stripe/checkout — fest verdrahtete Allowlist gegen Host-Header-Injection.
+const ALLOWED_STRIPE_HOSTS = new Set(["app.infetch.de", "infetch.de", "localhost", "127.0.0.1"]);
+
 function getBaseUrl(request: NextRequest): string {
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  const host =
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+
+  const proto = (request.headers.get("x-forwarded-proto") ?? "https").split(",")[0]!.trim();
+  const rawHost = (
     request.headers.get("x-forwarded-host") ??
     request.headers.get("host") ??
-    "app.infetch.de";
+    "app.infetch.de"
+  ).split(",")[0]!.trim();
+  const hostname = rawHost.split(":")[0]!.toLowerCase();
+  const host = ALLOWED_STRIPE_HOSTS.has(hostname) ? rawHost : "app.infetch.de";
   return `${proto}://${host}`;
 }
 

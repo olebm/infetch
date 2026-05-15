@@ -22,21 +22,35 @@ const requestSchema = z.object({
   organizationId: z.string().uuid().optional(),
 });
 
-function isAuthorized(request: NextRequest): boolean {
+function isAuthorized(request: NextRequest): { ok: boolean; reason?: string } {
   const requiredToken = appConfig.aiProxy.token;
   if (!requiredToken) {
-    // Dev-Modus: kein Token konfiguriert → kein Auth-Check
-    return true;
+    // SECURITY: In Production ohne Token NICHT erlauben — sonst kann jeder
+    // im Internet Mistral-Calls auf Kosten des Betreibers auslösen.
+    if (process.env.NODE_ENV === "production") {
+      return { ok: false, reason: "ai_proxy_misconfigured" };
+    }
+    // Dev: explizit erlauben
+    return { ok: true };
   }
   const header = request.headers.get("authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) return false;
-  return match[1] === requiredToken;
+  if (!match) return { ok: false };
+  // Konstante-Zeit-Vergleich gegen Timing-Angriffe
+  const provided = Buffer.from(match[1]);
+  const expected = Buffer.from(requiredToken);
+  if (provided.length !== expected.length) return { ok: false };
+  // Buffer.compare ist nicht constant-time → eigene Variante
+  let diff = 0;
+  for (let i = 0; i < provided.length; i++) diff |= provided[i] ^ expected[i];
+  return { ok: diff === 0 };
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const authz = isAuthorized(request);
+  if (!authz.ok) {
+    const status = authz.reason === "ai_proxy_misconfigured" ? 503 : 401;
+    return NextResponse.json({ error: authz.reason ?? "unauthorized" }, { status });
   }
 
   let body: z.infer<typeof requestSchema>;

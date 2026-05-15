@@ -6,7 +6,7 @@ import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
 import { detectEmailProvider } from "@/lib/email-providers";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
-import { getCurrentAuth } from "@/lib/auth/current";
+import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type OnboardingState = {
   status: "idle" | "success" | "error";
@@ -70,8 +70,11 @@ export async function completeOnboardingAction(
       }
     }
 
-    const auth = await getCurrentAuth();
-    const organizationId = auth?.organization?.id ?? null;
+    // SECURITY: Onboarding speichert IMAP/SMTP-Credentials — Auth-Pflicht.
+    // Vorher: getCurrentAuth() ohne Fehlerfall → anonyme Aufrufe konnten
+    // mit organizationId=null globale mail_accounts überschreiben.
+    const auth = await requireCurrentAuth();
+    const organizationId = auth.organization?.id ?? null;
 
     // 1) IMAP Credential + mail_account
     const imapSecretRef = await saveCredentialSecret({
@@ -86,8 +89,14 @@ export async function completeOnboardingAction(
     `;
     const imapCredentialId = imapCredRows[0]?.id ?? null;
 
+    // SECURITY: Lookup scoped auf Organisation — sonst überschreibt
+    // ein neuer Onboarding-Lauf den Datensatz einer anderen Org.
     const existingImapRows = await sql<{ id: number }[]>`
-      SELECT id FROM mail_accounts WHERE label = 'Primary IMAP' LIMIT 1
+      SELECT id FROM mail_accounts
+      WHERE label = 'Primary IMAP'
+        AND (organization_id = ${organizationId}
+             OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+      LIMIT 1
     `;
     const existingImap = existingImapRows[0];
 

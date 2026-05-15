@@ -44,6 +44,20 @@ Some of these are documented design trade-offs rather than vulnerabilities. They
 - **Mistral API exposure.** If AI extraction is enabled, PDF invoices and metadata are sent to Mistral's servers under your API key. You can disable this in `/einstellungen`.
 - **Browser sessions on disk.** Portal sessions (cookies, localStorage) are stored in `data/sessions/` as plain JSON. If your data directory is compromised, an attacker can replay your portal logins until the session expires.
 
+## Production deployment notes
+
+For self-hosted multi-tenant deployments (e.g. `app.infetch.de`), set:
+
+- `NEXT_PUBLIC_APP_URL` — fully-qualified base URL. Without it, Stripe checkout/portal
+  redirects fall back to a Host-header allowlist; explicitly setting this env removes
+  any chance of Host-header injection.
+- `AI_PROXY_TOKEN` — required in production. Without it the AI extract endpoint
+  returns 503 (no anonymous Mistral access on the operator's bill).
+- `CRON_SECRET` — required in production for `/api/cron/*` endpoints.
+- `STRIPE_WEBHOOK_SECRET`, `SENTRY_WEBHOOK_SECRET` — verify incoming webhooks.
+- `ENABLE_TEST_LOGIN` must remain unset (and `NODE_ENV=production` blocks it
+  even if accidentally set).
+
 ## Supported versions
 
 This is early-access software. Security fixes are applied to the latest `main` branch only. Once we tag a stable `1.0`, we will document a longer support window.

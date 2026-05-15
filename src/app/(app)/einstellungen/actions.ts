@@ -39,6 +39,8 @@ export async function saveMistralCredentialAction(
   void _previousState;
 
   try {
+    const auth = await requireCurrentAuth();
+
     const apiKey = String(formData.get("mistralApiKey") || "").trim();
     if (apiKey.length < 16) {
       return { status: "error", message: "Bitte einen gültigen Mistral API Key eingeben." };
@@ -47,6 +49,7 @@ export async function saveMistralCredentialAction(
     await saveCredentialSecret({
       scope: "mistral",
       ownerId: "default",
+      organizationId: auth.organization?.id ?? null,
       label: "Mistral API Key",
       secret: apiKey,
     });
@@ -103,14 +106,25 @@ export async function saveImapCredentialAction(
     } else if (!(await hasStoredCredentialRef("imap", slot.ownerId, organizationId))) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     } else {
+      // SECURITY: Lookup scoped auf Organisation — verhindert Cross-Tenant-Match
       const existingRows = await sql<{ credential_ref_id: number | null }[]>`
-        SELECT credential_ref_id FROM mail_accounts WHERE label = ${slot.label} LIMIT 1
+        SELECT credential_ref_id FROM mail_accounts
+        WHERE label = ${slot.label}
+          AND (organization_id = ${organizationId}
+               OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+        LIMIT 1
       `;
       credentialRefId = existingRows[0]?.credential_ref_id ?? null;
     }
 
+    // SECURITY: Lookup scoped auf Organisation. Ohne Scope hätte Org B einen
+    // Datensatz mit label='Primary IMAP' von Org A überschrieben.
     const existingAccountRows = await sql<{ id: number }[]>`
-      SELECT id FROM mail_accounts WHERE label = ${slot.label} LIMIT 1
+      SELECT id FROM mail_accounts
+      WHERE label = ${slot.label}
+        AND (organization_id = ${organizationId}
+             OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+      LIMIT 1
     `;
     const existingAccount = existingAccountRows[0];
 
@@ -243,14 +257,24 @@ export async function saveMailboxCredentialsAction(
     } else if (!(await hasStoredCredentialRef("imap", mailSlot, organizationId))) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     } else {
+      // SECURITY: Lookup scoped auf Organisation
       const existingRows = await sql<{ credential_ref_id: number | null }[]>`
-        SELECT credential_ref_id FROM mail_accounts WHERE label = ${slotLabel} LIMIT 1
+        SELECT credential_ref_id FROM mail_accounts
+        WHERE label = ${slotLabel}
+          AND (organization_id = ${organizationId}
+               OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+        LIMIT 1
       `;
       imapCredRefId = existingRows[0]?.credential_ref_id ?? null;
     }
 
+    // SECURITY: Lookup scoped auf Organisation
     const existingImapRows = await sql<{ id: number }[]>`
-      SELECT id FROM mail_accounts WHERE label = ${slotLabel} LIMIT 1
+      SELECT id FROM mail_accounts
+      WHERE label = ${slotLabel}
+        AND (organization_id = ${organizationId}
+             OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+      LIMIT 1
     `;
     const existingImap = existingImapRows[0];
 
@@ -747,8 +771,11 @@ export async function invalidateAllOtherSessionsAction(
 // ─── Empfänger löschen ───────────────────────────────────────────────────────
 
 export async function clearExportTargetAction(formData: FormData): Promise<void> {
+  // SECURITY: Auth-Check — ohne Login kein Zugriff auf Export-Targets
+  await requireCurrentAuth();
+
   const id = Number(formData.get("targetId"));
-  if (!id) return;
+  if (!Number.isInteger(id) || id <= 0) return;
   await sql`
     UPDATE export_targets
     SET recipient_email = NULL, enabled = FALSE, smtp_slot = 'primary', updated_at = CURRENT_TIMESTAMP

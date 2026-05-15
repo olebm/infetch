@@ -72,3 +72,17 @@ export const inboundGlobalLimiter = new InMemoryRateLimiter(60, 60_000);
  * Verhindert, dass eine einzige Quelle das globale Limit alleine ausschöpft.
  */
 export const inboundIpLimiter = new InMemoryRateLimiter(10, 60_000);
+
+// ── Kontakt-Formular ──────────────────────────────────────────────────────────
+
+/**
+ * Kontakt-Endpoint: 5 Nachrichten pro IP pro 10 Minuten.
+ * Verhindert Spam/E-Mail-Abuse über /api/contact.
+ */
+export const contactIpLimiter = new InMemoryRateLimiter(5, 10 * 60_000);
+
+/**
+ * Globaler Deckel auf das Kontakt-Formular: 60 Nachrichten pro 10 Minuten
+ * über alle IPs. Schützt vor verteilten Spam-Wellen (Brevo-Kontingent).
+ */
+export const contactGlobalLimiter = new InMemoryRateLimiter(60, 10 * 60_000);

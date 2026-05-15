@@ -20,14 +20,18 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ fi
   }
 
   const orgId = auth.organization?.id ?? null;
+  if (!orgId) {
+    return NextResponse.json({ error: "no active organization" }, { status: 403 });
+  }
 
-  // Org-Scoping: Nur Dateien die zur eigenen Organisation gehören
+  // SECURITY: strikt nach organization_id filtern.
+  // Vorher: "OR i.organization_id IS NULL" leakte Legacy-Daten an jeden authentifizierten User.
   const rows = await sql<{ storedPath: string; originalFilename: string }[]>`
     SELECT f.stored_path AS "storedPath", f.original_filename AS "originalFilename"
     FROM invoice_files f
     INNER JOIN invoices i ON i.id = f.invoice_id
     WHERE f.id = ${id}
-      AND (i.organization_id = ${orgId} OR i.organization_id IS NULL)
+      AND i.organization_id = ${orgId}
     LIMIT 1
   `;
   const row = rows[0];

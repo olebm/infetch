@@ -117,7 +117,12 @@ export async function GET(request: NextRequest) {
   const vendorId  = rawVendor ? Number(rawVendor) : null;
 
   // SECURITY (INFETCH-87): Org-Scoping — nur Rechnungen der eigenen Organisation.
+  // Ohne Org kein Export — verhindert dass Legacy-Daten (organization_id IS NULL)
+  // an irgendeinen authentifizierten User geleakt werden.
   const orgId = auth.organization?.id ?? null;
+  if (!orgId) {
+    return new Response("Keine Organisation aktiv.", { status: 403 });
+  }
 
   // Tier-Check: Bulk-Download (kein Vendor-Filter) ist Pro-only.
   // Free-User können Rechnungen pro Anbieter (vendorId gesetzt) herunterladen.
@@ -155,7 +160,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN vendors v ON v.id = i.vendor_id
       LEFT JOIN invoice_files f ON f.invoice_id = i.id
       WHERE i.status NOT IN ('ignored', 'duplicate')
-        AND (${orgId}::text IS NULL OR i.organization_id = ${orgId} OR i.organization_id IS NULL)
+        AND i.organization_id = ${orgId}
         AND i.invoice_date LIKE ${yearPattern}
         AND i.vendor_id = ${vendorId}
       ORDER BY COALESCE(i.invoice_date, i.created_at::text) DESC
@@ -181,7 +186,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN vendors v ON v.id = i.vendor_id
       LEFT JOIN invoice_files f ON f.invoice_id = i.id
       WHERE i.status NOT IN ('ignored', 'duplicate')
-        AND (${orgId}::text IS NULL OR i.organization_id = ${orgId} OR i.organization_id IS NULL)
+        AND i.organization_id = ${orgId}
         AND i.invoice_date LIKE ${yearPattern}
       ORDER BY COALESCE(i.invoice_date, i.created_at::text) DESC
     `;
@@ -205,7 +210,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN vendors v ON v.id = i.vendor_id
       LEFT JOIN invoice_files f ON f.invoice_id = i.id
       WHERE i.status NOT IN ('ignored', 'duplicate')
-        AND (${orgId}::text IS NULL OR i.organization_id = ${orgId} OR i.organization_id IS NULL)
+        AND i.organization_id = ${orgId}
         AND i.vendor_id = ${vendorId}
       ORDER BY COALESCE(i.invoice_date, i.created_at::text) DESC
     `;
@@ -229,7 +234,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN vendors v ON v.id = i.vendor_id
       LEFT JOIN invoice_files f ON f.invoice_id = i.id
       WHERE i.status NOT IN ('ignored', 'duplicate')
-        AND (${orgId}::text IS NULL OR i.organization_id = ${orgId} OR i.organization_id IS NULL)
+        AND i.organization_id = ${orgId}
       ORDER BY COALESCE(i.invoice_date, i.created_at::text) DESC
     `;
   }

@@ -25,13 +25,22 @@ import { sql } from "@/lib/db/client";
 
 export const dynamic = "force-dynamic";
 
-// Basis-URL für Success/Cancel-Redirect ermitteln
+// SECURITY: NEXT_PUBLIC_APP_URL bevorzugt — verhindert Host-Header-Injection,
+// die Stripe-Success/Cancel-Redirects auf eine Angreifer-Domain umlenken könnte.
+const ALLOWED_STRIPE_HOSTS = new Set(["app.infetch.de", "infetch.de", "localhost", "127.0.0.1"]);
+
 function getBaseUrl(request: NextRequest): string {
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  const host =
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+
+  const proto = (request.headers.get("x-forwarded-proto") ?? "https").split(",")[0]!.trim();
+  const rawHost = (
     request.headers.get("x-forwarded-host") ??
     request.headers.get("host") ??
-    "app.infetch.de";
+    "app.infetch.de"
+  ).split(",")[0]!.trim();
+  const hostname = rawHost.split(":")[0]!.toLowerCase();
+  const host = ALLOWED_STRIPE_HOSTS.has(hostname) ? rawHost : "app.infetch.de";
   return `${proto}://${host}`;
 }
 
