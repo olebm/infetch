@@ -16,7 +16,10 @@ import { sendOnboardingEmail } from "@/lib/mail/notify";
  * wird es hier angelegt.
  */
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams, origin: rawOrigin } = new URL(request.url);
+  // Behind a reverse proxy (Coolify/nginx) request.url may contain the internal
+  // address (0.0.0.0:3000). Use NEXT_PUBLIC_SITE_URL when available.
+  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || rawOrigin;
   const code = searchParams.get("code");
   const rawNext = searchParams.get("next") ?? "/";
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
