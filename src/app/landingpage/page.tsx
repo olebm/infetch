@@ -62,7 +62,7 @@ export default function LandingPage() {
       {/* HERO                                                                */}
       {/* ================================================================== */}
       <section className="relative">
-        <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-16 md:pt-24 pb-12 md:pb-20 grid md:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
+        <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-8 md:pt-24 pb-12 md:pb-20 grid md:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
 
           <div className="min-w-0">
             <Tip label="Scannt dein Postfach alle 5 Minuten nach neuen Rechnungen">
