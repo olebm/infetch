@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { LoginForm } from "@/components/auth/login-form";
+import { loginAsTestUser } from "@/app/login/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -91,11 +92,24 @@ export default async function LoginPage({
             <LoginForm next={next} />
 
             <p className="mt-6 text-xs text-muted">
-              Mit Klick auf „Magic-Link senden“ akzeptierst du{" "}
+              Mit Klick auf &bdquo;Magic-Link senden&ldquo; akzeptierst du{" "}
               <Link href="/agb" className="underline underline-offset-4 decoration-line hover:text-ink">Nutzungsbedingungen</Link>{" "}
               und{" "}
               <Link href="/datenschutz" className="underline underline-offset-4 decoration-line hover:text-ink">Datenschutz</Link>.
             </p>
+
+            {process.env.ENABLE_TEST_LOGIN === "true" && (
+              <form action={loginAsTestUser} className="mt-4">
+                <input type="hidden" name="next" value={next} />
+                <button
+                  type="submit"
+                  data-testid="test-login-btn"
+                  className="w-full rounded border border-dashed border-line bg-surface px-3 py-2 text-xs text-muted hover:border-brand hover:text-brand transition-colors"
+                >
+                  Als Test-User einloggen (nur Dev)
+                </button>
+              </form>
+            )}
           </div>
         </div>
 

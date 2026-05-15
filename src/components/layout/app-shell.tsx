@@ -50,6 +50,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
       />
       <main
         id="main-content"
+        data-testid="app-main"
         tabIndex={-1}
         className="mx-auto w-full max-w-[1180px] flex-1 px-4 py-4 outline-none md:p-8"
       >

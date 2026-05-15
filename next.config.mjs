@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -53,4 +54,24 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Sentry-Org und -Projekt aus Env (gesetzt in .env.local / Coolify)
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Source Maps im Client-Bundle verstecken (werden nur an Sentry hochgeladen)
+  hideSourceMaps: true,
+
+  // Sentry-Logger-Statements aus dem Bundle entfernen
+  disableLogger: true,
+
+  // Kein Performance-Tracing (konsistent mit server-config.ts)
+  tracesSampleRate: 0,
+
+  // Nur in CI-/Build-Umgebungen ausgeben — im Dev-Server ruhig bleiben
+  silent: !process.env.CI && process.env.NODE_ENV !== "production",
+
+  // Kein automatisches Instrumentation von API-Routes (selbst konfiguriert)
+  autoInstrumentServerFunctions: false,
+});

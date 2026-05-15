@@ -1,0 +1,6 @@
+[defaults]
+# Sentry-Organisation und Projekt-Slug.
+# Werte findest du unter: sentry.io → Settings → General → Organization Slug
+# und sentry.io → [Projekt] → Settings → General → Project Slug
+org=infetch
+project=infetch
