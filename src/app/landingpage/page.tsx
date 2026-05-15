@@ -22,6 +22,21 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+// ─── Photo placeholder ────────────────────────────────────────────────────────
+
+function PhotoPlaceholder({ label, ratio }: { label: string; ratio: string }) {
+  return (
+    <div
+      className="w-full rounded-lg overflow-hidden bg-[#e4e0d8] flex items-center justify-center"
+      style={{ aspectRatio: ratio }}
+    >
+      <div className="text-center px-4">
+        <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#8a8070]">{label}</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
@@ -105,7 +120,8 @@ export default function LandingPage() {
           </div>
 
           {/* HERO VISUAL: animated inbox */}
-          <div className="min-w-0">
+          <div className="min-w-0 flex flex-col gap-5">
+            <PhotoPlaceholder label="Foto 1 · Hero · 16 : 9" ratio="16/9" />
             <div className="mock-window shadow-lift">
               <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
                 <div className="font-display text-2xl text-ink">Heute</div>
@@ -199,6 +215,11 @@ export default function LandingPage() {
       {/* ================================================================== */}
       <section className="border-b border-line">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8">
+          <div className="py-10 flex justify-center">
+            <div className="w-full max-w-xs">
+              <PhotoPlaceholder label="Foto 3 · Problem · 1 : 1" ratio="1/1" />
+            </div>
+          </div>
           <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
             {[
               { eyebrow: "Kein System",  title: "Rechnungen in jedem Postfach",      body: "Adobe, Hetzner, 1&1 — jeder Anbieter schickt von einer anderen Adresse, in ein anderes Postfach." },
@@ -293,6 +314,13 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* ================================================================== */}
+      {/* FOTO 5 — Vollbild-Break                                            */}
+      {/* ================================================================== */}
+      <section className="border-b border-line">
+        <PhotoPlaceholder label="Foto 5 · Detail Hände · 16 : 9" ratio="16/9" />
       </section>
 
       {/* ================================================================== */}
@@ -438,6 +466,8 @@ export default function LandingPage() {
               </p>
             </div>
 
+            <div className="flex flex-col gap-8">
+              <PhotoPlaceholder label="Foto 4 · Vertrauen · 3 : 2" ratio="3/2" />
             <dl className="grid grid-cols-2 gap-y-8 gap-x-8">
               {[
                 { label: "Standort",           value: "EU · Frankfurt",    detail: "Hetzner · ISO 27001"          },
@@ -455,6 +485,7 @@ export default function LandingPage() {
                 </div>
               ))}
             </dl>
+            </div>
             <div className="mt-8">
               <Link href="/datenschutz" className="text-sm ul-link text-muted hover:text-ink">
                 Datenschutzerklärung lesen
@@ -524,6 +555,26 @@ export default function LandingPage() {
               </ul>
               <p className="mt-4 text-xs text-muted">Dein Tool fehlt? Per E-Mail funktioniert immer.</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================== */}
+      {/* FOTO 2 — Autopilot-Moment                                          */}
+      {/* ================================================================== */}
+      <section className="border-b border-line py-20 md:py-28">
+        <div className="max-w-[1180px] mx-auto px-6 md:px-8 grid md:grid-cols-2 gap-12 items-center">
+          <div className="max-w-xs mx-auto md:mx-0">
+            <PhotoPlaceholder label="Foto 2 · Autopilot · 3 : 4" ratio="3/4" />
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-muted">Läuft ohne dich</div>
+            <h2 className="mt-3 font-display text-4xl md:text-5xl text-ink leading-[1.05]">
+              Dein Postfach.<br />Deine Zeit zurück.
+            </h2>
+            <p className="mt-5 text-muted leading-relaxed">
+              Infetch arbeitet im Hintergrund — auch wenn du es nicht tust. Jede Rechnung landet dort, wo sie hingehört.
+            </p>
           </div>
         </div>
       </section>

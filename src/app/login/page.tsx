@@ -40,14 +40,18 @@ export default async function LoginPage({
             </Link>
           </div>
 
-          {/* Headline */}
-          <div>
-            <h2 className="text-3xl font-semibold tracking-tight text-ink leading-tight max-w-md">
-              Postfach verbinden,<br />fertig.
-            </h2>
-            <p className="mt-3 max-w-sm text-sm text-muted">
-              Rechnungen sammeln sich von selbst und gehen automatisch zur Steuersoftware.
-            </p>
+          {/* Photo placeholder */}
+          <div className="flex-1 flex items-center justify-center">
+            <div
+              className="w-full max-w-xs rounded-lg bg-[#e4e0d8] flex items-center justify-center"
+              style={{ aspectRatio: "2/3" }}
+            >
+              <div className="text-center px-4">
+                <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#8a8070]">
+                  Foto 6 · Login · 2 : 3
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Trust strip */}
