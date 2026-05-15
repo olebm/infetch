@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { ContactController } from "./contact-controller";
+import { MobileNav } from "./mobile-nav";
 
 const BF = process.env.NEXT_PUBLIC_BRANDFETCH_TOKEN ?? "";
 /** Brandfetch CDN — 256 px icon, scharf bis 3× HiDPI (z.B. iPhone). */
@@ -30,13 +31,13 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function LandingPage() {
   return (
-    <>
+    <div className="overflow-x-hidden">
       {/* ================================================================== */}
       {/* NAV                                                                 */}
       {/* ================================================================== */}
-      <header className="sticky top-0 z-40 nav-blur border-b border-line">
+      <header className="sticky top-0 z-40 nav-blur border-b border-line relative">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 h-16 flex items-center gap-6">
-          <Link href="/" className="flex items-center" aria-label="Infetch">
+          <Link href="/" className="flex items-center shrink-0" aria-label="Infetch">
             <Image src="/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-9 w-auto" priority />
           </Link>
           <nav className="hidden md:flex items-center gap-6 ml-6 text-sm text-muted">
@@ -46,13 +47,20 @@ export default function LandingPage() {
             <a href="#preise" className="hover:text-ink">Preise</a>
             <a href="#faq" className="hover:text-ink">FAQ</a>
           </nav>
-          <div className="flex items-center gap-2 ml-auto">
-            <Link href="https://app.infetch.de/login" className="hidden md:inline-flex h-9 px-4 text-sm items-center rounded border border-line text-ink hover:bg-surface transition-colors">
+          <div className="hidden md:flex items-center gap-2 ml-auto">
+            <Link href="https://app.infetch.de/login" className="h-9 px-4 text-sm items-center rounded border border-line text-ink hover:bg-surface transition-colors inline-flex">
               Kostenlos starten
             </Link>
             <Link href="https://app.infetch.de/login" className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
               Anmelden
             </Link>
+          </div>
+          {/* Mobile: Anmelden + Hamburger */}
+          <div className="md:hidden flex items-center gap-2 ml-auto">
+            <Link href="https://app.infetch.de/login" className="inline-flex h-9 px-3 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
+              Anmelden
+            </Link>
+            <MobileNav />
           </div>
         </div>
       </header>
@@ -85,7 +93,7 @@ export default function LandingPage() {
                 Wie es funktioniert
               </a>
             </div>
-            <div className="mt-8 flex items-center gap-6 text-xs text-muted">
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted">
               <Tip label="Postfach verbinden, Empfänger eintragen — fertig.">
                 <div className="flex items-center gap-2 cursor-default"><span className="text-ink stat-num">≈ 4 Min</span> Einrichtung</div>
               </Tip>
@@ -189,7 +197,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div className="mt-6 text-center text-xs text-muted">
-            Und alle weiteren — die KI erkennt jeden Anbieter automatisch.
+            Und alle weiteren — die KI erkennt Absender und Betrag automatisch.
           </div>
         </div>
       </section>
@@ -235,7 +243,7 @@ export default function LandingPage() {
               <h3 className="mt-2 font-display text-2xl text-ink">Postfach verbinden</h3>
               <p className="mt-2 text-muted leading-relaxed min-h-[4.5rem]">
                 Verbinde Gmail, Outlook, Apple iCloud oder jeden anderen IMAP-Anbieter in Minuten.
-                Kein Passwort wird gespeichert — nur ein widerrufbares App-Passwort.
+                Zugangsdaten speichern wir verschlüsselt — nie im Klartext, jederzeit widerrufbar.
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -622,11 +630,11 @@ export default function LandingPage() {
               },
               {
                 q: "Wer sieht meine Rechnungen?",
-                a: "Nur du und die Empfänger, die du selbst hinterlegst. Unsere Mitarbeitenden haben keinen Zugriff auf Belegdaten, außer du erteilst einen ausdrücklichen Support-Konsens.",
+                a: "Nur du und die Empfänger, die du selbst hinterlegst. Kein Mensch außer dir hat Zugriff auf deine Belegdaten.",
               },
               {
                 q: "Brauche ich technisches Wissen?",
-                a: "Nein. Postfach verbinden, Empfänger eintragen, fertig. Vier Minuten. Wir testen alles für dich, bevor es live geht.",
+                a: "Nein. Postfach verbinden, Empfänger eintragen, fertig. Vier Minuten.",
               },
               {
                 q: "Kann ich Anbieter ausschließen?",
@@ -709,13 +717,13 @@ export default function LandingPage() {
         </div>
         <div className="border-t border-line">
           <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-5 text-xs text-muted flex flex-col md:flex-row gap-2 md:gap-6">
-            <div>© 2026 Infetch GmbH</div>
+            <div>© 2026 Infetch</div>
             <button type="button" data-contact="" className="hover:text-ink transition-colors">hallo@infetch.de</button>
             <div className="md:ml-auto">Alle Markennamen und Logos sind Eigentum der jeweiligen Inhaber.</div>
           </div>
         </div>
       </footer>
       <ContactController />
-    </>
+    </div>
   );
 }

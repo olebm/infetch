@@ -29,9 +29,6 @@ export default function ImpressumPage() {
         E-Mail: <a href="mailto:hallo@infetch.de">hallo@infetch.de</a>
       </p>
 
-      <h2>Hinweis zur Unternehmensform</h2>
-      <p>Infetch wird derzeit als Einzelunternehmen unter dem Namen <strong>betaform | Ole Beekmann</strong> betrieben. Eine Umwandlung in eine GmbH ist geplant. Das Impressum wird nach erfolgter Handelsregistereintragung entsprechend aktualisiert.</p>
-
       <h2>Umsatzsteuer-Identifikationsnummer</h2>
       <p>Gemäß § 27a Umsatzsteuergesetz:<br />
       DE318609562</p>

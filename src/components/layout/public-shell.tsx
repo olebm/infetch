@@ -44,7 +44,7 @@ export function PublicShell({
       {/* ── Footer ────────────────────────────────────────────────────────── */}
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-[900px] flex-wrap gap-4 px-6 py-6 text-xs text-muted">
-          <span>© 2026 Infetch GmbH</span>
+          <span>© 2026 Infetch</span>
           <Link href="/impressum" className="hover:text-ink">Impressum</Link>
           <Link href="/datenschutz" className="hover:text-ink">Datenschutz</Link>
           <Link href="/agb" className="hover:text-ink">AGB</Link>

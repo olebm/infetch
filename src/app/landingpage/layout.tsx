@@ -47,7 +47,7 @@ const faqSchema = {
       name: "Wer sieht meine Rechnungen?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Nur du und die Empfänger, die du selbst hinterlegst. Unsere Mitarbeitenden haben keinen Zugriff auf Belegdaten, außer du erteilst einen ausdrücklichen Support-Konsens.",
+        text: "Nur du und die Empfänger, die du selbst hinterlegst. Kein Mensch außer dir hat Zugriff auf deine Belegdaten.",
       },
     },
     {
