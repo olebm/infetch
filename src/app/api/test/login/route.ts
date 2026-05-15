@@ -12,7 +12,7 @@ const STUB_NAME = "Test User";
  */
 export async function POST(_req: NextRequest) {
   if (process.env.ENABLE_TEST_LOGIN !== "true" || process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not enabled" }, { status: 403 });
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const supabaseAdmin = createSupabaseAdminClient();

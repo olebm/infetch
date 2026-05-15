@@ -31,8 +31,8 @@ function csvEscape(v: string | null | undefined): string {
   if (v == null || v === "") return "";
   let s = String(v);
   // SECURITY (INFETCH-92): CSV Formula-Injection verhindern.
-  // Führende =, +, -, @ lösen in älteren Excel-Versionen DDE-Ausführung aus.
-  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  // =, +, -, @, \t lösen in Excel/LibreOffice DDE-Ausführung aus.
+  if (/^[=+\-@\t]/.test(s)) s = "'" + s;
   if (s.includes('"') || s.includes(";") || s.includes("\n")) {
     return `"${s.replace(/"/g, '""')}"`;
   }

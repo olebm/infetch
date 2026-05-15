@@ -72,6 +72,7 @@ jobs:
           psql "$DATABASE_URL" -f supabase/migrations/0001_initial_schema.sql
           psql "$DATABASE_URL" -f supabase/migrations/0003_stripe.sql
           psql "$DATABASE_URL" -f supabase/migrations/0014_business_tier.sql
+          psql "$DATABASE_URL" -f supabase/migrations/0015_perf_indexes.sql
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       - name: Patch schema for CI (boolean columns + vault stub + seed data)

@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { appConfig } from "@/lib/config/env";
@@ -36,14 +37,10 @@ function isAuthorized(request: NextRequest): { ok: boolean; reason?: string } {
   const header = request.headers.get("authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) return { ok: false };
-  // Konstante-Zeit-Vergleich gegen Timing-Angriffe
-  const provided = Buffer.from(match[1]);
-  const expected = Buffer.from(requiredToken);
-  if (provided.length !== expected.length) return { ok: false };
-  // Buffer.compare ist nicht constant-time → eigene Variante
-  let diff = 0;
-  for (let i = 0; i < provided.length; i++) diff |= provided[i] ^ expected[i];
-  return { ok: diff === 0 };
+  // Hash beide Seiten auf gleiche Länge → timingSafeEqual kann ohne Längen-Leak verglichen werden
+  const provided = createHash("sha256").update(match[1]).digest();
+  const expected = createHash("sha256").update(requiredToken).digest();
+  return { ok: timingSafeEqual(provided, expected) };
 }
 
 export async function POST(request: NextRequest) {
