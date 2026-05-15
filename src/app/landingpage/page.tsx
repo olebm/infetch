@@ -224,8 +224,8 @@ export default function LandingPage() {
               <div className="text-xs text-muted stat-num">01</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Postfach verbinden</h3>
               <p className="mt-2 text-muted leading-relaxed min-h-[4.5rem]">
-                Verbinde Gmail, Outlook, Apple iCloud oder jeden anderen IMAP-Anbieter in Minuten.
-                Zugangsdaten speichern wir verschlüsselt — nie im Klartext, jederzeit widerrufbar.
+                Verbinde Gmail, Outlook oder einen IMAP-Anbieter in Minuten.
+                Zugangsdaten verschlüsselt gespeichert — nie im Klartext.
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -244,9 +244,8 @@ export default function LandingPage() {
               <div className="text-xs text-muted stat-num">02</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Wir erkennen</h3>
               <p className="mt-2 text-muted leading-relaxed min-h-[4.5rem]">
-                KI liest Anbieter, Betrag und Steuersatz direkt aus dem PDF-Anhang.
-                Unsichere Erkennungen warten auf dein OK.{" "}
-                <span className="text-ink/70">Mail-Text wird nie gespeichert.</span>
+                KI liest Anbieter, Betrag und Steuersatz direkt aus dem PDF.
+                Unsichere Erkennungen warten auf dein OK.
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -266,8 +265,8 @@ export default function LandingPage() {
               <div className="text-xs text-muted stat-num">03</div>
               <h3 className="mt-2 font-display text-2xl text-ink">Automatisch weiter</h3>
               <p className="mt-2 text-muted leading-relaxed min-h-[4.5rem]">
-                Das erkannte PDF geht sofort an deinen Buchhaltungs-Empfänger — ohne dein Zutun.{" "}
-                <span className="text-ink/70">Jeden Schritt siehst du lückenlos im Audit-Log.</span>
+                Das erkannte PDF geht sofort an deinen Empfänger — ohne dein Zutun.
+                Jeden Schritt siehst du im Audit-Log.
               </p>
               <div className="mt-6 mock-window">
                 <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -469,7 +468,7 @@ export default function LandingPage() {
               <ul className="mt-5 flex flex-wrap gap-3">
                 {[
                   { domain: "google.com",  label: "Gmail · Workspace" },
-                  { domain: "outlook.com", label: "Microsoft 365"     },
+                  { domain: "microsoft.com", label: "Microsoft 365"   },
                   { domain: "icloud.com",  label: "Apple iCloud"      },
                   { domain: null,          label: "IMAP (universal)"  },
                 ].map(({ domain, label }) => (
@@ -492,7 +491,7 @@ export default function LandingPage() {
                   { domain: "datev.de",       label: "DATEV Belegtransfer" },
                   { domain: "xero.com",        label: "Xero"                },
                   { domain: "sevdesk.de",     label: "sevdesk"             },
-                  { domain: "accountable.eu", label: "Accountable"         },
+                  { domain: "quickbooks.com", label: "QuickBooks"          },
                   { domain: "lexoffice.de",   label: "lexoffice"           },
                   { domain: "sage.com",       label: "Sage"                },
                   { domain: "candis.io",      label: "Candis"              },
