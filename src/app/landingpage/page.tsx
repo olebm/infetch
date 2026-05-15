@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { VendorLogo } from "@/components/ui/vendor-logo";
+import { LogoStrip } from "./logo-strip";
 import { ContactController } from "./contact-controller";
 import { MobileNav } from "./mobile-nav";
 
@@ -113,37 +114,60 @@ export default function LandingPage() {
 
               <ul className="px-2 pb-3">
                 {[
-                  { domain: "github.com",  label: "GitHub · Copilot Business",                  meta: "09:14 · 19,00 €",  animated: false },
-                  { domain: "adobe.com",   label: "Adobe Systems · Creative Cloud",               meta: "11:02 · 77,99 €",  animated: false },
-                  { domain: "slack.com",   label: "Slack Technologies · Pro",                     meta: "jetzt · 8,75 €",   animated: true  },
-                  { domain: "canva.com",   label: "Canva Pty Ltd · Pro Plan",                     meta: "gestern · 14,99 €", animated: false },
-                ].map(({ domain, label, meta, animated }, i, arr) => (
-                  <li key={domain}
-                    className={`${animated ? "anim-row" : "row-hover"} px-3 py-3 flex items-center gap-4 ${i < arr.length - 1 ? "border-b border-line" : ""}`}>
+                  { domain: "github.com", label: "GitHub · Copilot Business",    meta: "09:14 · 19,00 €"  },
+                  { domain: "adobe.com",  label: "Adobe Systems · Creative Cloud", meta: "11:02 · 77,99 €" },
+                ].map(({ domain, label, meta }) => (
+                  <li key={domain} className="row-hover px-3 py-3 flex items-center gap-4 border-b border-line">
                     <VendorLogo domain={domain} name={label} size={44} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-ink truncate">{label}</div>
                       <div className="mt-0.5 text-xs text-muted stat-num">{meta}</div>
                     </div>
-                    {animated ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
+                      <span className="text-xs text-muted">verschickt</span>
+                    </span>
+                  </li>
+                ))}
+
+                {/* Cycling animated row — 3 vendors rotate every 8 s */}
+                <li className="relative border-b border-line" style={{ height: "68px" }}>
+                  {[
+                    { domain: "slack.com", label: "Slack Technologies · Pro",   meta: "jetzt · 8,75 €"  },
+                    { domain: "notion.so", label: "Notion Labs · Team Plan",    meta: "jetzt · 16,00 €" },
+                    { domain: "figma.com", label: "Figma Inc. · Professional",  meta: "jetzt · 15,00 €" },
+                  ].map(({ domain, label, meta }, i) => (
+                    <div key={domain} className="anim-row absolute inset-0 px-3 flex items-center gap-4" style={{ animationDelay: `${i * 8}s` }}>
+                      <VendorLogo domain={domain} name={label} size={44} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-ink truncate">{label}</div>
+                        <div className="mt-0.5 text-xs text-muted stat-num">{meta}</div>
+                      </div>
                       <div className="relative" style={{ minWidth: "72px", height: "20px" }}>
-                        <span className="anim-badge absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        <span className="anim-badge absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap" style={{ animationDelay: `${i * 8}s` }}>
                           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-warn-vivid"></span>
                           <span className="text-xs text-muted">erkannt</span>
                         </span>
-                        <span className="anim-sent absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        <span className="anim-sent absolute inset-0 inline-flex items-center justify-end gap-1.5 whitespace-nowrap" style={{ animationDelay: `${i * 8}s` }}>
                           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
                           <span className="text-xs text-muted">verschickt</span>
                         </span>
                       </div>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
-                        <span className="text-xs text-muted">verschickt</span>
-                      </span>
-                    )}
-                  </li>
-                ))}
+                    </div>
+                  ))}
+                </li>
+
+                <li className="row-hover px-3 py-3 flex items-center gap-4">
+                  <VendorLogo domain="canva.com" name="Canva Pty Ltd · Pro Plan" size={44} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-ink truncate">Canva Pty Ltd · Pro Plan</div>
+                    <div className="mt-0.5 text-xs text-muted stat-num">gestern · 14,99 €</div>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-ok"></span>
+                    <span className="text-xs text-muted">verschickt</span>
+                  </span>
+                </li>
               </ul>
 
               <div className="px-5 py-3 border-t border-line bg-surface flex items-center justify-between text-xs text-muted">
@@ -163,21 +187,7 @@ export default function LandingPage() {
           <div className="text-[11px] uppercase tracking-[0.14em] text-muted text-center mb-7">
             Erkennt Rechnungen von
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
-            {[
-              { domain: "stripe.com",      alt: "Stripe"    },
-              { domain: "cloudflare.com",  alt: "Cloudflare"},
-              { domain: "canva.com",       alt: "Canva"     },
-              { domain: "figma.com",       alt: "Figma"     },
-              { domain: "microsoft.com",   alt: "Microsoft" },
-              { domain: "slack.com",       alt: "Slack"     },
-              { domain: "spotify.com",     alt: "Spotify"   },
-            ].map(({ domain, alt }) => (
-              <Tip key={domain} label={alt}>
-                <VendorLogo domain={domain} name={alt} size={48} />
-              </Tip>
-            ))}
-          </div>
+          <LogoStrip />
           <div className="mt-6 text-center text-xs text-muted">
             Und alle weiteren — die KI erkennt Absender und Betrag automatisch.
           </div>
@@ -478,7 +488,7 @@ export default function LandingPage() {
                 ].map(({ domain, label }) => (
                   <li key={label} className="relative group/tip h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
                     {domain
-                      ? <VendorLogo domain={domain} name={label} size={48} />
+                      ? <VendorLogo domain={domain} name={label} size={40} />
                       : <span className="text-sm text-muted font-medium">@</span>}
                     <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50 shadow-pop">
                       {label}
@@ -503,7 +513,7 @@ export default function LandingPage() {
                 ].map(({ domain, label }) => (
                   <li key={label} className="relative group/tip h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
                     {domain
-                      ? <VendorLogo domain={domain} name={label} size={48} />
+                      ? <VendorLogo domain={domain} name={label} size={40} />
                       : <span className="text-sm text-muted font-medium">@</span>}
                     <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50 shadow-pop">
                       {label}

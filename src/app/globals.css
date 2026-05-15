@@ -216,23 +216,23 @@ select {
 
 /* Hero-Inbox-Animationen */
 @keyframes inboxArrive {
-  0%,  4%  { opacity: 0; transform: translateY(-6px); }
-  14%, 70% { opacity: 1; transform: none; }
-  78%, 100%{ opacity: 0; transform: translateY(0); }
+  0%,  2%  { opacity: 0; transform: translateY(-6px); }
+  8%,  27% { opacity: 1; transform: none; }
+  32%, 100%{ opacity: 0; transform: translateY(0); }
 }
 @keyframes inboxBadge {
-  0%,  20% { opacity: 0; transform: scale(0.92); }
-  28%, 48% { opacity: 1; transform: none; }
-  56%, 100%{ opacity: 0; transform: scale(0.92); }
+  0%,  8%  { opacity: 0; transform: scale(0.92); }
+  12%, 18% { opacity: 1; transform: none; }
+  22%, 100%{ opacity: 0; transform: scale(0.92); }
 }
 @keyframes inboxSent {
-  0%,  58% { opacity: 0; transform: scale(0.92); }
-  66%, 78% { opacity: 1; transform: none; }
-  86%, 100%{ opacity: 0; }
+  0%,  22% { opacity: 0; transform: scale(0.92); }
+  26%, 29% { opacity: 1; transform: none; }
+  33%, 100%{ opacity: 0; }
 }
-.anim-row   { animation: inboxArrive 8s ease-in-out infinite both; }
-.anim-badge { opacity: 0; animation: inboxBadge  8s ease-in-out infinite both; }
-.anim-sent  { opacity: 0; animation: inboxSent   8s ease-in-out infinite both; }
+.anim-row   { animation: inboxArrive 24s ease-in-out infinite both; }
+.anim-badge { opacity: 0; animation: inboxBadge  24s ease-in-out infinite both; }
+.anim-sent  { opacity: 0; animation: inboxSent   24s ease-in-out infinite both; }
 
 /* Pulse-Dot (Hero-Status-Indikator) */
 .pulse-dot {
