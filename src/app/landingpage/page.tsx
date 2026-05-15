@@ -165,7 +165,7 @@ export default function LandingPage() {
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
             {[
-              { domain: "ionos.com",       alt: "IONOS"     },
+              { domain: "stripe.com",      alt: "Stripe"    },
               { domain: "cloudflare.com",  alt: "Cloudflare"},
               { domain: "canva.com",       alt: "Canva"     },
               { domain: "figma.com",       alt: "Figma"     },
@@ -490,7 +490,7 @@ export default function LandingPage() {
               <ul className="mt-5 flex flex-wrap gap-3">
                 {[
                   { domain: "datev.de",       label: "DATEV Belegtransfer" },
-                  { domain: "kontist.com",    label: "Kontist"             },
+                  { domain: "fastbill.com",   label: "FastBill"            },
                   { domain: "sevdesk.de",     label: "sevdesk"             },
                   { domain: "accountable.eu", label: "Accountable"         },
                   { domain: "lexoffice.de",   label: "lexoffice"           },
