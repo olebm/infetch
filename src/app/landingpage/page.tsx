@@ -165,13 +165,13 @@ export default function LandingPage() {
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
             {[
-              { domain: "adobe.com",     alt: "Adobe"     },
-              { domain: "amazon.com",    alt: "Amazon"    },
-              { domain: "canva.com",     alt: "Canva"     },
-              { domain: "figma.com",     alt: "Figma"     },
-              { domain: "hetzner.com",   alt: "Hetzner"   },
-              { domain: "microsoft.com", alt: "Microsoft" },
-              { domain: "spotify.com",   alt: "Spotify"   },
+              { domain: "ionos.com",       alt: "IONOS"     },
+              { domain: "cloudflare.com",  alt: "Cloudflare"},
+              { domain: "canva.com",       alt: "Canva"     },
+              { domain: "figma.com",       alt: "Figma"     },
+              { domain: "microsoft.com",   alt: "Microsoft" },
+              { domain: "slack.com",       alt: "Slack"     },
+              { domain: "spotify.com",     alt: "Spotify"   },
             ].map(({ domain, alt }) => (
               <Tip key={domain} label={alt}>
                 <VendorLogo domain={domain} name={alt} size={48} />
