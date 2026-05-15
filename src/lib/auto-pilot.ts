@@ -205,7 +205,7 @@ const JOB_LABELS: Record<JobName, string> = {
   reactivationCheck: "Reaktivierungs-Check",
 };
 
-function nextCronTickSeconds(_cronExpr: string, lastRunAt: Date | null): number | null {
+function nextCronTickSeconds(_cronExpr: string, _lastRunAt: Date | null): number | null {
   if (!_cronExpr) return null;
   const match = /^\*\/(\d+) \* \* \* \*$/.exec(_cronExpr);
   if (match) {
@@ -237,7 +237,6 @@ function nextCronTickSeconds(_cronExpr: string, lastRunAt: Date | null): number 
     return Math.max(0, Math.round((next.getTime() - now.getTime()) / 1000));
   }
   return null;
-  void lastRunAt;
 }
 
 export function getAutoPilotStatus(): AutoPilotStatus[] {

@@ -20,11 +20,16 @@ function createClient(): postgres.Sql {
   const url = process.env.DATABASE_URL;
 
   if (!url || url.startsWith("./") || url.endsWith(".db")) {
-    // During `next build` (NEXT_PHASE=phase-production-build) DATABASE_URL is
-    // not required — all routes are force-dynamic and no queries run at build
-    // time. postgres() is lazy and won't attempt a real connection.
-    if (process.env.NEXT_PHASE === "phase-production-build") {
-      return postgres("postgresql://build:build@localhost/build", { prepare: false });
+    // During `next build` or in Vitest: return a no-op client whose first query
+    // will fail with a connection error. This lets modules be imported without
+    // DATABASE_URL — build never queries, and integration tests without DB fail
+    // at query-time (individual test failure) rather than at module-load time
+    // (which would crash the entire test file before any test can run).
+    if (
+      process.env.NEXT_PHASE === "phase-production-build" ||
+      process.env.VITEST !== undefined
+    ) {
+      return postgres("postgresql://localhost/build", { prepare: false });
     }
     throw new Error(
       "DATABASE_URL must be a PostgreSQL connection string. " +

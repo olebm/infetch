@@ -326,7 +326,7 @@ export const schemaStatements = [
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
-    tier TEXT NOT NULL DEFAULT 'free' CHECK (tier IN ('free', 'pro', 'power')),
+    tier TEXT NOT NULL DEFAULT 'free' CHECK (tier IN ('free', 'pro', 'business')),
     owner_user_id TEXT NOT NULL REFERENCES users(id),
     stripe_customer_id TEXT,
     stripe_subscription_id TEXT,

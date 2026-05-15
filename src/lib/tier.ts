@@ -148,7 +148,7 @@ export async function getMonthlyImportCount(
   const rows = await sql<{ count: string }[]>`
     SELECT COUNT(*) AS count
     FROM invoices
-    WHERE (organization_id = ${organizationId ?? null} OR organization_id IS NULL)
+    WHERE organization_id = ${organizationId ?? null}
       AND created_at >= TO_CHAR(DATE_TRUNC('month', NOW()), 'YYYY-MM-DD')
   `;
   return Number(rows[0]?.count ?? 0);
@@ -165,7 +165,6 @@ export async function getStorageUsageBytes(
     FROM invoice_files f
     INNER JOIN invoices i ON i.id = f.invoice_id
     WHERE i.organization_id = ${organizationId ?? null}
-       OR i.organization_id IS NULL
   `;
   return Number(rows[0]?.bytes ?? 0);
 }
