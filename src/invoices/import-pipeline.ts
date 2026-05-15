@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
+import type postgres from "postgres";
 import { sql } from "@/lib/db/client";
 import { recordSyncEvent } from "@/lib/db/events";
-import { BUCKETS, uploadToStorage, buildInvoiceStorageKey } from "@/lib/supabase/storage";
+import { BUCKETS, uploadToStorage, deleteFromStorage, buildInvoiceStorageKey } from "@/lib/supabase/storage";
 import { runInvoiceAiExtraction } from "@/ai/extract-invoice";
 import { attemptAutoTransfer } from "@/lib/automation/auto-transfer";
 import { sendReviewNotification } from "@/lib/mail/notify";
@@ -211,41 +212,59 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   const storedPath = storageKey;   // DB column now stores Storage key
   const rawTextPath = rawTextKey;  // DB column now stores Storage key
 
-  // Insert invoice
-  const invoiceRows = await sql<{ id: number }[]>`
-    INSERT INTO invoices (
-      vendor_id, source, status, invoice_number, invoice_date, amount_gross, currency,
-      confidence, dedupe_key, raw_text_path
-    )
-    VALUES (
-      ${vendor.vendorId}, ${input.sourceType}, ${status},
-      ${parsed.invoiceNumber}, ${parsed.invoiceDate}, ${parsed.amountGross},
-      ${parsed.currency}, ${confidence}, ${sha256}, ${rawTextPath}
-    )
-    RETURNING id
-  `;
-  const invoiceId = Number(invoiceRows[0].id);
+  // Wrap core DB inserts in a transaction so a mid-flight failure does not
+  // leave orphaned invoice rows without a corresponding invoice_file row.
+  // Storage uploads already happened — on rollback we clean them up below.
+  let invoiceId: number;
+  let fileId: number;
+  try {
+    const ids = await sql.begin(async (tx) => {
+      const invoiceRows = await tx<{ id: number }[]>`
+        INSERT INTO invoices (
+          vendor_id, source, status, invoice_number, invoice_date, amount_gross, currency,
+          confidence, dedupe_key, raw_text_path
+        )
+        VALUES (
+          ${vendor.vendorId}, ${input.sourceType}, ${status},
+          ${parsed.invoiceNumber}, ${parsed.invoiceDate}, ${parsed.amountGross},
+          ${parsed.currency}, ${confidence}, ${sha256}, ${rawTextPath}
+        )
+        RETURNING id
+      `;
+      const newInvoiceId = Number(invoiceRows[0].id);
 
-  // Insert invoice_file
-  const fileRows = await sql<{ id: number }[]>`
-    INSERT INTO invoice_files (
-      invoice_id, original_filename, stored_path, sha256, size_bytes, mime_type, source_type, source_ref_id
-    )
-    VALUES (
-      ${invoiceId}, ${input.originalFilename}, ${storedPath}, ${sha256},
-      ${buffer.byteLength}, ${input.mimeType || "application/pdf"},
-      ${input.sourceType}, ${input.sourceRefId || null}
-    )
-    RETURNING id
-  `;
-  const fileId = Number(fileRows[0].id);
+      const fileRows = await tx<{ id: number }[]>`
+        INSERT INTO invoice_files (
+          invoice_id, original_filename, stored_path, sha256, size_bytes, mime_type, source_type, source_ref_id
+        )
+        VALUES (
+          ${newInvoiceId}, ${input.originalFilename}, ${storedPath}, ${sha256},
+          ${buffer.byteLength}, ${input.mimeType || "application/pdf"},
+          ${input.sourceType}, ${input.sourceRefId || null}
+        )
+        RETURNING id
+      `;
+      const newFileId = Number(fileRows[0].id);
 
-  await upsertVendorMonthStatus({
-    vendorId: vendor.vendorId,
-    invoiceId,
-    invoiceDate: parsed.invoiceDate,
-    sourceType: input.sourceType,
-  });
+      await upsertVendorMonthStatusTx(tx, {
+        vendorId: vendor.vendorId,
+        invoiceId: newInvoiceId,
+        invoiceDate: parsed.invoiceDate,
+        sourceType: input.sourceType,
+      });
+
+      return { invoiceId: newInvoiceId, fileId: newFileId };
+    });
+    invoiceId = ids.invoiceId;
+    fileId = ids.fileId;
+  } catch (err) {
+    // Transaction rolled back — remove orphaned storage files
+    await Promise.allSettled([
+      deleteFromStorage(BUCKETS.INVOICES, storageKey),
+      deleteFromStorage(BUCKETS.RAW_TEXT, rawTextKey),
+    ]);
+    throw err;
+  }
 
   await recordSyncEvent({
     level: extraction.error ? "warning" : "info",
@@ -301,7 +320,7 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
 
   // Auto-Transfer: wenn Status='ready' (durch Auto-Approval gesetzt) UND eine
   // Integration aktiv ist, pushe direkt an die Steuersoftware.
-  await attemptAutoTransfer(invoiceId);
+  await attemptAutoTransfer(invoiceId, input.organizationId);
 
   const finalStatusRows = await sql<{ status: string }[]>`
     SELECT status FROM invoices WHERE id = ${invoiceId}
@@ -320,11 +339,11 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     const ownerRow = ownerRows[0];
 
     if (ownerRow?.email) {
-      void sendReviewNotification({
+      sendReviewNotification({
         to: ownerRow.email,
         vendorName: vendor.canonicalKey ?? input.originalFilename,
         invoiceId,
-      });
+      }).catch((err) => console.error("[review-notification]", err));
     }
   }
 
@@ -362,12 +381,15 @@ function calculateConfidence(
   return Math.max(0, Math.min(0.98, Number(score.toFixed(2))));
 }
 
-async function upsertVendorMonthStatus(input: {
-  vendorId: number | null;
-  invoiceId: number;
-  invoiceDate: string | null;
-  sourceType: ImportPdfSource;
-}): Promise<void> {
+async function upsertVendorMonthStatusTx(
+  tx: postgres.TransactionSql,
+  input: {
+    vendorId: number | null;
+    invoiceId: number;
+    invoiceDate: string | null;
+    sourceType: ImportPdfSource;
+  },
+): Promise<void> {
   if (!input.vendorId || !input.invoiceDate) return;
   const yearMonth = input.invoiceDate.slice(0, 7);
   const statusBySource = {
@@ -376,7 +398,7 @@ async function upsertVendorMonthStatus(input: {
     portal: { mailStatus: "missing", portalStatus: "found", manualStatus: "none", sourceUsed: "portal" },
   }[input.sourceType];
 
-  await sql`
+  await tx`
     INSERT INTO vendor_month_status (
       vendor_id, year_month, mail_status, portal_status, manual_status, final_status,
       source_used, invoice_id, last_checked_at

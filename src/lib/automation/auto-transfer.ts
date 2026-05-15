@@ -28,13 +28,17 @@ type InvoiceFileRef = {
   originalFilename: string;
 };
 
-async function loadInvoiceForTransfer(invoiceId: number): Promise<InvoiceForTransfer | null> {
+async function loadInvoiceForTransfer(
+  invoiceId: number,
+  organizationId: string | null,
+): Promise<InvoiceForTransfer | null> {
   const rows = await sql<InvoiceForTransfer[]>`
     SELECT invoices.id, invoices.status, invoices.external_ref AS "externalRef",
            invoices.invoice_date AS "invoiceDate", vendors.name AS "vendorName"
     FROM invoices
     LEFT JOIN vendors ON vendors.id = invoices.vendor_id
     WHERE invoices.id = ${invoiceId}
+      ${organizationId ? sql`AND invoices.organization_id = ${organizationId}` : sql``}
   `;
   return rows[0] ?? null;
 }
@@ -57,11 +61,12 @@ async function loadInvoiceFile(invoiceId: number): Promise<InvoiceFileRef | null
  */
 export async function attemptAutoTransfer(
   invoiceId: number,
+  organizationId?: string | null,
 ): Promise<{ pushed: boolean; provider?: IntegrationProvider; externalRef?: string; reason?: string }> {
   if (!appConfig.features.enableApiIntegrations) {
     return { pushed: false, reason: "api integrations disabled" };
   }
-  const invoice = await loadInvoiceForTransfer(invoiceId);
+  const invoice = await loadInvoiceForTransfer(invoiceId, organizationId ?? null);
   if (!invoice) return { pushed: false, reason: "invoice not found" };
   if (invoice.status !== "ready") return { pushed: false, reason: "status not ready" };
   if (invoice.externalRef) return { pushed: false, reason: "already transferred" };

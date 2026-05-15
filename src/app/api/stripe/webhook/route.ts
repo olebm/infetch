@@ -129,6 +129,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
   }
 
+  // Idempotency: skip events already processed (duplicate delivery, retry storms).
+  try {
+    const inserted = await sql`
+      INSERT INTO stripe_processed_events (event_id) VALUES (${event.id})
+      ON CONFLICT (event_id) DO NOTHING
+      RETURNING event_id
+    `;
+    if (inserted.length === 0) {
+      console.log(`[stripe/webhook] duplicate event ${event.id} — skipping`);
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+  } catch (err) {
+    console.error("[stripe/webhook] idempotency check failed:", err);
+    // Non-fatal: continue processing — idempotent handlers are safe to re-run
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed":

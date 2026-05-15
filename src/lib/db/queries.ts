@@ -1034,7 +1034,7 @@ type IntegrationRow = {
   label: string;
   oauth_token_ref: string | null;
   external_account_id: string | null;
-  enabled: number;
+  enabled: boolean;
   last_verified_at: string | null;
   created_at: string;
   updated_at: string;
@@ -1047,7 +1047,7 @@ function mapIntegrationRow(row: IntegrationRow): IntegrationTarget {
     label: row.label,
     oauthTokenRef: row.oauth_token_ref,
     externalAccountId: row.external_account_id,
-    enabled: Number(row.enabled) === 1,
+    enabled: Boolean(row.enabled),
     lastVerifiedAt: row.last_verified_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1079,7 +1079,7 @@ export async function getActiveIntegrationTarget(): Promise<IntegrationTarget | 
     SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
             last_verified_at, created_at, updated_at
     FROM integration_targets
-    WHERE enabled = 1
+    WHERE enabled IS TRUE
     ORDER BY updated_at DESC
     LIMIT 1`)[0];
   return row ? mapIntegrationRow(row) : null;
@@ -1092,7 +1092,7 @@ export async function upsertIntegrationTarget(input: {
   externalAccountId?: string | null;
   enabled?: boolean;
 }): Promise<IntegrationTarget> {
-  const enabledFlag = (input.enabled ?? true) ? 1 : 0;
+  const enabledFlag = input.enabled ?? true;
   await sql`
     INSERT INTO integration_targets (provider, label, oauth_token_ref, external_account_id, enabled)
     VALUES (${input.provider}, ${input.label}, ${input.oauthTokenRef ?? null}, ${input.externalAccountId ?? null}, ${enabledFlag})
@@ -1109,7 +1109,7 @@ export async function upsertIntegrationTarget(input: {
 
 export async function disableIntegrationTarget(provider: IntegrationProvider): Promise<void> {
   await sql`
-    UPDATE integration_targets SET enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE provider = ${provider}`;
+    UPDATE integration_targets SET enabled = FALSE, updated_at = CURRENT_TIMESTAMP WHERE provider = ${provider}`;
 }
 
 export async function markIntegrationVerified(provider: IntegrationProvider): Promise<void> {
