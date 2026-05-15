@@ -17,6 +17,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Sentry Source Maps upload during build (optional — skipped if ARGs not set).
+# ARG statt ENV: Werte sind nur während `next build` verfügbar, nicht im finalen Image.
+ARG SENTRY_AUTH_TOKEN
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+
 # Copy source and build.
 COPY . .
 RUN npm run build
