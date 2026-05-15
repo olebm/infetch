@@ -35,6 +35,7 @@ const APP_PUBLIC_PREFIXES = [
   "/avv",
   "/changelog",
   "/ueber-uns",
+  "/api/test", // Test-Endpunkte (nur aktiv wenn ENABLE_TEST_LOGIN=true in der Route)
 ];
 
 function isPublicAppPath(pathname: string): boolean {
@@ -62,7 +63,7 @@ export async function proxy(request: NextRequest) {
   ).split(":")[0].toLowerCase();
 
   // ── Landing-Domain Routing ─────────────────────────────────────────────────
-  if (LANDING_HOSTNAMES.includes(hostname) || DEV_HOSTNAMES.includes(hostname)) {
+  if (LANDING_HOSTNAMES.includes(hostname)) {
     // Statische Assets immer durchlassen
     if (/\.[a-z0-9]+$/i.test(pathname)) return NextResponse.next();
 

@@ -90,7 +90,7 @@ export async function getPipelineSnapshot(): Promise<PipelineStep[]> {
 }
 
 export async function getSetupSnapshot(organizationId?: string | null) {
-  const exportTargetActive = Number((await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled = 1 AND recipient_email IS NOT NULL`)[0].count) > 0;
+  const exportTargetActive = Number((await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled IS TRUE AND recipient_email IS NOT NULL`)[0].count) > 0;
   const mistralConfigured =
     (await hasConfiguredCredential("mistral")) || appConfig.mistral.configured;
   return {
@@ -106,7 +106,7 @@ export async function getSetupSnapshot(organizationId?: string | null) {
 }
 
 export async function getUnmappedSenderCount(): Promise<number> {
-  return Number((await sql`SELECT COUNT(*) AS count FROM discovered_senders WHERE matched_vendor_id IS NULL AND blocked = 0 AND pdf_count > 0`)[0].count);
+  return Number((await sql`SELECT COUNT(*) AS count FROM discovered_senders WHERE matched_vendor_id IS NULL AND blocked IS NOT TRUE AND pdf_count > 0`)[0].count);
 }
 
 export type AgentCostSummary = {
@@ -939,7 +939,7 @@ function mapAutoApprovalRow(row: AutoApprovalRow): AutoApprovalRule {
     vendorId: row.vendor_id ? Number(row.vendor_id) : null,
     vendorPattern: row.vendor_pattern,
     maxAmountCents: row.max_amount_cents ? Number(row.max_amount_cents) : null,
-    enabled: Number(row.enabled) === 1,
+    enabled: Boolean(row.enabled),
     vendorName: row.vendor_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -965,7 +965,7 @@ export async function getAutoApprovalRulesForVendor(
             r.created_at, r.updated_at, v.name AS vendor_name
     FROM auto_approval_rules r
     LEFT JOIN vendors v ON v.id = r.vendor_id
-    WHERE r.enabled = 1
+    WHERE r.enabled IS TRUE
       AND (
         (r.vendor_id IS NOT NULL AND r.vendor_id = ${vendorId})
         OR (r.vendor_pattern IS NOT NULL
@@ -1426,7 +1426,7 @@ export async function listSendersWithStats(): Promise<SenderWithStats[]> {
     WHERE ds.pdf_count > 0
     ORDER BY "invoiceSum" DESC, ds.pdf_count DESC, ds.mail_count DESC`;
 
-  return rows.map((row) => ({ ...row, blocked: Number(row.blocked) === 1 }));
+  return rows.map((row) => ({ ...row, blocked: Boolean(row.blocked) }));
 }
 
 export type VendorInvoiceRow = {

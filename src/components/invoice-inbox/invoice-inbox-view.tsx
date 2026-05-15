@@ -17,6 +17,7 @@ import { MissingListView } from "@/components/missing-matrix/missing-list-view";
 import { PrivatButton, WiederherstellenButton } from "@/components/invoice-inbox/privat-popover";
 import { PullToRefresh } from "@/components/invoice-inbox/pull-to-refresh";
 import { StickySearchBar } from "@/components/invoice-inbox/sticky-search-bar";
+import { ManualImportForm } from "@/components/invoice-inbox/manual-import-form";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -382,6 +383,13 @@ export async function InvoiceInboxView({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Manueller Upload — immer sichtbar, standardmäßig eingeklappt */}
+      {activeTab !== "fehlt" && activeTab !== "privat" && (
+        <div className="mt-4">
+          <ManualImportForm />
         </div>
       )}
 

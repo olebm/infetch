@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLocalExtractionSufficient } from "@/invoices/import-pipeline";
+import { isLocalExtractionSufficient } from "@/invoices/extraction-sufficiency";
 
 const clean = { error: null };
 const errored = { error: "Could not parse PDF" };

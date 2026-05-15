@@ -15,6 +15,8 @@ import { matchVendor } from "@/vendors/matcher";
 import { canImportInvoice, canStoreFile } from "@/lib/tier";
 import { sendUpgradeNudge } from "@/lib/mail/notify";
 import { readJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
+import { isLocalExtractionSufficient } from "@/invoices/extraction-sufficiency";
+export { isLocalExtractionSufficient };
 
 export type ImportInvoiceResult =
   | { ok: true; status: "imported"; invoiceId: number; fileId: number; message: string }
@@ -197,7 +199,7 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
 
   // Determine Storage keys and upload to Supabase Storage
   const storageKey = buildInvoiceStorageKey({
-    orgId: null, // TODO Phase 2.5: pass real orgId through
+    orgId: input.organizationId ?? null,
     vendorKey: vendor.canonicalKey,
     productLabel,
     invoiceDate: parsed.invoiceDate,
@@ -333,21 +335,6 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     fileId,
     message: buildImportMessage(finalStatus || status, aiStatus),
   };
-}
-
-export function isLocalExtractionSufficient(
-  vendorConfidence: number,
-  parsed: { invoiceDate: string | null; amountGross: number | null },
-  extraction: { error: string | null },
-  overallConfidence: number,
-): boolean {
-  return (
-    vendorConfidence >= 0.72 &&
-    parsed.invoiceDate !== null &&
-    parsed.amountGross !== null &&
-    extraction.error === null &&
-    overallConfidence >= 0.8
-  );
 }
 
 function buildImportMessage(invoiceStatus: string, aiStatus: string) {
