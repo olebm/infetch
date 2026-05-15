@@ -1,6 +1,7 @@
 import { Lock, Globe2, FileCode, Shield } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { LoginForm } from "@/components/auth/login-form";
 import { loginAsTestUser } from "@/app/login/actions";
@@ -36,21 +37,21 @@ export default async function LoginPage({
           <div>
             <Link href="https://infetch.de" aria-label="Zur Startseite">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/infetch-logo.svg" alt="Infetch" className="h-9 w-auto" />
+              <img src="/images/brand/infetch-logo.svg" alt="Infetch" className="h-9 w-auto" />
             </Link>
           </div>
 
-          {/* Photo placeholder */}
-          <div className="flex-1 flex items-center justify-center">
-            <div
-              className="w-full max-w-xs rounded-lg bg-[#e4e0d8] flex items-center justify-center"
-              style={{ aspectRatio: "2/3" }}
-            >
-              <div className="text-center px-4">
-                <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#8a8070]">
-                  Foto 6 · Login · 2 : 3
-                </div>
-              </div>
+          {/* Photo */}
+          <div className="flex-1 flex items-center justify-center py-4">
+            <div className="relative w-full max-w-[280px] rounded-xl overflow-hidden shadow-lift" style={{ aspectRatio: "2/3" }}>
+              <Image
+                src="/images/photos/login-window.png"
+                alt="Person blickt ruhig aus dem Fenster — alles läuft automatisch"
+                fill
+                className="object-cover object-center"
+                sizes="280px"
+                priority
+              />
             </div>
           </div>
 
@@ -81,7 +82,7 @@ export default async function LoginPage({
             <div className="mb-8 md:hidden">
               <Link href="https://infetch.de" aria-label="Zur Startseite">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/infetch-logo.svg" alt="Infetch" className="h-9 w-auto" />
+                <img src="/images/brand/infetch-logo.svg" alt="Infetch" className="h-9 w-auto" />
               </Link>
             </div>
 

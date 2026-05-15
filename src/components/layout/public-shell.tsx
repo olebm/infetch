@@ -19,7 +19,7 @@ export function PublicShell({
         <div className="mx-auto flex h-14 max-w-[900px] items-center px-6">
           <a href="https://infetch.de" aria-label="Infetch — Startseite">
             <Image
-              src="/infetch-logo.svg"
+              src="/images/brand/infetch-logo.svg"
               alt="Infetch"
               width={108}
               height={34}

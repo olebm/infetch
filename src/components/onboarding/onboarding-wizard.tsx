@@ -94,7 +94,7 @@ export function OnboardingWizard() {
       <header className="flex h-14 items-center justify-between border-b border-line bg-white px-6">
         <div className="flex items-center">
           <Image
-            src="/infetch-logo.svg"
+            src="/images/brand/infetch-logo.svg"
             alt="Infetch"
             width={108}
             height={34}

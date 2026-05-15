@@ -67,7 +67,7 @@ function AppFooter() {
       <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-4 py-6 text-xs text-muted md:flex-row md:items-center md:gap-6 md:px-8">
         <div className="flex items-center gap-2">
           <Image
-            src="/infetch-logo.svg"
+            src="/images/brand/infetch-logo.svg"
             alt=""
             width={64}
             height={20}

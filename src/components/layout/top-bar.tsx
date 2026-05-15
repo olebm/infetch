@@ -81,7 +81,7 @@ export function TopBar({
           aria-label="Infetch · zur Übersicht"
         >
           <Image
-            src="/infetch-logo.svg"
+            src="/images/brand/infetch-logo.svg"
             alt="Infetch"
             width={128}
             height={40}

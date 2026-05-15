@@ -140,7 +140,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
       <div className="flex min-h-screen flex-col bg-paper">
         <header className="flex h-14 items-center border-b border-line px-6">
           <Image
-            src="/infetch-logo.svg"
+            src="/images/brand/infetch-logo.svg"
             alt="Infetch"
             width={90}
             height={28}
@@ -203,7 +203,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     <div className="min-h-screen bg-paper">
       <header className="flex h-14 items-center justify-between border-b border-line px-6">
         <Image
-          src="/infetch-logo.svg"
+          src="/images/brand/infetch-logo.svg"
           alt="Infetch"
           width={90}
           height={28}

@@ -22,21 +22,6 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-// ─── Photo placeholder ────────────────────────────────────────────────────────
-
-function PhotoPlaceholder({ label, ratio }: { label: string; ratio: string }) {
-  return (
-    <div
-      className="w-full rounded-lg overflow-hidden bg-[#e4e0d8] flex items-center justify-center"
-      style={{ aspectRatio: ratio }}
-    >
-      <div className="text-center px-4">
-        <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#8a8070]">{label}</div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
@@ -48,7 +33,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-40 nav-blur border-b border-line relative">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 h-16 flex items-center gap-6">
           <Link href="/" className="flex items-center shrink-0" aria-label="Infetch">
-            <Image src="/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-9 w-auto" priority />
+            <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-9 w-auto" priority />
           </Link>
           <nav className="hidden md:flex items-center gap-6 ml-6 text-sm text-muted">
             <a href="#how" className="hover:text-ink">Wie es funktioniert</a>
@@ -119,9 +104,18 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* HERO VISUAL: animated inbox */}
+          {/* HERO VISUAL */}
           <div className="min-w-0 flex flex-col gap-5">
-            <PhotoPlaceholder label="Foto 1 · Hero · 16 : 9" ratio="16/9" />
+            <div className="relative w-full rounded-lg overflow-hidden shadow-lift" style={{ aspectRatio: "16/9" }}>
+              <Image
+                src="/images/photos/hero-desk.png"
+                alt="Frau am Schreibtisch prüft automatisch weitergeleitete Rechnungen in Infetch"
+                fill
+                className="object-cover object-center"
+                priority
+                sizes="(max-width: 1024px) 100vw, 54vw"
+              />
+            </div>
             <div className="mock-window shadow-lift">
               <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
                 <div className="font-display text-2xl text-ink">Heute</div>
@@ -215,23 +209,29 @@ export default function LandingPage() {
       {/* ================================================================== */}
       <section className="border-b border-line">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8">
-          <div className="py-10 flex justify-center">
-            <div className="w-full max-w-xs">
-              <PhotoPlaceholder label="Foto 3 · Problem · 1 : 1" ratio="1/1" />
+          <div className="grid md:grid-cols-[1fr_1.1fr] gap-0 md:gap-12 items-stretch">
+            <div className="relative hidden md:block min-h-[400px] my-10 rounded-lg overflow-hidden">
+              <Image
+                src="/images/photos/problem-invoices.png"
+                alt="Stapel ungeordneter Rechnungen und Belege auf einem Schreibtisch — das typische Chaos vor Infetch"
+                fill
+                className="object-cover object-center"
+                sizes="45vw"
+              />
             </div>
-          </div>
-          <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
-            {[
-              { eyebrow: "Kein System",  title: "Rechnungen in jedem Postfach",      body: "Adobe, Hetzner, 1&1 — jeder Anbieter schickt von einer anderen Adresse, in ein anderes Postfach." },
-              { eyebrow: "Zeitverlust", title: "Jeden Monat manuell suchen",          body: "Filtern, runterladen, weiterleiten — für jede einzelne Rechnung, jeden Monat, von vorne." },
-              { eyebrow: "Zu spät",     title: "Die Buchhaltung fragt. Du suchst.",  body: "Stunden damit verbracht, Belege zu finden, die längst hätten weitergeleitet sein sollen." },
-            ].map(({ eyebrow, title, body }) => (
-              <div key={title} className="py-8 md:py-10 md:px-10 first:md:pl-0 last:md:pr-0">
-                <div className="text-[11px] uppercase tracking-[0.14em] text-muted">{eyebrow}</div>
-                <div className="mt-2 font-display text-2xl text-ink">{title}</div>
-                <p className="mt-2 text-sm text-muted leading-relaxed">{body}</p>
-              </div>
-            ))}
+            <div className="divide-y divide-line">
+              {[
+                { eyebrow: "Kein System",  title: "Rechnungen in jedem Postfach",      body: "Adobe, Hetzner, 1&1 — jeder Anbieter schickt von einer anderen Adresse, in ein anderes Postfach." },
+                { eyebrow: "Zeitverlust", title: "Jeden Monat manuell suchen",          body: "Filtern, runterladen, weiterleiten — für jede einzelne Rechnung, jeden Monat, von vorne." },
+                { eyebrow: "Zu spät",     title: "Die Buchhaltung fragt. Du suchst.",  body: "Stunden damit verbracht, Belege zu finden, die längst hätten weitergeleitet sein sollen." },
+              ].map(({ eyebrow, title, body }) => (
+                <div key={title} className="py-8 md:py-10">
+                  <div className="text-[11px] uppercase tracking-[0.14em] text-muted">{eyebrow}</div>
+                  <div className="mt-2 font-display text-2xl text-ink">{title}</div>
+                  <p className="mt-2 text-sm text-muted leading-relaxed">{body}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -317,10 +317,16 @@ export default function LandingPage() {
       </section>
 
       {/* ================================================================== */}
-      {/* FOTO 5 — Vollbild-Break                                            */}
+      {/* FOTO — Vollbild-Break                                              */}
       {/* ================================================================== */}
-      <section className="border-b border-line">
-        <PhotoPlaceholder label="Foto 5 · Detail Hände · 16 : 9" ratio="16/9" />
+      <section className="border-b border-line relative h-64 md:h-[380px] overflow-hidden">
+        <Image
+          src="/images/photos/hands-keyboard.png"
+          alt="Hände auf einem MacBook — Infetch arbeitet automatisch im Hintergrund"
+          fill
+          className="object-cover object-center"
+          sizes="100vw"
+        />
       </section>
 
       {/* ================================================================== */}
@@ -467,7 +473,15 @@ export default function LandingPage() {
             </div>
 
             <div className="flex flex-col gap-8">
-              <PhotoPlaceholder label="Foto 4 · Vertrauen · 3 : 2" ratio="3/2" />
+              <div className="relative w-full rounded-lg overflow-hidden" style={{ aspectRatio: "3/2" }}>
+                <Image
+                  src="/images/photos/trust-cafe.png"
+                  alt="Entspannte Freelancerin im Café — Infetch erledigt die Buchhaltung automatisch"
+                  fill
+                  className="object-cover object-center"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                />
+              </div>
             <dl className="grid grid-cols-2 gap-y-8 gap-x-8">
               {[
                 { label: "Standort",           value: "EU · Frankfurt",    detail: "Hetzner · ISO 27001"          },
@@ -564,8 +578,14 @@ export default function LandingPage() {
       {/* ================================================================== */}
       <section className="border-b border-line py-20 md:py-28">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 grid md:grid-cols-2 gap-12 items-center">
-          <div className="max-w-xs mx-auto md:mx-0">
-            <PhotoPlaceholder label="Foto 2 · Autopilot · 3 : 4" ratio="3/4" />
+          <div className="relative max-w-xs mx-auto md:mx-0 w-full rounded-lg overflow-hidden" style={{ aspectRatio: "3/4" }}>
+            <Image
+              src="/images/photos/autopilot-street.png"
+              alt="Mann spaziert entspannt durch Hamburg mit Kaffee — Infetch läuft automatisch"
+              fill
+              className="object-cover object-center"
+              sizes="(max-width: 768px) 80vw, 30vw"
+            />
           </div>
           <div>
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted">Läuft ohne dich</div>
@@ -731,7 +751,7 @@ export default function LandingPage() {
       <footer className="border-t border-line bg-paper">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-10 grid md:grid-cols-[1.2fr_repeat(3,1fr)] gap-10 md:gap-16">
           <div>
-            <Image src="/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-9 w-auto opacity-90" />
+            <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-9 w-auto opacity-90" />
             <p className="mt-4 text-sm text-muted leading-relaxed max-w-xs">
               Rechnungen, die sich selbst weiterleiten. Made in Hamburg.
             </p>
