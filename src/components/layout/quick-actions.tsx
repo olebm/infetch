@@ -16,7 +16,7 @@ export function QuickActions() {
   const [scanState, scanAction, scanPending] = useActionState(runImapScanAction, idleScan);
 
   return (
-    <div className="hidden items-center gap-2 lg:flex">
+    <div className="hidden items-center gap-2 md:flex">
       <form action={scanAction}>
         <button
           type="submit"

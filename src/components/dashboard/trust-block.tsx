@@ -16,7 +16,7 @@ const ITEMS: TrustItem[] = [
 export function TrustBlock() {
   return (
     <div className="rounded-lg border border-line bg-paper p-5">
-      <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4">
         {ITEMS.map((item) => {
           const Icon = item.icon;
           return (

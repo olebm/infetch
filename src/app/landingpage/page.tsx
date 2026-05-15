@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { LogoStrip } from "./logo-strip";
-import { RotatingRecipients } from "./rotating-recipients";
 import { ContactController } from "./contact-controller";
 import { MobileNav } from "./mobile-nav";
 
@@ -558,7 +557,28 @@ export default function LandingPage() {
             </div>
             <div>
               <div className="text-xs uppercase tracking-[0.14em] text-muted">Empfänger · Buchhaltung</div>
-              <RotatingRecipients />
+              <ul className="mt-5 flex flex-wrap gap-3">
+                {[
+                  { domain: "datev.de",       label: "DATEV Belegtransfer" },
+                  { domain: "xero.com",        label: "Xero"                },
+                  { domain: "sevdesk.de",      label: "sevdesk"             },
+                  { domain: "quickbooks.com",  label: "QuickBooks"          },
+                  { domain: "lexoffice.de",    label: "lexoffice"           },
+                  { domain: "sage.com",        label: "Sage"                },
+                  { domain: "candis.io",       label: "Candis"              },
+                  { domain: null,              label: "Beliebige E-Mail"    },
+                ].map(({ domain, label }) => (
+                  <li key={label} className="relative group/tip h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
+                    {domain
+                      ? <VendorLogo domain={domain} name={label} size={40} />
+                      : <span className="text-xl text-muted font-medium">@</span>}
+                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50 shadow-pop">
+                      {label}
+                      <span className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-ink" />
+                    </span>
+                  </li>
+                ))}
+              </ul>
               <p className="mt-4 text-xs text-muted">Dein Tool fehlt? Per E-Mail funktioniert immer.</p>
             </div>
           </div>

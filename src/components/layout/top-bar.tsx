@@ -127,7 +127,7 @@ export function TopBar({
         <div className="ml-auto flex items-center gap-2">
           {/* Auto-Pilot status — lg+ */}
           {autoPilotEnabled && (
-            <span className="hidden items-center gap-1.5 px-2 text-xs text-muted lg:inline-flex">
+            <span className="hidden items-center gap-1.5 px-2 text-xs text-muted md:inline-flex">
               <span className="h-1.5 w-1.5 rounded-full bg-ok ap-pulse" aria-hidden />
               Auto-Pilot aktiv
             </span>

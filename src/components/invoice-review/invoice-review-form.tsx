@@ -743,7 +743,7 @@ export function InvoiceReviewForm({
       )}
 
       {/* Mobile tab bar */}
-      <div className="mb-4 flex border-b border-line lg:hidden">
+      <div className="mb-4 flex border-b border-line md:hidden">
         {(["form", "pdf"] as const).map((t) => (
           <button
             key={t}
@@ -760,13 +760,13 @@ export function InvoiceReviewForm({
         ))}
       </div>
 
-      <div className="lg:grid lg:gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)]">
+      <div className="md:grid md:gap-6 md:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)]">
         {/* PDF */}
-        <div className={`overflow-hidden rounded-lg ${mobileTab === "pdf" ? "block" : "hidden lg:block"}`}>
+        <div className={`overflow-hidden rounded-lg ${mobileTab === "pdf" ? "block" : "hidden md:block"}`}>
           {primaryFile ? (
             <PdfViewer
               src={`/api/invoice-files/${primaryFile.id}`}
-              className="max-h-[65vh] overflow-y-auto lg:max-h-[85vh]"
+              className="max-h-[65vh] overflow-y-auto md:max-h-[85vh]"
             />
           ) : (
             <div className="stripe flex h-96 items-center justify-center text-sm text-muted">
@@ -776,7 +776,7 @@ export function InvoiceReviewForm({
         </div>
 
         {/* Right column */}
-        <div className={`space-y-4 ${mobileTab === "form" ? "block" : "hidden lg:block"}`}>
+        <div className={`space-y-4 ${mobileTab === "form" ? "block" : "hidden md:block"}`}>
           {/* Vendor header */}
           <Card padding="lg">
             <div className="flex items-center gap-3">
