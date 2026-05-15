@@ -10,14 +10,14 @@ export default function DatenschutzPage() {
     <PublicShell title="Datenschutzerklärung">
       <p><strong>Verantwortlicher:</strong> betaform | Ole Beekmann · hallo@infetch.de<br />
       <strong>Rechtsgrundlage:</strong> Art. 13, 14 DSGVO<br />
-      <strong>Stand:</strong> 14. Mai 2025</p>
+      <strong>Stand:</strong> 15. Mai 2026</p>
 
       <hr />
 
       <h2>1. Verantwortlicher</h2>
       <p>
         <strong>betaform | Ole Beekmann</strong><br />
-        [Straße und Hausnummer], [PLZ] Hamburg<br />
+        Glindersweg 34, 21029 Hamburg<br />
         Deutschland<br />
         E-Mail: hallo@infetch.de
       </p>

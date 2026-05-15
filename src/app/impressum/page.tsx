@@ -10,21 +10,22 @@ export default function ImpressumPage() {
     <PublicShell title="Impressum">
       <p><strong>Rechtsgrundlage:</strong> § 5 TMG · § 55 RStV<br />
       <strong>Betreiber:</strong> betaform | Ole Beekmann<br />
-      <strong>Stand:</strong> 14. Mai 2025</p>
+      <strong>Stand:</strong> 15. Mai 2026</p>
 
       <hr />
 
       <h2>Angaben gemäß § 5 TMG</h2>
       <p>
         <strong>betaform | Ole Beekmann</strong><br />
-        [Straße und Hausnummer]<br />
-        [PLZ] Hamburg<br />
+        Glindersweg 34<br />
+        21029 Hamburg<br />
         Deutschland
       </p>
       <p><strong>Vertreten durch:</strong> Ole Beekmann</p>
 
       <h2>Kontakt</h2>
       <p>
+        Telefon: <a href="tel:+4917723110041">+49 177 23 11 04 1</a><br />
         E-Mail: <a href="mailto:hallo@infetch.de">hallo@infetch.de</a>
       </p>
 
@@ -33,7 +34,7 @@ export default function ImpressumPage() {
 
       <h2>Umsatzsteuer-Identifikationsnummer</h2>
       <p>Gemäß § 27a Umsatzsteuergesetz:<br />
-      DE[Nummer] — beantragt beim Finanzamt Hamburg</p>
+      DE318609562</p>
 
       <h2>Streitschlichtung</h2>
       <p>Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:<br />
