@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { getEnvTier, getLimits, getScanSinceDate, TIER_LIMITS } from "@/lib/tier";
 
 // ── Pure Funktionen (kein DB nötig) ──────────────────────────────────────────

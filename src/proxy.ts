@@ -7,7 +7,7 @@ import { updateSupabaseSession } from "@/lib/supabase/middleware";
 // localhost / *.vercel.app     → Wie app.infetch.de (lokale Entwicklung)
 
 const LANDING_HOSTNAMES = ["infetch.de", "www.infetch.de"];
-const DEV_HOSTNAMES = ["localhost", "127.0.0.1"];
+const _DEV_HOSTNAMES = ["localhost", "127.0.0.1"];
 const APP_HOSTNAME = "app.infetch.de";
 
 // Pfade, die auch auf der Landing-Domain ausgeliefert werden

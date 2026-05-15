@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 
 function Tip({ label, children }: { label: string; children: React.ReactNode }) {
@@ -49,11 +49,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function LogoStrip() {
-  const [logos, setLogos] = useState(POOL.slice(0, DISPLAY_COUNT));
-
-  useEffect(() => {
-    setLogos(shuffle(POOL).slice(0, DISPLAY_COUNT));
-  }, []);
+  const [logos] = useState(() => shuffle([...POOL]).slice(0, DISPLAY_COUNT));
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
