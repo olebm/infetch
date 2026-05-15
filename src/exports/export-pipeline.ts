@@ -29,11 +29,13 @@ type PdfRow = {
 };
 
 export async function enqueueReadyInvoices(): Promise<number> {
+  // SECURITY: Cross-Join nur noch innerhalb derselben Organisation.
+  // Vorher hätten Cross-Tenant-Targets eine Invoice an die falsche Org versendet.
   const result = await sql`
     INSERT INTO exports (invoice_id, export_target_id, status)
     SELECT invoices.id, export_targets.id, 'pending'
     FROM invoices
-    CROSS JOIN export_targets
+    JOIN export_targets ON export_targets.organization_id = invoices.organization_id
     WHERE invoices.status IN ('ready', 'exported')
       AND invoices.status != 'duplicate'
       AND export_targets.enabled = TRUE
@@ -148,26 +150,40 @@ export type ExportTargetConfig = {
   enabled: boolean;
 };
 
-export async function getExportTargets(): Promise<ExportTargetConfig[]> {
+// SECURITY (0013): Alle Export-Target-Queries sind jetzt org-scoped.
+// orgId ist required — Callers ohne aktive Org bekommen eine leere Liste,
+// sodass kein Cross-Tenant-Read/Write mehr möglich ist.
+
+export async function getExportTargets(orgId: string | null): Promise<ExportTargetConfig[]> {
+  if (!orgId) return [];
   const rows = await sql<Array<Omit<ExportTargetConfig, "enabled"> & { enabled: boolean }>>`
     SELECT id, target, label, recipient_email AS "recipientEmail",
       smtp_slot AS "smtpSlot", enabled
     FROM export_targets
+    WHERE organization_id = ${orgId}
     ORDER BY id ASC
   `;
   return rows.map((r) => ({ ...r, enabled: Boolean(r.enabled) }));
 }
 
 export async function saveExportTarget(
+  orgId: string,
   target: string,
   recipientEmail: string | null,
   smtpSlot: SmtpCredentialOwnerId,
   enabled: boolean,
 ): Promise<void> {
+  // UPSERT — pro (org, target) max. 1 Row (siehe uniq_export_targets_org_target).
+  // Label = target ist ein Fallback, falls die Row noch nicht existiert; bei
+  // bestehender Row bleibt das ursprüngliche Label erhalten.
   await sql`
-    UPDATE export_targets
-    SET recipient_email = ${recipientEmail || null}, smtp_slot = ${smtpSlot}, enabled = ${enabled}, updated_at = CURRENT_TIMESTAMP
-    WHERE target = ${target}
+    INSERT INTO export_targets (organization_id, target, label, recipient_email, smtp_slot, enabled)
+    VALUES (${orgId}, ${target}, ${target}, ${recipientEmail || null}, ${smtpSlot}, ${enabled})
+    ON CONFLICT (organization_id, target) DO UPDATE SET
+      recipient_email = excluded.recipient_email,
+      smtp_slot = excluded.smtp_slot,
+      enabled = excluded.enabled,
+      updated_at = CURRENT_TIMESTAMP
   `;
 }
 

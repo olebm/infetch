@@ -4,6 +4,7 @@ import { appConfig } from "@/lib/config/env";
 import { getAutoPilotStatus } from "@/lib/auto-pilot";
 import { getAutomationStats, getSetupSnapshot, getPrimaryMailAccount } from "@/lib/db/queries";
 import { getExportTargets } from "@/exports/export-pipeline";
+import { getCurrentAuth } from "@/lib/auth/current";
 
 type Setup = Awaited<ReturnType<typeof getSetupSnapshot>>;
 
@@ -29,11 +30,12 @@ function formatCountdown(sec: number | null): string {
  * accent on the most important number/concept.
  */
 export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
+  const auth = await getCurrentAuth();
   const [setup, stats, imapAccount, exportTargets] = await Promise.all([
     setupProp ? Promise.resolve(setupProp) : getSetupSnapshot(),
     getAutomationStats(),
     getPrimaryMailAccount(),
-    getExportTargets(),
+    getExportTargets(auth?.organization?.id ?? null),
   ]);
 
   const daysActive = stats.daysActive;

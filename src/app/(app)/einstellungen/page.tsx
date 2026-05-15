@@ -42,7 +42,7 @@ export default async function SetupPage() {
     integrationTargets,
     tier,
   ] = await Promise.all([
-    getExportTargets(),
+    getExportTargets(auth?.organization?.id ?? null),
     readJsonSetting<number>("auto_approve_confidence", appConfig.features.autoApprovalConfidenceThreshold),
     getPrimaryMailAccount(),
     getSecondaryMailAccount(),

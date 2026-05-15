@@ -421,6 +421,11 @@ export async function saveExportTargetAction(
   void _previousState;
 
   try {
+    const auth = await requireCurrentAuth();
+    if (!auth.organization) {
+      return { status: "error", message: "Keine aktive Organisation." };
+    }
+
     const target = String(formData.get("exportTarget") || "").trim();
     if (target !== "kontist" && target !== "accountable") {
       return { status: "error", message: "Ungültiges Export-Ziel." };
@@ -434,7 +439,7 @@ export async function saveExportTargetAction(
     }
     const enabled = formData.get("enabled") === "on";
 
-    await saveExportTarget(target, recipientEmail, smtpSlot.ownerId, enabled);
+    await saveExportTarget(auth.organization.id, target, recipientEmail, smtpSlot.ownerId, enabled);
 
     revalidatePath("/einstellungen");
     revalidatePath("/exports");
@@ -771,15 +776,19 @@ export async function invalidateAllOtherSessionsAction(
 // ─── Empfänger löschen ───────────────────────────────────────────────────────
 
 export async function clearExportTargetAction(formData: FormData): Promise<void> {
-  // SECURITY: Auth-Check — ohne Login kein Zugriff auf Export-Targets
-  await requireCurrentAuth();
+  // SECURITY (Seer #1): Auth + Org-Scope.
+  // Vorher hätte jeder authentifizierte User den Export aller Tenants
+  // abschalten können (globale export_targets-Rows mit IDs 1/2).
+  // Mit Migration 0013 ist organization_id NOT NULL pro Konfig-Row.
+  const auth = await requireCurrentAuth();
+  if (!auth.organization) return;
 
   const id = Number(formData.get("targetId"));
   if (!Number.isInteger(id) || id <= 0) return;
   await sql`
     UPDATE export_targets
     SET recipient_email = NULL, enabled = FALSE, smtp_slot = 'primary', updated_at = CURRENT_TIMESTAMP
-    WHERE id = ${id}
+    WHERE id = ${id} AND organization_id = ${auth.organization.id}
   `;
   revalidatePath("/einstellungen");
 }

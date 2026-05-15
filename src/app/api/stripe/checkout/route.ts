@@ -28,6 +28,7 @@ export const dynamic = "force-dynamic";
 // SECURITY: NEXT_PUBLIC_APP_URL bevorzugt — verhindert Host-Header-Injection,
 // die Stripe-Success/Cancel-Redirects auf eine Angreifer-Domain umlenken könnte.
 const ALLOWED_STRIPE_HOSTS = new Set(["app.infetch.de", "infetch.de", "localhost", "127.0.0.1"]);
+const FALLBACK_BASE = "https://app.infetch.de";
 
 function getBaseUrl(request: NextRequest): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
@@ -37,11 +38,21 @@ function getBaseUrl(request: NextRequest): string {
   const rawHost = (
     request.headers.get("x-forwarded-host") ??
     request.headers.get("host") ??
-    "app.infetch.de"
+    ""
   ).split(",")[0]!.trim();
-  const hostname = rawHost.split(":")[0]!.toLowerCase();
-  const host = ALLOWED_STRIPE_HOSTS.has(hostname) ? rawHost : "app.infetch.de";
-  return `${proto}://${host}`;
+
+  // SECURITY: URL-Parser benutzen — split(":")[0] würde
+  // `app.infetch.de:80@malicious.com` als "app.infetch.de" akzeptieren,
+  // der Browser interpretiert die volle URL aber als malicious.com (userinfo).
+  let parsedHost: string;
+  try {
+    parsedHost = new URL(`http://${rawHost}`).host;
+  } catch {
+    return FALLBACK_BASE;
+  }
+  const hostname = parsedHost.split(":")[0]!.toLowerCase();
+  if (!ALLOWED_STRIPE_HOSTS.has(hostname)) return FALLBACK_BASE;
+  return `${proto}://${parsedHost}`;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

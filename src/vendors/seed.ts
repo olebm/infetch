@@ -27,15 +27,6 @@ export async function seedDatabase() {
     }
   }
 
-  await sql`
-    INSERT INTO export_targets (target, label, recipient_email, enabled)
-    VALUES ('kontist', 'Kontist', NULL, FALSE)
-    ON CONFLICT(target) DO UPDATE SET label = excluded.label
-  `;
-
-  await sql`
-    INSERT INTO export_targets (target, label, recipient_email, enabled)
-    VALUES ('accountable', 'Accountable', NULL, FALSE)
-    ON CONFLICT(target) DO UPDATE SET label = excluded.label
-  `;
+  // export_targets werden seit Migration 0013 pro Org in createUserWithDefaultOrg
+  // angelegt — keine globalen Seed-Rows mehr.
 }

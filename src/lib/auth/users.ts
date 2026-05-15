@@ -49,6 +49,16 @@ export async function createUserWithDefaultOrg(input: {
     VALUES (${orgId}, ${userId}, 'owner')
   `;
 
+  // SECURITY (Migration 0013): Default-Export-Targets pro Org anlegen,
+  // damit die Onboarding-/Settings-UI nicht auf globale Rows zugreift.
+  await sql`
+    INSERT INTO export_targets (organization_id, target, label, enabled)
+    VALUES
+      (${orgId}, 'kontist', 'Kontist', FALSE),
+      (${orgId}, 'accountable', 'Accountable', FALSE)
+    ON CONFLICT (organization_id, target) DO NOTHING
+  `;
+
   return {
     user: {
       id: userId,

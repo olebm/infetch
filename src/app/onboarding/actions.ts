@@ -70,11 +70,18 @@ export async function completeOnboardingAction(
       }
     }
 
-    // SECURITY: Onboarding speichert IMAP/SMTP-Credentials — Auth-Pflicht.
-    // Vorher: getCurrentAuth() ohne Fehlerfall → anonyme Aufrufe konnten
-    // mit organizationId=null globale mail_accounts überschreiben.
+    // SECURITY: Onboarding speichert IMAP/SMTP-Credentials — Auth-Pflicht
+    // UND aktive Organisation. Sonst landen Datensätze mit organization_id=NULL
+    // in mail_accounts (über den service_role-Client, RLS bypass), was den
+    // unique-org-scope von Migration 0012 umgehen würde.
     const auth = await requireCurrentAuth();
-    const organizationId = auth.organization?.id ?? null;
+    if (!auth.organization) {
+      return {
+        status: "error",
+        message: "Keine aktive Organisation. Bitte erst Account einrichten.",
+      };
+    }
+    const organizationId = auth.organization.id;
 
     // 1) IMAP Credential + mail_account
     const imapSecretRef = await saveCredentialSecret({
@@ -132,13 +139,19 @@ export async function completeOnboardingAction(
       fromAddress: email,
     });
 
-    // 3) Export Target (Kontist or Accountable, with recipient email and primary smtp)
+    // 3) Export Target (Kontist or Accountable) — per Org gescoped (Migration 0013).
+    //    Default-Row wird beim Anlegen der Org geseeded (createUserWithDefaultOrg);
+    //    Onboarding setzt nur die Konfigurationsfelder.
     const exportTargetKey = exportTarget === "accountable" ? "accountable" : "kontist";
+    const exportLabel = exportTargetKey === "accountable" ? "Accountable" : "Kontist";
     await sql`
-      UPDATE export_targets
-      SET recipient_email = ${recipientEmail}, smtp_slot = 'primary', enabled = TRUE,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE target = ${exportTargetKey}
+      INSERT INTO export_targets (organization_id, target, label, recipient_email, smtp_slot, enabled)
+      VALUES (${organizationId}, ${exportTargetKey}, ${exportLabel}, ${recipientEmail}, 'primary', TRUE)
+      ON CONFLICT (organization_id, target) DO UPDATE SET
+        recipient_email = excluded.recipient_email,
+        smtp_slot = 'primary',
+        enabled = TRUE,
+        updated_at = CURRENT_TIMESTAMP
     `;
 
     // 4) Trigger first scan
