@@ -115,7 +115,7 @@ export default function LandingPage() {
                 {[
                   { domain: "hetzner.com", label: "Hetzner Online · Rechnung 2026-05",           meta: "09:14 · 27,55 €",  animated: false },
                   { domain: "adobe.com",   label: "Adobe Systems · Creative Cloud",               meta: "11:02 · 77,99 €",  animated: false },
-                  { domain: "1und1.de",    label: "1&1 · DSL & Mobilfunk",                       meta: "jetzt · 44,95 €",  animated: true  },
+                  { domain: "notion.so",   label: "Notion · Team Plan",                          meta: "jetzt · 32,00 €",  animated: true  },
                   { domain: "canva.com",   label: "Canva Pty Ltd · Pro Plan",                     meta: "gestern · 14,99 €", animated: false },
                 ].map(({ domain, label, meta, animated }, i, arr) => (
                   <li key={domain}
@@ -365,7 +365,7 @@ export default function LandingPage() {
               <div className="mt-6 mock-window">
                 <ul className="divide-y divide-line">
                   {[
-                    { domain: "1und1.de",   name: "1&1 Mobilfunk",      expect: "erwartet 02. Mai · 59,90 €", label: "3 Tage spät",   cls: "text-warn" },
+                    { domain: "notion.so",  name: "Notion Team Plan",   expect: "erwartet 02. Mai · 32,00 €", label: "3 Tage spät",   cls: "text-warn" },
                     { domain: "figma.com",  name: "Figma Inc.",          expect: "erwartet 12. Mai · 45,00 €", label: "heute fällig",  cls: "text-muted" },
                     { domain: "zoom.us",    name: "Zoom Video Comm.",    expect: "erwartet 14. Mai · 13,99 €", label: "in 2 Tagen",   cls: "text-muted" },
                   ].map(({ domain, name, expect, label, cls }) => (
