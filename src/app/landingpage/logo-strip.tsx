@@ -30,11 +30,11 @@ const POOL = [
   { domain: "hubspot.com",    alt: "HubSpot"     },
   { domain: "microsoft.com",  alt: "Microsoft"   },
   { domain: "notion.so",      alt: "Notion"      },
+  { domain: "monday.com",     alt: "monday.com"  },
   { domain: "shopify.com",    alt: "Shopify"     },
   { domain: "slack.com",      alt: "Slack"       },
   { domain: "spotify.com",    alt: "Spotify"     },
   { domain: "stripe.com",     alt: "Stripe"      },
-  { domain: "zoom.us",        alt: "Zoom"        },
 ];
 
 const DISPLAY_COUNT = 7;
