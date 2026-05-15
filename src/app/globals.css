@@ -60,6 +60,7 @@ select {
   font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
   font-weight: 500;
   letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
 /* Display accent — `<em>` in a font-display heading renders as

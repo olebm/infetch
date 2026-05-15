@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 export default function AvvPage() {
   return (
     <PublicShell title="Auftragsverarbeitungsvertrag (AVV)">
-      <p><strong>Auftragsverarbeiter:</strong> betaform | Ole Beekmann (Infetch)<br />
+      <p><strong>Auftragsverarbeiter:</strong> betaform | Ole Beekmann<br />
       <strong>Rechtsgrundlage:</strong> Art. 28 DSGVO<br />
       <strong>Abschluss:</strong> Click-through beim Akzeptieren der AGB<br />
       <strong>Version:</strong> 1.0<br />

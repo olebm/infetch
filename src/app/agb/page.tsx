@@ -47,7 +47,7 @@ export default function AgbPage() {
         <strong>Gilt nur für Verbraucher im Sinne des § 13 BGB</strong> — natürliche Personen, die Infetch außerhalb ihrer gewerblichen oder selbstständigen beruflichen Tätigkeit nutzen.
       </blockquote>
       <p>(1) Verbrauchern steht ein gesetzliches Widerrufsrecht zu. Die Widerrufsfrist beträgt <strong>14 Tage</strong> ab Vertragsschluss.</p>
-      <p>(2) Um das Widerrufsrecht auszuüben, muss der Verbraucher uns (betaform | Ole Beekmann, hallo@infetch.de) mittels einer eindeutigen Erklärung (z. B. per E-Mail) über den Entschluss informieren, diesen Vertrag zu widerrufen.</p>
+      <p>(2) Um das Widerrufsrecht auszuüben, muss der Verbraucher Infetch (betaform | Ole Beekmann, hallo@infetch.de) mittels einer eindeutigen Erklärung (z. B. per E-Mail) über den Entschluss informieren, diesen Vertrag zu widerrufen.</p>
       <p>(3) Zur Wahrung der Widerrufsfrist genügt die rechtzeitige Absendung der Widerrufserklärung vor Ablauf der Frist.</p>
       <p><strong>Muster-Widerrufsformular:</strong></p>
       <blockquote>

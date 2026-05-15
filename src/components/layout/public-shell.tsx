@@ -32,7 +32,7 @@ export function PublicShell({
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-[900px] flex-1 px-6 py-16">
-        <h1 className="font-display text-4xl text-ink">{title}</h1>
+        <h1 className="font-display text-4xl text-ink [hyphens:auto]" lang="de">{title}</h1>
         {children && <div className="legal-prose mt-10 text-muted">{children}</div>}
         {!children && (
           <p className="mt-10 text-muted">

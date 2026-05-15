@@ -16,7 +16,7 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
   return (
     <span className="relative group/tip inline-flex">
       {children}
-      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+      <span className="hidden md:block pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
                        rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug
                        whitespace-nowrap opacity-0 group-hover/tip:opacity-100
                        transition-opacity duration-150 z-50 shadow-pop">
@@ -72,14 +72,14 @@ export default function LandingPage() {
       <section className="relative">
         <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-16 md:pt-24 pb-12 md:pb-20 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
 
-          <div>
+          <div className="min-w-0">
             <Tip label="Scannt dein Postfach alle 5 Minuten nach neuen Rechnungen">
               <div className="inline-flex items-center gap-2 text-xs text-ok cursor-default">
                 <span className="w-1.5 h-1.5 rounded-full bg-ok pulse-dot"></span>
                 Auto-Pilot · scannt jetzt
               </div>
             </Tip>
-            <h1 className="mt-5 font-display text-5xl md:text-6xl lg:text-7xl text-ink leading-[1.02] max-w-[18ch]">
+            <h1 className="mt-5 font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-ink leading-[1.02] max-w-[18ch]">
               Rechnungen, die sich <span className="accent">selbst</span> weiterleiten.
             </h1>
             <p className="mt-6 text-lg text-muted max-w-[42ch] leading-relaxed">
@@ -93,7 +93,10 @@ export default function LandingPage() {
                 Wie es funktioniert
               </a>
             </div>
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted">
+            <p className="md:hidden mt-6 text-xs text-muted">
+              <span className="text-ink stat-num">≈ 4 Min</span> Einrichtung · <span className="text-ink stat-num">DSGVO</span> · EU-Server · <span className="text-ink stat-num">KI</span> · automatisch
+            </p>
+            <div className="hidden md:flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted mt-8">
               <Tip label="Postfach verbinden, Empfänger eintragen — fertig.">
                 <div className="flex items-center gap-2 cursor-default"><span className="text-ink stat-num">≈ 4 Min</span> Einrichtung</div>
               </Tip>
@@ -107,7 +110,7 @@ export default function LandingPage() {
           </div>
 
           {/* HERO VISUAL: animated inbox */}
-          <div>
+          <div className="min-w-0">
             <div className="mock-window shadow-lift">
               <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
                 <div className="font-display text-2xl text-ink">Heute</div>
@@ -118,18 +121,12 @@ export default function LandingPage() {
                 {[
                   { domain: "hetzner.com", label: "Hetzner Online · Rechnung 2026-05",           meta: "09:14 · 27,55 €",  animated: false },
                   { domain: "adobe.com",   label: "Adobe Systems · Creative Cloud",               meta: "11:02 · 77,99 €",  animated: false },
-                  { domain: "telekom.de",  label: "Telekom Deutschland · Festnetz & Internet",    meta: "jetzt · 44,95 €",  animated: true  },
+                  { domain: "1und1.de",    label: "1&1 · DSL & Mobilfunk",                       meta: "jetzt · 44,95 €",  animated: true  },
                   { domain: "canva.com",   label: "Canva Pty Ltd · Pro Plan",                     meta: "gestern · 14,99 €", animated: false },
                 ].map(({ domain, label, meta, animated }, i, arr) => (
                   <li key={domain}
                     className={`${animated ? "anim-row" : "row-hover"} px-3 py-3 flex items-center gap-4 ${i < arr.length - 1 ? "border-b border-line" : ""}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={bfUrl(domain)}
-                      alt={domain}
-                      width={44} height={44}
-                      className="rounded-full shrink-0 object-contain"
-                    />
+                    <VendorLogo domain={domain} name={label} size={44} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-ink truncate">{label}</div>
                       <div className="mt-0.5 text-xs text-muted stat-num">{meta}</div>
@@ -172,25 +169,25 @@ export default function LandingPage() {
           <div className="text-[11px] uppercase tracking-[0.14em] text-muted text-center mb-7">
             Erkennt Rechnungen von
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 md:gap-x-16">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
             {[
-              { domain: "adobe.com",      alt: "Adobe"      },
-              { domain: "amazon.de",      alt: "Amazon"     },
-              { domain: "canva.com",      alt: "Canva"      },
-              { domain: "figma.com",      alt: "Figma"      },
-              { domain: "hetzner.com",    alt: "Hetzner"    },
-              { domain: "microsoft.com",  alt: "Microsoft"  },
-              { domain: "telekom.de",     alt: "Telekom"    },
+              { domain: "adobe.com",     alt: "Adobe"     },
+              { domain: "amazon.de",     alt: "Amazon"    },
+              { domain: "canva.com",     alt: "Canva"     },
+              { domain: "figma.com",     alt: "Figma"     },
+              { domain: "hetzner.com",   alt: "Hetzner"   },
+              { domain: "microsoft.com", alt: "Microsoft" },
+              { domain: "spotify.com",   alt: "Spotify"   },
             ].map(({ domain, alt }) => (
               <Tip key={domain} label={alt}>
-                <div className="h-9 flex items-center cursor-default">
+                <div className="rounded-full h-12 w-12 overflow-hidden shrink-0 cursor-default">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={bfUrl(domain)}
                     alt={alt}
-                    width={36}
-                    height={36}
-                    className="h-9 w-auto object-contain opacity-80"
+                    width={48}
+                    height={48}
+                    className="h-full w-full object-cover"
                   />
                 </div>
               </Tip>
@@ -209,7 +206,7 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto px-6 md:px-8">
           <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
             {[
-              { eyebrow: "Kein System",  title: "Rechnungen in jedem Postfach",      body: "Adobe, Hetzner, Telekom — jeder Anbieter schickt von einer anderen Adresse, in ein anderes Postfach." },
+              { eyebrow: "Kein System",  title: "Rechnungen in jedem Postfach",      body: "Adobe, Hetzner, 1&1 — jeder Anbieter schickt von einer anderen Adresse, in ein anderes Postfach." },
               { eyebrow: "Zeitverlust", title: "Jeden Monat manuell suchen",          body: "Filtern, runterladen, weiterleiten — für jede einzelne Rechnung, jeden Monat, von vorne." },
               { eyebrow: "Zu spät",     title: "Die Buchhaltung fragt. Du suchst.",  body: "Stunden damit verbracht, Belege zu finden, die längst hätten weitergeleitet sein sollen." },
             ].map(({ eyebrow, title, body }) => (
@@ -231,8 +228,8 @@ export default function LandingPage() {
           <div className="max-w-2xl">
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted">So funktioniert es</div>
             <h2 className="mt-3 font-display text-4xl md:text-5xl text-ink leading-[1.05]">
-              In vier Minuten verbunden.<br />
-              Danach läuft alles ohne dich.
+              In vier Minuten verbunden.<br className="hidden md:block" />
+              {" "}Danach läuft alles ohne dich.
             </h2>
           </div>
 
@@ -383,7 +380,7 @@ export default function LandingPage() {
               <div className="mt-6 mock-window">
                 <ul className="divide-y divide-line">
                   {[
-                    { domain: "telekom.de", name: "Telekom Mobilfunk",  expect: "erwartet 02. Mai · 59,90 €", label: "3 Tage spät",   cls: "text-warn" },
+                    { domain: "1und1.de",   name: "1&1 Mobilfunk",      expect: "erwartet 02. Mai · 59,90 €", label: "3 Tage spät",   cls: "text-warn" },
                     { domain: "figma.com",  name: "Figma Inc.",          expect: "erwartet 12. Mai · 45,00 €", label: "heute fällig",  cls: "text-muted" },
                     { domain: "zoom.us",    name: "Zoom Video Comm.",    expect: "erwartet 14. Mai · 13,99 €", label: "in 2 Tagen",   cls: "text-muted" },
                   ].map(({ domain, name, expect, label, cls }) => (
@@ -665,8 +662,8 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 text-center">
           <div className="text-[11px] uppercase tracking-[0.14em] text-white/50">Dauerhaft kostenlos starten</div>
           <h2 className="mt-3 font-display text-5xl md:text-6xl leading-[1.02] max-w-3xl mx-auto text-white">
-            Du suchst seit Jahren nach Belegen.<br />
-            <span className="text-white/50">Ab Montag nicht mehr.</span>
+            Du suchst seit Jahren nach Belegen.<br className="hidden md:block" />
+            {" "}<span className="text-white/50">Ab Montag nicht mehr.</span>
           </h2>
           <div className="mt-10 flex flex-wrap justify-center items-center gap-4">
             <Link href="https://app.infetch.de/login" className="inline-flex h-12 px-6 items-center rounded bg-white text-ink text-sm font-medium hover:opacity-90">
@@ -719,7 +716,6 @@ export default function LandingPage() {
           <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-5 text-xs text-muted flex flex-col md:flex-row gap-2 md:gap-6">
             <div>© 2026 Infetch</div>
             <button type="button" data-contact="" className="hover:text-ink transition-colors">hallo@infetch.de</button>
-            <div className="md:ml-auto">Alle Markennamen und Logos sind Eigentum der jeweiligen Inhaber.</div>
           </div>
         </div>
       </footer>
