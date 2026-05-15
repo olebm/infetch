@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "@/lib/db/client";
 import { provisionAutoApprovalRules } from "@/lib/automation/self-provisioning";
 import { reevaluateReviewQueue } from "@/lib/automation/reeval-queue";
@@ -73,6 +73,20 @@ async function insertInvoice(input: {
 }
 
 describe("provisionAutoApprovalRules", () => {
+  beforeEach(async () => {
+    // Remove leftover rules so NOT EXISTS check doesn't skip the vendor
+    const openaiId = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = 'openai'`;
+    if (openaiId[0]) {
+      await sql`DELETE FROM auto_approval_rules WHERE vendor_id = ${openaiId[0].id}`;
+    }
+  });
+  afterEach(async () => {
+    const openaiId = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = 'openai'`;
+    if (openaiId[0]) {
+      await sql`DELETE FROM auto_approval_rules WHERE vendor_id = ${openaiId[0].id}`;
+    }
+  });
+
   it("creates a rule for a vendor with enough successful imports and no failures", async () => {
     const vendorId = await getVendorId("openai");
     await insertInvoice({ vendorId, status: "exported", amount: 20 });

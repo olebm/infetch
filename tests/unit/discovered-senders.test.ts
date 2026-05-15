@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "@/lib/db/client";
 import {
   backfillFromMailMessages,
@@ -122,7 +122,17 @@ describe("block and link helpers", () => {
 });
 
 describe("backfillFromMailMessages", () => {
+  afterEach(async () => {
+    await sql`DELETE FROM mail_messages WHERE from_address LIKE '%@test-backfill.com'`;
+    await sql`DELETE FROM discovered_senders WHERE from_address LIKE '%@test-backfill.com'`;
+    await sql`DELETE FROM mail_accounts WHERE label = 'Primary IMAP Test' AND host = 'imap.example-test.com'`;
+  });
+
   it("aggregates mail_messages into discovered_senders", async () => {
+    // Cleanup leftover from prior runs before inserting
+    await sql`DELETE FROM mail_messages WHERE from_address LIKE '%@test-backfill.com'`;
+    await sql`DELETE FROM mail_accounts WHERE label = 'Primary IMAP Test' AND host = 'imap.example-test.com'`;
+
     const accountRows = await sql<{ id: number }[]>`
       INSERT INTO mail_accounts (label, host, port, secure, username, status)
       VALUES ('Primary IMAP Test', 'imap.example-test.com', 993, true, 'user-test', 'configured')

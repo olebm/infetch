@@ -34,8 +34,11 @@ export type FilenameJunkResult = {
 export function classifyFilenameAsJunk(filename: string | null | undefined): FilenameJunkResult {
   if (!filename) return { isJunk: false, matchedPattern: null };
   const base = filename.split("/").pop() ?? filename;
+  // Normalize _ and - to . so \b word-boundary checks work on separator chars:
+  // "AGB_Shop.pdf" → "AGB.Shop.pdf"; \bagb\b matches because . is \W.
+  const normalized = base.replace(/[_-]/g, ".");
   for (const pattern of JUNK_PATTERNS) {
-    if (pattern.test(base)) {
+    if (pattern.test(base) || pattern.test(normalized)) {
       return { isJunk: true, matchedPattern: pattern.source };
     }
   }
