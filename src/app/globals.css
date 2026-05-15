@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Söhne (Klim Type Foundry) ─────────────────────────────────────────────
+   Buch (400)     → Fließtext, Labels, UI-Elemente
+   Halbfett (600) → Überschriften, Display-Schrift, CTAs
+   --------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Söhne";
+  src: url("/fonts/soehne-buch.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Söhne";
+  src: url("/fonts/soehne-halbfett.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   background: #fbfaf7;
@@ -16,7 +35,7 @@ html, body {
   margin: 0;
   background: #fbfaf7;
   color: #1a1a1a;
-  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "Söhne", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   letter-spacing: -0.005em;
   /* Safe-area: Home-Indicator auf Notch-iPhones */
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -55,24 +74,24 @@ select {
   border-radius: 4px;
 }
 
-/* Display-Typografie — Geist Medium, enger Tracking */
+/* Display-Typografie — Söhne Halbfett, enger Tracking */
 .font-display {
-  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
-  font-weight: 500;
+  font-family: "Söhne", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
   letter-spacing: -0.025em;
   text-wrap: balance;
 }
 
 /* Display accent — `<em>` in a font-display heading renders as
-   Geist Light (300) — NOT italic. Weight contrast alone creates the
-   editorial rhythm (matches design prototype: font-style: normal). */
+   Söhne Buch (400) — NOT italic. Gewichtskontrast 600/400 schafft
+   den editorischen Rhythmus ohne Kursivstellung. */
 .font-display em,
 .font-display .it {
   font-style: normal;
-  font-weight: 300;
+  font-weight: 400;
   color: inherit;
   letter-spacing: -0.025em;
-  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Söhne", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Numerische Stats + .font-mono — gleichbreite Ziffern fuer ruhige Counter */

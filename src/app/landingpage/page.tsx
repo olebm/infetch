@@ -390,13 +390,17 @@ export default function LandingPage() {
               <div className="mt-6 mock-window">
                 <ul className="divide-y divide-line">
                   {[
-                    { label: "Standard",  email: "belege@beispiel.de"       },
-                    { label: "Sekundär",  email: "buchhaltung@beispiel.de"  },
-                    { label: "Marketing", email: "marketing@studio.de"      },
-                  ].map(({ label, email }) => (
-                    <li key={label} className="px-4 py-3 flex items-center gap-3">
-                      <div className="text-sm text-ink">{label}</div>
-                      <div className="ml-auto text-xs text-muted font-mono truncate">{email}</div>
+                    { domain: "lexoffice.de", name: "lexoffice", label: "Primär",   email: "belege@lexoffice.de"  },
+                    { domain: "sevdesk.de",   name: "sevDesk",   label: "Sekundär", email: "buchhaltung@studio.de"},
+                    { domain: "datev.de",     name: "DATEV",     label: "Kopie",    email: "steuer@kanzlei.de"   },
+                  ].map(({ domain, name, label, email }) => (
+                    <li key={label} className="px-4 py-3 flex items-center gap-4 row-hover">
+                      <VendorLogo domain={domain} name={name} size={36} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-ink">{name}</div>
+                        <div className="mt-0.5 text-xs text-muted stat-num truncate">{email}</div>
+                      </div>
+                      <span className="text-xs text-muted shrink-0">{label}</span>
                     </li>
                   ))}
                 </ul>
