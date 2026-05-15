@@ -17,9 +17,13 @@ import { sendOnboardingEmail } from "@/lib/mail/notify";
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin: rawOrigin } = new URL(request.url);
-  // Behind a reverse proxy (Coolify/nginx) request.url may contain the internal
-  // address (0.0.0.0:3000). Use NEXT_PUBLIC_SITE_URL when available.
-  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || rawOrigin;
+  // Behind Coolify/nginx, request.url resolves to the internal address (0.0.0.0:3000).
+  // Use x-forwarded-host + x-forwarded-proto set by the reverse proxy instead.
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+  const origin = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}`
+    : rawOrigin;
   const code = searchParams.get("code");
   const rawNext = searchParams.get("next") ?? "/";
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
