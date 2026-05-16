@@ -91,6 +91,7 @@ jobs:
           psql "$DATABASE_URL" -f supabase/migrations/0016_stripe_idempotency.sql
           psql "$DATABASE_URL" -f supabase/migrations/0017_integration_targets_bool.sql
           psql "$DATABASE_URL" -f supabase/migrations/0018_stripe_event_ordering.sql
+          psql "$DATABASE_URL" -f supabase/migrations/0019_boolean_is_private_hidden.sql
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       - name: Patch schema for CI (boolean columns + vault stub + seed data)
@@ -173,7 +174,11 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     # Selbst-gehostet: Supabase-Stack + Next-Dev-Server im Job, kein Vercel-Preview.
-    if: github.event_name == 'pull_request'
+    # Läuft bei PRs UND bei Push auf main (vorher nur PR → main-Pushes
+    # bekamen keine E2E-Validierung).
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: [lint, typecheck, test]
     env:
       # Dev-Server läuft auf :3456 (= Playwright-Default-baseURL).

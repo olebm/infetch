@@ -263,7 +263,7 @@ export async function getInvoices(options: { limit?: number; status?: string; st
   const whereClauses: string[] = [];
 
   if (!options.includePrivate) {
-    whereClauses.push("COALESCE(invoices.is_private, 0) = 0");
+    whereClauses.push("COALESCE(invoices.is_private, FALSE) = FALSE");
   }
 
   // Build query dynamically — postgres tagged-template doesn't support dynamic IN easily,
@@ -287,7 +287,7 @@ export async function getInvoices(options: { limit?: number; status?: string; st
 
   // Build dynamic query using sql.unsafe with careful parameter handling
   const conditions: string[] = [];
-  if (!options.includePrivate) conditions.push("COALESCE(invoices.is_private, 0) = 0");
+  if (!options.includePrivate) conditions.push("COALESCE(invoices.is_private, FALSE) = FALSE");
 
   const params: Array<string | number> = [];
   let paramIdx = 1;
@@ -364,7 +364,7 @@ export async function getInvoiceYears(organizationId: string | null = null): Pro
 export async function getInvoiceStatusCounts(organizationId: string | null = null) {
   return await sql<Array<{ status: string; count: string }>>`
     SELECT status, COUNT(*) AS count FROM invoices
-    WHERE COALESCE(is_private, 0) = 0
+    WHERE COALESCE(is_private, FALSE) = FALSE
       AND (${organizationId}::text IS NULL OR organization_id = ${organizationId})
     GROUP BY status`;
 }
@@ -372,12 +372,12 @@ export async function getInvoiceStatusCounts(organizationId: string | null = nul
 export async function getPrivateInvoiceCount(organizationId: string | null = null): Promise<number> {
   return Number((await sql`
     SELECT COUNT(*) AS count FROM invoices
-    WHERE COALESCE(is_private, 0) = 1
+    WHERE COALESCE(is_private, FALSE) = TRUE
       AND (${organizationId}::text IS NULL OR organization_id = ${organizationId})`)[0].count);
 }
 
 export async function getPrivateInvoices(options: { year?: string; search?: string; organizationId?: string | null } = {}) {
-  const conditions: string[] = ["COALESCE(invoices.is_private, 0) = 1"];
+  const conditions: string[] = ["COALESCE(invoices.is_private, FALSE) = TRUE"];
   const params: Array<string | number> = [];
   let paramIdx = 1;
 
@@ -690,7 +690,7 @@ export async function getMissingItems(): Promise<MissingItem[]> {
       ) AS "avgAmount"
     FROM vendor_month_status vms
     JOIN vendors v ON v.id = vms.vendor_id
-    WHERE v.hidden = 0 AND vms.final_status IN ('missing', 'action_required', 'unchecked')
+    WHERE v.hidden = FALSE AND vms.final_status IN ('missing', 'action_required', 'unchecked')
     ORDER BY v.name ASC, vms.year_month DESC`;
 
   type Entry = { item: MissingItem; count: number };
