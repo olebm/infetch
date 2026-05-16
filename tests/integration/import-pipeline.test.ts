@@ -1,4 +1,30 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// In-Memory-Storage statt echtem Supabase Bucket — hält den Test hermetisch
+// (CI hat keine Supabase-Env). Gleiche Strategie wie storage-encryption.test.ts.
+const storageStore = new Map<string, Buffer>();
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseAdminClient: () => ({
+    storage: {
+      from: (bucket: string) => ({
+        async upload(key: string, body: Buffer) {
+          storageStore.set(`${bucket}/${key}`, Buffer.from(body));
+          return { error: null };
+        },
+        async download(key: string) {
+          const buf = storageStore.get(`${bucket}/${key}`);
+          if (!buf) return { data: null, error: { message: "not found" } };
+          return { data: new Blob([new Uint8Array(buf)]), error: null };
+        },
+        async remove(keys: string[]) {
+          for (const k of keys) storageStore.delete(`${bucket}/${k}`);
+          return { error: null };
+        },
+      }),
+    },
+  }),
+}));
+
 import { sql } from "@/lib/db/client";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 

@@ -117,6 +117,20 @@ jobs:
           ALTER TABLE export_targets ALTER COLUMN enabled TYPE BOOLEAN USING (enabled != 0);
           ALTER TABLE export_targets ALTER COLUMN enabled SET DEFAULT false;
 
+          -- Schema-Teil aus 0013_export_targets_per_org.sql (Migration wird in CI
+          -- nicht eingespielt, da sie eine auth.uid()-RLS-Policy enthält; Tests
+          -- laufen als Owner-Rolle "ci" und umgehen RLS ohnehin). Ohne diese
+          -- Spalte schlagen die Export-Pipeline-Tests fehl
+          -- (column "organization_id" does not exist).
+          ALTER TABLE export_targets
+            ADD COLUMN IF NOT EXISTS organization_id TEXT
+            REFERENCES organizations(id) ON DELETE CASCADE;
+          CREATE INDEX IF NOT EXISTS idx_export_targets_org
+            ON export_targets(organization_id) WHERE organization_id IS NOT NULL;
+          ALTER TABLE export_targets DROP CONSTRAINT IF EXISTS export_targets_target_key;
+          CREATE UNIQUE INDEX IF NOT EXISTS uniq_export_targets_org_target
+            ON export_targets (organization_id, target);
+
           -- Minimal Supabase Vault stub — plain-text storage, no pgsodium required.
           CREATE SCHEMA IF NOT EXISTS vault;
           CREATE TABLE IF NOT EXISTS vault.secrets (
