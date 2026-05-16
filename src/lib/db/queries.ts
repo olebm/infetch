@@ -263,7 +263,7 @@ export async function getInvoices(options: { limit?: number; status?: string; st
   const whereClauses: string[] = [];
 
   if (!options.includePrivate) {
-    whereClauses.push("COALESCE(invoices.is_private, 0) = 0");
+    whereClauses.push("invoices.is_private IS NOT TRUE");
   }
 
   // Build query dynamically — postgres tagged-template doesn't support dynamic IN easily,
@@ -287,7 +287,7 @@ export async function getInvoices(options: { limit?: number; status?: string; st
 
   // Build dynamic query using sql.unsafe with careful parameter handling
   const conditions: string[] = [];
-  if (!options.includePrivate) conditions.push("COALESCE(invoices.is_private, 0) = 0");
+  if (!options.includePrivate) conditions.push("invoices.is_private IS NOT TRUE");
 
   const params: Array<string | number> = [];
   let paramIdx = 1;
@@ -364,7 +364,7 @@ export async function getInvoiceYears(organizationId: string | null = null): Pro
 export async function getInvoiceStatusCounts(organizationId: string | null = null) {
   return await sql<Array<{ status: string; count: string }>>`
     SELECT status, COUNT(*) AS count FROM invoices
-    WHERE COALESCE(is_private, 0) = 0
+    WHERE is_private IS NOT TRUE
       AND (${organizationId}::text IS NULL OR organization_id = ${organizationId})
     GROUP BY status`;
 }
@@ -372,12 +372,12 @@ export async function getInvoiceStatusCounts(organizationId: string | null = nul
 export async function getPrivateInvoiceCount(organizationId: string | null = null): Promise<number> {
   return Number((await sql`
     SELECT COUNT(*) AS count FROM invoices
-    WHERE COALESCE(is_private, 0) = 1
+    WHERE is_private IS TRUE
       AND (${organizationId}::text IS NULL OR organization_id = ${organizationId})`)[0].count);
 }
 
 export async function getPrivateInvoices(options: { year?: string; search?: string; organizationId?: string | null } = {}) {
-  const conditions: string[] = ["COALESCE(invoices.is_private, 0) = 1"];
+  const conditions: string[] = ["invoices.is_private IS TRUE"];
   const params: Array<string | number> = [];
   let paramIdx = 1;
 
