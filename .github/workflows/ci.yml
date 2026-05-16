@@ -173,7 +173,11 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     # Selbst-gehostet: Supabase-Stack + Next-Dev-Server im Job, kein Vercel-Preview.
-    if: github.event_name == 'pull_request'
+    # Läuft bei PRs UND bei Push auf main (vorher nur PR → main-Pushes
+    # bekamen keine E2E-Validierung).
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: [lint, typecheck, test]
     env:
       # Dev-Server läuft auf :3456 (= Playwright-Default-baseURL).
