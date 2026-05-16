@@ -120,18 +120,29 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Supabase-Session in jedem Request refreshen (JWT-Rotation)
-  const { response, userId } = await updateSupabaseSession(request);
+  // Supabase-Session in jedem Request refreshen (JWT-Rotation).
+  // Bei einem Supabase-Ausfall NICHT die gesamte Seite mit 500 beantworten:
+  // Session-Refresh überspringen, Page-level getCurrentAuth() bleibt als
+  // zweite Verteidigungslinie.
+  let sessionResult: { response: NextResponse; userId: string | null };
+  try {
+    sessionResult = await updateSupabaseSession(request);
+  } catch {
+    return NextResponse.next({ request });
+  }
+  const { response, userId } = sessionResult;
 
   if (isPublicAppPath(pathname)) {
     return response;
   }
 
-  // Kein eingeloggter User → zum Login umleiten
+  // Kein eingeloggter User → zum Login umleiten.
+  // request.nextUrl.clone() würde hinter Coolify/Traefik auf die interne
+  // Docker-Adresse zeigen (http://0.0.0.0:3000). Daher x-forwarded-* nutzen —
+  // identisch zur bewährten Logik in src/app/auth/callback/route.ts.
   if (!userId) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    loginUrl.search = "";
+    const proto = request.headers.get("x-forwarded-proto") ?? "https";
+    const loginUrl = new URL(`${proto}://${hostname}/login`);
     if (pathname !== "/") {
       loginUrl.searchParams.set("next", `${pathname}${search}`);
     }
