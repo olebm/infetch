@@ -136,14 +136,19 @@ export async function loadActiveSessions(userId: string): Promise<SessionSummary
   }
 }
 
+/**
+ * Beendet alle Supabase-Sessions des Nutzers außer der aktuellen.
+ * Erfordert das JWT der laufenden Session (scope='others' lässt diese bestehen).
+ * Gibt true zurück wenn die Admin-API erfolgreich war.
+ */
 export async function invalidateAllOtherSessions(
-  userId: string,
-  currentSessionId: string,
-): Promise<number> {
-  const result = await sql`
-    DELETE FROM sessions WHERE user_id = ${userId} AND id != ${currentSessionId}
-  `;
-  return result.count;
+  currentJwt: string,
+): Promise<boolean> {
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin.auth.admin.signOut(currentJwt, "others");
+  if (error) throw new Error(error.message);
+  return true;
 }
 
 export async function updateUserName(userId: string, name: string): Promise<void> {

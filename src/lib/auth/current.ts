@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { sql } from "@/lib/db/client";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { findUserByEmail } from "@/lib/auth/users";
@@ -57,7 +58,7 @@ export async function getCurrentAuth(): Promise<CurrentAuth | null> {
 export async function requireCurrentAuth(): Promise<CurrentAuth> {
   const auth = await getCurrentAuth();
   if (!auth) {
-    throw new Error("Not authenticated");
+    redirect("/login");
   }
   return auth;
 }

@@ -771,11 +771,17 @@ export async function invalidateAllOtherSessionsAction(
     const auth = await getCurrentAuth();
     if (!auth) return { status: "error", message: "Nicht angemeldet." };
 
-    const count = await invalidateAllOtherSessions(auth.user.id, auth.session.id);
+    const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+    const supabase = await createSupabaseServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const jwt = session?.access_token;
+    if (!jwt) return { status: "error", message: "Keine aktive Session gefunden." };
+
+    await invalidateAllOtherSessions(jwt);
     revalidatePath("/einstellungen");
     return {
       status: "success",
-      message: count > 0 ? `${count} Sitzung${count === 1 ? "" : "en"} beendet.` : "Keine anderen aktiven Sitzungen.",
+      message: "Alle anderen Sitzungen wurden beendet.",
     };
   } catch (error) {
     return {
