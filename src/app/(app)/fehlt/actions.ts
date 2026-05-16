@@ -6,6 +6,7 @@ import { runMissingInvoiceCheck } from "@/invoices/missing-check";
 import { sql } from "@/lib/db/client";
 import { runAgentForVendor } from "@/portals/agent/agent-connector";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
+import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type MissingCheckState = {
   status: "idle" | "success" | "error";
@@ -19,6 +20,7 @@ export type PortalActionState = {
 
 export async function runMissingCheckAction(_previousState: MissingCheckState): Promise<MissingCheckState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const result = await runMissingInvoiceCheck();
     revalidatePath("/");
@@ -40,6 +42,7 @@ export async function runVendorRequiredPortalAction(
   formData: FormData,
 ): Promise<PortalActionState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const vendorKey = String(formData.get("vendorKey") || "").trim();
     if (!vendorKey) {
@@ -105,6 +108,7 @@ export async function runVendorRequiredPortalAction(
 }
 
 export async function toggleVendorHiddenAction(formData: FormData): Promise<void> {
+  await requireCurrentAuth();
   const vendorId = Number(formData.get("vendorId"));
   const hidden = Number(formData.get("hidden"));
   if (!Number.isInteger(vendorId) || vendorId <= 0) return;

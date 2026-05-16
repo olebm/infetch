@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { dispatchPendingExports } from "@/exports/export-pipeline";
+import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type ExportDispatchState = {
   status: "idle" | "success" | "error";
@@ -12,6 +13,8 @@ export async function runExportDispatchAction(
   _previousState: ExportDispatchState,
 ): Promise<ExportDispatchState> {
   void _previousState;
+
+  await requireCurrentAuth();
 
   try {
     const result = await dispatchPendingExports();

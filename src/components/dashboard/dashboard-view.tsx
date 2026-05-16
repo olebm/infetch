@@ -19,6 +19,7 @@ import {
   getSetupSnapshot,
   getTopVendors,
 } from "@/lib/db/queries";
+import { getCurrentAuth } from "@/lib/auth/current";
 
 const MONTHS_DE = [
   "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -68,6 +69,8 @@ function formatAmount(amount: number | null, currency: string | null): string {
  *   7. Trust band (<dl> grid, quiet)
  */
 export async function DashboardView() {
+  const auth = await getCurrentAuth();
+  const orgId = auth?.organization?.id ?? null;
   const [
     setup,
     stats,
@@ -88,9 +91,9 @@ export async function DashboardView() {
     getDailyTimeseries(30),
     getTopVendors(5),
     getOverdueVendors(),
-    getInvoices({ status: "duplicate", limit: 3 }),
-    getInvoices({ limit: 20 }),
-    getInvoiceStatusCounts(),
+    getInvoices({ status: "duplicate", limit: 3, organizationId: orgId }),
+    getInvoices({ limit: 20, organizationId: orgId }),
+    getInvoiceStatusCounts(orgId),
     (() => {
       const now = new Date();
       return getMonthlyKpis(now.toISOString().slice(0, 7));

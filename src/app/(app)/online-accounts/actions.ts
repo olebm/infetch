@@ -14,6 +14,7 @@ import { invalidateBrowserSession } from "@/portals/agent/session-store";
 import { findVendorByCanonicalKey, upsertVendor } from "@/lib/db/queries";
 import { syncCommunityRecipes } from "@/portals/agent/community-sync";
 import { canAddOnlineAccount, getLimits, getTier } from "@/lib/tier";
+import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type ConnectState = {
   status: "idle" | "success" | "error";
@@ -27,6 +28,7 @@ export async function connectOnlineAccountAction(
   formData: FormData,
 ): Promise<ConnectState> {
   void _prev;
+  await requireCurrentAuth();
   try {
     const mode = String(formData.get("mode") || "").trim();
     const username = String(formData.get("username") || "").trim();
@@ -176,6 +178,7 @@ export async function fetchOnlineAccountNowAction(
   formData: FormData,
 ): Promise<PortalCheckState> {
   void _prev;
+  await requireCurrentAuth();
   try {
     const vendorKey = String(formData.get("vendorKey") || "").trim();
     if (!vendorKey) return { status: "error", message: "Kein Lieferant angegeben." };
@@ -217,6 +220,7 @@ export async function syncCommunityRecipesAction(
 ): Promise<SyncCommunityState> {
   void _prev;
   void _formData;
+  await requireCurrentAuth();
   try {
     const result = await syncCommunityRecipes({ force: false });
     revalidatePath("/einstellungen");
@@ -244,6 +248,7 @@ export async function syncCommunityRecipesAction(
 }
 
 export async function removeOnlineAccountAction(formData: FormData): Promise<void> {
+  await requireCurrentAuth();
   const vendorKey = String(formData.get("vendorKey") || "").trim();
   if (!vendorKey) return;
   await sql`

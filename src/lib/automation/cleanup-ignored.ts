@@ -1,7 +1,7 @@
-import fs from "node:fs";
 import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
+import { BUCKETS, deleteFromStorage } from "@/lib/supabase/storage";
 
 export type CleanupResult = {
   scanned: number;
@@ -13,6 +13,7 @@ type Row = {
   invoiceId: number;
   fileId: number;
   storedPath: string;
+  rawTextPath: string | null;
 };
 
 /**
@@ -25,7 +26,8 @@ export async function cleanupIgnoredFiles(): Promise<CleanupResult> {
   const days = appConfig.selfHealing.cleanupIgnoredAfterDays;
 
   const rows = await sql<Row[]>`
-    SELECT i.id AS "invoiceId", f.id AS "fileId", f.stored_path AS "storedPath"
+    SELECT i.id AS "invoiceId", f.id AS "fileId", f.stored_path AS "storedPath",
+           i.raw_text_path AS "rawTextPath"
     FROM invoices i
     JOIN invoice_files f ON f.invoice_id = i.id
     WHERE i.status = 'ignored'
@@ -37,8 +39,10 @@ export async function cleanupIgnoredFiles(): Promise<CleanupResult> {
 
   for (const row of rows) {
     try {
-      if (fs.existsSync(row.storedPath)) {
-        fs.unlinkSync(row.storedPath);
+      // stored_path / raw_text_path enthalten Supabase-Storage-Keys, keine FS-Pfade.
+      await deleteFromStorage(BUCKETS.INVOICES, row.storedPath);
+      if (row.rawTextPath) {
+        await deleteFromStorage(BUCKETS.RAW_TEXT, row.rawTextPath);
       }
       await sql`UPDATE invoice_files SET stored_path = NULL WHERE id = ${row.fileId}`;
       result.filesDeleted++;

@@ -5,8 +5,8 @@
  * Fallback für lokale Instanzen ohne Auth: INVOICE_AGENT_TIER env-var.
  *
  * Preise (Stand Mai 2026):
- *   Free:  €0        — 30 Rechnungen/Monat, 1 Postfach, 500 MB
- *   Pro:   €19/Monat — 200 Rechnungen/Monat, 3 Postfächer, 5 GB
+ *   Free:  €0        — 15 Rechnungen/Monat, 1 Postfach, 500 MB
+ *   Pro:   €19/Monat — 150 Rechnungen/Monat, 3 Postfächer, 2 GB
  *   Business: kommt später (Portal-Agent, Multi-Org, Datev)
  */
 
@@ -46,7 +46,7 @@ const GB = 1024 * MB;
 
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
-    maxInvoicesPerMonth:   30,
+    maxInvoicesPerMonth:   15,
     maxMailAccounts:       1,
     maxUsers:              1,
     maxStorageBytes:       500 * MB,

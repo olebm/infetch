@@ -14,6 +14,7 @@ import {
   SevdeskApiError,
 } from "@/lib/integrations/sevdesk-client";
 import { appConfig } from "@/lib/config/env";
+import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";
 
 type InvoiceForTransfer = {
   id: number;
@@ -101,11 +102,13 @@ export async function attemptAutoTransfer(
 
     let externalId: string;
     const filename = path.basename(file.originalFilename || file.storedPath);
+    // stored_path ist ein Supabase-Storage-Key — Inhalt vor Transfer laden.
+    const pdfContent = await downloadFromStorage(BUCKETS.INVOICES, file.storedPath);
     if (integration.provider === "lexoffice") {
-      const result = await uploadLexofficeFileToInbox(apiKey, file.storedPath, filename);
+      const result = await uploadLexofficeFileToInbox(apiKey, pdfContent, filename);
       externalId = result.id;
     } else if (integration.provider === "sevdesk") {
-      const tempFile = await uploadSevdeskTempFile(apiKey, file.storedPath, filename);
+      const tempFile = await uploadSevdeskTempFile(apiKey, pdfContent, filename);
       const voucher = await createSevdeskVoucherFromTempFile(apiKey, tempFile, {
         voucherDate: invoice.invoiceDate,
         description: invoice.vendorName ? `Import: ${invoice.vendorName}` : "Auto-Import via Infetch",

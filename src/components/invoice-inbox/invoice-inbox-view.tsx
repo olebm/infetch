@@ -8,6 +8,7 @@ import {
   getInvoiceStatusCounts,
   getDashboardStats,
 } from "@/lib/db/queries";
+import { getCurrentAuth } from "@/lib/auth/current";
 import { StatusBadge } from "@/components/status/status-badge";
 import { EmptyState } from "@/components/status/empty-state";
 import { InboxSearch } from "@/components/invoice-inbox/inbox-search";
@@ -116,9 +117,12 @@ export async function InvoiceInboxView({
   search?: string;
   status?: string;
 }) {
+  const auth = await getCurrentAuth();
+  const orgId = auth?.organization?.id ?? null;
+
   const [statusCountsRaw, privatCount, stats] = await Promise.all([
-    getInvoiceStatusCounts(),
-    getPrivateInvoiceCount(),
+    getInvoiceStatusCounts(orgId),
+    getPrivateInvoiceCount(orgId),
     getDashboardStats(),
   ]);
   const counts = new Map(statusCountsRaw.map((c) => [c.status, Number(c.count)]));
@@ -156,6 +160,7 @@ export async function InvoiceInboxView({
       return (await getPrivateInvoices({
         year: activeYear ?? undefined,
         search: search || undefined,
+        organizationId: orgId,
       })).slice(0, 30);
     }
     const tabCfg = TABS.find((t) => t.key === activeTab)!;
@@ -167,12 +172,14 @@ export async function InvoiceInboxView({
         limit: 30,
         year: activeYear ?? undefined,
         search: search || undefined,
+        organizationId: orgId,
       });
     }
     return getInvoices({
       year: activeYear ?? undefined,
       search: search || undefined,
       limit: 30,
+      organizationId: orgId,
     });
   })();
 

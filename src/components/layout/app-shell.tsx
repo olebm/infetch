@@ -14,7 +14,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const statusCountsRaw = await getInvoiceStatusCounts();
+  const statusCountsRaw = await getInvoiceStatusCounts(auth.organization?.id ?? null);
   const reviewCount = ["needs_review", "new", "failed"].reduce(
     (acc, s) => acc + Number(statusCountsRaw.find((c) => c.status === s)?.count ?? 0),
     0,

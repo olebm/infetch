@@ -2,6 +2,7 @@ import { sql } from "@/lib/db/client";
 import { sendInvoiceMail } from "@/mail/smtp-client";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 import { canExport } from "@/lib/tier";
+import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";
 
 export type DispatchResult = {
   enqueued: number;
@@ -102,14 +103,18 @@ export async function dispatchPendingExports(): Promise<DispatchResult> {
         throw new Error("Keine PDF-Datei für diese Rechnung gefunden.");
       }
 
+      // stored_path ist ein Supabase-Storage-Key — Inhalt vor Versand laden.
+      const pdfContent = await downloadFromStorage(BUCKETS.INVOICES, file.storedPath);
+
       await sendInvoiceMail({
         smtpSlot: row.smtpSlot ?? "primary",
+        organizationId: row.organizationId,
         to: row.recipientEmail,
         vendorName: row.vendorName ?? "Unbekannt",
         invoiceDate: row.invoiceDate,
         amountGross: row.amountGross,
         currency: row.currency,
-        pdfPath: file.storedPath,
+        pdfContent,
         originalFilename: file.originalFilename,
       });
 

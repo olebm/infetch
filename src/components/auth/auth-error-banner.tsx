@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const MESSAGES: Record<string, string> = {
   otp_expired:    "Dieser Link ist abgelaufen — bitte fordere unten einen neuen an.",
@@ -8,19 +8,18 @@ const MESSAGES: Record<string, string> = {
   auth_error:     "Anmeldung fehlgeschlagen — bitte versuche es erneut.",
 };
 
-export function AuthErrorBanner({ queryError }: { queryError?: string }) {
-  const [message, setMessage] = useState<string | null>(
-    queryError ? (MESSAGES[queryError] ?? MESSAGES.auth_error) : null,
-  );
+function resolveInitialMessage(queryError?: string): string | null {
+  if (queryError) return MESSAGES[queryError] ?? MESSAGES.auth_error;
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash.slice(1);
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const code = params.get("error_code") ?? params.get("error") ?? "";
+  return MESSAGES[code] ?? null;
+}
 
-  useEffect(() => {
-    const hash = window.location.hash.slice(1);
-    if (!hash) return;
-    const params = new URLSearchParams(hash);
-    const code = params.get("error_code") ?? params.get("error") ?? "";
-    const msg = MESSAGES[code];
-    if (msg) setMessage(msg);
-  }, []);
+export function AuthErrorBanner({ queryError }: { queryError?: string }) {
+  const [message] = useState<string | null>(() => resolveInitialMessage(queryError));
 
   if (!message) return null;
 

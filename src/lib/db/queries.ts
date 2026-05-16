@@ -258,7 +258,7 @@ export async function getRecentEvents(limit = 8) {
     LIMIT ${limit}`;
 }
 
-export async function getInvoices(options: { limit?: number; status?: string; statuses?: string[]; year?: string; search?: string; includePrivate?: boolean } = {}) {
+export async function getInvoices(options: { limit?: number; status?: string; statuses?: string[]; year?: string; search?: string; includePrivate?: boolean; organizationId?: string | null } = {}) {
   const limit = options.limit ?? 200;
   const whereClauses: string[] = [];
 
@@ -291,6 +291,11 @@ export async function getInvoices(options: { limit?: number; status?: string; st
 
   const params: Array<string | number> = [];
   let paramIdx = 1;
+
+  if (options.organizationId) {
+    conditions.push(`invoices.organization_id = $${paramIdx++}`);
+    params.push(options.organizationId);
+  }
 
   if (options.statuses && options.statuses.length > 0) {
     const placeholders = options.statuses.map(() => `$${paramIdx++}`).join(", ");
@@ -347,27 +352,39 @@ export async function getInvoices(options: { limit?: number; status?: string; st
   return await sql.unsafe(queryText, params) as InvoiceListRow[];
 }
 
-export async function getInvoiceYears(): Promise<number[]> {
+export async function getInvoiceYears(organizationId: string | null = null): Promise<number[]> {
   const rows = await sql<Array<{ year: string }>>`
     SELECT DISTINCT EXTRACT(YEAR FROM COALESCE(invoice_date, created_at)::TIMESTAMP)::TEXT AS year
     FROM invoices
+    WHERE (${organizationId}::text IS NULL OR organization_id = ${organizationId})
     ORDER BY year DESC`;
   return rows.map((r) => parseInt(r.year, 10)).filter((y) => !isNaN(y));
 }
 
-export async function getInvoiceStatusCounts() {
+export async function getInvoiceStatusCounts(organizationId: string | null = null) {
   return await sql<Array<{ status: string; count: string }>>`
-    SELECT status, COUNT(*) AS count FROM invoices WHERE COALESCE(is_private, 0) = 0 GROUP BY status`;
+    SELECT status, COUNT(*) AS count FROM invoices
+    WHERE COALESCE(is_private, 0) = 0
+      AND (${organizationId}::text IS NULL OR organization_id = ${organizationId})
+    GROUP BY status`;
 }
 
-export async function getPrivateInvoiceCount(): Promise<number> {
-  return Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE COALESCE(is_private, 0) = 1`)[0].count);
+export async function getPrivateInvoiceCount(organizationId: string | null = null): Promise<number> {
+  return Number((await sql`
+    SELECT COUNT(*) AS count FROM invoices
+    WHERE COALESCE(is_private, 0) = 1
+      AND (${organizationId}::text IS NULL OR organization_id = ${organizationId})`)[0].count);
 }
 
-export async function getPrivateInvoices(options: { year?: string; search?: string } = {}) {
+export async function getPrivateInvoices(options: { year?: string; search?: string; organizationId?: string | null } = {}) {
   const conditions: string[] = ["COALESCE(invoices.is_private, 0) = 1"];
   const params: Array<string | number> = [];
   let paramIdx = 1;
+
+  if (options.organizationId) {
+    conditions.push(`invoices.organization_id = $${paramIdx++}`);
+    params.push(options.organizationId);
+  }
 
   if (options.year) {
     conditions.push(`EXTRACT(YEAR FROM COALESCE(invoices.invoice_date, invoices.created_at)::TIMESTAMP)::TEXT = $${paramIdx++}`);
@@ -423,7 +440,7 @@ export async function getPrivateInvoices(options: { year?: string; search?: stri
     LIMIT ${limitParam}`, params) as PrivateInvoiceRow[];
 }
 
-export async function getInvoiceDetail(invoiceId: number) {
+export async function getInvoiceDetail(invoiceId: number, organizationId: string | null = null) {
   const invoice = (await sql<Array<{
     id: number;
     vendorId: number | null;
@@ -486,7 +503,8 @@ export async function getInvoiceDetail(invoiceId: number) {
     LEFT JOIN vendors ON vendors.id = invoices.vendor_id
     LEFT JOIN invoices AS duplicate_invoices ON duplicate_invoices.id = invoices.duplicate_of_invoice_id
     LEFT JOIN vendors AS duplicate_vendors ON duplicate_vendors.id = duplicate_invoices.vendor_id
-    WHERE invoices.id = ${invoiceId}`)[0];
+    WHERE invoices.id = ${invoiceId}
+      AND (${organizationId}::text IS NULL OR invoices.organization_id = ${organizationId})`)[0];
 
   if (!invoice) return null;
 
@@ -557,7 +575,7 @@ export async function getInvoiceDetail(invoiceId: number) {
   };
 }
 
-export async function getInvoiceReviewOptions(currentInvoiceId: number, limit = 50) {
+export async function getInvoiceReviewOptions(currentInvoiceId: number, limit = 50, organizationId: string | null = null) {
   return await sql<Array<{
     id: number;
     invoiceNumber: string | null;
@@ -573,6 +591,7 @@ export async function getInvoiceReviewOptions(currentInvoiceId: number, limit = 
     FROM invoices
     LEFT JOIN vendors ON vendors.id = invoices.vendor_id
     WHERE invoices.id != ${currentInvoiceId}
+      AND (${organizationId}::text IS NULL OR invoices.organization_id = ${organizationId})
     ORDER BY invoices.created_at DESC, invoices.id DESC
     LIMIT ${limit}`;
 }
@@ -1134,6 +1153,7 @@ export async function recordInvoiceExternalRef(
 export async function getAdjacentInvoiceIds(
   invoiceId: number,
   statuses = ["needs_review", "new", "failed"],
+  organizationId: string | null = null,
 ): Promise<{ prevId: number | null; nextId: number | null; position: number; total: number }> {
   type QueueRow = {
     prevId: number | null;
@@ -1152,15 +1172,17 @@ export async function getAdjacentInvoiceIds(
         COUNT(*) OVER () AS total
       FROM invoices
       WHERE status = ANY($1::text[])
+        AND ($3::text IS NULL OR organization_id = $3)
     )
     SELECT "prevId", "nextId", rn::INTEGER AS position, total::INTEGER AS total
     FROM queue
     WHERE id = $2
-    LIMIT 1`, [statuses, invoiceId]))[0] as unknown) as QueueRow | undefined;
+    LIMIT 1`, [statuses, invoiceId, organizationId]))[0] as unknown) as QueueRow | undefined;
 
   if (!row) {
     const totalRow = ((await sql.unsafe(`
-      SELECT COUNT(*) AS total FROM invoices WHERE status = ANY($1::text[])`, [statuses]))[0] as unknown) as { total: string };
+      SELECT COUNT(*) AS total FROM invoices WHERE status = ANY($1::text[])
+        AND ($2::text IS NULL OR organization_id = $2)`, [statuses, organizationId]))[0] as unknown) as { total: string };
     return { prevId: null, nextId: null, position: 0, total: Number(totalRow.total) };
   }
 

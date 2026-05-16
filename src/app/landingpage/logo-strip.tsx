@@ -50,7 +50,13 @@ function shuffle<T>(arr: T[]): T[] {
 
 export function LogoStrip() {
   const [logos, setLogos] = useState(POOL.slice(0, DISPLAY_COUNT));
-  useEffect(() => { setLogos(shuffle([...POOL]).slice(0, DISPLAY_COUNT)); }, []);
+  useEffect(() => {
+    // Deferred, um synchrones setState im Effekt (Hydration-Mismatch-Vermeidung) zu umgehen.
+    const t = setTimeout(() => {
+      setLogos(shuffle([...POOL]).slice(0, DISPLAY_COUNT));
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">

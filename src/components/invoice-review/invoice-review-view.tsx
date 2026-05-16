@@ -5,21 +5,29 @@ import { getExportTargets } from "@/exports/export-pipeline";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { InvoiceReviewForm } from "@/components/invoice-review/invoice-review-form";
 
-export async function InvoiceReviewView({ invoiceId }: { invoiceId: number }) {
-  const invoice = await getInvoiceDetail(invoiceId);
+export async function InvoiceReviewView({
+  invoiceId,
+  organizationId,
+}: {
+  invoiceId: number;
+  organizationId?: string | null;
+}) {
+  const auth = await getCurrentAuth();
+  const orgId =
+    organizationId !== undefined ? organizationId : auth?.organization?.id ?? null;
+
+  const invoice = await getInvoiceDetail(invoiceId, orgId);
 
   if (!invoice) {
     return null;
   }
 
-  const auth = await getCurrentAuth();
-
   const [vendors, duplicateCandidates, vendorSuggestions, exportTargetsAll, adjacent] = await Promise.all([
     getVendors(),
-    getInvoiceReviewOptions(invoiceId),
+    getInvoiceReviewOptions(invoiceId, 50, orgId),
     getVendorSuggestions(invoiceId, 3),
-    getExportTargets(auth?.organization?.id ?? null),
-    getAdjacentInvoiceIds(invoiceId),
+    getExportTargets(orgId),
+    getAdjacentInvoiceIds(invoiceId, undefined, orgId),
   ]);
 
   const exportTargets = exportTargetsAll.filter((t) => t.enabled && t.recipientEmail);

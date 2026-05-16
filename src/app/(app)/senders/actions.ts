@@ -11,6 +11,7 @@ import {
 } from "@/senders/discovered-senders";
 import { rematchUnmatchedInvoices } from "@/vendors/auto-alias";
 import { matchVendor } from "@/vendors/matcher";
+import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type SenderActionState = {
   status: "idle" | "success" | "error";
@@ -51,6 +52,7 @@ export async function blockSenderAction(
   formData: FormData,
 ): Promise<SenderActionState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const senderId = parseSenderId(formData);
     const reason = String(formData.get("reason") || "").trim() || null;
@@ -72,6 +74,7 @@ export async function unblockSenderAction(
   formData: FormData,
 ): Promise<SenderActionState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const senderId = parseSenderId(formData);
     const sender = await getSenderRow(senderId);
@@ -92,6 +95,7 @@ export async function linkSenderToVendorAction(
   formData: FormData,
 ): Promise<SenderActionState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const senderId = parseSenderId(formData);
     const rawVendor = String(formData.get("vendorId") || "").trim();
@@ -130,6 +134,7 @@ export async function createVendorFromSenderAction(
   formData: FormData,
 ): Promise<SenderActionState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const senderId = parseSenderId(formData);
     const sender = await getSenderRow(senderId);
@@ -193,6 +198,7 @@ export async function autoAssignSendersAction(
   _previousState: SenderActionState,
 ): Promise<SenderActionState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const result = await autoAssignSenders();
     refreshSenderViews();
@@ -218,6 +224,7 @@ export async function backfillSendersAction(
   _previousState: SenderActionState,
 ): Promise<SenderActionState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const result = await backfillFromMailMessages();
     refreshSenderViews();
@@ -237,6 +244,7 @@ export async function rematchInvoicesAction(
   _previousState: SenderActionState,
 ): Promise<SenderActionState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const result = await rematchUnmatchedInvoices(matchVendor);
     refreshSenderViews();

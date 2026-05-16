@@ -221,11 +221,11 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     const ids = await sql.begin(async (tx) => {
       const invoiceRows = await tx<{ id: number }[]>`
         INSERT INTO invoices (
-          vendor_id, source, status, invoice_number, invoice_date, amount_gross, currency,
-          confidence, dedupe_key, raw_text_path
+          organization_id, vendor_id, source, status, invoice_number, invoice_date,
+          amount_gross, currency, confidence, dedupe_key, raw_text_path
         )
         VALUES (
-          ${vendor.vendorId}, ${input.sourceType}, ${status},
+          ${input.organizationId ?? null}, ${vendor.vendorId}, ${input.sourceType}, ${status},
           ${parsed.invoiceNumber}, ${parsed.invoiceDate}, ${parsed.amountGross},
           ${parsed.currency}, ${confidence}, ${sha256}, ${rawTextPath}
         )

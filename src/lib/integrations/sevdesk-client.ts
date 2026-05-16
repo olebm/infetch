@@ -8,7 +8,6 @@
  * Doku: https://api.sevdesk.de/
  */
 
-import fs from "node:fs/promises";
 
 const SEVDESK_BASE_URL = "https://my.sevdesk.de/api/v1";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -91,12 +90,11 @@ export async function verifySevdeskConnection(apiKey: string): Promise<SevdeskUs
  */
 export async function uploadSevdeskTempFile(
   apiKey: string,
-  pdfPath: string,
+  pdfContent: Buffer,
   filename: string,
 ): Promise<SevdeskTempFileResponse> {
-  const pdfBuffer = await fs.readFile(pdfPath);
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(pdfBuffer)], { type: "application/pdf" }), filename);
+  form.append("file", new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }), filename);
 
   const response = await sevdeskFetch(apiKey, "/Voucher/Factory/uploadTempFile", {
     method: "POST",

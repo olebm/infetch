@@ -38,9 +38,9 @@ describe("getEnvTier", () => {
 });
 
 describe("getLimits / TIER_LIMITS", () => {
-  it("Free-Tier: 30 Rechnungen/Monat, 500 MB, kein Export, keine Bulk-Downloads", () => {
+  it("Free-Tier: 15 Rechnungen/Monat, 500 MB, kein Export, keine Bulk-Downloads", () => {
     const limits = getLimits("free");
-    expect(limits.maxInvoicesPerMonth).toBe(30);
+    expect(limits.maxInvoicesPerMonth).toBe(15);
     expect(limits.maxStorageBytes).toBe(500 * 1024 * 1024);
     expect(limits.exportEnabled).toBe(false);
     expect(limits.bulkDownloadEnabled).toBe(false);

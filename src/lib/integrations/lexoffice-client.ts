@@ -8,7 +8,6 @@
  * Doku: https://developers.lexoffice.io/
  */
 
-import fs from "node:fs/promises";
 
 const LEXOFFICE_BASE_URL = "https://api.lexoffice.io/v1";
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -121,12 +120,11 @@ export async function createLexofficeVoucher(
 export async function attachLexofficeVoucherFile(
   apiKey: string,
   voucherId: string,
-  pdfPath: string,
+  pdfContent: Buffer,
   filename: string,
 ): Promise<void> {
-  const pdfBuffer = await fs.readFile(pdfPath);
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(pdfBuffer)], { type: "application/pdf" }), filename);
+  form.append("file", new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }), filename);
   form.append("type", "voucher");
 
   const response = await lexofficeFetch(apiKey, `/vouchers/${voucherId}/files`, {
@@ -150,12 +148,11 @@ export async function attachLexofficeVoucherFile(
  */
 export async function uploadLexofficeFileToInbox(
   apiKey: string,
-  pdfPath: string,
+  pdfContent: Buffer,
   filename: string,
 ): Promise<{ id: string }> {
-  const pdfBuffer = await fs.readFile(pdfPath);
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(pdfBuffer)], { type: "application/pdf" }), filename);
+  form.append("file", new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }), filename);
   form.append("type", "voucher");
 
   const response = await lexofficeFetch(apiKey, "/files", {

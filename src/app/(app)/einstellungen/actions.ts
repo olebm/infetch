@@ -323,6 +323,8 @@ export async function saveMailboxCredentialsAction(
 export async function runImapScanAction(_previousState: CredentialFormState): Promise<CredentialFormState> {
   void _previousState;
 
+  await requireCurrentAuth();
+
   try {
     const result = await runPrimaryImapScan();
     revalidatePath("/");
@@ -350,6 +352,8 @@ export async function testMistralConnectionAction(
 ): Promise<CredentialFormState> {
   void _previousState;
 
+  await requireCurrentAuth();
+
   try {
     const result = await verifyMistralConnection();
     revalidatePath("/");
@@ -368,6 +372,8 @@ export async function testImapConnectionAction(
   formData: FormData,
 ): Promise<CredentialFormState> {
   void _previousState;
+
+  await requireCurrentAuth();
 
   try {
     const slotParam = String(formData.get("imapSlot") || "primary").trim();
@@ -394,6 +400,8 @@ export async function testSmtpConnectionAction(
   formData: FormData,
 ): Promise<CredentialFormState> {
   void _previousState;
+
+  await requireCurrentAuth();
 
   try {
     const slotParam = String(formData.get("smtpSlot") || "primary").trim();
@@ -484,6 +492,7 @@ export async function saveAutoApprovalRuleAction(
   formData: FormData,
 ): Promise<AutoApprovalRuleFormState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const idValue = String(formData.get("id") || "").trim();
     const vendorIdValue = String(formData.get("vendorId") || "").trim();
@@ -533,6 +542,7 @@ export async function deleteAutoApprovalRuleAction(
   formData: FormData,
 ): Promise<AutoApprovalRuleFormState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const idValue = String(formData.get("id") || "").trim();
     const id = Number(idValue);
@@ -674,6 +684,7 @@ export async function updateConfidenceThresholdAction(
   formData: FormData,
 ): Promise<ConfidenceThresholdState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const raw = Number(formData.get("confidence"));
     if (isNaN(raw) || raw < 0.5 || raw > 0.99) {
@@ -695,6 +706,7 @@ export async function disconnectIntegrationAction(
   formData: FormData,
 ): Promise<IntegrationFormState> {
   void _previousState;
+  await requireCurrentAuth();
   try {
     const provider = String(formData.get("provider") || "").trim() as IntegrationProvider;
     if (!["lexoffice", "sevdesk", "datev"].includes(provider)) {

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db/client";
 import { syncStoredInvoiceFileNamesForInvoice } from "@/invoices/file-names";
 import { importManualPdf } from "@/invoices/import-pipeline";
-import { getCurrentAuth } from "@/lib/auth/current";
+import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
 import { runMissingInvoiceCheck } from "@/invoices/missing-check";
 import { updateInvoiceReview, type ReviewStatus } from "@/invoices/review";
 import { learnFromManualMatch } from "@/vendors/auto-alias";
@@ -53,6 +53,8 @@ export async function updateInvoiceReviewAction(
   formData: FormData,
 ): Promise<InvoiceReviewState> {
   void _previousState;
+
+  await requireCurrentAuth();
 
   try {
     const invoiceId = Number(formData.get("invoiceId"));
@@ -170,16 +172,19 @@ function getReviewSuccessMessage(status: ReviewStatus) {
 // ─── Privat markieren ────────────────────────────────────────────────────────
 
 export async function markInvoicePrivateAction(invoiceId: number): Promise<void> {
+  await requireCurrentAuth();
   await sql`UPDATE invoices SET is_private = TRUE WHERE id = ${invoiceId}`;
   revalidatePath("/audit");
 }
 
 export async function restoreInvoiceFromPrivateAction(invoiceId: number): Promise<void> {
+  await requireCurrentAuth();
   await sql`UPDATE invoices SET is_private = FALSE WHERE id = ${invoiceId}`;
   revalidatePath("/audit");
 }
 
 export async function markSenderDomainPrivateAction(domain: string): Promise<void> {
+  await requireCurrentAuth();
   const senders = await sql<Array<{ id: number }>>`
     SELECT id FROM discovered_senders WHERE from_domain = ${domain} AND blocked = FALSE
   `;

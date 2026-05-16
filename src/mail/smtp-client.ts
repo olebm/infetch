@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import nodemailer from "nodemailer";
 import { readCredentialSecret, updateCredentialVerificationStatus } from "@/lib/secrets/credential-store";
 import { getStoredSmtpAccount } from "@/mail/smtp-settings";
@@ -19,7 +18,8 @@ export type SendInvoiceMailOptions = {
   invoiceDate: string | null;
   amountGross: number | null;
   currency: string | null;
-  pdfPath: string;
+  /** PDF-Inhalt als Buffer (aus Supabase Storage geladen) — kein Dateisystempfad. */
+  pdfContent: Buffer;
   originalFilename: string;
 };
 
@@ -34,8 +34,8 @@ export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<
     throw new Error(`Kein Passwort für SMTP Postfach "${options.smtpSlot}" gefunden.`);
   }
 
-  if (!fs.existsSync(options.pdfPath)) {
-    throw new Error(`PDF-Datei nicht gefunden: ${options.pdfPath}`);
+  if (!options.pdfContent || options.pdfContent.byteLength === 0) {
+    throw new Error("PDF-Inhalt ist leer.");
   }
 
   const transporter = nodemailer.createTransport({
@@ -80,7 +80,7 @@ export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<
       attachments: [
         {
           filename: options.originalFilename,
-          path: options.pdfPath,
+          content: options.pdfContent,
           contentType: "application/pdf",
         },
       ],

@@ -122,21 +122,21 @@ describe("Quota-Enforcement (Tier-System)", () => {
 
   // ── canImportInvoice ──────────────────────────────────────────────────────────
 
-  it("canImportInvoice gibt allowed=true zurück wenn unter dem Free-Limit (30)", async () => {
+  it("canImportInvoice gibt allowed=true zurück wenn unter dem Free-Limit (15)", async () => {
     await setupOrg("free");
-    await insertInvoices(29);
+    await insertInvoices(14);
     const result = await canImportInvoice(TEST_ORG_ID);
     expect(result.allowed).toBe(true);
-    expect(result.current).toBe(29);
-    expect(result.max).toBe(30);
+    expect(result.current).toBe(14);
+    expect(result.max).toBe(15);
   });
 
-  it("canImportInvoice gibt allowed=false zurück wenn Free-Limit erreicht (30)", async () => {
+  it("canImportInvoice gibt allowed=false zurück wenn Free-Limit erreicht (15)", async () => {
     await setupOrg("free");
-    await insertInvoices(30);
+    await insertInvoices(15);
     const result = await canImportInvoice(TEST_ORG_ID);
     expect(result.allowed).toBe(false);
-    expect(result.current).toBe(30);
+    expect(result.current).toBe(15);
   });
 
   it("canImportInvoice gibt allowed=true für Pro-Org unter 150", async () => {
@@ -189,8 +189,8 @@ describe("Quota-Enforcement (Tier-System)", () => {
   });
 
   it("isNearInvoiceLimit gibt true zurück bei ≥80% des Limits", async () => {
-    await setupOrg("free"); // Limit: 30 → 80% = 24
-    await insertInvoices(24);
+    await setupOrg("free"); // Limit: 15 → 80% = 12
+    await insertInvoices(12);
     expect(await isNearInvoiceLimit(TEST_ORG_ID)).toBe(true);
   });
 
