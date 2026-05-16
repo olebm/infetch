@@ -9,6 +9,8 @@
  */
 
 
+import { withRetry, isRetryableHttpStatus, TransientHttpError } from "@/lib/retry";
+
 const LEXOFFICE_BASE_URL = "https://api.lexoffice.io/v1";
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -59,21 +61,37 @@ async function lexofficeFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  let lastResponse: Response | null = null;
   try {
-    const response = await fetch(`${LEXOFFICE_BASE_URL}${path}`, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-        ...init.headers,
-      },
+    return await withRetry(async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+      try {
+        const response = await fetch(`${LEXOFFICE_BASE_URL}${path}`, {
+          ...init,
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+            ...init.headers,
+          },
+        });
+        lastResponse = response;
+        // 429/5xx → Retry (lexoffice: 2 req/s Rate-Limit). Andere Status
+        // (inkl. 4xx) gehen unverändert an den Aufrufer zurück.
+        if (isRetryableHttpStatus(response.status)) {
+          throw new TransientHttpError(response.status);
+        }
+        return response;
+      } finally {
+        clearTimeout(timeout);
+      }
     });
-    return response;
-  } finally {
-    clearTimeout(timeout);
+  } catch (err) {
+    // Retries erschöpft bei retrybarem Status → letzte Response zurückgeben,
+    // damit die bestehende Status-Fehlerbehandlung des Aufrufers greift.
+    if (err instanceof TransientHttpError && lastResponse) return lastResponse;
+    throw err;
   }
 }
 

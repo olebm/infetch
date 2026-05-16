@@ -3,6 +3,7 @@ import { sendInvoiceMail } from "@/mail/smtp-client";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 import { canExport } from "@/lib/tier";
 import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";
+import { withAdvisoryLock } from "@/lib/db/advisory-lock";
 
 export type DispatchResult = {
   enqueued: number;
@@ -51,6 +52,14 @@ export async function enqueueReadyInvoices(): Promise<number> {
 }
 
 export async function dispatchPendingExports(): Promise<DispatchResult> {
+  return withAdvisoryLock(
+    "export_dispatch",
+    dispatchPendingExportsImpl,
+    () => ({ enqueued: 0, sent: 0, failed: 0, total: 0 }),
+  );
+}
+
+async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
   const enqueued = await enqueueReadyInvoices();
 
   const rows = await sql<PendingExportRow[]>`

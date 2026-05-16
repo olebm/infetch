@@ -2,6 +2,9 @@ import { appConfig } from "@/lib/config/env";
 import { callMistralInvoiceExtractor } from "@/ai/mistral-client";
 import { invoiceAiExtractionSchema, type InvoiceAiExtraction } from "@/ai/schemas";
 import { recordUsageEvent, estimateMistralCostCents } from "@/lib/usage/track";
+import { withRetry, isRetryableHttpStatus, TransientHttpError } from "@/lib/retry";
+
+const AI_PROXY_TIMEOUT_MS = 45_000;
 
 export type AiExtractRequest = {
   pdfText: string;
@@ -46,10 +49,24 @@ async function callViaHttp(input: AiExtractRequest): Promise<AiExtractResult> {
   if (appConfig.aiProxy.token) {
     headers["authorization"] = `Bearer ${appConfig.aiProxy.token}`;
   }
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(input),
+  const response = await withRetry(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), AI_PROXY_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(input),
+        signal: controller.signal,
+      });
+      // 429/5xx → Retry; sonstige Fehlerstatus unverändert an Aufrufer.
+      if (isRetryableHttpStatus(res.status)) {
+        throw new TransientHttpError(res.status);
+      }
+      return res;
+    } finally {
+      clearTimeout(timeout);
+    }
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");

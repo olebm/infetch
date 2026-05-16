@@ -9,6 +9,8 @@
  */
 
 
+import { withRetry, isRetryableHttpStatus, TransientHttpError } from "@/lib/retry";
+
 const SEVDESK_BASE_URL = "https://my.sevdesk.de/api/v1";
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -43,20 +45,33 @@ async function sevdeskFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  let lastResponse: Response | null = null;
   try {
-    return await fetch(`${SEVDESK_BASE_URL}${path}`, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        Authorization: apiKey,
-        Accept: "application/json",
-        ...init.headers,
-      },
+    return await withRetry(async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+      try {
+        const response = await fetch(`${SEVDESK_BASE_URL}${path}`, {
+          ...init,
+          signal: controller.signal,
+          headers: {
+            Authorization: apiKey,
+            Accept: "application/json",
+            ...init.headers,
+          },
+        });
+        lastResponse = response;
+        if (isRetryableHttpStatus(response.status)) {
+          throw new TransientHttpError(response.status);
+        }
+        return response;
+      } finally {
+        clearTimeout(timeout);
+      }
     });
-  } finally {
-    clearTimeout(timeout);
+  } catch (err) {
+    if (err instanceof TransientHttpError && lastResponse) return lastResponse;
+    throw err;
   }
 }
 

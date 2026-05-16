@@ -2,6 +2,7 @@ import type { FetchMessageObject, ImapFlow } from "imapflow";
 import { sql } from "@/lib/db/client";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
+import { withAdvisoryLock } from "@/lib/db/advisory-lock";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { getOrgTier, getScanSinceDate } from "@/lib/tier";
 import {
@@ -36,7 +37,7 @@ function asConfiguredAccount(account: PrimaryImapAccount): ConfiguredImapAccount
   return { ...account, label, credentialOwnerId };
 }
 
-export async function runPrimaryImapScan(input?: {
+type RunPrimaryImapScanInput = {
   client?: ImapClientLike;
   account?: PrimaryImapAccount;
   accountClients?: Array<{ account: PrimaryImapAccount; client: ImapClientLike }>;
@@ -46,7 +47,33 @@ export async function runPrimaryImapScan(input?: {
   bypassQuota?: boolean;
   /** Nur Accounts dieser Organisation scannen. */
   limitToOrgId?: string | null;
-}): Promise<ImapScanResult> {
+};
+
+export async function runPrimaryImapScan(
+  input?: RunPrimaryImapScanInput,
+): Promise<ImapScanResult> {
+  // Cross-Prozess-Single-Runner: verhindert Doppelverarbeitung bei
+  // gleichzeitigem Cron-Tick + manuellem Trigger / mehreren Replicas.
+  return withAdvisoryLock(
+    "imap_scan",
+    () => runPrimaryImapScanImpl(input),
+    () => ({
+      syncRunId: 0,
+      messagesSeen: 0,
+      messagesProcessed: 0,
+      pdfsFound: 0,
+      imported: 0,
+      duplicates: 0,
+      failed: 0,
+      accountsScanned: 0,
+      blockedSenders: 0,
+    }),
+  );
+}
+
+async function runPrimaryImapScanImpl(
+  input?: RunPrimaryImapScanInput,
+): Promise<ImapScanResult> {
   const triggeredBy = input?.bypassQuota ? "retroactive_scan" : "user";
   const syncRunRows = await sql<{ id: number }[]>`
     INSERT INTO sync_runs (type, status, triggered_by, started_at)
@@ -267,6 +294,7 @@ async function processMessage(
   const organizationId = orgRows[0]?.organizationId ?? null;
 
   let importedForMessage = 0;
+  let quotaBlocked = false;
   for (const attachment of parsed.pdfAttachments) {
     const result = await importPdfBuffer({
       buffer: attachment.content,
@@ -284,6 +312,9 @@ async function processMessage(
       summary.duplicates += 1;
     } else {
       summary.failed += 1;
+      if (!result.ok && result.status === "quota_exceeded") {
+        quotaBlocked = true;
+      }
     }
   }
 
@@ -294,6 +325,14 @@ async function processMessage(
       hadPdfAttachments: true,
       pdfsImported: importedForMessage,
     });
+  }
+
+  // Bei Quota-Block die Nachricht NICHT als verarbeitet markieren (processed_at
+  // bliebe sonst gesetzt → nie erneuter Versuch). So wird sie im nächsten Scan
+  // bzw. Folgemonat (wieder freies Kontingent) erneut importiert. Bereits
+  // importierte Anhänge sind via SHA256-Dedupe idempotent.
+  if (quotaBlocked && importedForMessage === 0) {
+    return;
   }
 
   await markMailMessage(mailMessageId, importedForMessage > 0 ? "processed" : "no_new_invoice");

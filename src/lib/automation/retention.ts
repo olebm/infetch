@@ -18,10 +18,19 @@ export function getRetentionMonths(): number {
 
 export async function runRetention(): Promise<{ deletedMailMessages: number; cutoffMonths: number }> {
   const months = getRetentionMonths();
+  // seen_at ist eine TEXT-Spalte. Ein einzelner nicht-ISO-parsbarer Wert würde
+  // sonst den gesamten DELETE mit Cast-Fehler abbrechen (Retention läuft nie).
+  // CASE garantiert, dass ::timestamptz nur ausgewertet wird, wenn der Wert
+  // einem ISO-Datumspräfix entspricht; alles andere wird übersprungen.
   const rows = await sql<{ id: number }[]>`
     DELETE FROM mail_messages
     WHERE seen_at IS NOT NULL
-      AND seen_at::timestamptz < (NOW() - (${months} || ' months')::interval)
+      AND (
+        CASE
+          WHEN seen_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+          THEN seen_at::timestamptz
+        END
+      ) < (NOW() - (${months} || ' months')::interval)
     RETURNING id
   `;
   return { deletedMailMessages: rows.length, cutoffMonths: months };

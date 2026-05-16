@@ -1,5 +1,6 @@
 import { Mistral } from "@mistralai/mistralai";
 import { appConfig } from "@/lib/config/env";
+import { withRetry } from "@/lib/retry";
 import {
   readCredentialSecret,
   updateCredentialVerificationStatus,
@@ -37,7 +38,7 @@ export async function callMistralInvoiceExtractor(request: MistralInvoiceExtract
   }
 
   const client = new Mistral({ apiKey, timeoutMs: 30_000 });
-  const response = await client.chat.complete(
+  const response = await withRetry(() => client.chat.complete(
     {
       model: request.model || appConfig.mistral.model,
       temperature: 0,
@@ -69,7 +70,7 @@ export async function callMistralInvoiceExtractor(request: MistralInvoiceExtract
       ],
     },
     { timeoutMs: 30_000 },
-  );
+  ));
 
   const content = response.choices[0]?.message.content;
   if (typeof content !== "string") {

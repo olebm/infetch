@@ -34,7 +34,14 @@ export async function matchVendor(signals: string[]): Promise<VendorMatch> {
     if (!matched) continue;
 
     const confidence = row.matchType === "domain" || row.matchType === "exact" ? 0.9 : 0.72;
-    if (!best || confidence > best.confidence || row.priority < best.priority) {
+    // Höchste Confidence gewinnt; Priority ist NUR Tiebreak bei gleicher Confidence.
+    // (Vorher überschrieb ein schwächerer Treffer mit niedrigerer Priority-Zahl
+    //  fälschlich einen hochkonfidenten Domain/Exact-Treffer.)
+    if (
+      !best ||
+      confidence > best.confidence ||
+      (confidence === best.confidence && row.priority < best.priority)
+    ) {
       best = {
         vendorId: row.vendorId,
         vendorName: row.vendorName,
