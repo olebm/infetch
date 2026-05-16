@@ -19,6 +19,9 @@ export async function completeOnboardingAction(
   formData: FormData,
 ): Promise<OnboardingState> {
   void _prev;
+
+  const auth = await requireCurrentAuth();
+
   try {
     const email = String(formData.get("email") || "").trim();
     const password = String(formData.get("password") || "");
@@ -74,7 +77,6 @@ export async function completeOnboardingAction(
     // UND aktive Organisation. Sonst landen Datensätze mit organization_id=NULL
     // in mail_accounts (über den service_role-Client, RLS bypass), was den
     // unique-org-scope von Migration 0012 umgehen würde.
-    const auth = await requireCurrentAuth();
     if (!auth.organization) {
       return {
         status: "error",

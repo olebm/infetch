@@ -38,9 +38,9 @@ export async function saveMistralCredentialAction(
 ): Promise<CredentialFormState> {
   void _previousState;
 
-  try {
-    const auth = await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
 
+  try {
     const apiKey = String(formData.get("mistralApiKey") || "").trim();
     if (apiKey.length < 16) {
       return { status: "error", message: "Bitte einen gültigen Mistral API Key eingeben." };
@@ -68,8 +68,9 @@ export async function saveImapCredentialAction(
 ): Promise<CredentialFormState> {
   void _previousState;
 
+  const auth = await requireCurrentAuth();
+
   try {
-    const auth = await requireCurrentAuth();
     const slotParam = String(formData.get("imapSlot") || "primary").trim();
     const slot = IMAP_MAIL_ACCOUNT_SLOTS.find((s) => s.ownerId === slotParam);
     if (!slot) {
@@ -161,8 +162,9 @@ export async function saveSmtpCredentialAction(
 ): Promise<CredentialFormState> {
   void _previousState;
 
+  const auth = await requireCurrentAuth();
+
   try {
-    const auth = await requireCurrentAuth();
     const slotParam = String(formData.get("smtpSlot") || "primary").trim();
     const slot = SMTP_ACCOUNT_SLOTS.find((s) => s.ownerId === slotParam);
     if (!slot) {
@@ -216,9 +218,10 @@ export async function saveMailboxCredentialsAction(
   formData: FormData,
 ): Promise<CredentialFormState> {
   void _previousState;
-  try {
-    const auth = await requireCurrentAuth();
 
+  const auth = await requireCurrentAuth();
+
+  try {
     const mailSlot   = (String(formData.get("mailSlot") || "primary") === "secondary" ? "secondary" : "primary") as "primary" | "secondary";
     const slotLabel  = mailSlot === "secondary" ? "Secondary IMAP" : "Primary IMAP";
     const slotPwd    = mailSlot === "secondary" ? "Secondary IMAP Password" : "Primary IMAP Password";
@@ -428,8 +431,9 @@ export async function saveExportTargetAction(
 ): Promise<CredentialFormState> {
   void _previousState;
 
+  const auth = await requireCurrentAuth();
+
   try {
-    const auth = await requireCurrentAuth();
     if (!auth.organization) {
       return { status: "error", message: "Keine aktive Organisation." };
     }
