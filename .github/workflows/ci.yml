@@ -171,9 +171,18 @@ jobs:
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
-    # Nur auf PRs — Preview-URL ist Voraussetzung
+    # Selbst-gehostet: Supabase-Stack + Next-Dev-Server im Job, kein Vercel-Preview.
     if: github.event_name == 'pull_request'
     needs: [lint, typecheck, test]
+    env:
+      # Dev-Server läuft auf :3456 (= Playwright-Default-baseURL).
+      # next dev → NODE_ENV=development, daher ist /api/test/login aktiv
+      # (next start würde NODE_ENV=production erzwingen → Route 404).
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3456
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3456
+      ENABLE_TEST_LOGIN: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      SUPABASE_VERSION: "2.98.2"
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -185,17 +194,60 @@ jobs:
         run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
-      - name: Wait for Vercel Preview
-        uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
-        id: preview
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          max_timeout: 300
+      - name: Start Supabase local stack
+        run: npx --yes "supabase@${SUPABASE_VERSION}" start
+      - name: Export Supabase connection env
+        run: |
+          set -euo pipefail
+          npx --yes "supabase@${SUPABASE_VERSION}" status -o json > supabase-status.json
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const s = JSON.parse(fs.readFileSync("supabase-status.json", "utf8"));
+          const map = {
+            NEXT_PUBLIC_SUPABASE_URL: s.API_URL,
+            NEXT_PUBLIC_SUPABASE_ANON_KEY: s.ANON_KEY,
+            SUPABASE_SERVICE_ROLE_KEY: s.SERVICE_ROLE_KEY,
+            DATABASE_URL: s.DB_URL,
+          };
+          const missing = Object.entries(map).filter(([, v]) => !v).map(([k]) => k);
+          if (missing.length) {
+            console.error("Missing Supabase status keys:", missing.join(", "));
+            console.error("Available keys:", Object.keys(s).join(", "));
+            process.exit(1);
+          }
+          fs.appendFileSync(
+            process.env.GITHUB_ENV,
+            Object.entries(map).map(([k, v]) => `${k}=${v}`).join("\n") + "\n",
+          );
+          NODE
+      - name: Start Next dev server
+        run: |
+          mkdir -p tests/e2e/.auth
+          nohup npx next dev -H 127.0.0.1 -p 3456 --turbopack \
+            > next-dev.log 2>&1 &
+          echo $! > next-dev.pid
+      - name: Wait for app + warm up routes
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null "http://127.0.0.1:3456/login"; then
+              echo "Dev server up after ${i}s"; break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "::error::Dev server did not start in time"; cat next-dev.log; exit 1
+            fi
+            sleep 1
+          done
+          # Routen vorkompilieren (Turbopack kompiliert on-demand) damit der
+          # erste echte Test-Request nicht im 15s-Timeout des Setups hängt.
+          for route in /login / /audit /einstellungen /konto /senders /invoices /exports /inbox; do
+            curl -s -o /dev/null -L "http://127.0.0.1:3456${route}" || true
+          done
       - name: Run E2E tests
         run: npx playwright test
-        env:
-          PLAYWRIGHT_BASE_URL: ${{ steps.preview.outputs.url }}
-          ENABLE_TEST_LOGIN: "true"
+      - name: Dump server log on failure
+        if: failure()
+        run: tail -n 200 next-dev.log || true
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
