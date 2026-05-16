@@ -90,6 +90,7 @@ jobs:
           psql "$DATABASE_URL" -f supabase/migrations/0015_perf_indexes.sql
           psql "$DATABASE_URL" -f supabase/migrations/0016_stripe_idempotency.sql
           psql "$DATABASE_URL" -f supabase/migrations/0017_integration_targets_bool.sql
+          psql "$DATABASE_URL" -f supabase/migrations/0018_stripe_event_ordering.sql
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       - name: Patch schema for CI (boolean columns + vault stub + seed data)
