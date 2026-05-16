@@ -103,7 +103,7 @@ export default async function LoginPage({
               Einloggen oder Account erstellen
             </h1>
             <p className="mt-1 text-sm text-muted">
-              Wir schicken dir einen Magic-Link. Kein Passwort.
+              Wir schicken dir einen Login-Code. Kein Passwort.
             </p>
 
             <AuthErrorBanner queryError={queryError} />
@@ -112,7 +112,7 @@ export default async function LoginPage({
             <LoginForm next={next} />
 
             <p className="mt-6 text-xs text-muted">
-              Mit Klick auf &bdquo;Magic-Link senden&ldquo; akzeptierst du{" "}
+              Mit Klick auf &bdquo;Login-Code senden&ldquo; akzeptierst du{" "}
               <Link href="/agb" className="underline underline-offset-4 decoration-line hover:text-ink">Nutzungsbedingungen</Link>,{" "}
               <Link href="/datenschutz" className="underline underline-offset-4 decoration-line hover:text-ink">Datenschutz</Link>{" "}
               und{" "}
