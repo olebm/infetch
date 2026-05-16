@@ -220,6 +220,8 @@ jobs:
             Object.entries(map).map(([k, v]) => `${k}=${v}`).join("\n") + "\n",
           );
           NODE
+      - name: Reconcile schema with app code (CI-only drift patch)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/reconcile-schema.sql
       - name: Start Next dev server
         run: |
           mkdir -p tests/e2e/.auth
