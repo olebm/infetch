@@ -42,6 +42,7 @@ export function RotatingRecipients() {
   useEffect(() => {
     // shuffle initial selection client-side to avoid hydration mismatch
     const shuffled = [...POOL].sort(() => Math.random() - 0.5);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSlots(shuffled.slice(0, DISPLAY));
   }, []);
 

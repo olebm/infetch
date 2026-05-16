@@ -19,6 +19,8 @@ export function AuthErrorBanner({ queryError }: { queryError?: string }) {
     const params = new URLSearchParams(hash);
     const code = params.get("error_code") ?? params.get("error") ?? "";
     const msg = MESSAGES[code];
+    // Hash ist nur clientseitig lesbar → setState nach Mount ist hier korrekt.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (msg) setMessage(msg);
   }, []);
 

@@ -15,7 +15,7 @@ vi.mock("@/lib/supabase/server", () => ({
         async download(key: string) {
           const buf = store.get(`${bucket}/${key}`);
           if (!buf) return { data: null, error: { message: "not found" } };
-          return { data: new Blob([buf]), error: null };
+          return { data: new Blob([new Uint8Array(buf)]), error: null };
         },
         async remove(keys: string[]) {
           for (const k of keys) store.delete(`${bucket}/${k}`);

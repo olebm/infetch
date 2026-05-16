@@ -50,7 +50,11 @@ function shuffle<T>(arr: T[]): T[] {
 
 export function LogoStrip() {
   const [logos, setLogos] = useState(POOL.slice(0, DISPLAY_COUNT));
-  useEffect(() => { setLogos(shuffle([...POOL]).slice(0, DISPLAY_COUNT)); }, []);
+  useEffect(() => {
+    // Shuffle bewusst erst nach Hydration (Server liefert stabile Reihenfolge → kein Mismatch).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLogos(shuffle([...POOL]).slice(0, DISPLAY_COUNT));
+  }, []);
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
