@@ -17,7 +17,6 @@ function clampConfidence(value: string | undefined, fallback: number) {
 export const appConfig = {
   host: process.env.HOST || "127.0.0.1",
   port: Number(process.env.PORT || 3000),
-  databaseUrl: resolveLocalPath(process.env.DATABASE_URL, "./data/invoice-agent.db"),
   invoiceStoragePath: resolveLocalPath(process.env.INVOICE_STORAGE_PATH, "./data/invoices"),
   rawTextStoragePath: resolveLocalPath(process.env.RAW_TEXT_STORAGE_PATH, "./data/raw-text"),
   portalStoragePath: resolveLocalPath(process.env.PORTAL_STORAGE_PATH, "./data/sessions"),

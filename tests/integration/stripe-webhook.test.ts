@@ -21,11 +21,12 @@ function signStripePayload(payload: string, secret: string): string {
 
 function makeSubscriptionEvent(
   type: "customer.subscription.updated" | "customer.subscription.deleted",
-  opts: { customerId?: string; priceId?: string; status?: string } = {},
+  opts: { customerId?: string; priceId?: string; status?: string; created?: number } = {},
 ): string {
   return JSON.stringify({
-    id: `evt_test_${Date.now()}`,
+    id: `evt_test_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     type,
+    created: opts.created ?? Math.floor(Date.now() / 1000),
     data: {
       object: {
         id: `sub_test_${Date.now()}`,
@@ -46,8 +47,9 @@ function makeCheckoutEvent(opts: {
   subscription?: string | null;
 } = { orgId: "org-test" }): string {
   return JSON.stringify({
-    id: `evt_test_checkout_${Date.now()}`,
+    id: `evt_test_checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     type: "checkout.session.completed",
+    created: Math.floor(Date.now() / 1000),
     data: {
       object: {
         id: `cs_test_${Date.now()}`,
@@ -211,6 +213,28 @@ describe("Stripe Webhook Handler", () => {
 
     const tier = await getOrgTier(TEST_ORG_ID);
     expect(tier).toBe("free");
+  });
+
+  it("ignoriert verspätetes (out-of-order) updated nach deleted", async () => {
+    const now = Math.floor(Date.now() / 1000);
+
+    // 1. Aktuelles "deleted" (Kündigung) → free
+    const delEvent = makeSubscriptionEvent("customer.subscription.deleted", {
+      status: "canceled",
+      created: now,
+    });
+    expect((await callWebhookHandler(delEvent)).status).toBe(200);
+    expect(await getOrgTier(TEST_ORG_ID)).toBe("free");
+
+    // 2. Verspätetes, ÄLTERES "updated (active)" trifft danach ein → muss
+    //    ignoriert werden (sonst fälschliches Re-Upgrade auf pro).
+    const staleEvent = makeSubscriptionEvent("customer.subscription.updated", {
+      priceId: TEST_PRICE_PRO,
+      status: "active",
+      created: now - 120,
+    });
+    expect((await callWebhookHandler(staleEvent)).status).toBe(200);
+    expect(await getOrgTier(TEST_ORG_ID)).toBe("free");
   });
 
   it("antwortet 200 bei unbekannten Event-Typen (kein Crash)", async () => {

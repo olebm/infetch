@@ -36,11 +36,16 @@ function getStripe() {
 async function setOrgTierByCustomer(
   customerId: string,
   tier: "free" | "pro" | "business",
+  eventTs: number,
 ): Promise<boolean> {
+  // Out-of-Order-Schutz: nur anwenden, wenn dieses Event nicht älter ist als
+  // das zuletzt verarbeitete. Ein verspätetes "updated(active)" nach einem
+  // "deleted" wird so ignoriert (Tier-Flapping verhindert).
   const result = await sql`
     UPDATE organizations
-    SET tier = ${tier}, updated_at = NOW()
+    SET tier = ${tier}, stripe_event_ts = ${eventTs}, updated_at = NOW()
     WHERE stripe_customer_id = ${customerId}
+      AND (stripe_event_ts IS NULL OR stripe_event_ts <= ${eventTs})
     RETURNING id
   `;
   return result.length > 0;
@@ -48,7 +53,10 @@ async function setOrgTierByCustomer(
 
 // ── DB: stripe_customer_id + org.tier nach Checkout setzen ───────────────────
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+async function handleCheckoutCompleted(
+  session: Stripe.Checkout.Session,
+  eventTs: number,
+): Promise<void> {
   const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
   const orgId = session.metadata?.organization_id;
 
@@ -72,10 +80,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     tier = tierFromPriceId(priceId) ?? "free";
   }
 
-  // Zuerst stripe_customer_id persistieren
+  // Zuerst stripe_customer_id persistieren. stripe_event_ts als Basislinie
+  // setzen, damit nachfolgende Subscription-Events korrekt geordnet werden.
   await sql`
     UPDATE organizations
-    SET stripe_customer_id = ${customerId}, tier = ${tier}, updated_at = NOW()
+    SET stripe_customer_id = ${customerId}, tier = ${tier},
+        stripe_event_ts = ${eventTs}, updated_at = NOW()
     WHERE id = ${orgId}
   `;
 
@@ -84,7 +94,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
 
 // ── DB: Tier bei Subscription-Update anpassen ─────────────────────────────────
 
-async function handleSubscriptionChanged(sub: Stripe.Subscription): Promise<void> {
+async function handleSubscriptionChanged(
+  sub: Stripe.Subscription,
+  eventTs: number,
+): Promise<void> {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const priceId = sub.items.data[0]?.price.id;
 
@@ -97,9 +110,11 @@ async function handleSubscriptionChanged(sub: Stripe.Subscription): Promise<void
     tier = "free";
   }
 
-  const updated = await setOrgTierByCustomer(customerId, tier);
+  const updated = await setOrgTierByCustomer(customerId, tier, eventTs);
   if (!updated) {
-    console.warn(`[stripe/webhook] subscription changed: no org found for customer ${customerId}`);
+    console.warn(
+      `[stripe/webhook] subscription changed: no org found OR stale/out-of-order event for customer ${customerId}`,
+    );
   } else {
     console.log(`[stripe/webhook] customer ${customerId} → tier=${tier} (status=${sub.status})`);
   }
@@ -145,15 +160,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Non-fatal: continue processing — idempotent handlers are safe to re-run
   }
 
+  // Stripe-Events tragen immer `created` (Unix-Sek.). Defensiver Fallback
+  // auf "jetzt", falls ein Event ohne created ankommt (kein harter Fehler).
+  const eventTs =
+    typeof event.created === "number"
+      ? event.created
+      : Math.floor(Date.now() / 1000);
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
-        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+        await handleCheckoutCompleted(
+          event.data.object as Stripe.Checkout.Session,
+          eventTs,
+        );
         break;
 
       case "customer.subscription.updated":
       case "customer.subscription.deleted":
-        await handleSubscriptionChanged(event.data.object as Stripe.Subscription);
+        await handleSubscriptionChanged(
+          event.data.object as Stripe.Subscription,
+          eventTs,
+        );
         break;
 
       default:

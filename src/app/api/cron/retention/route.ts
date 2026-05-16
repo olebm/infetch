@@ -16,7 +16,9 @@ export const runtime = "nodejs";
 export async function POST(req: Request): Promise<NextResponse> {
   const cronSecret = process.env.CRON_SECRET?.trim();
   if (!cronSecret) {
-    if ((process.env.NODE_ENV as string) === "production") {
+    // Ohne CRON_SECRET nur in lokaler Entwicklung offen. Staging/Preview/
+    // Test (oft mit echten Daten) erfordern den Secret — sonst 401.
+    if ((process.env.NODE_ENV as string) !== "development") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   } else {
