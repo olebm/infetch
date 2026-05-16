@@ -27,9 +27,25 @@ export function LoginForm({ next }: LoginFormProps) {
 
     if (result.ok) {
       setStep("code");
+    } else if (/rate limit/i.test(result.error)) {
+      // SMTP-Limit: evtl. wurde vorhin schon ein Code verschickt — nicht
+      // blockieren, sondern zur Code-Eingabe durchlassen.
+      setStep("code");
+      setErrorMsg(
+        "Wir konnten gerade keine neue E-Mail senden (Limit erreicht). Falls du bereits einen Code erhalten hast, gib ihn hier ein.",
+      );
     } else {
       setErrorMsg(result.error);
     }
+  }
+
+  function goToCodeStep() {
+    if (!email.trim()) {
+      setErrorMsg("Bitte gib zuerst deine E-Mail-Adresse ein.");
+      return;
+    }
+    setErrorMsg("");
+    setStep("code");
   }
 
   async function handleVerify(e: React.FormEvent) {
@@ -136,6 +152,14 @@ export function LoginForm({ next }: LoginFormProps) {
         className="h-10 w-full rounded bg-brand text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
       >
         {status === "loading" ? "Wird gesendet…" : "Code anfordern"}
+      </button>
+
+      <button
+        type="button"
+        onClick={goToCodeStep}
+        className="text-xs text-muted underline underline-offset-4 decoration-line"
+      >
+        Ich habe bereits einen Code
       </button>
     </form>
   );
