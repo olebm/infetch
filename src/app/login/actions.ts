@@ -3,6 +3,70 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
 import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
+import { syncSupabaseUser } from "@/lib/auth/sync-supabase-user";
+
+export type OtpActionResult = { ok: true } | { ok: false; error: string };
+
+function normalizeEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed) ? trimmed : null;
+}
+
+/**
+ * Schritt 1: 6-stelligen OTP-Code per E-Mail anfordern.
+ *
+ * Kein `emailRedirectTo` → Supabase sendet den Code aus dem `{{ .Token }}`-
+ * Template statt eines klickbaren Links. Dadurch entfällt die PKCE-
+ * `code_verifier`-Cookie-Abhängigkeit (Geräte-/Browser-unabhängig) und
+ * Link-Scanner können den Token nicht vorab verbrauchen.
+ */
+export async function requestEmailOtp(email: string): Promise<OtpActionResult> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return { ok: false, error: "Bitte gib eine gültige E-Mail-Adresse ein." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.signInWithOtp({
+    email: normalized,
+    options: { shouldCreateUser: true },
+  });
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/**
+ * Schritt 2: OTP-Code serverseitig einlösen, Session-Cookies setzen,
+ * Postgres-Profil syncen und zum Ziel weiterleiten.
+ */
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+  nextRaw: unknown,
+): Promise<OtpActionResult> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return { ok: false, error: "Bitte gib eine gültige E-Mail-Adresse ein." };
+
+  const code = token.trim();
+  if (!/^\d{6}$/.test(code)) {
+    return { ok: false, error: "Der Code besteht aus 6 Ziffern." };
+  }
+
+  const next = sanitizeNext(nextRaw);
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: normalized,
+    token: code,
+    type: "email",
+  });
+
+  if (error || !data.user) {
+    return { ok: false, error: "Code ungültig oder abgelaufen. Bitte neuen Code anfordern." };
+  }
+
+  await syncSupabaseUser(data.user);
+  redirect(next);
+}
 
 const STUB_EMAIL = "test@infetch.local";
 const STUB_NAME = "Test User";

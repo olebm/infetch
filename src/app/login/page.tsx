@@ -103,16 +103,16 @@ export default async function LoginPage({
               Einloggen oder Account erstellen
             </h1>
             <p className="mt-1 text-sm text-muted">
-              Wir schicken dir einen Magic-Link. Kein Passwort.
+              Wir schicken dir einen 6-stelligen Code per E-Mail. Kein Passwort.
             </p>
 
             <AuthErrorBanner queryError={queryError} />
 
-            {/* Magic-Link Form */}
+            {/* OTP-Code Form */}
             <LoginForm next={next} />
 
             <p className="mt-6 text-xs text-muted">
-              Mit Klick auf &bdquo;Magic-Link senden&ldquo; akzeptierst du{" "}
+              Mit Klick auf &bdquo;Code anfordern&ldquo; akzeptierst du{" "}
               <Link href="/agb" className="underline underline-offset-4 decoration-line hover:text-ink">Nutzungsbedingungen</Link>,{" "}
               <Link href="/datenschutz" className="underline underline-offset-4 decoration-line hover:text-ink">Datenschutz</Link>{" "}
               und{" "}
