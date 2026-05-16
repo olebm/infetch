@@ -11,7 +11,7 @@ import {
   type PrimaryImapAccount,
 } from "@/mail/imap-client";
 import { imapCredentialOwnerIdForLabel, type ImapCredentialOwnerId, type ImapMailAccountLabel } from "@/mail/imap-account-slots";
-import { extractPdfAttachments } from "@/mail/attachment-extractor";
+import { extractPdfAttachments, bodyStructureHasPdf } from "@/mail/attachment-extractor";
 import { isSenderAutoIgnored, isSenderBlocked, recordSenderObservation } from "@/senders/discovered-senders";
 
 type ImapClientLike = Pick<ImapFlow, "connect" | "getMailboxLock" | "fetch" | "logout"> & {
@@ -112,9 +112,28 @@ export async function runPrimaryImapScan(input?: {
         const tier = await getTierCached(account.organizationId ?? null);
         const since = input?.sinceOverride ?? getScanSinceDate(tier, appConfig.syncMonthsBack);
         const bypassQuota = input?.bypassQuota ?? false;
-        for await (const message of client.fetch({ since }, { uid: true, envelope: true, source: true })) {
+
+        // Phase 1: nur BODYSTRUCTURE laden (kein Volltext). Mails ohne
+        // PDF-Anhang werden so nie heruntergeladen oder geparst.
+        const pdfUids: number[] = [];
+        for await (const meta of client.fetch({ since }, { uid: true, bodyStructure: true })) {
           summary.messagesSeen += 1;
-          await processMessage(account.id, uidValidity, message, summary, bypassQuota);
+          // Fehlt die BODYSTRUCTURE (Server-Limitierung), konservativ den
+          // Volltext laden, damit keine Rechnung verloren geht.
+          if (!meta.bodyStructure || bodyStructureHasPdf(meta.bodyStructure)) {
+            pdfUids.push(meta.uid);
+          }
+        }
+
+        // Phase 2: Volltext nur für Mails mit PDF-Anhang.
+        if (pdfUids.length > 0) {
+          for await (const message of client.fetch(
+            pdfUids,
+            { uid: true, envelope: true, source: true },
+            { uid: true },
+          )) {
+            await processMessage(account.id, uidValidity, message, summary, bypassQuota);
+          }
         }
       } finally {
         lock.release();

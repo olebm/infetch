@@ -108,7 +108,7 @@ Die folgenden Unterauftragsverarbeiter werden eingesetzt. Der Verantwortliche er
 | Supabase Inc. | Datenbank, Authentifizierung | EU (Frankfurt) | SOC 2 |
 | Brevo SAS | Transaktionale E-Mails | Frankreich (EU) | ISO 27001 |
 | Sentry | Fehler-Monitoring (anonymisiert) | USA | SCCs (Art. 46 DSGVO) |
-| [AI-Backend] | KI-Textextraktion aus Rechnungen | EU | [Zertifizierung] |
+| Mistral AI SAS | KI-Textextraktion aus Rechnungsdokumenten (eingebunden über den Backend-Proxy von Infetch) | Frankreich (EU) | DPA · keine Nutzung der Daten zu Modelltraining |
 | Stripe Payments Europe Ltd. | Zahlungsabwicklung | Irland (EU) | PCI DSS |
 
 ---
@@ -125,14 +125,14 @@ Es gilt deutsches Recht. Dieser AVV ist Bestandteil des Hauptvertrages. Bei Wide
 
 ---
 
-**Stand:** [Datum]  
+**Stand:** 16. Mai 2026  
 **Version:** 1.0
 
 ---
 
 ## Offene Punkte (ausfüllen vor Go-Live)
 
-- [ ] AI-Backend-Anbieter konkret benennen + Zertifizierungsstatus
+- [x] AI-Backend-Anbieter konkret benennen + Zertifizierungsstatus → Mistral AI SAS (FR/EU), via Backend-Proxy, kein Modelltraining
 - [ ] Sentry: SCCs prüfen und verlinken (https://sentry.io/legal/dpa/)
 - [ ] Supabase: EU-Region Frankfurt bestätigen (Supabase EU-hosted?)
 - [ ] Stand-Datum eintragen

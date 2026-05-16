@@ -1,5 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSupabaseSession } from "@/lib/supabase/middleware";
+import { apiIpLimiter, clientIpFromHeaders } from "@/lib/rate-limit";
+
+// Endpunkte mit eigener Auth bzw. eigenem Limiter — vom globalen API-Limit
+// ausgenommen (Webhooks/Cron werden von externen Diensten in Bursts gerufen).
+const RATE_LIMIT_EXEMPT_PREFIXES = [
+  "/api/stripe/webhook",
+  "/api/sentry-webhook",
+  "/api/cron",
+  "/api/ai",
+  "/api/inbound",
+  "/api/contact",
+  "/api/csp-report",
+  "/api/test",
+];
+
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 // ── Hostname-Routing ──────────────────────────────────────────────────────────
 // infetch.de / www.infetch.de  → Landing Page
@@ -36,6 +52,7 @@ const APP_PUBLIC_PREFIXES = [
   "/changelog",
   "/ueber-uns",
   "/api/test", // Test-Endpunkte (nur aktiv wenn ENABLE_TEST_LOGIN=true in der Route)
+  "/api/csp-report", // CSP-Telemetrie (Browser sendet ohne Auth/Cookies)
 ];
 
 function isPublicAppPath(pathname: string): boolean {
@@ -85,6 +102,24 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── App-Domain (app.infetch.de) + Lokale Entwicklung ─────────────────────
+
+  // Globales Per-IP-Limit auf mutierende API-Requests (Brute-Force/DoS-Schutz).
+  // Rein additiv: nur 429 bei Missbrauch, ändert sonst nichts am Auth-Flow.
+  if (
+    pathname.startsWith("/api/") &&
+    MUTATING_METHODS.has(request.method) &&
+    !matchesPrefix(pathname, RATE_LIMIT_EXEMPT_PREFIXES)
+  ) {
+    const verdict = apiIpLimiter.check(clientIpFromHeaders(request.headers));
+    if (!verdict.ok) {
+      const retryAfter = Math.max(1, Math.ceil((verdict.resetAt - Date.now()) / 1000));
+      return NextResponse.json(
+        { error: "rate_limited" },
+        { status: 429, headers: { "retry-after": String(retryAfter) } },
+      );
+    }
+  }
+
   // Supabase-Session in jedem Request refreshen (JWT-Rotation)
   const { response, userId } = await updateSupabaseSession(request);
 

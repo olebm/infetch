@@ -39,6 +39,26 @@ export async function extractPdfAttachments(source: Buffer): Promise<ParsedMailF
   };
 }
 
+type BodyStructureNode = {
+  type?: string;
+  parameters?: { [key: string]: string };
+  dispositionParameters?: { [key: string]: string };
+  childNodes?: BodyStructureNode[];
+};
+
+/**
+ * True wenn die IMAP-BODYSTRUCTURE einen PDF-Part enthält. Erlaubt es, den
+ * Volltext nur für Mails mit PDF-Anhang nachzuladen (Datenminimierung) —
+ * private Mails ohne Anhang werden nie heruntergeladen oder geparst.
+ */
+export function bodyStructureHasPdf(node: BodyStructureNode | null | undefined): boolean {
+  if (!node) return false;
+  if ((node.type || "").toLowerCase() === "application/pdf") return true;
+  const name = node.parameters?.name || node.dispositionParameters?.filename || "";
+  if (name.toLowerCase().endsWith(".pdf")) return true;
+  return (node.childNodes || []).some(bodyStructureHasPdf);
+}
+
 function normalizePdfFilename(filename: string | undefined, messageId: string | undefined, index: number) {
   if (filename?.toLowerCase().endsWith(".pdf")) return filename;
   const source = messageId ? messageId.replace(/[^a-z0-9]+/gi, "-").slice(0, 60) : `mail-attachment-${index + 1}`;

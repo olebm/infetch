@@ -1,5 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { extractPdfAttachments } from "@/mail/attachment-extractor";
+import { extractPdfAttachments, bodyStructureHasPdf } from "@/mail/attachment-extractor";
+
+describe("bodyStructureHasPdf", () => {
+  it("detects a direct application/pdf node", () => {
+    expect(bodyStructureHasPdf({ type: "application/pdf" })).toBe(true);
+  });
+
+  it("detects a PDF nested in a multipart structure", () => {
+    expect(
+      bodyStructureHasPdf({
+        type: "multipart/mixed",
+        childNodes: [
+          { type: "text/plain" },
+          { type: "application/pdf", dispositionParameters: { filename: "invoice.pdf" } },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("detects a PDF by filename when content-type is generic", () => {
+    expect(
+      bodyStructureHasPdf({
+        type: "multipart/mixed",
+        childNodes: [{ type: "application/octet-stream", parameters: { name: "Rechnung.PDF" } }],
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false for a mail without any PDF part", () => {
+    expect(
+      bodyStructureHasPdf({
+        type: "multipart/alternative",
+        childNodes: [
+          { type: "text/plain" },
+          { type: "text/html" },
+          { type: "image/png", parameters: { name: "logo.png" } },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for null/undefined", () => {
+    expect(bodyStructureHasPdf(null)).toBe(false);
+    expect(bodyStructureHasPdf(undefined)).toBe(false);
+  });
+});
 
 describe("mail attachment extractor", () => {
   it("extracts PDF attachments and normalizes metadata", async () => {

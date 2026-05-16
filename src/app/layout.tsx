@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { getLocale } from "@/lib/i18n";
+import { PlausibleAnalytics } from "@/components/analytics/plausible";
 import "@/app/globals.css";
 
 // PERFORMANCE (INFETCH-98): Schriften über next/font/google self-hosten statt
@@ -60,14 +62,18 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // lang muss die tatsächlich ausgelieferte Sprache widerspiegeln (A11y + SEO);
+  // vorher war "de" hart codiert, auch bei EN-Inhalt.
+  const locale = await getLocale();
   return (
-    <html lang="de" className={`${geist.variable} ${geistMono.variable}`}>
+    <html lang={locale} className={`${geist.variable} ${geistMono.variable}`}>
       <body>{children}</body>
+      <PlausibleAnalytics />
     </html>
   );
 }

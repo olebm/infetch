@@ -21,6 +21,10 @@ data/*.db-wal
 # Build artifacts
 tsconfig.tsbuildinfo
 
+# Supabase CLI local artifacts
+supabase/.temp/
+supabase/.branches/
+
 # macOS
 .DS_Store
 
