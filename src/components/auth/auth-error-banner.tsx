@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const MESSAGES: Record<string, string> = {
   otp_expired:    "Dieser Link ist abgelaufen — bitte fordere unten einen neuen an.",
@@ -8,18 +8,21 @@ const MESSAGES: Record<string, string> = {
   auth_error:     "Anmeldung fehlgeschlagen — bitte versuche es erneut.",
 };
 
-function resolveInitialMessage(queryError?: string): string | null {
-  if (queryError) return MESSAGES[queryError] ?? MESSAGES.auth_error;
-  if (typeof window === "undefined") return null;
-  const hash = window.location.hash.slice(1);
-  if (!hash) return null;
-  const params = new URLSearchParams(hash);
-  const code = params.get("error_code") ?? params.get("error") ?? "";
-  return MESSAGES[code] ?? null;
-}
-
 export function AuthErrorBanner({ queryError }: { queryError?: string }) {
-  const [message] = useState<string | null>(() => resolveInitialMessage(queryError));
+  const [message, setMessage] = useState<string | null>(
+    queryError ? (MESSAGES[queryError] ?? MESSAGES.auth_error) : null,
+  );
+
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    const code = params.get("error_code") ?? params.get("error") ?? "";
+    const msg = MESSAGES[code];
+    // Hash ist nur clientseitig lesbar → setState nach Mount ist hier korrekt.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (msg) setMessage(msg);
+  }, []);
 
   if (!message) return null;
 

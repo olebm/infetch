@@ -3,6 +3,7 @@
  * Uses service role key (bypasses RLS). Never call from browser.
  */
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { decryptBuffer, encryptBuffer, getStorageKey } from "@/lib/secrets/storage-crypto";
 
 export const BUCKETS = {
   INVOICES: "invoices",
@@ -20,7 +21,8 @@ export async function uploadToStorage(
   options?: { contentType?: string },
 ): Promise<void> {
   const supabase = createSupabaseAdminClient();
-  const body = typeof data === "string" ? Buffer.from(data, "utf8") : data;
+  const plain = typeof data === "string" ? Buffer.from(data, "utf8") : data;
+  const body = encryptBuffer(plain, await getStorageKey());
   const { error } = await supabase.storage.from(bucket).upload(key, body, {
     contentType: options?.contentType ?? "application/octet-stream",
     upsert: true,
@@ -33,7 +35,10 @@ export async function downloadFromStorage(bucket: BucketName, key: string): Prom
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.storage.from(bucket).download(key);
   if (error) throw new Error(`Storage download failed (${bucket}/${key}): ${error.message}`);
-  return Buffer.from(await (data as Blob).arrayBuffer());
+  const raw = Buffer.from(await (data as Blob).arrayBuffer());
+  // Legacy-Objekte (vor Einführung der Verschlüsselung) werden unverändert
+  // zurückgegeben; decryptBuffer erkennt das am fehlenden Envelope-Header.
+  return decryptBuffer(raw, await getStorageKey());
 }
 
 /** Delete a file. Silently ignores not-found. */

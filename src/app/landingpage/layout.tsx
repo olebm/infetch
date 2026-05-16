@@ -102,6 +102,30 @@ const appSchema = {
     "Infetch liest dein Postfach, erkennt jede Rechnung per KI und leitet sie automatisch an deine Buchhaltung weiter.",
 };
 
+// Organization-Schema — Basis für Knowledge Graph / GEO-Sichtbarkeit
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Infetch",
+  url: "https://infetch.de",
+  logo: "https://infetch.de/images/brand/infetch-logo.png",
+  email: "hallo@infetch.de",
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Hamburg",
+    addressCountry: "DE",
+  },
+};
+
+// WebSite-Schema
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Infetch",
+  url: "https://infetch.de",
+  inLanguage: "de-DE",
+};
+
 export default function LandingLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -112,6 +136,14 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(appSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
       />
       {children}
     </>

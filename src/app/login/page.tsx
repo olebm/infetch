@@ -9,11 +9,12 @@ import { loginAsTestUser } from "@/app/login/actions";
 
 export const dynamic = "force-dynamic";
 
+// Konsistent mit der Landingpage-Sicherheits-Sektion (Cloud-SaaS, EU-Hosting).
 const TRUST_ITEMS = [
-  { icon: Lock,     label: "Daten bei dir",  detail: "lokal in SQLite"      },
-  { icon: Globe2,   label: "EU-Hosting",     detail: "Frankfurt"            },
-  { icon: FileCode, label: "AGPL",           detail: "Open Source"          },
-  { icon: Shield,   label: "DSGVO",          detail: "per Konstruktion"     },
+  { icon: Globe2,   label: "EU-Server",       detail: "Frankfurt"        },
+  { icon: Lock,     label: "Verschlüsselt",   detail: "AES-256"          },
+  { icon: Shield,   label: "DSGVO",           detail: "AVV inklusive"    },
+  { icon: FileCode, label: "Volle Kontrolle", detail: "Export jederzeit" },
 ];
 
 export default async function LoginPage({
@@ -57,7 +58,7 @@ export default async function LoginPage({
           <div className="flex-1 flex items-center justify-center py-4">
             <div className="relative w-full max-w-[280px] rounded-xl overflow-hidden shadow-lift" style={{ aspectRatio: "2/3" }}>
               <Image
-                src="/images/photos/login-window.png"
+                src="/images/photos/login-window.webp"
                 alt="Person blickt ruhig aus dem Fenster — alles läuft automatisch"
                 fill
                 className="object-cover object-center"

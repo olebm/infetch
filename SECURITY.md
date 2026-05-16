@@ -41,8 +41,7 @@ Some of these are documented design trade-offs rather than vulnerabilities. They
 - **Single-user model.** Infetch has no concept of multiple users or tenants. If multiple OS users share the same machine, they share the same data directory unless paths are overridden.
 - **Local network exposure.** The app binds to `127.0.0.1:3000` by default. If you change the bind host, anyone on your network can access your invoices.
 - **OS Keychain dependency on macOS.** Credentials are stored via the macOS Keychain. On Linux containers, an env-based fallback is currently planned but not implemented — see [docs/self-hosting.md](docs/self-hosting.md).
-- **Mistral API exposure.** If AI extraction is enabled, PDF invoices and metadata are sent to Mistral's servers under your API key. You can disable this in `/einstellungen`.
-- **Browser sessions on disk.** Portal sessions (cookies, localStorage) are stored in `data/sessions/` as plain JSON. If your data directory is compromised, an attacker can replay your portal logins until the session expires.
+- **Mistral API exposure.** AI extraction is enabled by default (the product is built around full automation). When it runs, PDF invoices and extracted text are sent to Mistral's servers. You can disable it entirely via `MISTRAL_ENABLED=false` or in `/einstellungen`. Local extraction is always attempted first; Mistral is skipped when the local result is already sufficient.
 
 ## Production deployment notes
 
@@ -62,11 +61,30 @@ For self-hosted multi-tenant deployments (e.g. `app.infetch.de`), set:
 
 This is early-access software. Security fixes are applied to the latest `main` branch only. Once we tag a stable `1.0`, we will document a longer support window.
 
+## Data minimization
+
+- **IMAP scanning is attachment-scoped.** The scanner first fetches only the
+  `BODYSTRUCTURE` of each INBOX message and downloads the full message body
+  *only* for mails that actually contain a PDF attachment. Mails without an
+  attachment are never downloaded or parsed. If a server does not return a
+  body structure, the scanner falls back to a full fetch so no invoice is lost.
+- **Retention.** Mail-scan metadata (`mail_messages`: sender, subject, date) is
+  purged after `RETENTION_MAIL_METADATA_MONTHS` (default 12) via the
+  `/api/cron/retention` job. Invoices themselves are not auto-deleted.
+
 ## Cryptographic notes
 
 - TOTP secrets are stored in the OS Keychain.
+- Credentials (IMAP/SMTP passwords, API tokens) are stored in Supabase Vault
+  (pgsodium) or the OS Keychain — never in application tables in plaintext.
+- **At-rest encryption.** All Storage objects (invoice PDFs, extracted raw
+  text, portal sessions) are encrypted with AES-256-GCM before upload. The
+  master key lives in Supabase Vault. Objects written before this feature are
+  detected by a missing envelope header and read back transparently.
 - HTTPS is used for all outbound API calls (Mistral, IMAP/SMTP over TLS).
-- We do not implement custom cryptography. Where we need crypto, we use battle-tested libraries (`otplib` for TOTP, OS-provided TLS).
+- We do not implement custom cryptography. Where we need crypto, we use
+  battle-tested primitives (`node:crypto` AES-256-GCM, `otplib` for TOTP,
+  Supabase Vault/pgsodium, OS-provided TLS).
 
 ## Acknowledgments
 

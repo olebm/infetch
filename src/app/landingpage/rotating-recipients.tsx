@@ -40,12 +40,13 @@ export function RotatingRecipients() {
   const [fadingIdx, setFadingIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    // Initiale Auswahl client-seitig mischen (deferred, um Hydration-Mismatch
-    // und synchrones setState im Effekt zu vermeiden).
-    const initial = setTimeout(() => {
-      setSlots([...POOL].sort(() => Math.random() - 0.5).slice(0, DISPLAY));
-    }, 0);
+    // shuffle initial selection client-side to avoid hydration mismatch
+    const shuffled = [...POOL].sort(() => Math.random() - 0.5);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSlots(shuffled.slice(0, DISPLAY));
+  }, []);
 
+  useEffect(() => {
     const interval = setInterval(() => {
       const idx = Math.floor(Math.random() * DISPLAY);
       setFadingIdx(idx);
@@ -62,10 +63,7 @@ export function RotatingRecipients() {
       }, 280);
     }, 3000);
 
-    return () => {
-      clearTimeout(initial);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   return (

@@ -77,6 +77,9 @@ export default function LandingPage() {
             <p className="mt-6 text-lg text-muted max-w-[42ch] leading-relaxed">
               Infetch liest dein Postfach mit, erkennt jede Rechnung und schickt sie an deine Buchhaltung — automatisch.
             </p>
+            <p className="mt-3 text-sm text-muted max-w-[42ch]">
+              Für Freelancer, Agenturen und kleine Teams mit vielen SaaS-Abos.
+            </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link href="https://app.infetch.de/login" className="inline-flex h-11 px-5 rounded items-center bg-ink text-white text-sm font-medium hover:opacity-90">
                 Kostenlos starten
@@ -107,7 +110,7 @@ export default function LandingPage() {
           <div className="min-w-0 flex flex-col gap-5">
             <div className="relative w-full rounded-lg overflow-hidden shadow-lift" style={{ aspectRatio: "16/9" }}>
               <Image
-                src="/images/photos/hero-desk.png"
+                src="/images/photos/hero-desk.webp"
                 alt="Frau am Schreibtisch prüft automatisch weitergeleitete Rechnungen in Infetch"
                 fill
                 className="object-cover object-center"
@@ -189,6 +192,32 @@ export default function LandingPage() {
       </section>
 
       {/* ================================================================== */}
+      {/* TRUST RIEGEL                                                        */}
+      {/* ================================================================== */}
+      <section className="border-t border-line bg-paper">
+        <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-6">
+          <p className="text-center text-sm text-ink leading-relaxed max-w-2xl mx-auto">
+            Nur erkannte Rechnungs-PDFs werden gespeichert — der Rest deines
+            Postfachs bleibt unberührt und wird nie gespeichert.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-xs text-muted">
+            {[
+              "Verschlüsselt (AES-256)",
+              "EU-Server · Frankfurt",
+              "Keine KI-Trainingsnutzung",
+              "Jederzeit löschbar",
+              "AVV inklusive",
+            ].map((t, i) => (
+              <span key={t} className="flex items-center gap-2">
+                {i > 0 && <span className="hidden sm:inline w-1 h-1 rounded-full bg-muted/40" />}
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================== */}
       {/* LOGO STRIP                                                          */}
       {/* ================================================================== */}
       <section className="border-y border-line bg-paper">
@@ -211,7 +240,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-[1fr_1.1fr] gap-0 md:gap-12 items-stretch">
             <div className="relative hidden md:block min-h-[400px] my-10 rounded-lg overflow-hidden">
               <Image
-                src="/images/photos/problem-invoices.png"
+                src="/images/photos/problem-invoices.webp"
                 alt="Stapel ungeordneter Rechnungen und Belege auf einem Schreibtisch — das typische Chaos vor Infetch"
                 fill
                 className="object-cover object-center"
@@ -331,10 +360,10 @@ export default function LandingPage() {
       <section className="bg-ink text-white border-b border-white/10">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-12 grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
-            { value: "< 5 Min",  label: "bis erste Rechnung erkannt" },
-            { value: "99%",      label: "Erkennungsrate bei bekannten Anbietern" },
-            { value: "0",        label: "manuelle Schritte — vollautomatisch" },
-            { value: "EU",       label: "Server · DSGVO · kein US-Cloud-Anbieter" },
+            { value: "≈ 4 Min", label: "Einrichtung — danach läuft alles allein" },
+            { value: "KI",       label: "erkennt Anbieter, Betrag & Steuersatz automatisch" },
+            { value: "0 €",      label: "kostenlos starten · keine Kreditkarte" },
+            { value: "EU",       label: "Server in Frankfurt · DSGVO · AVV inklusive" },
           ].map(({ value, label }) => (
             <div key={label}>
               <div className="font-display text-4xl md:text-5xl text-white stat-num">{value}</div>
@@ -481,9 +510,10 @@ export default function LandingPage() {
                 Deine Mails sind deine Sache.
               </h2>
               <p className="mt-5 text-muted leading-relaxed">
-                Wir lesen nicht jede Mail. Wir filtern auf Rechnungsmerkmale.
-                Alles, was wir speichern, liegt in Frankfurt. Verschlüsselt.
-                Du kannst es jederzeit löschen.
+                Infetch filtert gezielt auf Rechnungsmerkmale und speichert
+                ausschließlich erkannte Belege — verschlüsselt, auf Servern in
+                Frankfurt. Dein restliches Postfach bleibt unberührt, und du
+                kannst alle Daten jederzeit vollständig löschen.
               </p>
               <div className="mt-6">
                 <Link href="/datenschutz" className="text-sm ul-link text-muted hover:text-ink">
@@ -495,7 +525,7 @@ export default function LandingPage() {
             <div className="flex flex-col gap-8">
               <div className="relative w-full rounded-lg overflow-hidden" style={{ aspectRatio: "3/2" }}>
                 <Image
-                  src="/images/photos/trust-cafe.png"
+                  src="/images/photos/trust-cafe.webp"
                   alt="Entspannte Freelancerin im Café — Infetch erledigt die Buchhaltung automatisch"
                   fill
                   className="object-cover object-center"
@@ -592,7 +622,7 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto px-6 md:px-8 grid md:grid-cols-2 gap-12 items-center">
           <div className="relative max-w-xs mx-auto md:mx-0 w-full rounded-lg overflow-hidden" style={{ aspectRatio: "3/4" }}>
             <Image
-              src="/images/photos/autopilot-street.png"
+              src="/images/photos/autopilot-street.webp"
               alt="Mann spaziert entspannt durch Hamburg mit Kaffee — Infetch läuft automatisch"
               fill
               className="object-cover object-center"
@@ -629,6 +659,10 @@ export default function LandingPage() {
             <p className="mt-5 text-muted leading-relaxed">
               Kostenlos starten. Keine Kreditkarte. Monatlich kündbar.
             </p>
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white px-4 py-1.5 text-sm text-ink">
+              <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>
+              Launch-Angebot: Pro die ersten 6 Monate&nbsp;<span className="font-medium">−50 %</span>
+            </div>
           </div>
 
           <div className="mt-14 grid md:grid-cols-2 gap-8 max-w-4xl">
@@ -641,7 +675,7 @@ export default function LandingPage() {
                 Zum Ausprobieren — kein Ablaufdatum.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-ink flex-1">
-                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>30 Rechnungen / Monat</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>15 Rechnungen / Monat</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>1 Postfach (IMAP)</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>Auto-Pilot aktiv</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>500 MB Speicher</li>
@@ -658,8 +692,11 @@ export default function LandingPage() {
                 empfohlen
               </div>
               <div className="text-sm text-muted">Pro</div>
-              <div className="mt-4 font-display text-5xl text-ink stat-num">19 €</div>
-              <div className="text-xs text-muted mt-1">/ Monat · inkl. Umsatzsteuer</div>
+              <div className="mt-4 flex items-baseline gap-2">
+                <span className="font-display text-5xl text-ink stat-num">9,50 €</span>
+                <span className="font-display text-xl text-muted line-through stat-num">19 €</span>
+              </div>
+              <div className="text-xs text-muted mt-1">/ Monat · zzgl. USt. · erste 6 Monate, danach 19 €</div>
               <p className="mt-5 text-sm text-muted leading-relaxed">
                 Alles inklusive — für alle, die auf nichts verzichten wollen.
               </p>
@@ -784,6 +821,8 @@ export default function LandingPage() {
           <div>
             <div className="text-xs uppercase tracking-[0.14em] text-muted">Unternehmen</div>
             <ul className="mt-3 space-y-2 text-sm text-ink">
+              <li><Link href="/blog" className="hover:text-muted">Blog</Link></li>
+              <li><a href="/ueber-uns" className="hover:text-muted">Über uns</a></li>
               <li><button type="button" data-contact="" className="hover:text-muted">Kontakt</button></li>
             </ul>
           </div>

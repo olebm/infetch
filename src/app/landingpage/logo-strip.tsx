@@ -51,11 +51,9 @@ function shuffle<T>(arr: T[]): T[] {
 export function LogoStrip() {
   const [logos, setLogos] = useState(POOL.slice(0, DISPLAY_COUNT));
   useEffect(() => {
-    // Deferred, um synchrones setState im Effekt (Hydration-Mismatch-Vermeidung) zu umgehen.
-    const t = setTimeout(() => {
-      setLogos(shuffle([...POOL]).slice(0, DISPLAY_COUNT));
-    }, 0);
-    return () => clearTimeout(t);
+    // Shuffle bewusst erst nach Hydration (Server liefert stabile Reihenfolge → kein Mismatch).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLogos(shuffle([...POOL]).slice(0, DISPLAY_COUNT));
   }, []);
 
   return (

@@ -1,5 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { InMemoryRateLimiter } from "@/lib/rate-limit";
+import { InMemoryRateLimiter, clientIpFromHeaders } from "@/lib/rate-limit";
+
+describe("clientIpFromHeaders", () => {
+  it("nimmt die erste IP aus x-forwarded-for", () => {
+    const h = new Headers({ "x-forwarded-for": "203.0.113.7, 10.0.0.1, 10.0.0.2" });
+    expect(clientIpFromHeaders(h)).toBe("203.0.113.7");
+  });
+
+  it("trimmt Whitespace in x-forwarded-for", () => {
+    const h = new Headers({ "x-forwarded-for": "  198.51.100.4  " });
+    expect(clientIpFromHeaders(h)).toBe("198.51.100.4");
+  });
+
+  it("fällt auf x-real-ip zurück", () => {
+    const h = new Headers({ "x-real-ip": "192.0.2.55" });
+    expect(clientIpFromHeaders(h)).toBe("192.0.2.55");
+  });
+
+  it("gibt 'unknown' zurück wenn keine Proxy-Header gesetzt sind", () => {
+    expect(clientIpFromHeaders(new Headers())).toBe("unknown");
+  });
+
+  it("bündelt alle Header-losen Clients auf denselben Bucket (kein Bypass)", () => {
+    // Wichtig: 'unknown' darf nicht pro Request neu erzeugt werden, sonst
+    // umgeht ein Angreifer ohne XFF-Header das Limit komplett.
+    expect(clientIpFromHeaders(new Headers())).toBe(clientIpFromHeaders(new Headers()));
+  });
+});
 
 describe("InMemoryRateLimiter", () => {
   it("erlaubt Requests unter dem Limit", () => {

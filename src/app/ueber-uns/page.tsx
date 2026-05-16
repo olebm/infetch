@@ -14,16 +14,14 @@ export default function UeberUnsPage() {
 
       <h2>Gründer</h2>
       <p><strong>Ole Beekmann</strong> · Gründer</p>
-      <p>[1–2 Sätze Hintergrund. Zum Beispiel: Zuvor X Jahre bei Y — dort täglich mit dem Rechnungs-Chaos selbstständiger Kunden konfrontiert. Infetch ist die Lösung, die ich mir damals gewünscht hätte.]</p>
+      <p>Infetch entsteht aus eigener Erfahrung mit dem monatlichen Rechnungs-Chaos — die Lösung, die ich mir selbst gewünscht hätte.</p>
 
       <h2>Fakten</h2>
       <div className="overflow-x-auto">
         <table>
           <tbody>
-            <tr><td><strong>Gegründet</strong></td><td>[Jahr]</td></tr>
             <tr><td><strong>Sitz</strong></td><td>Hamburg, Deutschland</td></tr>
             <tr><td><strong>Serverstandort</strong></td><td>Frankfurt, Deutschland</td></tr>
-            <tr><td><strong>Verarbeitete Rechnungen</strong></td><td>[X]+</td></tr>
           </tbody>
         </table>
       </div>
