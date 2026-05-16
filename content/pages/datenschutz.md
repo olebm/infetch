@@ -31,7 +31,8 @@ E-Mail: hallo@infetch.de
 ### 2.3 KI-Extraktion
 - **Daten:** Textinhalt von Rechnungs-PDFs (kein Layout, keine Bilder)
 - **Zweck:** Strukturierte Extraktion von Rechnungsdaten (Anbieter, Betrag, Datum)
-- **Dienstleister:** [Mistral AI / AI-Proxy-Backend] — EU-Hosting, keine Verwendung für Modelltraining
+- **Dienstleister:** Mistral AI SAS, Frankreich (EU), eingebunden über den Backend-Proxy von Infetch — keine Verwendung der übermittelten Daten für KI-Modelltraining
+- **Hinweis:** Der Aufruf erfolgt nicht direkt aus deinem Browser, sondern serverseitig über unseren Proxy; an Mistral wird ausschließlich der Textinhalt erkannter Rechnungs-PDFs übermittelt
 - **Rechtsgrundlage:** Art. 6 Abs. 1 lit. b DSGVO
 
 ### 2.4 Zahlungsabwicklung
@@ -62,6 +63,13 @@ E-Mail: hallo@infetch.de
 - Beim Laden von Anbieterlogos werden Anfragen an cdn.brandfetch.io gestellt.
 - Dabei kann deine IP-Adresse an Brandfetch Inc. (USA) übertragen werden.
 - **Rechtsgrundlage:** Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an Funktionalität)
+
+### 2.9 Reichweitenmessung (Plausible Analytics)
+- **Daten:** Aggregierte, anonyme Nutzungsstatistiken (aufgerufene Seiten, Referrer, Gerätetyp, ungefähre Herkunft auf Länderebene)
+- **Zweck:** Verstehen, wie die Website genutzt wird, um sie zu verbessern
+- **Dienstleister:** Plausible Analytics — cookielos, EU-Hosting
+- **Hinweis:** Es werden **keine Cookies** gesetzt und **keine personenbezogenen Daten** gespeichert. Es findet kein geräteübergreifendes Tracking statt; IP-Adressen werden nicht gespeichert.
+- **Rechtsgrundlage:** Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an Reichweitenmessung)
 
 ---
 
@@ -122,14 +130,14 @@ Soweit wir Daten im Auftrag unserer Kunden verarbeiten, geschieht dies auf Grund
 
 Wir können diese Datenschutzerklärung bei wesentlichen Änderungen unserer Dienste aktualisieren. Das Datum der letzten Änderung ist unten angegeben.
 
-**Stand:** [Datum einsetzen]
+**Stand:** 16. Mai 2026
 
 ---
 
 ## Offene Punkte (ausfüllen vor Go-Live)
 
 - [ ] Firmenname und Adresse eintragen
-- [ ] AI-Backend konkret benennen (Mistral? anderer Anbieter?)
+- [x] AI-Backend konkret benennen → Mistral AI SAS (FR/EU), via Backend-Proxy, kein Modelltraining
 - [ ] Sentry-Drittlandstransfer prüfen — SCCs (Standardvertragsklauseln) vorhanden?
 - [ ] Brandfetch Drittlandstransfer prüfen
 - [ ] Stand-Datum eintragen
