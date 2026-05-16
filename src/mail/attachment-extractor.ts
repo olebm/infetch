@@ -15,7 +15,27 @@ export type ParsedMailForInvoices = {
   pdfAttachments: ParsedMailPdfAttachment[];
 };
 
+// Hard-Cap für die rohe MIME-Größe. simpleParser() dekodiert die GESAMTE
+// Mail (inkl. aller Anhänge) in den RAM, bevor die 20-MB-PDF-Grenze greift.
+// Eine 100-MB+-Mail würde sonst den Scanner-Prozess (single process) per
+// OOM mitreißen. 35 MB ≈ 20-MB-PDF base64 (+~33 %) + Header/Body.
+const MAX_RAW_MAIL_BYTES = Number(process.env.MAX_RAW_MAIL_BYTES ?? 35 * 1024 * 1024);
+
+const EMPTY_RESULT: ParsedMailForInvoices = {
+  messageId: null,
+  fromAddress: null,
+  fromName: null,
+  subject: null,
+  date: null,
+  pdfAttachments: [],
+};
+
 export async function extractPdfAttachments(source: Buffer): Promise<ParsedMailForInvoices> {
+  if (source.byteLength > MAX_RAW_MAIL_BYTES) {
+    // Übergroße Mail nicht parsen (Memory-DoS-Schutz). Wird vom Scanner
+    // wie eine Mail ohne PDF behandelt.
+    return { ...EMPTY_RESULT };
+  }
   const parsed = await simpleParser(source);
   const pdfAttachments = parsed.attachments
     .filter((attachment) => {

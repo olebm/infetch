@@ -286,6 +286,19 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
       metadata: { pattern: junkCheck.matchedPattern },
     });
     aiStatus = "skipped_junk_filename";
+  } else if (extraction.text.trim().length < 20) {
+    // Kein (brauchbarer) Text extrahierbar — passwortgeschütztes oder
+    // reines Bild-PDF. Ein KI-Call mit leerem Text liefert keinen
+    // Mehrwert, kostet aber. Direkt zur manuellen Prüfung.
+    await recordSyncEvent({
+      level: "warning",
+      eventType: "skipped_no_text",
+      invoiceId,
+      message:
+        "Kein Text aus PDF extrahierbar (passwortgeschützt/Bild-PDF) — KI-Analyse übersprungen.",
+      metadata: { extractionError: extraction.error ?? null },
+    });
+    aiStatus = "skipped_no_text";
   } else if (isLocalExtractionSufficient(vendor.confidence, parsed, extraction, confidence)) {
     await recordSyncEvent({
       level: "info",

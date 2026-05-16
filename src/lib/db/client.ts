@@ -41,6 +41,13 @@ function createClient(): postgres.Sql {
   return postgres(url, {
     // Supabase Pooler (Transaction Mode): prepared statements not supported.
     prepare: false,
+    // Resilienz: ohne diese Werte hängen Queries bei Pooler-Ausfall
+    // unbegrenzt und der Default-Pool (10) kann ohne Backpressure
+    // erschöpfen. Bei DB-Störung lieber schnell fehlschlagen.
+    max: Number(process.env.PGPOOL_MAX ?? 10),
+    idle_timeout: 30, // Sek.: ungenutzte Verbindungen schließen
+    connect_timeout: 10, // Sek.: schneller Fehler statt Hänger
+    max_lifetime: 60 * 30, // Sek.: Verbindungen periodisch erneuern
     // BIGINT (OID 20) values (BIGSERIAL IDs) are returned as strings by default
     // to avoid precision loss for very large numbers. For this app's ID space
     // (<= 2^53) returning them as JS numbers is safe and avoids type assertion

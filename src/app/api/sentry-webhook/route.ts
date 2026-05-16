@@ -10,7 +10,7 @@
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { appConfig } from "@/lib/config/env";
@@ -35,15 +35,29 @@ function appendError(entry: SentryErrorEntry) {
   try {
     mkdirSync(join(process.cwd(), "data"), { recursive: true });
 
+    // Tolerantes Parsen: eine einzelne korrupte/teilgeschriebene Zeile
+    // (z. B. durch parallelen Schreibzugriff) darf NICHT die gesamte
+    // Historie verwerfen — defekte Zeilen werden übersprungen.
     const existing: SentryErrorEntry[] = existsSync(ERROR_LOG)
       ? readFileSync(ERROR_LOG, "utf8")
           .split("\n")
           .filter(Boolean)
-          .map((line) => JSON.parse(line) as SentryErrorEntry)
+          .flatMap((line) => {
+            try {
+              return [JSON.parse(line) as SentryErrorEntry];
+            } catch {
+              return [];
+            }
+          })
       : [];
 
     const updated = [...existing, entry].slice(-MAX_ENTRIES);
-    writeFileSync(ERROR_LOG, updated.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
+    // Atomar schreiben: erst in Temp-Datei, dann rename() (atomic auf
+    // demselben Dateisystem) — verhindert teilgeschriebene Datei bei
+    // gleichzeitigen Events.
+    const tmp = `${ERROR_LOG}.${process.pid}.tmp`;
+    writeFileSync(tmp, updated.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
+    renameSync(tmp, ERROR_LOG);
   } catch (err) {
     console.error("[sentry-webhook] Fehler beim Schreiben der Error-Log:", err);
   }
