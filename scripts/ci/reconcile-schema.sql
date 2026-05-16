@@ -20,18 +20,17 @@ DO $$
 DECLARE
   rec   RECORD;
   bdef  BOOLEAN;
+  -- Only columns the app queries with real boolean predicates (e.g.
+  -- `WHERE enabled IS TRUE`). This mirrors the proven set from the
+  -- unit/integration `test` job. Columns the code still treats as INTEGER
+  -- (e.g. invoices.is_private via `COALESCE(is_private, 0) = 0`) must stay
+  -- INTEGER — convert a column here only when an E2E run proves it boolean.
   cols  TEXT[][] := ARRAY[
     -- table, column, default-after-conversion
-    ['vendors',                'portal_enabled', 'true'],
-    ['vendors',                'mail_enabled',   'true'],
-    ['vendors',                'manual_enabled', 'true'],
-    ['vendors',                'hidden',         'false'],
-    ['mail_accounts',          'secure',         'true'],
-    ['export_targets',         'enabled',        'false'],
-    ['invoices',               'is_private',     'false'],
-    ['auto_approval_rules',    'enabled',        'true'],
-    ['discovered_senders',     'blocked',        'false'],
-    ['mail_inbound_addresses', 'enabled',        'true']
+    ['mail_accounts',       'secure',  'true'],
+    ['export_targets',      'enabled', 'false'],
+    ['auto_approval_rules', 'enabled', 'true'],
+    ['discovered_senders',  'blocked', 'false']
   ];
   i INT;
 BEGIN
