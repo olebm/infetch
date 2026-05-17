@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useActionState, useState } from "react";
+import { Fragment, useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Check, ArrowLeft, ArrowRight, Info } from "lucide-react";
@@ -38,32 +38,96 @@ const TEMPLATES: Record<string, { name: string; email: string }> = {
   datev:       { name: "DATEV Unternehmen",   email: "" },
 };
 
+// ─── sessionStorage helpers ───────────────────────────────────────────────────
+
+const STORAGE_KEY = "onboarding-wizard";
+
+type PersistedState = {
+  step: number;
+  data: Omit<WizardData, "imapPassword">;
+};
+
+function loadFromStorage(): PersistedState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as PersistedState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveToStorage(step: number, data: WizardData): void {
+  if (typeof window === "undefined") return;
+  try {
+    // Never persist the password. Cap step at 2 so restoring never lands
+    // on the confirmation screen with an empty password.
+    const { imapPassword: _pw, ...rest } = data;
+    sessionStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ step: Math.min(step, 2), data: rest } satisfies PersistedState),
+    );
+  } catch {
+    // sessionStorage unavailable (e.g. private browsing with strict settings)
+  }
+}
+
+function clearStorage(): void {
+  if (typeof window === "undefined") return;
+  try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+}
+
+// ─── Defaults ────────────────────────────────────────────────────────────────
+
+const DEFAULT_DATA: WizardData = {
+  imapEmail: "",
+  imapPassword: "",
+  imapHost: "",
+  imapPort: 993,
+  imapSecure: true,
+  smtpHost: "",
+  smtpPort: 465,
+  smtpSecure: true,
+  recipientName: "",
+  recipientEmail: "",
+  recipientTemplate: "custom",
+  subjectTemplate: "[Rechnung] {{vendor}} · {{date}} · {{amount}}",
+};
+
+const IMAP_DEFAULTS = {
+  imapEmail: "", imapPassword: "", imapHost: "",
+  imapPort: 993, imapSecure: true,
+  smtpHost: "", smtpPort: 465, smtpSecure: true,
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const initialActionState: OnboardingState = { status: "idle", message: "" };
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [data, setData] = useState<WizardData>({
-    imapEmail: "",
-    imapPassword: "",
-    imapHost: "",
-    imapPort: 993,
-    imapSecure: true,
-    smtpHost: "",
-    smtpPort: 465,
-    smtpSecure: true,
-    recipientName: "",
-    recipientEmail: "",
-    recipientTemplate: "custom",
-    subjectTemplate: "[Rechnung] {{vendor}} · {{date}} · {{amount}}",
+
+  const [step, setStep] = useState(() => loadFromStorage()?.step ?? 0);
+  const [data, setData] = useState<WizardData>(() => {
+    const saved = loadFromStorage();
+    if (!saved) return DEFAULT_DATA;
+    const restored = { ...DEFAULT_DATA, ...saved.data, imapPassword: "" };
+    // Step 1 uses MailboxConnectContent with its own internal state — clearing
+    // IMAP fields keeps wizard state consistent with what the component shows.
+    if (saved.step === 1) return { ...restored, ...IMAP_DEFAULTS };
+    return restored;
   });
+
   const [actionState, formAction, isPending] = useActionState(
     completeOnboardingAction,
     initialActionState,
   );
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Persist step + non-sensitive data on every change
+  useEffect(() => {
+    saveToStorage(step, data);
+  }, [step, data]);
 
   const set = (key: keyof WizardData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -84,6 +148,7 @@ export function OnboardingWizard() {
   const back = () => { setValidationError(null); setStep((s) => Math.max(0, s - 1)); };
 
   if (actionState.status === "success") {
+    clearStorage();
     router.push("/onboarding/erstabruf");
   }
 
@@ -194,17 +259,7 @@ export function OnboardingWizard() {
                       smtpSecure: d.smtpSecure,
                     }));
                   } else {
-                    setData((prev) => ({
-                      ...prev,
-                      imapEmail: "",
-                      imapPassword: "",
-                      imapHost: "",
-                      imapPort: 993,
-                      imapSecure: true,
-                      smtpHost: "",
-                      smtpPort: 465,
-                      smtpSecure: true,
-                    }));
+                    setData((prev) => ({ ...prev, ...IMAP_DEFAULTS }));
                   }
                 }}
               />
