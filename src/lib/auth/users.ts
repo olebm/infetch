@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { sql } from "@/lib/db/client";
+import { sendOnboardingEmail } from "@/lib/mail/notify";
 import type { OrganizationRow, UserRow } from "@/lib/auth/session";
 
 function slugify(input: string): string {
@@ -115,6 +116,50 @@ export async function createUserAndJoinOrg(input: {
     emailVerifiedAt: now,
     avatarUrl: null,
   };
+}
+
+/**
+ * Stellt sicher, dass ein Postgres-Profil für den authentifizierten
+ * Supabase-User existiert. Wird vom Magic-Link-Callback UND vom
+ * OTP-Code-Login aufgerufen — beide Pfade müssen den Bridge-User anlegen,
+ * sonst landet ein frisch verifizierter User ohne Org zurück auf /login.
+ */
+export async function ensureUserProvisioned(supabaseUser: {
+  id: string;
+  email: string;
+  user_metadata?: Record<string, unknown> | null;
+}): Promise<void> {
+  const existing = await findUserByEmail(supabaseUser.email);
+  if (existing) return;
+
+  const meta = supabaseUser.user_metadata ?? {};
+  const invitedOrgId = meta.invited_org_id as string | undefined;
+  const invitedRole = (meta.invited_role as string | undefined) ?? "member";
+  const validRole = (["owner", "admin", "member"] as const).includes(
+    invitedRole as "owner" | "admin" | "member",
+  )
+    ? (invitedRole as "owner" | "admin" | "member")
+    : "member";
+  const name = (meta.full_name as string | undefined) ?? null;
+
+  if (invitedOrgId) {
+    await createUserAndJoinOrg({
+      email: supabaseUser.email,
+      name,
+      userId: supabaseUser.id,
+      organizationId: invitedOrgId,
+      role: validRole,
+    });
+  } else {
+    await createUserWithDefaultOrg({
+      email: supabaseUser.email,
+      name,
+      userId: supabaseUser.id,
+    });
+    void sendOnboardingEmail({ to: supabaseUser.email, name }).catch((err) =>
+      console.error("[auth] onboarding email failed:", err),
+    );
+  }
 }
 
 async function ensureUniqueSlug(base: string): Promise<string> {

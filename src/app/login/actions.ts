@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient, createSupabaseAdminClient } from "@/lib/supabase/server";
-import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
+import { findUserByEmail, createUserWithDefaultOrg, ensureUserProvisioned } from "@/lib/auth/users";
 
 const STUB_EMAIL = "test@infetch.local";
 const STUB_NAME = "Test User";
@@ -82,6 +82,34 @@ export async function loginAsTestUser(formData: FormData) {
   }
 
   redirect(next);
+}
+
+/**
+ * Nach erfolgreichem OTP-Code-Login: Postgres-Profil sicherstellen.
+ *
+ * Der 6-stellige Code wird clientseitig per verifyOtp eingelöst und läuft
+ * NICHT über /auth/callback — daher muss der Bridge-User hier angelegt
+ * werden, sonst fehlt die Org und der User landet zurück auf /login.
+ */
+export async function provisionAfterOtp(): Promise<{ ok: boolean }> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) return { ok: false };
+
+  try {
+    await ensureUserProvisioned({
+      id: user.id,
+      email: user.email,
+      user_metadata: user.user_metadata ?? null,
+    });
+  } catch (err) {
+    console.error("[login] OTP user provisioning failed:", err);
+    return { ok: false };
+  }
+  return { ok: true };
 }
 
 /**
