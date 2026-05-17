@@ -41,6 +41,7 @@ export type MailboxData = {
 interface MailboxConnectContentProps {
   mode: "settings" | "onboarding";
   slot?: "primary" | "secondary";
+  initialEmail?: string;
   onDataChange?: (data: MailboxData | null) => void;
   onSuccess?: () => void;
 }
@@ -59,19 +60,22 @@ function detectProvider(email: string): MailProvider | null {
 export function MailboxConnectContent({
   mode,
   slot = "primary",
+  initialEmail,
   onDataChange,
   onSuccess,
 }: MailboxConnectContentProps) {
-  const [email, setEmail]               = useState("");
+  const initProvider = initialEmail ? detectProvider(initialEmail) : null;
+
+  const [email, setEmail]               = useState(initialEmail ?? "");
   const [password, setPassword]         = useState("");
-  const [provider, setProvider]         = useState<MailProvider | null>(null);
+  const [provider, setProvider]         = useState<MailProvider | null>(initProvider);
   const [showAdv, setShowAdv]           = useState(false);
-  const [imapHost, setImapHost]         = useState("");
-  const [imapPort, setImapPort]         = useState(993);
-  const [imapSecure, setImapSecure]     = useState(true);
-  const [smtpHost, setSmtpHost]         = useState("");
-  const [smtpPort, setSmtpPort]         = useState(465);
-  const [smtpSecure, setSmtpSecure]     = useState(true);
+  const [imapHost, setImapHost]         = useState(initProvider?.imap.host ?? "");
+  const [imapPort, setImapPort]         = useState(initProvider?.imap.port ?? 993);
+  const [imapSecure, setImapSecure]     = useState(initProvider?.imap.secure ?? true);
+  const [smtpHost, setSmtpHost]         = useState(initProvider?.smtp.host ?? "");
+  const [smtpPort, setSmtpPort]         = useState(initProvider?.smtp.port ?? 465);
+  const [smtpSecure, setSmtpSecure]     = useState(initProvider?.smtp.secure ?? true);
   const [backend, setBackend]           = useState<MailBackend | null>(null);
   const [separateSmtp, setSeparateSmtp] = useState(false);
   const [smtpEmail, setSmtpEmail]       = useState("");

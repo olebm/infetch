@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db/client";
 import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
-import { detectEmailProvider } from "@/lib/email-providers";
+import { getProviderFromEmail } from "@/lib/mail-providers";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
 import { verifyImapAccountConnection } from "@/mail/imap-client";
+import { verifySmtpAccountConnection } from "@/mail/smtp-client";
 import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type OnboardingState = {
@@ -60,13 +61,13 @@ export async function completeOnboardingAction(
       smtpSecure = String(formData.get("smtpSecure") || "true") !== "false";
     } else {
       // Fall back to auto-detection from e-mail domain
-      const provider = detectEmailProvider(email);
-      imapHost   = provider?.imapHost   ?? "";
-      imapPort   = provider?.imapPort   ?? 993;
-      imapSecure = provider?.imapSecure ?? true;
-      smtpHost   = provider?.smtpHost   ?? "";
-      smtpPort   = provider?.smtpPort   ?? 465;
-      smtpSecure = provider?.smtpSecure ?? true;
+      const provider = getProviderFromEmail(email);
+      imapHost   = provider?.imap.host   ?? "";
+      imapPort   = provider?.imap.port   ?? 993;
+      imapSecure = provider?.imap.secure ?? true;
+      smtpHost   = provider?.smtp.host   ?? "";
+      smtpPort   = provider?.smtp.port   ?? 465;
+      smtpSecure = provider?.smtp.secure ?? true;
 
       if (!imapHost || !smtpHost) {
         return {
@@ -179,10 +180,12 @@ export async function completeOnboardingAction(
   }
 }
 
-export async function verifyOnboardingImapAction(): Promise<{ ok: boolean; error?: string }> {
+export async function verifyOnboardingConnectionAction(): Promise<{ ok: boolean; error?: string }> {
   const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   try {
-    await verifyImapAccountConnection("primary", auth.organization?.id ?? null);
+    await verifyImapAccountConnection("primary", orgId);
+    await verifySmtpAccountConnection("primary", orgId);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Verbindung fehlgeschlagen." };

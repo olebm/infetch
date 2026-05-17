@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Check, Loader2, Search, WifiOff } from "lucide-react";
 import type { DiscoveredSender } from "@/senders/discovered-senders";
 import { blockSenderAction, unblockSenderAction } from "@/app/(app)/senders/actions";
-import { verifyOnboardingImapAction } from "@/app/onboarding/actions";
+import { verifyOnboardingConnectionAction } from "@/app/onboarding/actions";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 
 const SCAN_STEPS = [
@@ -72,7 +72,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
   // Real IMAP verification — first thing we do before showing the scan animation
   useEffect(() => {
     if (phase !== "verifying") return;
-    verifyOnboardingImapAction().then((result) => {
+    verifyOnboardingConnectionAction().then((result) => {
       if (result.ok) {
         // Start scan animation with first step already done
         setScanPct(27);

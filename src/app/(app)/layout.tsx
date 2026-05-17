@@ -8,6 +8,7 @@ import { SupportFab } from "@/components/support/support-fab";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { isStripeConfigured } from "@/lib/stripe";
 import { getPrimaryMailAccount } from "@/lib/db/queries";
+import { MailInvalidBanner } from "@/components/status/mail-invalid-banner";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const auth = await getCurrentAuth();
@@ -28,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <UpgradeProvider stripeConfigured={isStripeConfigured()}>
       <SupportProvider>
+        {mailAccount.status === "invalid" && <MailInvalidBanner />}
         <AppShell>{children}</AppShell>
         <UpgradeModal />
         <SupportModal userEmail={userEmail} />

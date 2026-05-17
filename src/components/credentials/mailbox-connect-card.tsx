@@ -157,6 +157,7 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
           <MailboxConnectContent
             mode="settings"
             slot={openSlot}
+            initialEmail={slots.find((s) => s.key === openSlot)?.email ?? undefined}
             onSuccess={() => setOpenSlot(null)}
           />
         )}
