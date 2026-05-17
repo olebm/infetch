@@ -103,16 +103,11 @@ export function OnboardingWizard() {
             draggable={false}
           />
         </div>
-        <button
-          onClick={() => router.push("/")}
-          className="text-xs text-muted hover:text-ink"
-        >
-          Setup unterbrechen
-        </button>
+        <div />
       </header>
 
       {/* ── Progress ──────────────────────────────────────────────────────── */}
-      <div className="mx-auto w-full max-w-2xl px-6 mt-8 mb-2">
+      <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 mt-6 sm:mt-8 mb-2">
         <div className="flex items-center justify-between gap-2">
           {STEPS.map((label, i) => (
             <Fragment key={label}>
@@ -129,7 +124,7 @@ export function OnboardingWizard() {
                   {i < step ? <Check size={12} /> : i + 1}
                 </div>
                 <span
-                  className={`hidden sm:block truncate text-xs font-medium ${
+                  className={`hidden xs:block truncate text-xs font-medium ${
                     i === step ? "text-ink" : "text-muted"
                   }`}
                 >
@@ -145,7 +140,7 @@ export function OnboardingWizard() {
       </div>
 
       {/* ── Step content ──────────────────────────────────────────────────── */}
-      <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-8 md:py-12">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 sm:px-6 py-6 sm:py-8 md:py-12">
 
         {/* 0 — Willkommen */}
         {step === 0 && (

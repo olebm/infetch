@@ -896,11 +896,12 @@ export type MailAccountSummary = {
   lastVerifiedAt: string | null;
 };
 
-export async function getPrimaryMailAccount() {
+export async function getPrimaryMailAccount(organizationId?: string | null) {
   return (await sql<MailAccountSummary[]>`
     SELECT id, label, host, port, secure, username, status, last_verified_at AS "lastVerifiedAt"
     FROM mail_accounts
     WHERE label = 'Primary IMAP'
+      AND (${organizationId ?? null}::text IS NULL OR organization_id = ${organizationId ?? null})
     ORDER BY id DESC
     LIMIT 1`)[0];
 }
