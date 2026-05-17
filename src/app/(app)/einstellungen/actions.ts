@@ -229,6 +229,9 @@ export async function saveMailboxCredentialsAction(
 
     const email    = String(formData.get("mailEmail")    || "").trim();
     const password = String(formData.get("mailPassword") || "");
+    // Separate SMTP credentials (optional — fall back to IMAP credentials)
+    const smtpEmail    = String(formData.get("smtpEmail")    || "").trim() || email;
+    const smtpPassword = String(formData.get("smtpPassword") || "")        || password;
     const imapHost  = String(formData.get("imapHost")  || "").trim();
     const imapPort  = Number(formData.get("imapPort")  || 993);
     const imapSecure = String(formData.get("imapSecure") || "true") !== "false";
@@ -297,14 +300,14 @@ export async function saveMailboxCredentialsAction(
       `;
     }
 
-    // ── 2) SMTP credential + smtp_account ─────────────────────────────────────
-    if (password.trim()) {
+    // ── 2) SMTP credential + smtp_account (may use separate account from IMAP) ─
+    if (smtpPassword.trim()) {
       await saveCredentialSecret({
         scope: "smtp",
         ownerId: mailSlot,
         organizationId,
         label: slotSmtpPwd,
-        secret: password,
+        secret: smtpPassword,
       });
     } else if (!(await hasStoredCredentialRef("smtp", mailSlot, organizationId))) {
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein SMTP-Passwort gespeichert)." };
@@ -312,7 +315,7 @@ export async function saveMailboxCredentialsAction(
 
     await saveStoredSmtpAccount(
       mailSlot,
-      { host: smtpHost, port: smtpPort, secure: smtpSecure, username: email, fromAddress: email },
+      { host: smtpHost, port: smtpPort, secure: smtpSecure, username: smtpEmail, fromAddress: smtpEmail },
     );
 
     revalidatePath("/");

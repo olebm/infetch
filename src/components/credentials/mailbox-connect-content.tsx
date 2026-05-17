@@ -4,7 +4,8 @@
  * MailboxConnectContent — 2-Phasen-Provider-Picker für Postfach-Setup.
  *
  * Phase 1 "select": Grid mit bekannten Anbietern + "Anderer Anbieter"
- * Phase 2 "configure": E-Mail + Passwort; Server-Details automatisch oder via Accordion
+ * Phase 2 "configure": E-Mail + Passwort; Server-Details automatisch oder via Accordion;
+ *                      optionale separate SMTP-Zugangsdaten wenn IMAP ≠ SMTP-Account
  *
  * mode="settings"  → eigenes <form> mit saveMailboxCredentialsAction + Submit-Button;
  *                    ruft onSuccess() wenn gespeichert
@@ -24,7 +25,9 @@ import {
 
 export type MailboxData = {
   email: string;
-  password: string;
+  password: string;       // IMAP password
+  smtpEmail: string;      // SMTP username (= email when same account)
+  smtpPassword: string;   // SMTP password (= password when same account)
   imapHost: string;
   imapPort: number;
   imapSecure: boolean;
@@ -56,18 +59,22 @@ export function MailboxConnectContent({
   onDataChange,
   onSuccess,
 }: MailboxConnectContentProps) {
-  const [phase, setPhase]             = useState<Phase>("select");
-  const [provider, setProvider]       = useState<MailProvider | null>(null);
-  const [isCustom, setIsCustom]       = useState(false);
-  const [email, setEmail]             = useState("");
-  const [password, setPassword]       = useState("");
-  const [showAdv, setShowAdv]         = useState(false);
-  const [imapHost, setImapHost]       = useState("");
-  const [imapPort, setImapPort]       = useState(993);
-  const [imapSecure, setImapSecure]   = useState(true);
-  const [smtpHost, setSmtpHost]       = useState("");
-  const [smtpPort, setSmtpPort]       = useState(465);
-  const [smtpSecure, setSmtpSecure]   = useState(true);
+  const [phase, setPhase]                   = useState<Phase>("select");
+  const [provider, setProvider]             = useState<MailProvider | null>(null);
+  const [isCustom, setIsCustom]             = useState(false);
+  const [email, setEmail]                   = useState("");
+  const [password, setPassword]             = useState("");
+  const [showAdv, setShowAdv]               = useState(false);
+  const [imapHost, setImapHost]             = useState("");
+  const [imapPort, setImapPort]             = useState(993);
+  const [imapSecure, setImapSecure]         = useState(true);
+  const [smtpHost, setSmtpHost]             = useState("");
+  const [smtpPort, setSmtpPort]             = useState(465);
+  const [smtpSecure, setSmtpSecure]         = useState(true);
+  // Separate SMTP credentials (optional)
+  const [separateSmtp, setSeparateSmtp]     = useState(false);
+  const [smtpEmail, setSmtpEmail]           = useState("");
+  const [smtpPassword, setSmtpPassword]     = useState("");
 
   // Settings-mode action state
   const [state, formAction, isPending] = useActionState(
@@ -91,6 +98,8 @@ export function MailboxConnectContent({
       onDataChange({
         email,
         password,
+        smtpEmail: separateSmtp ? smtpEmail : email,
+        smtpPassword: separateSmtp ? smtpPassword : password,
         imapHost,
         imapPort,
         imapSecure,
@@ -104,6 +113,7 @@ export function MailboxConnectContent({
     mode, onDataChange, phase, email, password,
     imapHost, imapPort, imapSecure,
     smtpHost, smtpPort, smtpSecure, provider,
+    separateSmtp, smtpEmail, smtpPassword,
   ]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -118,6 +128,7 @@ export function MailboxConnectContent({
     setSmtpPort(p.smtp.port);
     setSmtpSecure(p.smtp.secure);
     setShowAdv(false);
+    setSeparateSmtp(false);
     setPhase("configure");
   }
 
@@ -141,6 +152,9 @@ export function MailboxConnectContent({
     setEmail("");
     setPassword("");
     setShowAdv(false);
+    setSeparateSmtp(false);
+    setSmtpEmail("");
+    setSmtpPassword("");
   }
 
   // ── Phase: select ─────────────────────────────────────────────────────────────
@@ -219,10 +233,10 @@ export function MailboxConnectContent({
         )}
       </div>
 
-      {/* Email + Password */}
+      {/* IMAP credentials */}
       <div className="space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted">E-Mail-Adresse</label>
+          <label className="mb-1 block text-xs font-medium text-muted">E-Mail-Adresse (Posteingang)</label>
           <input
             type="email"
             name={mode === "settings" ? "mailEmail" : undefined}
@@ -236,7 +250,7 @@ export function MailboxConnectContent({
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-muted">
-            {provider?.hint ? "App-Passwort" : "Passwort"}
+            {provider?.hint ? "App-Passwort (Posteingang)" : "Passwort (Posteingang)"}
           </label>
           <input
             type="password"
@@ -270,11 +284,11 @@ export function MailboxConnectContent({
       </button>
 
       {showAdv && (
-        <div className="mt-3 rounded border border-line/60 bg-surface p-4">
+        <div className="mt-3 rounded border border-line/60 bg-surface p-4 space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* IMAP */}
             <div>
-              <div className="mb-2 text-xs font-medium text-muted">IMAP (Empfang)</div>
+              <div className="mb-2 text-xs font-medium text-muted">IMAP — Empfangs-Server</div>
               <div className="space-y-1.5">
                 <input
                   value={imapHost}
@@ -289,7 +303,7 @@ export function MailboxConnectContent({
                     onChange={(e) => setImapPort(Number(e.target.value))}
                     className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                   />
-                  <label className="flex items-center gap-1.5 text-xs text-muted">
+                  <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
                     <input
                       type="checkbox"
                       checked={imapSecure}
@@ -302,7 +316,7 @@ export function MailboxConnectContent({
             </div>
             {/* SMTP */}
             <div>
-              <div className="mb-2 text-xs font-medium text-muted">SMTP (Versand)</div>
+              <div className="mb-2 text-xs font-medium text-muted">SMTP — Versand-Server</div>
               <div className="space-y-1.5">
                 <input
                   value={smtpHost}
@@ -317,7 +331,7 @@ export function MailboxConnectContent({
                     onChange={(e) => setSmtpPort(Number(e.target.value))}
                     className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                   />
-                  <label className="flex items-center gap-1.5 text-xs text-muted">
+                  <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
                     <input
                       type="checkbox"
                       checked={smtpSecure}
@@ -328,6 +342,41 @@ export function MailboxConnectContent({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Separate SMTP credentials */}
+          <div className="border-t border-line/60 pt-3">
+            <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={separateSmtp}
+                onChange={(e) => setSeparateSmtp(e.target.checked)}
+                className="rounded"
+              />
+              Versand verwendet andere Zugangsdaten als Empfang
+            </label>
+            {separateSmtp && (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="email"
+                  name={mode === "settings" ? "smtpEmail" : undefined}
+                  value={smtpEmail}
+                  onChange={(e) => setSmtpEmail(e.target.value)}
+                  placeholder="versand@example.com"
+                  autoComplete="username"
+                  className="h-8 w-full rounded border border-line bg-white px-2 text-xs outline-none focus:border-brand"
+                />
+                <input
+                  type="password"
+                  name={mode === "settings" ? "smtpPassword" : undefined}
+                  value={smtpPassword}
+                  onChange={(e) => setSmtpPassword(e.target.value)}
+                  placeholder="SMTP-Passwort"
+                  autoComplete="new-password"
+                  className="h-8 w-full rounded border border-line bg-white px-2 text-xs outline-none focus:border-brand"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -345,13 +394,16 @@ export function MailboxConnectContent({
   return (
     <form action={formAction} noValidate>
       {/* Hidden server fields — always submitted */}
-      <input type="hidden" name="mailSlot"   value={slot} readOnly />
-      <input type="hidden" name="imapHost"   value={imapHost} readOnly />
-      <input type="hidden" name="imapPort"   value={imapPort} readOnly />
-      <input type="hidden" name="imapSecure" value={String(imapSecure)} readOnly />
-      <input type="hidden" name="smtpHost"   value={smtpHost} readOnly />
-      <input type="hidden" name="smtpPort"   value={smtpPort} readOnly />
-      <input type="hidden" name="smtpSecure" value={String(smtpSecure)} readOnly />
+      <input type="hidden" name="mailSlot"     value={slot} readOnly />
+      <input type="hidden" name="imapHost"     value={imapHost} readOnly />
+      <input type="hidden" name="imapPort"     value={imapPort} readOnly />
+      <input type="hidden" name="imapSecure"   value={String(imapSecure)} readOnly />
+      <input type="hidden" name="smtpHost"     value={smtpHost} readOnly />
+      <input type="hidden" name="smtpPort"     value={smtpPort} readOnly />
+      <input type="hidden" name="smtpSecure"   value={String(smtpSecure)} readOnly />
+      {/* SMTP credentials — only submitted when using separate account */}
+      {!separateSmtp && <input type="hidden" name="smtpEmail"    value={email} readOnly />}
+      {!separateSmtp && <input type="hidden" name="smtpPassword" value={password} readOnly />}
 
       {configureInner}
 

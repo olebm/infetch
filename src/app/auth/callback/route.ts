@@ -41,9 +41,11 @@ export async function GET(request: NextRequest) {
   }
 
   // Phase-1-Bridge: Nutzer in Postgres anlegen falls noch nicht vorhanden
+  let isNewUser = false;
   try {
     const existing = await findUserByEmail(data.user.email);
     if (!existing) {
+      isNewUser = true;
       // Eingeladener Nutzer: user_metadata enthält invited_org_id + invited_role
       const invitedOrgId = data.user.user_metadata?.invited_org_id as string | undefined;
       const invitedRole = (data.user.user_metadata?.invited_role as string | undefined) ?? "member";
@@ -75,5 +77,9 @@ export async function GET(request: NextRequest) {
     console.error("[auth/callback] Postgres user sync failed:", err);
   }
 
+  // Neue User direkt zum Onboarding — vermeidet den Doppel-Redirect über /
+  if (isNewUser) {
+    return NextResponse.redirect(`${origin}/onboarding`);
+  }
   return NextResponse.redirect(`${origin}${next}`);
 }

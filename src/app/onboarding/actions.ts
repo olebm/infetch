@@ -25,6 +25,9 @@ export async function completeOnboardingAction(
   try {
     const email = String(formData.get("email") || "").trim();
     const password = String(formData.get("password") || "");
+    // SMTP may use separate credentials (e.g. relay account); fall back to IMAP credentials
+    const smtpEmail    = String(formData.get("smtpEmail")    || "").trim() || email;
+    const smtpPassword = String(formData.get("smtpPassword") || "")        || password;
     const recipientEmail = String(formData.get("recipientEmail") || "").trim();
     const exportTarget = String(formData.get("exportTarget") || "kontist").trim();
 
@@ -125,20 +128,20 @@ export async function completeOnboardingAction(
       `;
     }
 
-    // 2) SMTP Credential + smtp_account JSON
+    // 2) SMTP Credential + smtp_account JSON (may use separate account from IMAP)
     await saveCredentialSecret({
       scope: "smtp",
       ownerId: "primary",
       organizationId,
       label: "Primary SMTP Password",
-      secret: password,
+      secret: smtpPassword,
     });
     await saveStoredSmtpAccount("primary", {
       host: smtpHost,
       port: smtpPort,
       secure: smtpSecure,
-      username: email,
-      fromAddress: email,
+      username: smtpEmail,
+      fromAddress: smtpEmail,
     });
 
     // 3) Export Target (Kontist or Accountable) — per Org gescoped (Migration 0013).
