@@ -3,8 +3,9 @@
 import { Fragment, useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, ArrowLeft, ArrowRight, Info } from "lucide-react";
+import { Check, ArrowLeft, ArrowRight, Info, Loader2, WifiOff } from "lucide-react";
 import { completeOnboardingAction, type OnboardingState } from "@/app/onboarding/actions";
+import { testMailConnectionAction } from "@/mail/connection-test";
 import { Button } from "@/components/ui/button";
 import { MailboxConnectContent, type MailboxData } from "@/components/credentials/mailbox-connect-content";
 
@@ -116,6 +117,10 @@ export function OnboardingWizard() {
   );
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  type TestPhase = "idle" | "testing" | "success" | "error";
+  const [testPhase, setTestPhase] = useState<TestPhase>("idle");
+  const [testErrors, setTestErrors] = useState<{ imap?: string; smtp?: string }>({});
+
   useEffect(() => {
     saveToStorage(step, data);
   }, [step, data]);
@@ -124,19 +129,54 @@ export function OnboardingWizard() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setData((d) => ({ ...d, [key]: e.target.value }));
 
-  const next = () => {
+  const next = async () => {
     setValidationError(null);
+
     if (step === 0) {
-      if (!data.imapEmail) { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
-      if (!data.imapHost)  { setValidationError("Bitte Server-Details eingeben — klicke auf 'Server-Details eingeben' im Postfach-Schritt."); return; }
+      if (!data.imapEmail)    { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
+      if (!data.imapPassword) { setValidationError("Bitte Passwort eingeben."); return; }
+      if (!data.imapHost)     { setValidationError("Server-Details fehlen — bitte Provider auswählen oder manuell eingeben."); return; }
+
+      setTestPhase("testing");
+      setTestErrors({});
+
+      const fd = new FormData();
+      fd.set("tcImapHost",   data.imapHost);
+      fd.set("tcImapPort",   String(data.imapPort));
+      fd.set("tcImapSecure", String(data.imapSecure));
+      fd.set("tcImapUser",   data.imapEmail);
+      fd.set("tcImapPass",   data.imapPassword);
+      fd.set("tcSmtpHost",   data.smtpHost);
+      fd.set("tcSmtpPort",   String(data.smtpPort));
+      fd.set("tcSmtpSecure", String(data.smtpSecure));
+      fd.set("tcSmtpUser",   data.smtpEmail || data.imapEmail);
+      fd.set("tcSmtpPass",   data.smtpPassword || data.imapPassword);
+
+      const result = await testMailConnectionAction(null, fd);
+
+      if (result.imap.ok && result.smtp.ok) {
+        setTestPhase("success");
+        setTimeout(() => {
+          setTestPhase("idle");
+          setStep((s) => Math.min(STEPS.length - 1, s + 1));
+        }, 900);
+      } else {
+        setTestPhase("error");
+        setTestErrors({
+          imap: result.imap.ok ? undefined : result.imap.error,
+          smtp: result.smtp.ok ? undefined : result.smtp.error,
+        });
+      }
+      return;
     }
+
     if (step === 1 && !data.recipientEmail) {
       setValidationError("Bitte Empfänger-Adresse eingeben.");
       return;
     }
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   };
-  const back = () => { setValidationError(null); setStep((s) => Math.max(0, s - 1)); };
+  const back = () => { setValidationError(null); setTestPhase("idle"); setTestErrors({}); setStep((s) => Math.max(0, s - 1)); };
 
   if (actionState.status === "success") {
     clearStorage();
@@ -208,6 +248,7 @@ export function OnboardingWizard() {
               <MailboxConnectContent
                 mode="onboarding"
                 onDataChange={(d: MailboxData | null) => {
+                  if (testPhase === "error") { setTestPhase("idle"); setTestErrors({}); }
                   if (d) {
                     setData((prev) => ({
                       ...prev,
@@ -358,15 +399,48 @@ export function OnboardingWizard() {
           <p className="mt-4 text-sm text-danger">{validationError}</p>
         )}
 
+        {/* ── Connection test feedback ───────────────────────────────── */}
+        {testPhase === "testing" && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-muted">
+            <Loader2 size={14} className="animate-spin shrink-0" aria-hidden />
+            <span>Prüfe IMAP und SMTP…</span>
+          </div>
+        )}
+        {testPhase === "success" && (
+          <div className="mt-4 flex items-center gap-3 text-sm text-ok">
+            <span className="flex items-center gap-1"><Check size={14} aria-hidden /> IMAP verbunden</span>
+            <span className="flex items-center gap-1"><Check size={14} aria-hidden /> SMTP verbunden</span>
+          </div>
+        )}
+        {testPhase === "error" && (
+          <div className="mt-4 rounded-md border border-danger/20 bg-danger/5 px-3 py-2.5 text-sm">
+            <p className="flex items-center gap-1.5 font-medium text-danger">
+              <WifiOff size={14} aria-hidden /> Verbindung fehlgeschlagen
+            </p>
+            {testErrors.imap && <p className="mt-1 text-xs text-danger"><strong>IMAP:</strong> {testErrors.imap}</p>}
+            {testErrors.smtp && <p className="mt-1 text-xs text-danger"><strong>SMTP:</strong> {testErrors.smtp}</p>}
+          </div>
+        )}
+
         {/* ── Footer nav ────────────────────────────────────────────────── */}
         <div className="mt-6 flex items-center justify-between">
-          <Button variant="ghost" onClick={back} disabled={step === 0} className="gap-1.5">
+          <Button variant="ghost" onClick={back} disabled={step === 0 || testPhase === "testing"} className="gap-1.5">
             <ArrowLeft size={16} aria-hidden /> zurück
           </Button>
 
           {step < STEPS.length - 1 ? (
-            <Button onClick={next} className="gap-1.5">
-              weiter <ArrowRight size={16} aria-hidden />
+            <Button
+              onClick={next}
+              disabled={testPhase === "testing" || testPhase === "success"}
+              className="gap-1.5"
+            >
+              {testPhase === "testing" ? (
+                <><Loader2 size={16} className="animate-spin" aria-hidden /> Wird geprüft…</>
+              ) : testPhase === "success" ? (
+                <><Check size={16} aria-hidden /> Verbunden</>
+              ) : (
+                <>weiter <ArrowRight size={16} aria-hidden /></>
+              )}
             </Button>
           ) : (
             <form action={formAction}>

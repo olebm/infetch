@@ -327,8 +327,8 @@ export function MailboxConnectContent({
         />
       </div>
 
-      {/* Connection test */}
-      {canTest && (
+      {/* Connection test — only in settings mode; onboarding uses wizard's "weiter" as test trigger */}
+      {canTest && mode === "settings" && (
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -354,8 +354,8 @@ export function MailboxConnectContent({
         </div>
       )}
 
-      {/* Inline error detail when test fails */}
-      {testResult && (!testResult.imap.ok || !testResult.smtp.ok) && (
+      {/* Inline error detail when test fails — settings mode only */}
+      {mode === "settings" && testResult && (!testResult.imap.ok || !testResult.smtp.ok) && (
         <div className="rounded-md border border-danger/20 bg-danger/5 px-3 py-2 text-xs text-danger">
           {!testResult.imap.ok && <p><strong>IMAP:</strong> {testResult.imap.error}</p>}
           {!testResult.smtp.ok && <p><strong>SMTP:</strong> {testResult.smtp.error}</p>}
