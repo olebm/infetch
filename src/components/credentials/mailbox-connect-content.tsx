@@ -126,13 +126,10 @@ export function MailboxConnectContent({
       setSmtpHost(found.smtp.host);
       setSmtpPort(found.smtp.port);
       setSmtpSecure(found.smtp.secure);
-    } else {
-      // Unknown domain after "@": clear auto-filled settings, open accordion
-      if (hadProvider) {
-        setImapHost(""); setImapPort(993); setImapSecure(true);
-        setSmtpHost(""); setSmtpPort(465); setSmtpSecure(true);
-      }
-      if (value.includes("@")) setShowAdv(true);
+    } else if (hadProvider) {
+      // Switched away from a known domain — clear auto-filled settings
+      setImapHost(""); setImapPort(993); setImapSecure(true);
+      setSmtpHost(""); setSmtpPort(465); setSmtpSecure(true);
     }
   }
 
@@ -162,37 +159,51 @@ export function MailboxConnectContent({
         />
       </div>
 
-      {/* Provider badge */}
+      {/* Provider badge — shown when domain is recognised */}
       {provider && (
         <div className="flex items-center gap-2.5 rounded-md border border-ok/20 bg-ok/5 px-3 py-2">
           <VendorLogo domain={provider.domain} name={provider.name} size={20} />
-          <span className="flex-1 text-xs text-ink">
+          <span className="text-xs text-ink">
             <span className="font-medium">{provider.name}</span>
             {" "}erkannt — Server automatisch konfiguriert.
           </span>
+        </div>
+      )}
+
+      {/* Unknown domain — deliberate CTA instead of auto-expanding fields */}
+      {!provider && emailHasDomain && !showAdv && (
+        <div className="rounded-md border border-line bg-surface px-4 py-3">
+          <p className="text-sm font-medium text-ink">Anbieter nicht erkannt.</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Kein Problem — du kannst IMAP- und SMTP-Server manuell eingeben.
+            Die Daten findest du in der Hilfe deines E-Mail-Anbieters oder bei deinem IT-Admin.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowAdv(true)}
+            className="mt-3 text-xs font-medium text-brand hover:underline"
+          >
+            Server-Details eingeben →
+          </button>
+        </div>
+      )}
+
+      {/* App-password warning — above the password field so it's read before entry */}
+      {provider?.hint && (
+        <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs text-ink">
+          <span className="font-medium">Wichtig: </span>
+          {provider.hint}
           {provider.appPasswordUrl && (
             <a
               href={provider.appPasswordUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex shrink-0 items-center gap-1 rounded border border-line bg-white px-2 py-0.5 text-[11px] text-muted hover:border-brand/50 hover:text-ink"
+              className="ml-1.5 inline-flex items-center gap-0.5 font-medium text-brand hover:underline"
             >
-              App-Passwort <ExternalLink size={10} aria-hidden />
+              App-Passwort erstellen <ExternalLink size={10} aria-hidden />
             </a>
           )}
         </div>
-      )}
-
-      {/* Unknown domain hint */}
-      {!provider && emailHasDomain && (
-        <p className="text-xs text-muted">
-          Unbekannter Anbieter — bitte Server-Details unten eingeben.
-        </p>
-      )}
-
-      {/* Provider hint (e.g. "App-Passwort nötig") */}
-      {provider?.hint && (
-        <p className="text-xs text-warn">{provider.hint}</p>
       )}
 
       {/* Password */}

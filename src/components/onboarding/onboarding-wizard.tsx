@@ -128,7 +128,7 @@ export function OnboardingWizard() {
     setValidationError(null);
     if (step === 0) {
       if (!data.imapEmail) { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
-      if (!data.imapHost)  { setValidationError("Bitte Postfach-Anbieter auswählen oder IMAP-Host eingeben."); return; }
+      if (!data.imapHost)  { setValidationError("Bitte Server-Details eingeben — klicke auf 'Server-Details eingeben' im Postfach-Schritt."); return; }
     }
     if (step === 1 && !data.recipientEmail) {
       setValidationError("Bitte Empfänger-Adresse eingeben.");
