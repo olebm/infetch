@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useActionState } from "react";
 import { ChevronDown, ExternalLink, Check } from "lucide-react";
-import { MAIL_PROVIDERS, type MailProvider } from "@/lib/mail-providers";
+import { MAIL_PROVIDERS, MAIL_BACKENDS, type MailProvider, type MailBackend } from "@/lib/mail-providers";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import {
   saveMailboxCredentialsAction,
@@ -71,6 +71,7 @@ export function MailboxConnectContent({
   const [smtpHost, setSmtpHost]         = useState("");
   const [smtpPort, setSmtpPort]         = useState(465);
   const [smtpSecure, setSmtpSecure]     = useState(true);
+  const [backend, setBackend]           = useState<MailBackend | null>(null);
   const [separateSmtp, setSeparateSmtp] = useState(false);
   const [smtpEmail, setSmtpEmail]       = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
@@ -104,11 +105,21 @@ export function MailboxConnectContent({
   }, [
     mode, onDataChange, email, password,
     imapHost, imapPort, imapSecure,
-    smtpHost, smtpPort, smtpSecure, provider,
+    smtpHost, smtpPort, smtpSecure, provider, backend,
     separateSmtp, smtpEmail, smtpPassword,
   ]);
 
   // ── Live provider detection ───────────────────────────────────────────────
+
+  function applyServerSettings(s: { imap: { host: string; port: number; secure: boolean }; smtp: { host: string; port: number; secure: boolean } }) {
+    setImapHost(s.imap.host); setImapPort(s.imap.port); setImapSecure(s.imap.secure);
+    setSmtpHost(s.smtp.host); setSmtpPort(s.smtp.port); setSmtpSecure(s.smtp.secure);
+  }
+
+  function selectBackend(b: MailBackend) {
+    setBackend(b);
+    applyServerSettings(b);
+  }
 
   function handleEmailChange(value: string) {
     setEmail(value);
@@ -116,18 +127,16 @@ export function MailboxConnectContent({
 
     const found = detectProvider(value);
     const hadProvider = provider !== null;
+    const hadBackend = backend !== null;
 
     setProvider(found ?? null);
 
     if (found) {
-      setImapHost(found.imap.host);
-      setImapPort(found.imap.port);
-      setImapSecure(found.imap.secure);
-      setSmtpHost(found.smtp.host);
-      setSmtpPort(found.smtp.port);
-      setSmtpSecure(found.smtp.secure);
-    } else if (hadProvider) {
+      setBackend(null);
+      applyServerSettings(found);
+    } else if (hadProvider || hadBackend) {
       // Switched away from a known domain — clear auto-filled settings
+      setBackend(null);
       setImapHost(""); setImapPort(993); setImapSecure(true);
       setSmtpHost(""); setSmtpPort(465); setSmtpSecure(true);
     }
@@ -170,32 +179,68 @@ export function MailboxConnectContent({
         </div>
       )}
 
-      {/* Unknown domain — deliberate CTA instead of auto-expanding fields */}
-      {!provider && emailHasDomain && !showAdv && (
+      {/* Backend badge — shown when user selected a backend for a custom domain */}
+      {!provider && backend && (
+        <div className="flex items-center justify-between gap-2.5 rounded-md border border-ok/20 bg-ok/5 px-3 py-2">
+          <div className="flex items-center gap-2.5">
+            <VendorLogo domain={backend.domain} name={backend.name} size={20} />
+            <span className="text-xs text-ink">
+              <span className="font-medium">{backend.name}</span>
+              {" "}ausgewählt — Server automatisch konfiguriert.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setBackend(null);
+              setImapHost(""); setImapPort(993); setImapSecure(true);
+              setSmtpHost(""); setSmtpPort(465); setSmtpSecure(true);
+            }}
+            className="shrink-0 text-xs text-muted hover:text-ink"
+          >
+            Ändern
+          </button>
+        </div>
+      )}
+
+      {/* Unknown domain — backend picker, then manual fallback */}
+      {!provider && !backend && emailHasDomain && !showAdv && (
         <div className="rounded-md border border-line bg-surface px-4 py-3">
-          <p className="text-sm font-medium text-ink">Anbieter nicht erkannt.</p>
+          <p className="text-sm font-medium text-ink">Domain nicht erkannt — welchen Dienst nutzt du?</p>
           <p className="mt-0.5 text-xs text-muted">
-            Kein Problem — du kannst IMAP- und SMTP-Server manuell eingeben.
-            Die Daten findest du in der Hilfe deines E-Mail-Anbieters oder bei deinem IT-Admin.
+            Wähle deinen E-Mail-Dienst und die Server-Daten werden automatisch eingetragen.
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {MAIL_BACKENDS.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => selectBackend(b)}
+                className="inline-flex items-center gap-1.5 rounded border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink hover:border-brand hover:text-brand transition-colors"
+              >
+                <VendorLogo domain={b.domain} name={b.name} size={14} />
+                {b.name}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => setShowAdv(true)}
-            className="mt-3 text-xs font-medium text-brand hover:underline"
+            className="mt-3 text-xs text-muted hover:text-ink"
           >
-            Server-Details eingeben →
+            Server-Details manuell eingeben →
           </button>
         </div>
       )}
 
       {/* App-password warning — above the password field so it's read before entry */}
-      {provider?.hint && (
+      {(provider?.hint ?? backend?.hint) && (
         <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs text-ink">
           <span className="font-medium">Wichtig: </span>
-          {provider.hint}
-          {provider.appPasswordUrl && (
+          {provider?.hint ?? backend?.hint}
+          {(provider?.appPasswordUrl ?? backend?.appPasswordUrl) && (
             <a
-              href={provider.appPasswordUrl}
+              href={provider?.appPasswordUrl ?? backend?.appPasswordUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="ml-1.5 inline-flex items-center gap-0.5 font-medium text-brand hover:underline"
@@ -209,7 +254,7 @@ export function MailboxConnectContent({
       {/* Password */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">
-          {provider?.hint ? "App-Passwort" : "Passwort"}
+          {(provider?.hint ?? backend?.hint) ? "App-Passwort" : "Passwort"}
         </label>
         <input
           type="password"
@@ -235,7 +280,7 @@ export function MailboxConnectContent({
           aria-hidden
         />
         Server-Details
-        {provider && !showAdv && (
+        {(provider ?? backend) && !showAdv && (
           <span className="text-muted/60">· automatisch konfiguriert</span>
         )}
       </button>
