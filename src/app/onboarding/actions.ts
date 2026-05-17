@@ -6,6 +6,7 @@ import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
 import { detectEmailProvider } from "@/lib/email-providers";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
+import { verifyImapAccountConnection } from "@/mail/imap-client";
 import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type OnboardingState = {
@@ -175,6 +176,16 @@ export async function completeOnboardingAction(
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Setup fehlgeschlagen.";
     return { status: "error", message: msg };
+  }
+}
+
+export async function verifyOnboardingImapAction(): Promise<{ ok: boolean; error?: string }> {
+  const auth = await requireCurrentAuth();
+  try {
+    await verifyImapAccountConnection("primary", auth.organization?.id ?? null);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Verbindung fehlgeschlagen." };
   }
 }
 

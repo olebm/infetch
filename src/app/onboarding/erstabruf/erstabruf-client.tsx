@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Search } from "lucide-react";
+import { Check, Loader2, Search, WifiOff } from "lucide-react";
 import type { DiscoveredSender } from "@/senders/discovered-senders";
 import { blockSenderAction, unblockSenderAction } from "@/app/(app)/senders/actions";
+import { verifyOnboardingImapAction } from "@/app/onboarding/actions";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 
 const SCAN_STEPS = [
@@ -28,9 +29,10 @@ interface SenderItem {
 
 export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
   const router = useRouter();
-  const [phase, setPhase] = useState<"scan" | "review">(
-    senders.length === 0 ? "scan" : "review",
+  const [phase, setPhase] = useState<"verifying" | "scan" | "review" | "error">(
+    senders.length === 0 ? "verifying" : "review",
   );
+  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [scanPct, setScanPct] = useState(0);
   const [scanStep, setScanStep] = useState(0);
   const [filter, setFilter] = useState<"all" | "unsure" | "private">("all");
@@ -67,18 +69,35 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     }),
   );
 
-  // Scan animation — runs once if we start in scan phase
+  // Real IMAP verification — first thing we do before showing the scan animation
+  useEffect(() => {
+    if (phase !== "verifying") return;
+    verifyOnboardingImapAction().then((result) => {
+      if (result.ok) {
+        // Start scan animation with first step already done
+        setScanPct(27);
+        setScanStep(1);
+        setPhase("scan");
+      } else {
+        setVerifyError(result.error ?? "Verbindung fehlgeschlagen.");
+        setPhase("error");
+      }
+    });
+  }, [phase]);
+
+  // Scan animation — runs once we're in scan phase (first step pre-verified)
   useEffect(() => {
     if (phase !== "scan") return;
-    let pct = 0;
     const tick = setInterval(() => {
-      pct = Math.min(100, pct + 2 + Math.random() * 3);
-      setScanPct(pct);
-      setScanStep(Math.min(SCAN_STEPS.length - 1, Math.floor(pct / 26)));
-      if (pct >= 100) {
-        clearInterval(tick);
-        setTimeout(() => setPhase("review"), 450);
-      }
+      setScanPct((prev) => {
+        const next = Math.min(100, prev + 2 + Math.random() * 3);
+        setScanStep(Math.min(SCAN_STEPS.length - 1, Math.floor(next / 26)));
+        if (next >= 100) {
+          clearInterval(tick);
+          setTimeout(() => setPhase("review"), 450);
+        }
+        return next;
+      });
     }, 70);
     return () => clearInterval(tick);
   }, [phase]);
@@ -133,6 +152,59 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     }
     router.push("/");
   };
+
+  // ══ Verifying phase ═════════════════════════════════════════════════════════
+  if (phase === "verifying") {
+    return (
+      <div className="flex min-h-screen flex-col bg-paper">
+        <header className="flex h-14 items-center border-b border-line px-6">
+          <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-7 w-auto" priority />
+        </header>
+        <main className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Loader2 size={32} className="animate-spin text-muted" aria-hidden />
+            <p className="text-sm text-muted">Postfach wird verbunden…</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ══ Error phase ══════════════════════════════════════════════════════════════
+  if (phase === "error") {
+    return (
+      <div className="flex min-h-screen flex-col bg-paper">
+        <header className="flex h-14 items-center border-b border-line px-6">
+          <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-7 w-auto" priority />
+        </header>
+        <main className="flex flex-1 items-center justify-center px-6">
+          <div className="w-full max-w-md text-center">
+            <WifiOff size={36} className="mx-auto text-danger" aria-hidden />
+            <h1 className="mt-4 text-xl font-semibold text-ink">Verbindung fehlgeschlagen</h1>
+            <p className="mt-2 text-sm text-muted">
+              Das Postfach konnte nicht erreicht werden — möglicherweise hat sich das Passwort geändert.
+            </p>
+            {verifyError && (
+              <p className="mt-2 rounded-md border border-danger/20 bg-danger/5 px-3 py-2 text-xs text-danger">
+                {verifyError}
+              </p>
+            )}
+            <div className="mt-6 flex flex-col gap-2">
+              <a
+                href="/onboarding"
+                className="inline-flex h-10 items-center justify-center rounded bg-brand px-4 text-sm font-medium text-white hover:opacity-90"
+              >
+                Postfach neu einrichten
+              </a>
+              <a href="/" className="text-xs text-muted hover:text-ink">
+                Zur App — ich kümmere mich später darum
+              </a>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // ══ Scan phase ══════════════════════════════════════════════════════════════
   if (phase === "scan") {

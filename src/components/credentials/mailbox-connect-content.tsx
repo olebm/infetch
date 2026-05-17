@@ -13,17 +13,14 @@
  */
 
 import { useState, useEffect, useActionState } from "react";
-import { ChevronDown, ExternalLink, Check, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { ChevronDown, ExternalLink, Check, WifiOff, Loader2 } from "lucide-react";
 import { MAIL_PROVIDERS, MAIL_BACKENDS, type MailProvider, type MailBackend } from "@/lib/mail-providers";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import {
   saveMailboxCredentialsAction,
   type CredentialFormState,
 } from "@/app/(app)/einstellungen/actions";
-import {
-  testMailConnectionAction,
-  type ConnectionTestResult,
-} from "@/mail/connection-test";
+import { testMailConnectionAction } from "@/mail/connection-test";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -79,8 +76,10 @@ export function MailboxConnectContent({
   const [separateSmtp, setSeparateSmtp] = useState(false);
   const [smtpEmail, setSmtpEmail]       = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
-  const [testing, setTesting]           = useState(false);
-  const [testResult, setTestResult]     = useState<ConnectionTestResult | null>(null);
+
+  type SettingsTestPhase = "idle" | "testing" | "success" | "error";
+  const [settingsTestPhase, setSettingsTestPhase] = useState<SettingsTestPhase>("idle");
+  const [settingsTestErrors, setSettingsTestErrors] = useState<{ imap?: string; smtp?: string }>({});
 
   const [state, formAction, isPending] = useActionState(
     saveMailboxCredentialsAction,
@@ -129,7 +128,7 @@ export function MailboxConnectContent({
 
   function handleEmailChange(value: string) {
     setEmail(value);
-    setTestResult(null);
+    if (settingsTestPhase === "error") { setSettingsTestPhase("idle"); setSettingsTestErrors({}); }
     if (showAdv) return; // user is manually configuring — don't override
 
     const found = detectProvider(value);
@@ -149,9 +148,13 @@ export function MailboxConnectContent({
     }
   }
 
-  async function handleTest() {
-    setTesting(true);
-    setTestResult(null);
+  async function handleSubmitWithTest(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+
+    setSettingsTestPhase("testing");
+    setSettingsTestErrors({});
+
     const fd = new FormData();
     fd.set("tcImapHost",   imapHost);
     fd.set("tcImapPort",   String(imapPort));
@@ -163,12 +166,24 @@ export function MailboxConnectContent({
     fd.set("tcSmtpSecure", String(smtpSecure));
     fd.set("tcSmtpUser",   separateSmtp ? smtpEmail : email);
     fd.set("tcSmtpPass",   separateSmtp ? smtpPassword : password);
+
     const result = await testMailConnectionAction(null, fd);
-    setTestResult(result);
-    setTesting(false);
+
+    if (result.imap.ok && result.smtp.ok) {
+      setSettingsTestPhase("success");
+      setTimeout(() => {
+        setSettingsTestPhase("idle");
+        formAction(formData);
+      }, 700);
+    } else {
+      setSettingsTestPhase("error");
+      setSettingsTestErrors({
+        imap: result.imap.ok ? undefined : result.imap.error,
+        smtp: result.smtp.ok ? undefined : result.smtp.error,
+      });
+    }
   }
 
-  const canTest = Boolean(email && password && imapHost && smtpHost);
   const emailHasDomain = email.includes("@") && email.slice(email.indexOf("@") + 1).length > 0;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -327,41 +342,6 @@ export function MailboxConnectContent({
         />
       </div>
 
-      {/* Connection test — only in settings mode; onboarding uses wizard's "weiter" as test trigger */}
-      {canTest && mode === "settings" && (
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleTest}
-            disabled={testing}
-            className="inline-flex items-center gap-1.5 rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:border-brand hover:text-brand disabled:opacity-50 transition-colors"
-          >
-            {testing
-              ? <><Loader2 size={12} className="animate-spin" aria-hidden /> Teste…</>
-              : <><Wifi size={12} aria-hidden /> Verbindung testen</>}
-          </button>
-
-          {testResult && (
-            <span className="flex items-center gap-2 text-xs">
-              {testResult.imap.ok
-                ? <span className="flex items-center gap-0.5 text-ok"><Check size={12} aria-hidden /> IMAP</span>
-                : <span className="flex items-center gap-0.5 text-danger" title={testResult.imap.error}><WifiOff size={12} aria-hidden /> IMAP</span>}
-              {testResult.smtp.ok
-                ? <span className="flex items-center gap-0.5 text-ok"><Check size={12} aria-hidden /> SMTP</span>
-                : <span className="flex items-center gap-0.5 text-danger" title={testResult.smtp.error}><WifiOff size={12} aria-hidden /> SMTP</span>}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Inline error detail when test fails — settings mode only */}
-      {mode === "settings" && testResult && (!testResult.imap.ok || !testResult.smtp.ok) && (
-        <div className="rounded-md border border-danger/20 bg-danger/5 px-3 py-2 text-xs text-danger">
-          {!testResult.imap.ok && <p><strong>IMAP:</strong> {testResult.imap.error}</p>}
-          {!testResult.smtp.ok && <p><strong>SMTP:</strong> {testResult.smtp.error}</p>}
-        </div>
-      )}
-
       {/* Server-Details accordion */}
       <button
         type="button"
@@ -478,7 +458,7 @@ export function MailboxConnectContent({
   if (mode === "onboarding") return inner;
 
   return (
-    <form action={formAction} noValidate>
+    <form onSubmit={handleSubmitWithTest} noValidate>
       <input type="hidden" name="mailSlot"     value={slot} readOnly />
       <input type="hidden" name="imapHost"     value={imapHost} readOnly />
       <input type="hidden" name="imapPort"     value={imapPort} readOnly />
@@ -491,7 +471,31 @@ export function MailboxConnectContent({
 
       {inner}
 
-      {state.status !== "idle" && state.message && (
+      {/* Connection test feedback */}
+      {settingsTestPhase === "testing" && (
+        <div className="mt-4 flex items-center gap-2 text-sm text-muted">
+          <Loader2 size={14} className="animate-spin shrink-0" aria-hidden />
+          <span>Prüfe IMAP und SMTP…</span>
+        </div>
+      )}
+      {settingsTestPhase === "success" && (
+        <div className="mt-4 flex items-center gap-3 text-sm text-ok">
+          <span className="flex items-center gap-1"><Check size={14} aria-hidden /> IMAP verbunden</span>
+          <span className="flex items-center gap-1"><Check size={14} aria-hidden /> SMTP verbunden</span>
+        </div>
+      )}
+      {settingsTestPhase === "error" && (
+        <div className="mt-4 rounded-md border border-danger/20 bg-danger/5 px-3 py-2.5 text-sm">
+          <p className="flex items-center gap-1.5 font-medium text-danger">
+            <WifiOff size={14} aria-hidden /> Verbindung fehlgeschlagen
+          </p>
+          {settingsTestErrors.imap && <p className="mt-1 text-xs text-danger"><strong>IMAP:</strong> {settingsTestErrors.imap}</p>}
+          {settingsTestErrors.smtp && <p className="mt-1 text-xs text-danger"><strong>SMTP:</strong> {settingsTestErrors.smtp}</p>}
+        </div>
+      )}
+
+      {/* Save result (shown after successful test + save) */}
+      {state.status !== "idle" && state.message && settingsTestPhase === "idle" && (
         <p className={`mt-4 text-xs ${state.status === "error" ? "text-danger" : "text-ok"}`}>
           {state.status === "success" && <Check size={12} className="mr-1 inline" aria-hidden />}
           {state.message}
@@ -501,10 +505,16 @@ export function MailboxConnectContent({
       <div className="mt-5 flex justify-end">
         <button
           type="submit"
-          disabled={isPending || !email || !imapHost || !smtpHost}
+          disabled={settingsTestPhase === "testing" || settingsTestPhase === "success" || isPending || !email || !imapHost || !smtpHost}
           className="inline-flex h-9 items-center gap-2 rounded bg-brand px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isPending ? "Verbinde…" : "Postfach verbinden"}
+          {settingsTestPhase === "testing"
+            ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Verbindung wird geprüft…</>
+            : settingsTestPhase === "success"
+              ? <><Check size={14} aria-hidden /> Verbunden</>
+              : isPending
+                ? "Speichert…"
+                : "Postfach verbinden"}
         </button>
       </div>
     </form>
