@@ -13,13 +13,17 @@
  */
 
 import { useState, useEffect, useActionState } from "react";
-import { ChevronDown, ExternalLink, Check } from "lucide-react";
+import { ChevronDown, ExternalLink, Check, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { MAIL_PROVIDERS, MAIL_BACKENDS, type MailProvider, type MailBackend } from "@/lib/mail-providers";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import {
   saveMailboxCredentialsAction,
   type CredentialFormState,
 } from "@/app/(app)/einstellungen/actions";
+import {
+  testMailConnectionAction,
+  type ConnectionTestResult,
+} from "@/mail/connection-test";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +79,8 @@ export function MailboxConnectContent({
   const [separateSmtp, setSeparateSmtp] = useState(false);
   const [smtpEmail, setSmtpEmail]       = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
+  const [testing, setTesting]           = useState(false);
+  const [testResult, setTestResult]     = useState<ConnectionTestResult | null>(null);
 
   const [state, formAction, isPending] = useActionState(
     saveMailboxCredentialsAction,
@@ -123,6 +129,7 @@ export function MailboxConnectContent({
 
   function handleEmailChange(value: string) {
     setEmail(value);
+    setTestResult(null);
     if (showAdv) return; // user is manually configuring — don't override
 
     const found = detectProvider(value);
@@ -142,6 +149,26 @@ export function MailboxConnectContent({
     }
   }
 
+  async function handleTest() {
+    setTesting(true);
+    setTestResult(null);
+    const fd = new FormData();
+    fd.set("tcImapHost",   imapHost);
+    fd.set("tcImapPort",   String(imapPort));
+    fd.set("tcImapSecure", String(imapSecure));
+    fd.set("tcImapUser",   email);
+    fd.set("tcImapPass",   password);
+    fd.set("tcSmtpHost",   smtpHost);
+    fd.set("tcSmtpPort",   String(smtpPort));
+    fd.set("tcSmtpSecure", String(smtpSecure));
+    fd.set("tcSmtpUser",   separateSmtp ? smtpEmail : email);
+    fd.set("tcSmtpPass",   separateSmtp ? smtpPassword : password);
+    const result = await testMailConnectionAction(null, fd);
+    setTestResult(result);
+    setTesting(false);
+  }
+
+  const canTest = Boolean(email && password && imapHost && smtpHost);
   const emailHasDomain = email.includes("@") && email.slice(email.indexOf("@") + 1).length > 0;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -233,8 +260,40 @@ export function MailboxConnectContent({
         </div>
       )}
 
+      {/* ProtonMail Bridge special card */}
+      {provider?.id === "protonmail" && (
+        <div className="rounded-md border border-line bg-surface px-4 py-3 text-xs">
+          <p className="font-medium text-ink">Proton Mail Bridge erforderlich</p>
+          <p className="mt-0.5 text-muted">
+            Proton Mail verschlüsselt alle E-Mails — externe Apps brauchen die Bridge als lokalen Proxy.
+          </p>
+          <ol className="mt-2.5 space-y-1.5 text-muted">
+            <li className="flex gap-2">
+              <span className="shrink-0 font-medium text-ink">1.</span>
+              <span>
+                <a href="https://proton.me/mail/bridge" target="_blank" rel="noopener noreferrer"
+                  className="font-medium text-brand hover:underline inline-flex items-center gap-0.5">
+                  Proton Mail Bridge herunterladen <ExternalLink size={10} aria-hidden />
+                </a>{" "}und installieren
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-medium text-ink">2.</span>
+              <span>In der Bridge mit deinem Proton-Konto anmelden</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="shrink-0 font-medium text-ink">3.</span>
+              <span>Das <strong>Bridge-Passwort</strong> (nicht dein Proton-Login) aus der Bridge-App kopieren und unten eingeben</span>
+            </li>
+          </ol>
+          <p className="mt-2 text-muted/70">
+            IMAP (Port 1143) und SMTP (Port 1025) sind bereits auf die Bridge-Adresse voreingestellt.
+          </p>
+        </div>
+      )}
+
       {/* App-password warning — above the password field so it's read before entry */}
-      {(provider?.hint ?? backend?.hint) && (
+      {provider?.id !== "protonmail" && (provider?.hint ?? backend?.hint) && (
         <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs text-ink">
           <span className="font-medium">Wichtig: </span>
           {provider?.hint ?? backend?.hint}
@@ -254,19 +313,54 @@ export function MailboxConnectContent({
       {/* Password */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">
-          {(provider?.hint ?? backend?.hint) ? "App-Passwort" : "Passwort"}
+          {provider?.id === "protonmail" ? "Bridge-Passwort" : (provider?.hint ?? backend?.hint) ? "App-Passwort" : "Passwort"}
         </label>
         <input
           type="password"
           name={mode === "settings" ? "mailPassword" : undefined}
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => { setPassword(e.target.value); setTestResult(null); }}
           placeholder="•••• •••• •••• ••••"
           autoComplete="new-password"
           enterKeyHint="done"
           className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
       </div>
+
+      {/* Connection test */}
+      {canTest && (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={testing}
+            className="inline-flex items-center gap-1.5 rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:border-brand hover:text-brand disabled:opacity-50 transition-colors"
+          >
+            {testing
+              ? <><Loader2 size={12} className="animate-spin" aria-hidden /> Teste…</>
+              : <><Wifi size={12} aria-hidden /> Verbindung testen</>}
+          </button>
+
+          {testResult && (
+            <span className="flex items-center gap-2 text-xs">
+              {testResult.imap.ok
+                ? <span className="flex items-center gap-0.5 text-ok"><Check size={12} aria-hidden /> IMAP</span>
+                : <span className="flex items-center gap-0.5 text-danger" title={testResult.imap.error}><WifiOff size={12} aria-hidden /> IMAP</span>}
+              {testResult.smtp.ok
+                ? <span className="flex items-center gap-0.5 text-ok"><Check size={12} aria-hidden /> SMTP</span>
+                : <span className="flex items-center gap-0.5 text-danger" title={testResult.smtp.error}><WifiOff size={12} aria-hidden /> SMTP</span>}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Inline error detail when test fails */}
+      {testResult && (!testResult.imap.ok || !testResult.smtp.ok) && (
+        <div className="rounded-md border border-danger/20 bg-danger/5 px-3 py-2 text-xs text-danger">
+          {!testResult.imap.ok && <p><strong>IMAP:</strong> {testResult.imap.error}</p>}
+          {!testResult.smtp.ok && <p><strong>SMTP:</strong> {testResult.smtp.error}</p>}
+        </div>
+      )}
 
       {/* Server-Details accordion */}
       <button
