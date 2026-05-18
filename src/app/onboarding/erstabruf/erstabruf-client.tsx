@@ -7,15 +7,12 @@ import Link from "next/link";
 import { Loader2, Search, WifiOff } from "lucide-react";
 import type { DiscoveredSender } from "@/senders/discovered-senders";
 import { blockSenderAction, unblockSenderAction } from "@/app/(app)/senders/actions";
-import { verifyOnboardingConnectionAction } from "@/app/onboarding/actions";
+import {
+  getOnboardingScanStatusAction,
+  getDiscoveredSendersAction,
+  type OnboardingScanStatus,
+} from "@/app/onboarding/actions";
 import { VendorLogo } from "@/components/ui/vendor-logo";
-
-const SCAN_STEPS = [
-  "Postfach verbunden",
-  "Letzte 12 Monate werden durchsucht",
-  "Anhänge analysiert",
-  "Anbieter erkannt",
-];
 
 interface SenderItem {
   id: number;
@@ -28,79 +25,94 @@ interface SenderItem {
   originallyBlocked: boolean;
 }
 
+function buildItems(senders: DiscoveredSender[]): SenderItem[] {
+  return senders.map((s) => {
+    const name = s.displayName || s.fromAddress;
+    const privateHints = [
+      "spotify.com", "netflix.com", "amazon.de", "amazon.com", "rewe.de",
+      "lidl.de", "aldi.de", "dhl.de", "dpd.de", "hermes.de",
+      "vodafone.de", "o2.de", "klarna.de", "ikea.de", "stadtwerke",
+    ];
+    const looksPrivate = privateHints.some((h) => s.fromDomain.includes(h));
+    const unsure = [
+      "amazon.de", "amazon.com", "telekom.de", "vodafone.de", "dhl.de",
+    ].some((h) => s.fromDomain.includes(h));
+
+    return {
+      id: s.id,
+      domain: s.fromDomain,
+      name,
+      hint: s.matchedVendorName ? s.matchedVendorName : s.fromDomain.split(".")[0],
+      count: s.mailCount,
+      kind: s.blocked || looksPrivate ? "private" : "business",
+      unsure,
+      originallyBlocked: s.blocked,
+    };
+  });
+}
+
 export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
   const router = useRouter();
-  const [phase, setPhase] = useState<"verifying" | "scan" | "review" | "error">(
-    senders.length === 0 ? "verifying" : "review",
+  const [phase, setPhase] = useState<"scan" | "result" | "review" | "error">(
+    senders.length === 0 ? "scan" : "review",
   );
-  const [verifyError, setVerifyError] = useState<string | null>(null);
-  const [scanPct, setScanPct] = useState(0);
-  const [scanStep, setScanStep] = useState(0);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scan, setScan] = useState<OnboardingScanStatus | null>(null);
   const [filter, setFilter] = useState<"all" | "unsure" | "private">("all");
   const [q, setQ] = useState("");
   const [saving, setSaving] = useState(false);
+  const [items, setItems] = useState<SenderItem[]>(() => buildItems(senders));
 
-  // Initialize items from real DB senders
-  const [items, setItems] = useState<SenderItem[]>(() =>
-    senders.map((s) => {
-      const name = s.displayName || s.fromAddress;
-      // Heuristic: known private domains
-      const privateHints = [
-        "spotify.com", "netflix.com", "amazon.de", "amazon.com", "rewe.de",
-        "lidl.de", "aldi.de", "dhl.de", "dpd.de", "hermes.de",
-        "vodafone.de", "o2.de", "klarna.de", "ikea.de", "stadtwerke",
-      ];
-      const looksPrivate = privateHints.some((h) => s.fromDomain.includes(h));
-      const unsure = [
-        "amazon.de", "amazon.com", "telekom.de", "vodafone.de", "dhl.de",
-      ].some((h) => s.fromDomain.includes(h));
-
-      return {
-        id: s.id,
-        domain: s.fromDomain,
-        name,
-        hint: s.matchedVendorName
-          ? s.matchedVendorName
-          : s.fromDomain.split(".")[0],
-        count: s.mailCount,
-        kind: s.blocked || looksPrivate ? "private" : "business",
-        unsure,
-        originallyBlocked: s.blocked,
-      };
-    }),
-  );
-
-  // Real IMAP verification — first thing we do before showing the scan animation
-  useEffect(() => {
-    if (phase !== "verifying") return;
-    verifyOnboardingConnectionAction().then((result) => {
-      if (result.ok) {
-        // Start scan animation with first step already done
-        setScanPct(27);
-        setScanStep(1);
-        setPhase("scan");
-      } else {
-        setVerifyError(result.error ?? "Verbindung fehlgeschlagen.");
-        setPhase("error");
-      }
-    });
-  }, [phase]);
-
-  // Scan animation — runs once we're in scan phase (first step pre-verified)
+  // Real first scan: poll until it finishes (we wait — no skipping).
   useEffect(() => {
     if (phase !== "scan") return;
-    const tick = setInterval(() => {
-      setScanPct((prev) => {
-        const next = Math.min(100, prev + 2 + Math.random() * 3);
-        setScanStep(Math.min(SCAN_STEPS.length - 1, Math.floor(next / 26)));
-        if (next >= 100) {
-          clearInterval(tick);
-          setTimeout(() => setPhase("review"), 450);
+    let cancelled = false;
+    const startedAt = Date.now();
+
+    const poll = async () => {
+      let status: OnboardingScanStatus;
+      try {
+        status = await getOnboardingScanStatusAction();
+      } catch {
+        if (!cancelled) setTimeout(poll, 2500);
+        return;
+      }
+      if (cancelled) return;
+      setScan(status);
+
+      if (status.state === "succeeded") {
+        try {
+          const fresh = await getDiscoveredSendersAction();
+          if (!cancelled) setItems(buildItems(fresh));
+        } catch {
+          /* keep whatever senders we already have */
         }
-        return next;
-      });
-    }, 70);
-    return () => clearInterval(tick);
+        if (!cancelled) setPhase("result");
+        return;
+      }
+      if (status.state === "failed") {
+        if (!cancelled) {
+          setScanError(status.error ?? "Der erste Abruf ist fehlgeschlagen.");
+          setPhase("error");
+        }
+        return;
+      }
+      // "none" (run row not created yet) or "running" → keep waiting.
+      // If no run ever appears within 45s, the scan didn't start.
+      if (status.state === "none" && Date.now() - startedAt > 45_000) {
+        if (!cancelled) {
+          setScanError("Der erste Abruf konnte nicht gestartet werden. Du kannst ihn in den Einstellungen erneut auslösen.");
+          setPhase("error");
+        }
+        return;
+      }
+      setTimeout(poll, 2500);
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+    };
   }, [phase]);
 
   const stats = useMemo(
@@ -132,7 +144,6 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
   const finish = async () => {
     setSaving(true);
     try {
-      // Apply block/unblock for items whose state differs from original
       const promises: Promise<unknown>[] = [];
       for (const item of items) {
         const wantsBlocked = item.kind === "private";
@@ -154,17 +165,106 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     router.push("/");
   };
 
-  // ══ Verifying phase ═════════════════════════════════════════════════════════
-  if (phase === "verifying") {
+  // ══ Scan phase — real progress, live counters ════════════════════════════════
+  if (phase === "scan") {
     return (
       <div className="flex min-h-screen flex-col bg-paper">
         <header className="flex h-14 items-center border-b border-line px-6">
           <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-7 w-auto" priority />
         </header>
-        <main className="flex flex-1 items-center justify-center">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <Loader2 size={32} className="animate-spin text-muted" aria-hidden />
-            <p className="text-sm text-muted">Postfach wird verbunden…</p>
+        <main className="flex flex-1 items-center">
+          <div className="mx-auto w-full max-w-xl px-6">
+            <div className="text-xs uppercase tracking-[0.14em] text-muted">Erstabruf</div>
+            <h1 className="mt-3 font-display text-4xl leading-[1.05] text-ink md:text-5xl">
+              Wir holen deine<br />Rechnungen aus 12 Monaten.
+            </h1>
+            <p className="mt-5 leading-relaxed text-muted">
+              Das kann je nach Postfachgröße ein paar Minuten dauern — bitte
+              lass das Fenster offen. Wir lesen nur Mails mit Rechnungsmerkmalen.
+            </p>
+
+            <div className="mt-12 flex items-center gap-3 text-sm text-ink">
+              <Loader2 size={18} className="animate-spin shrink-0 text-muted" aria-hidden />
+              <span>Postfach wird durchsucht…</span>
+            </div>
+
+            <dl className="mt-8 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
+              <div>
+                <dt className="text-xs text-muted">Mails geprüft</dt>
+                <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesProcessed ?? 0}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">PDFs gefunden</dt>
+                <dd className="stat-num font-display text-2xl text-ink">{scan?.pdfsFound ?? 0}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Rechnungen</dt>
+                <dd className="stat-num font-display text-2xl text-ink">{scan?.imported ?? 0}</dd>
+              </div>
+            </dl>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ══ Result phase — the payoff ════════════════════════════════════════════════
+  if (phase === "result") {
+    const imported = scan?.imported ?? 0;
+    return (
+      <div className="flex min-h-screen flex-col bg-paper">
+        <header className="flex h-14 items-center border-b border-line px-6">
+          <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-7 w-auto" priority />
+        </header>
+        <main className="flex flex-1 items-center">
+          <div className="mx-auto w-full max-w-xl px-6">
+            <div className="text-xs uppercase tracking-[0.14em] text-muted">Erstabruf abgeschlossen</div>
+            {imported > 0 ? (
+              <>
+                <h1 className="mt-3 font-display text-5xl leading-[1.05] text-ink md:text-6xl">
+                  <span className="stat-num">{imported}</span>{" "}
+                  {imported === 1 ? "Rechnung" : "Rechnungen"} geholt.
+                </h1>
+                <p className="mt-5 leading-relaxed text-muted">
+                  Aus den letzten 12 Monaten — bereits in Infetch. Ab jetzt
+                  scannen wir alle 5 Minuten automatisch weiter.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="mt-3 font-display text-4xl leading-[1.05] text-ink md:text-5xl">
+                  Postfach durchsucht.
+                </h1>
+                <p className="mt-5 leading-relaxed text-muted">
+                  In den letzten 12 Monaten haben wir keine eindeutigen
+                  Rechnungen gefunden. Kein Problem — ab jetzt scannt Infetch
+                  alle 5 Minuten automatisch weiter und holt neue Rechnungen
+                  sofort.
+                </p>
+              </>
+            )}
+
+            <dl className="mt-10 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
+              <div>
+                <dt className="text-xs text-muted">Mails geprüft</dt>
+                <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesProcessed ?? 0}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">PDFs gefunden</dt>
+                <dd className="stat-num font-display text-2xl text-ink">{scan?.pdfsFound ?? 0}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">Duplikate</dt>
+                <dd className="stat-num font-display text-2xl text-ink">{scan?.duplicates ?? 0}</dd>
+              </div>
+            </dl>
+
+            <button
+              onClick={() => (items.length > 0 ? setPhase("review") : router.push("/"))}
+              className="mt-10 h-11 rounded bg-ink px-6 text-sm text-white hover:opacity-90"
+            >
+              {items.length > 0 ? "Weiter — Absender sortieren →" : "Zur App →"}
+            </button>
           </div>
         </main>
       </div>
@@ -181,13 +281,13 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
         <main className="flex flex-1 items-center justify-center px-6">
           <div className="w-full max-w-md text-center">
             <WifiOff size={36} className="mx-auto text-danger" aria-hidden />
-            <h1 className="mt-4 text-xl font-semibold text-ink">Verbindung fehlgeschlagen</h1>
+            <h1 className="mt-4 text-xl font-semibold text-ink">Erster Abruf fehlgeschlagen</h1>
             <p className="mt-2 text-sm text-muted">
-              Das Postfach konnte nicht erreicht werden — möglicherweise hat sich das Passwort geändert.
+              Das Postfach konnte nicht vollständig durchsucht werden.
             </p>
-            {verifyError && (
+            {scanError && (
               <p className="mt-2 rounded-md border border-danger/20 bg-danger/5 px-3 py-2 text-xs text-danger">
-                {verifyError}
+                {scanError}
               </p>
             )}
             <div className="mt-6 flex flex-col gap-2">
@@ -207,71 +307,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     );
   }
 
-  // ══ Scan phase ══════════════════════════════════════════════════════════════
-  if (phase === "scan") {
-    return (
-      <div className="flex min-h-screen flex-col bg-paper">
-        <header className="flex h-14 items-center border-b border-line px-6">
-          <Image
-            src="/images/brand/infetch-logo.svg"
-            alt="Infetch"
-            width={90}
-            height={28}
-            className="h-7 w-auto"
-            priority
-          />
-        </header>
-        <main className="flex flex-1 items-center">
-          <div className="mx-auto w-full max-w-xl px-6">
-            <div className="text-xs uppercase tracking-[0.14em] text-muted">
-              Erstabruf
-            </div>
-            <h1 className="mt-3 font-display text-4xl leading-[1.05] text-ink md:text-5xl">
-              Wir hören uns dein<br />
-              Postfach einmal an.
-            </h1>
-            <p className="mt-5 leading-relaxed text-muted">
-              Damit du gleich entscheiden kannst, was geschäftlich ist und was
-              privat bleibt. Wir lesen nur Mails mit Rechnungsmerkmalen.
-            </p>
-
-            <div className="mt-12">
-              <div className="flex items-baseline justify-between">
-                <div className="text-sm text-ink">{SCAN_STEPS[scanStep]}…</div>
-                <div className="stat-num text-xs text-muted">
-                  {Math.floor(scanPct)}&nbsp;%
-                </div>
-              </div>
-              <div className="relative mt-3 h-px overflow-hidden bg-line">
-                <div
-                  className="absolute inset-y-0 left-0 bg-ink transition-all duration-300"
-                  style={{ width: scanPct + "%" }}
-                />
-              </div>
-              <ul className="mt-6 space-y-2 text-xs text-muted">
-                {SCAN_STEPS.map((s, i) => (
-                  <li key={s} className="flex items-center gap-2">
-                    <span
-                      className={`inline-block h-3 w-3 rounded-full border ${
-                        i < scanStep
-                          ? "border-ink bg-ink"
-                          : i === scanStep
-                            ? "border-ink"
-                            : "border-line"
-                      }`}
-                    />
-                    <span className={i <= scanStep ? "text-ink" : ""}>{s}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  // ══ Review phase ═══════════════════════════════════════════════════════════
+  // ══ Review phase — private/business triage ═══════════════════════════════════
   return (
     <div className="min-h-screen bg-paper">
       <header className="flex h-14 items-center justify-between border-b border-line px-6">
@@ -294,7 +330,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
 
       <div className="mx-auto max-w-[920px] px-6 py-12 md:py-16">
         <div className="text-xs uppercase tracking-[0.14em] text-muted">
-          Erstabruf · Schritt 2 von 2
+          Erstabruf · Anbieter sortieren
         </div>
         <h1 className="mt-3 font-display text-4xl leading-[1.05] text-ink md:text-5xl">
           <span className="stat-num">{stats.total}</span> Anbieter gefunden.
@@ -307,7 +343,6 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           ändern.
         </p>
 
-        {/* Stats */}
         <dl className="mt-10 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
           <div>
             <dt className="text-xs text-muted">geschäftlich</dt>
@@ -323,7 +358,6 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           </div>
         </dl>
 
-        {/* Filter + search */}
         <div className="mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-1 text-xs">
             {(
@@ -360,7 +394,6 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           </div>
         </div>
 
-        {/* List */}
         <ul className="mt-2">
           {visible.map((a) => (
             <li key={a.id} className="flex items-center gap-4 border-b border-line py-4">
@@ -379,7 +412,6 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                   <span className="text-muted/70">{a.hint}</span>
                 </div>
               </div>
-              {/* Segmented toggle */}
               <div className="flex shrink-0 items-center rounded border border-line bg-white text-xs">
                 <button
                   onClick={() => setKind(a.id, "business")}
@@ -407,13 +439,12 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           {visible.length === 0 && (
             <li className="py-12 text-center text-sm text-muted">
               {items.length === 0
-                ? "Noch keine Anbieter entdeckt — starte den ersten Scan über die Einstellungen."
+                ? "Keine Anbieter zum Sortieren — Infetch scannt ab jetzt automatisch weiter."
                 : `Nichts gefunden${q ? ` zu „${q}"` : ""}.`}
             </li>
           )}
         </ul>
 
-        {/* Footer CTA */}
         <div className="mt-12 flex flex-col gap-4 border-t border-line pt-8 md:flex-row md:items-center md:justify-between">
           <div className="max-w-md text-xs text-muted">
             <span className="text-ink">{stats.business}</span> Anbieter werden

@@ -9,6 +9,7 @@ import { runPrimaryImapScan } from "@/mail/mail-scanner";
 import { verifyImapAccountConnection } from "@/mail/imap-client";
 import { verifySmtpAccountConnection } from "@/mail/smtp-client";
 import { requireCurrentAuth } from "@/lib/auth/current";
+import { listDiscoveredSenders, type DiscoveredSender } from "@/senders/discovered-senders";
 
 export type OnboardingState = {
   status: "idle" | "success" | "error";
@@ -190,5 +191,65 @@ export async function verifyOnboardingConnectionAction(): Promise<{ ok: boolean;
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Verbindung fehlgeschlagen." };
   }
+}
+
+export type OnboardingScanStatus = {
+  state: "none" | "running" | "succeeded" | "failed";
+  imported: number;
+  duplicates: number;
+  pdfsFound: number;
+  messagesProcessed: number;
+  failed: number;
+  error?: string;
+};
+
+// Live status of the first IMAP scan triggered at the end of onboarding.
+// The scan runs detached in completeOnboardingAction; the Erstabruf screen
+// polls this until it succeeds/fails. sync_runs is global (single-runner via
+// advisory lock), so the latest imap_scan row is the onboarding scan.
+export async function getOnboardingScanStatusAction(): Promise<OnboardingScanStatus> {
+  await requireCurrentAuth();
+
+  const rows = await sql<{ status: string; summaryJson: string }[]>`
+    SELECT status, summary_json AS "summaryJson"
+    FROM sync_runs
+    WHERE type = 'imap_scan'
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) {
+    return { state: "none", imported: 0, duplicates: 0, pdfsFound: 0, messagesProcessed: 0, failed: 0 };
+  }
+
+  let summary: Record<string, unknown> = {};
+  try {
+    summary = JSON.parse(row.summaryJson || "{}") as Record<string, unknown>;
+  } catch {
+    summary = {};
+  }
+  const num = (k: string) => (typeof summary[k] === "number" ? (summary[k] as number) : 0);
+
+  const state: OnboardingScanStatus["state"] =
+    row.status === "succeeded" || row.status === "partial"
+      ? "succeeded"
+      : row.status === "failed"
+        ? "failed"
+        : "running";
+
+  return {
+    state,
+    imported: num("imported"),
+    duplicates: num("duplicates"),
+    pdfsFound: num("pdfsFound"),
+    messagesProcessed: num("messagesProcessed"),
+    failed: num("failed"),
+    error: typeof summary.error === "string" ? (summary.error as string) : undefined,
+  };
+}
+
+export async function getDiscoveredSendersAction(): Promise<DiscoveredSender[]> {
+  const auth = await requireCurrentAuth();
+  return listDiscoveredSenders(auth.organization?.id ?? null);
 }
 
