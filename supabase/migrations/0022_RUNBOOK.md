@@ -16,6 +16,27 @@ nicht mergen, am besten löschen.
 
 ---
 
+## Recon-Ergebnis (Stand: abgeschlossen) & Entscheidungen
+
+- **Echte Org:** genau eine — `tools` = **`185109b5-4a88-44d1-ad22-73d6e8a47f8e`**
+  → das ist der `designated_org`-Wert. Checkpoint 1 **aufgelöst**.
+- **Constraint-Namen** = PG-Defaults bestätigt → R1 entschärft.
+- **0013 ist auf Prod** (`export_targets.organization_id` existiert) → 0013 nicht im Chain.
+- `integration_targets` = 0 rows, `auto_approval_rules` = 0 rows → 0019-Guards
+  E/F können **nicht** abbrechen. **Einziger** 0019-Blocker: Guard A
+  (`invoice_files` der **697 orphan-Invoices**, org=NULL). Die 14 attribuierten
+  Invoices gehören Quota-Test-Orgs (Pollution).
+- **Strategie: Minimal-Fix zuerst** — KEIN Löschen im kritischen Pfad. Nur
+  `0022`(orphans→tools) → `0019/0020/0021`. Die 14 Quota-Test-Invoices
+  bekommen via 0019 die org ihrer Quota-Test-Org (harmlos, per-Org-Constraint).
+- **Test-Pollution-Purge = separate, spätere Aufgabe** (Junk-Orgs, alle
+  bestätigt: `order`, `Test User`, 8× `org-quota-test-*`). Nicht Teil dieses
+  Runbooks; eigener Backup+Staging-Lauf, wegen `vendors`-FK-Geflecht.
+
+`<ORG_ID>` in allen Befehlen unten = `185109b5-4a88-44d1-ad22-73d6e8a47f8e`.
+
+---
+
 ## Phase A — Backup (blockierend)
 
 ```bash
@@ -28,40 +49,12 @@ Einziger Rollback = dieser Dump. Es gibt **keine** Down-Migration.
 
 ---
 
-## Phase B — Drift-Recon (read-only gegen Prod)
+## Phase B — Drift-Recon ✓ ABGESCHLOSSEN
 
-```sql
--- echte Tenant-Zahl (entscheidet single- vs multi-tenant Backfill)
-SELECT count(*) FROM organizations WHERE deleted_at IS NULL;
-SELECT id, name, slug FROM organizations WHERE deleted_at IS NULL;
-
--- Orphans / Guard-Flächen
-SELECT count(*) AS total, count(organization_id) AS attribuiert FROM invoices;
-SELECT count(*) FROM integration_targets WHERE enabled IS TRUE OR oauth_token_ref IS NOT NULL;
-SELECT id, provider, label, enabled, oauth_token_ref FROM integration_targets;
-SELECT count(*) FROM auto_approval_rules;
-
--- 0013-Status (export_targets) — wenn 0 Zeilen, ist auch 0013 offen!
-SELECT 1 FROM information_schema.columns
- WHERE table_name='export_targets' AND column_name='organization_id';
-
--- Constraint-Namen (R1 — NICHT den PG-Defaults vertrauen)
-SELECT conname, conrelid::regclass FROM pg_constraint
- WHERE conrelid::regclass::text IN
-   ('invoice_files','vendor_month_status','integration_targets','discovered_senders')
- AND contype='u';
-```
-
-### ► Checkpoint 1 (Entscheidung)
-- **Genau 1 aktive Org:** `0022`-Blanket-Zuweisung ist sicher → weiter.
-- **Mehrere Orgs:** **STOP.** Blanket-Fallback würde fremde Tenant-Daten
-  zusammenmischen. Dann Pro-Tenant-Ableitung nötig (nicht in diesem Runbook).
-- Constraint-Namen müssen den 0019/0020-Erwartungen entsprechen:
-  `invoice_files_sha256_key`, `vendor_month_status_vendor_id_year_month_key`,
-  `integration_targets_provider_key`, `discovered_senders_from_address_key`.
-  Weichen sie ab → melden, bevor es weitergeht (sonst bleibt der alte globale
-  UNIQUE als latente Falle bestehen).
-- `<ORG_ID>` = id der einen aktiven Org aus dieser Recon.
+Recon gelaufen, Checkpoint 1 aufgelöst (siehe „Recon-Ergebnis" oben):
+1 echte Org (`tools` `185109b5-4a88-44d1-ad22-73d6e8a47f8e`), Constraint-Namen
+= Defaults, 0013 vorhanden, integration_targets/auto_approval_rules leer,
+697 orphan-Invoices. **Kein erneuter Recon nötig** — direkt Phase C.
 
 ---
 
