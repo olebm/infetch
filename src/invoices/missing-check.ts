@@ -8,6 +8,7 @@ type VendorRow = {
   id: number;
   name: string;
   portalEnabled: boolean;
+  organizationId: string | null;
 };
 
 type InvoiceSignal = {
@@ -46,8 +47,12 @@ export async function runMissingInvoiceCheck(): Promise<MissingCheckResult> {
     const orgs = await sql<{ id: string }[]>`
       SELECT id FROM organizations WHERE deleted_at IS NULL ORDER BY created_at
     `;
+    // organization_id mitladen: pro Org nur die für sie relevanten Vendors
+    // prüfen (eigene + globale Seeds). Ohne diesen Filter bekäme jede Org
+    // "missing"-Rows für die privaten Vendors ALLER anderen Orgs.
     const vendors = await sql<VendorRow[]>`
-      SELECT id, name, portal_enabled AS "portalEnabled"
+      SELECT id, name, portal_enabled AS "portalEnabled",
+             organization_id AS "organizationId"
       FROM vendors
       ORDER BY name
     `;
@@ -56,7 +61,11 @@ export async function runMissingInvoiceCheck(): Promise<MissingCheckResult> {
     const summary = { checked: 0, found: 0, required: 0, actionRequired: 0, disabled: 0 };
 
     for (const org of orgs) {
-      for (const vendor of vendors) {
+      // Nur eigene + globale Seed-Vendors dieser Org.
+      const orgVendors = vendors.filter(
+        (v) => v.organizationId === null || v.organizationId === org.id,
+      );
+      for (const vendor of orgVendors) {
         for (const yearMonth of months) {
           const signal = invoiceByOrgVendorMonth.get(`${org.id}:${vendor.id}:${yearMonth}`);
           const sourceStatus = await resolveSourceStatus(vendor, yearMonth, signal, org.id);
