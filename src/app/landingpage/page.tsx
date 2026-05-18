@@ -659,10 +659,6 @@ export default function LandingPage() {
             <p className="mt-5 text-muted leading-relaxed">
               Kostenlos starten. Keine Kreditkarte. Monatlich kündbar.
             </p>
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white px-4 py-1.5 text-sm text-ink">
-              <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>
-              Launch-Angebot: Pro die ersten 6 Monate&nbsp;<span className="font-medium">−50 %</span>
-            </div>
           </div>
 
           <div className="mt-14 grid md:grid-cols-2 gap-8 max-w-4xl">
@@ -693,10 +689,9 @@ export default function LandingPage() {
               </div>
               <div className="text-sm text-muted">Pro</div>
               <div className="mt-4 flex items-baseline gap-2">
-                <span className="font-display text-5xl text-ink stat-num">9,50 €</span>
-                <span className="font-display text-xl text-muted line-through stat-num">19 €</span>
+                <span className="font-display text-5xl text-ink stat-num">19 €</span>
               </div>
-              <div className="text-xs text-muted mt-1">/ Monat · zzgl. USt. · erste 6 Monate, danach 19 €</div>
+              <div className="text-xs text-muted mt-1">/ Monat · zzgl. USt.</div>
               <p className="mt-5 text-sm text-muted leading-relaxed">
                 Alles inklusive — für alle, die auf nichts verzichten wollen.
               </p>
