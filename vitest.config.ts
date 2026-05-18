@@ -13,6 +13,10 @@ export default defineConfig(({ mode }) => {
       // E2E-Tests laufen mit `npx playwright test`, nicht mit Vitest
       exclude: ["tests/e2e/**"],
       setupFiles: ["tests/setup.ts"],
+      // Integration/unit tests share one Postgres DB. Org-scoped crons
+      // (e.g. runMissingInvoiceCheck) iterate ALL organizations, so a parallel
+      // worker creating/deleting its org mid-run causes FK races. Serialize.
+      fileParallelism: false,
       env,
     },
     resolve: {

@@ -58,6 +58,7 @@ describe("Mistral invoice extraction pipeline", () => {
     const result = await runInvoiceAiExtraction(
       {
         invoiceId,
+        organizationId: null,
         originalFilename: "openai.pdf",
         pdfText: "OpenAI Ireland Ltd. Invoice INV-2026-001 Total 23 EUR",
         localParsed: { invoiceNumber: null, invoiceDate: null, amountGross: null, currency: null },
@@ -99,6 +100,7 @@ describe("Mistral invoice extraction pipeline", () => {
     };
     const input = {
       invoiceId,
+      organizationId: null,
       originalFilename: "openai.pdf",
       pdfText: "OpenAI Ireland Ltd. Invoice INV-2026-001 Total 23 EUR",
       localParsed: { invoiceNumber: null, invoiceDate: null, amountGross: null, currency: null },

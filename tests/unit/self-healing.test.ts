@@ -168,7 +168,7 @@ describe("auto-approval per-field-confidence fallback", () => {
         needs_review: false,
         review_reason: null,
       },
-      { vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
+      { organizationId: null, vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
     );
 
     expect(decision.autoApproved).toBe(true);
@@ -199,7 +199,7 @@ describe("auto-approval per-field-confidence fallback", () => {
         needs_review: false,
         review_reason: null,
       },
-      { vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
+      { organizationId: null, vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
     );
 
     expect(decision.autoApproved).toBe(false);
@@ -300,7 +300,7 @@ describe("escalateStuckReviews", () => {
 
 describe("isSenderAutoIgnored", () => {
   it("returns false when address is empty", async () => {
-    expect(await isSenderAutoIgnored(null)).toBe(false);
+    expect(await isSenderAutoIgnored(null, null)).toBe(false);
   });
 });
 
