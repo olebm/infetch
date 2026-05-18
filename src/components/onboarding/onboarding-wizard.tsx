@@ -1,13 +1,16 @@
 "use client";
 
-import { Fragment, useActionState, useEffect, useState } from "react";
+import { Fragment, useActionState, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, ArrowLeft, ArrowRight, Info, Loader2, WifiOff } from "lucide-react";
+import { Check, ArrowLeft, ArrowRight, Info, Loader2, WifiOff, ChevronDown, ExternalLink } from "lucide-react";
 import { completeOnboardingAction, type OnboardingState } from "@/app/onboarding/actions";
 import { testMailConnectionAction } from "@/mail/connection-test";
 import { Button } from "@/components/ui/button";
+import { VendorLogo } from "@/components/ui/vendor-logo";
 import { MailboxConnectContent, type MailboxData } from "@/components/credentials/mailbox-connect-content";
+import { RECIPIENTS, type TargetSlot } from "@/lib/recipients";
+import { getProviderFromEmail } from "@/lib/mail-providers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,20 +27,22 @@ type WizardData = {
   smtpPassword: string;   // SMTP password (may differ from IMAP)
   recipientName: string;
   recipientEmail: string;
-  recipientTemplate: string;
-  subjectTemplate: string;
+  recipientKey: string;       // selected RECIPIENTS key, or "custom"
+  recipientSlot: TargetSlot;  // export slot derived from the selected recipient
+  // Optional separate sending mailbox (e.g. the address registered at the tax
+  // software). When enabled, invoices are sent from this account instead of
+  // the receiving (IMAP) one.
+  senderEnabled: boolean;
+  senderEmail: string;
+  senderPassword: string;
+  senderSmtpHost: string;
+  senderSmtpPort: number;
+  senderSmtpSecure: boolean;
 };
 
 // ─── Steps config ─────────────────────────────────────────────────────────────
 
 const STEPS = ["Postfach", "Buchhaltung", "Bestätigung"] as const;
-
-const TEMPLATES: Record<string, { name: string; email: string }> = {
-  custom:      { name: "",                    email: "" },
-  kontist:     { name: "Kontist Belegupload", email: "belege@kontist.com" },
-  accountable: { name: "Accountable",         email: "belege@accountable.de" },
-  datev:       { name: "DATEV Unternehmen",   email: "" },
-};
 
 // ─── sessionStorage helpers ───────────────────────────────────────────────────
 
@@ -45,7 +50,7 @@ const STORAGE_KEY = "onboarding-wizard";
 
 type PersistedState = {
   step: number;
-  data: Omit<WizardData, "imapPassword" | "smtpPassword">;
+  data: Omit<WizardData, "imapPassword" | "smtpPassword" | "senderPassword">;
 };
 
 function loadFromStorage(): PersistedState | null {
@@ -61,7 +66,7 @@ function loadFromStorage(): PersistedState | null {
 function saveToStorage(step: number, data: WizardData): void {
   if (typeof window === "undefined") return;
   try {
-    const { imapPassword: _ip, smtpPassword: _sp, ...rest } = data;
+    const { imapPassword: _ip, smtpPassword: _sp, senderPassword: _snp, ...rest } = data;
     sessionStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ step: Math.min(step, 1), data: rest } satisfies PersistedState),
@@ -82,8 +87,11 @@ const DEFAULT_DATA: WizardData = {
   smtpHost: "", smtpPort: 465, smtpSecure: true,
   smtpEmail: "", smtpPassword: "",
   recipientName: "", recipientEmail: "",
-  recipientTemplate: "custom",
-  subjectTemplate: "[Rechnung] {{vendor}} · {{date}} · {{amount}}",
+  recipientKey: "custom",
+  recipientSlot: "kontist",
+  senderEnabled: false,
+  senderEmail: "", senderPassword: "",
+  senderSmtpHost: "", senderSmtpPort: 465, senderSmtpSecure: true,
 };
 
 const IMAP_SMTP_DEFAULTS = {
@@ -93,6 +101,29 @@ const IMAP_SMTP_DEFAULTS = {
   smtpEmail: "", smtpPassword: "",
 };
 
+// Effective SMTP/send settings: separate sending mailbox if enabled, else the
+// receiving (IMAP) account's SMTP. Used for the connection test and submit.
+function effectiveSmtp(d: WizardData): {
+  host: string; port: number; secure: boolean; user: string; pass: string;
+} {
+  if (d.senderEnabled) {
+    return {
+      host: d.senderSmtpHost,
+      port: d.senderSmtpPort,
+      secure: d.senderSmtpSecure,
+      user: d.senderEmail,
+      pass: d.senderPassword,
+    };
+  }
+  return {
+    host: d.smtpHost,
+    port: d.smtpPort,
+    secure: d.smtpSecure,
+    user: d.smtpEmail || d.imapEmail,
+    pass: d.smtpPassword || d.imapPassword,
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const initialActionState: OnboardingState = { status: "idle", message: "" };
@@ -100,16 +131,30 @@ const initialActionState: OnboardingState = { status: "idle", message: "" };
 export function OnboardingWizard() {
   const router = useRouter();
 
-  const [step, setStep] = useState(() => loadFromStorage()?.step ?? 0);
-  const [data, setData] = useState<WizardData>(() => {
+  // SSR-safe: server and first client render must match, so start from
+  // defaults and restore sessionStorage only after mount.
+  const [step, setStep] = useState(0);
+  const [data, setData] = useState<WizardData>(DEFAULT_DATA);
+  const [hydrated, setHydrated] = useState(false);
+
+  // One-time client-only restore of persisted wizard state after mount.
+  // Intentionally post-render (not a lazy useState initializer) so SSR and the
+  // first client render stay identical — otherwise the step indicator hydrates
+  // with a mismatch. setState-in-effect is the correct tool for this one-shot
+  // hydration; the rule is disabled deliberately, matching repo convention.
+  useEffect(() => {
     const saved = loadFromStorage();
-    if (!saved) return DEFAULT_DATA;
-    const restored = { ...DEFAULT_DATA, ...saved.data, imapPassword: "", smtpPassword: "" };
-    // MailboxConnectContent manages its own UI state — clear IMAP/SMTP fields
-    // when restoring to step 0 so the component and wizard state stay in sync.
-    if (saved.step === 0) return { ...restored, ...IMAP_SMTP_DEFAULTS };
-    return restored;
-  });
+    if (saved) {
+      const restored = { ...DEFAULT_DATA, ...saved.data, imapPassword: "", smtpPassword: "" };
+      // MailboxConnectContent manages its own UI state — clear IMAP/SMTP fields
+      // when restoring to step 0 so the component and wizard state stay in sync.
+      /* eslint-disable react-hooks/set-state-in-effect */
+      setData(saved.step === 0 ? { ...restored, ...IMAP_SMTP_DEFAULTS } : restored);
+      setStep(saved.step);
+    }
+    setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
 
   const [actionState, formAction, isPending] = useActionState(
     completeOnboardingAction,
@@ -120,14 +165,41 @@ export function OnboardingWizard() {
   type TestPhase = "idle" | "testing" | "success" | "error";
   const [testPhase, setTestPhase] = useState<TestPhase>("idle");
   const [testErrors, setTestErrors] = useState<{ imap?: string; smtp?: string }>({});
+  const [senderShowAdv, setSenderShowAdv] = useState(false);
+
+  function handleSenderEmailChange(value: string) {
+    const provider = getProviderFromEmail(value);
+    setData((d) => ({
+      ...d,
+      senderEmail: value,
+      // Auto-fill the send SMTP server from the address' provider. If unknown,
+      // keep whatever is there so the manual Server-Details still apply.
+      ...(provider
+        ? {
+            senderSmtpHost: provider.smtp.host,
+            senderSmtpPort: provider.smtp.port,
+            senderSmtpSecure: provider.smtp.secure,
+          }
+        : {}),
+    }));
+  }
 
   useEffect(() => {
+    if (!hydrated) return;
     saveToStorage(step, data);
-  }, [step, data]);
+  }, [hydrated, step, data]);
 
   const set = (key: keyof WizardData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setData((d) => ({ ...d, [key]: e.target.value }));
+
+  const selectedRecipientHint =
+    data.recipientKey === "custom"
+      ? null
+      : RECIPIENTS.find((r) => r.key === data.recipientKey)?.hint ?? null;
+
+  const submitSmtp = effectiveSmtp(data);
+  const senderProvider = data.senderEnabled ? getProviderFromEmail(data.senderEmail) : null;
 
   const next = async () => {
     setValidationError(null);
@@ -136,9 +208,16 @@ export function OnboardingWizard() {
       if (!data.imapEmail)    { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
       if (!data.imapPassword) { setValidationError("Bitte Passwort eingeben."); return; }
       if (!data.imapHost)     { setValidationError("Server-Details fehlen — bitte Provider auswählen oder manuell eingeben."); return; }
+      if (data.senderEnabled) {
+        if (!data.senderEmail)    { setValidationError("Bitte die abweichende Sende-Adresse eingeben."); return; }
+        if (!data.senderPassword) { setValidationError("Bitte das Passwort für die Sende-Adresse eingeben."); return; }
+        if (!data.senderSmtpHost) { setValidationError("Sende-Server unbekannt — bitte Server-Details der Sende-Adresse manuell eingeben."); return; }
+      }
 
       setTestPhase("testing");
       setTestErrors({});
+
+      const smtp = effectiveSmtp(data);
 
       const fd = new FormData();
       fd.set("tcImapHost",   data.imapHost);
@@ -146,13 +225,22 @@ export function OnboardingWizard() {
       fd.set("tcImapSecure", String(data.imapSecure));
       fd.set("tcImapUser",   data.imapEmail);
       fd.set("tcImapPass",   data.imapPassword);
-      fd.set("tcSmtpHost",   data.smtpHost);
-      fd.set("tcSmtpPort",   String(data.smtpPort));
-      fd.set("tcSmtpSecure", String(data.smtpSecure));
-      fd.set("tcSmtpUser",   data.smtpEmail || data.imapEmail);
-      fd.set("tcSmtpPass",   data.smtpPassword || data.imapPassword);
+      fd.set("tcSmtpHost",   smtp.host);
+      fd.set("tcSmtpPort",   String(smtp.port));
+      fd.set("tcSmtpSecure", String(smtp.secure));
+      fd.set("tcSmtpUser",   smtp.user);
+      fd.set("tcSmtpPass",   smtp.pass);
 
-      const result = await testMailConnectionAction(null, fd);
+      let result: Awaited<ReturnType<typeof testMailConnectionAction>>;
+      try {
+        result = await testMailConnectionAction(null, fd);
+      } catch (e) {
+        setTestPhase("error");
+        setTestErrors({
+          imap: e instanceof Error ? e.message : "Verbindungstest konnte nicht ausgeführt werden.",
+        });
+        return;
+      }
 
       if (result.imap.ok && result.smtp.ok) {
         setTestPhase("success");
@@ -177,6 +265,29 @@ export function OnboardingWizard() {
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   };
   const back = () => { setValidationError(null); setTestPhase("idle"); setTestErrors({}); setStep((s) => Math.max(0, s - 1)); };
+
+  // Stable so MailboxConnectContent's data-sync effect doesn't re-fire every render.
+  const handleMailboxData = useCallback((d: MailboxData | null) => {
+    setTestPhase((p) => (p === "error" ? "idle" : p));
+    setTestErrors((e) => (Object.keys(e).length ? {} : e));
+    if (d) {
+      setData((prev) => ({
+        ...prev,
+        imapEmail: d.email,
+        imapPassword: d.password,
+        imapHost: d.imapHost,
+        imapPort: d.imapPort,
+        imapSecure: d.imapSecure,
+        smtpHost: d.smtpHost,
+        smtpPort: d.smtpPort,
+        smtpSecure: d.smtpSecure,
+        smtpEmail: d.smtpEmail,
+        smtpPassword: d.smtpPassword,
+      }));
+    } else {
+      setData((prev) => ({ ...prev, ...IMAP_SMTP_DEFAULTS }));
+    }
+  }, []);
 
   if (actionState.status === "success") {
     clearStorage();
@@ -247,27 +358,137 @@ export function OnboardingWizard() {
             <div className="mt-6 rounded-md border border-line bg-paper p-5">
               <MailboxConnectContent
                 mode="onboarding"
-                onDataChange={(d: MailboxData | null) => {
-                  if (testPhase === "error") { setTestPhase("idle"); setTestErrors({}); }
-                  if (d) {
-                    setData((prev) => ({
-                      ...prev,
-                      imapEmail: d.email,
-                      imapPassword: d.password,
-                      imapHost: d.imapHost,
-                      imapPort: d.imapPort,
-                      imapSecure: d.imapSecure,
-                      smtpHost: d.smtpHost,
-                      smtpPort: d.smtpPort,
-                      smtpSecure: d.smtpSecure,
-                      smtpEmail: d.smtpEmail,
-                      smtpPassword: d.smtpPassword,
-                    }));
-                  } else {
-                    setData((prev) => ({ ...prev, ...IMAP_SMTP_DEFAULTS }));
-                  }
-                }}
+                onDataChange={handleMailboxData}
               />
+            </div>
+
+            {/* Optional: separate sending mailbox */}
+            <div className="mt-4 rounded-md border border-line bg-paper p-5">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={data.senderEnabled}
+                  onChange={(e) => setData((d) => ({ ...d, senderEnabled: e.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-ink">
+                    Rechnungen von einer anderen Adresse senden
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Falls deine Buchhaltungs-Software nur Belege von einer bestimmten Adresse akzeptiert
+                    (z. B. der dort hinterlegten E-Mail). Empfang bleibt das Postfach oben.
+                  </span>
+                </span>
+              </label>
+
+              {data.senderEnabled && (
+                <div className="mt-4 space-y-4 border-t border-line/60 pt-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">
+                      Sende-Adresse
+                    </label>
+                    <input
+                      type="email"
+                      value={data.senderEmail}
+                      onChange={(e) => handleSenderEmailChange(e.target.value)}
+                      placeholder="versand@example.com"
+                      autoComplete="username"
+                      inputMode="email"
+                      className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                    />
+                  </div>
+
+                  {senderProvider && (
+                    <div className="flex items-center gap-2.5 rounded-md border border-ok/20 bg-ok/5 px-3 py-2">
+                      <VendorLogo domain={senderProvider.domain} name={senderProvider.name} size={20} />
+                      <span className="text-xs text-ink">
+                        <span className="font-medium">{senderProvider.name}</span>
+                        {" "}erkannt — Sende-Server automatisch konfiguriert.
+                      </span>
+                    </div>
+                  )}
+
+                  {senderProvider?.hint && (
+                    <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs text-ink">
+                      <span className="font-medium">Wichtig: </span>
+                      {senderProvider.hint}
+                      {senderProvider.appPasswordUrl && (
+                        <a
+                          href={senderProvider.appPasswordUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-1.5 inline-flex items-center gap-0.5 font-medium text-brand hover:underline"
+                        >
+                          App-Passwort erstellen <ExternalLink size={10} aria-hidden />
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">
+                      {senderProvider?.hint ? "App-Passwort" : "Passwort"}
+                    </label>
+                    <input
+                      type="password"
+                      value={data.senderPassword}
+                      onChange={set("senderPassword")}
+                      placeholder="•••• •••• •••• ••••"
+                      autoComplete="new-password"
+                      className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSenderShowAdv((v) => !v)}
+                    className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink"
+                  >
+                    <ChevronDown
+                      size={13}
+                      className={`transition-transform ${senderShowAdv ? "rotate-180" : ""}`}
+                      aria-hidden
+                    />
+                    Server-Details
+                    {senderProvider && !senderShowAdv && (
+                      <span className="text-muted/60">· automatisch konfiguriert</span>
+                    )}
+                  </button>
+
+                  {senderShowAdv && (
+                    <div className="rounded border border-line/60 bg-surface p-4">
+                      <div className="mb-2 text-xs font-medium text-muted">SMTP — Versand-Server</div>
+                      <div className="space-y-1.5">
+                        <input
+                          value={data.senderSmtpHost}
+                          onChange={(e) => setData((d) => ({ ...d, senderSmtpHost: e.target.value }))}
+                          placeholder="smtp.example.com"
+                          inputMode="url"
+                          className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={data.senderSmtpPort}
+                            onChange={(e) => setData((d) => ({ ...d, senderSmtpPort: Number(e.target.value) }))}
+                            inputMode="numeric"
+                            className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+                          />
+                          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={data.senderSmtpSecure}
+                              onChange={(e) => setData((d) => ({ ...d, senderSmtpSecure: e.target.checked }))}
+                            />
+                            SSL/TLS
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -282,63 +503,103 @@ export function OnboardingWizard() {
               Z. B. deine Steuerkanzlei, ein Buchhaltungs-Tool oder ein interner Account. Später weitere hinzufügbar.
             </p>
 
-            <div className="mt-6 rounded-md border border-line bg-paper p-5 space-y-4">
+            <div className="mt-6 rounded-md border border-line bg-paper p-5 space-y-5">
+              {/* Recipient picker */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-muted">Vorlage</label>
-                <select
-                  value={data.recipientTemplate}
-                  onChange={(e) => {
-                    const t = e.target.value;
-                    const tpl = TEMPLATES[t] ?? TEMPLATES.custom;
-                    setData((d) => ({
-                      ...d,
-                      recipientTemplate: t,
-                      recipientName: tpl.name || d.recipientName,
-                      recipientEmail: tpl.email || d.recipientEmail,
-                    }));
-                  }}
-                  className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand"
-                >
-                  <option value="custom">Eigener Empfänger</option>
-                  <option value="kontist">Kontist · Belegupload</option>
-                  <option value="accountable">Accountable · Belegmail</option>
-                  <option value="datev">DATEV Unternehmen online</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted">Name</label>
-                  <input
-                    type="text"
-                    value={data.recipientName}
-                    onChange={set("recipientName")}
-                    placeholder="Steuerkanzlei Müller"
-                    className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  />
+                <p className="mb-3 text-xs text-muted">
+                  Buchhaltungs-Software wählen — bekannte Adressen werden automatisch eingetragen:
+                </p>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {RECIPIENTS.map((r) => {
+                    const isActive = data.recipientKey === r.key;
+                    return (
+                      <button
+                        key={r.key}
+                        type="button"
+                        onClick={() =>
+                          setData((d) => ({
+                            ...d,
+                            recipientKey: r.key,
+                            recipientSlot: r.slot,
+                            recipientName: r.label,
+                            recipientEmail: r.email,
+                          }))
+                        }
+                        className={`flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-colors ${
+                          isActive
+                            ? "border-brand bg-brand/5"
+                            : "border-line bg-paper hover:border-brand/50 hover:bg-surface"
+                        }`}
+                      >
+                        {r.domain ? (
+                          <VendorLogo domain={r.domain} name={r.label} size={28} />
+                        ) : (
+                          <div
+                            className="flex shrink-0 items-center justify-center rounded-full font-medium"
+                            style={{ width: 28, height: 28, background: "#dbd8d0", color: "#151a22", fontSize: 12 }}
+                          >
+                            {r.label[0]}
+                          </div>
+                        )}
+                        <span className={`text-[11px] ${isActive ? "font-medium text-brand" : "text-muted"}`}>
+                          {r.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {/* Custom — the optional fallback */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setData((d) => ({
+                        ...d,
+                        recipientKey: "custom",
+                        recipientSlot: "kontist",
+                        recipientName: "",
+                        recipientEmail: "",
+                      }))
+                    }
+                    className={`flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-colors ${
+                      data.recipientKey === "custom"
+                        ? "border-brand bg-brand/5"
+                        : "border-dashed border-line bg-paper hover:border-brand/50 hover:bg-surface"
+                    }`}
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded border border-line bg-surface text-sm text-muted">
+                      +
+                    </div>
+                    <span className="text-[11px] text-muted">Eigener</span>
+                  </button>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted">E-Mail</label>
+              </div>
+
+              {/* Name + e-mail */}
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {data.recipientKey === "custom" && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">Name</label>
+                    <input
+                      type="text"
+                      value={data.recipientName}
+                      onChange={set("recipientName")}
+                      placeholder="Steuerkanzlei Müller"
+                      className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                    />
+                  </div>
+                )}
+                <div className={data.recipientKey === "custom" ? "" : "md:col-span-2"}>
+                  <label className="mb-1 block text-xs font-medium text-muted">E-Mail-Adresse</label>
                   <input
                     type="email"
                     value={data.recipientEmail}
                     onChange={set("recipientEmail")}
-                    placeholder="kanzlei@beispiel.de"
+                    placeholder="buchhaltung@beispiel.de"
                     className="h-9 w-full rounded border border-line bg-surface px-3 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                   />
+                  {selectedRecipientHint && (
+                    <p className="mt-1.5 text-xs text-muted">{selectedRecipientHint}</p>
+                  )}
                 </div>
-              </div>
-              <div>
-                <div className="mb-1 flex items-baseline justify-between">
-                  <label className="text-xs font-medium text-muted">Betreff-Schema</label>
-                  <span className="text-[11px] text-muted">optional</span>
-                </div>
-                <input
-                  type="text"
-                  value={data.subjectTemplate}
-                  onChange={set("subjectTemplate")}
-                  placeholder="[Rechnung] {{vendor}} · {{date}} · {{amount}}"
-                  className="h-9 w-full rounded border border-line bg-surface px-3 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
               </div>
             </div>
           </div>
@@ -356,10 +617,10 @@ export function OnboardingWizard() {
                 <dt className="w-28 shrink-0 text-xs text-muted">Posteingang</dt>
                 <dd className="text-sm text-ink">{data.imapEmail || "IMAP-Zugang"}</dd>
               </div>
-              {data.smtpEmail && data.smtpEmail !== data.imapEmail && (
+              {data.senderEnabled && data.senderEmail && (
                 <div className="flex items-baseline gap-3 px-4 py-3">
                   <dt className="w-28 shrink-0 text-xs text-muted">Versand</dt>
-                  <dd className="text-sm text-ink font-mono">{data.smtpEmail}</dd>
+                  <dd className="text-sm text-ink font-mono">{data.senderEmail}</dd>
                 </div>
               )}
               <div className="flex items-baseline gap-3 px-4 py-3">
@@ -449,13 +710,13 @@ export function OnboardingWizard() {
               <input type="hidden" name="imapHost"       value={data.imapHost} />
               <input type="hidden" name="imapPort"       value={data.imapPort} />
               <input type="hidden" name="imapSecure"     value={String(data.imapSecure)} />
-              <input type="hidden" name="smtpHost"       value={data.smtpHost} />
-              <input type="hidden" name="smtpPort"       value={data.smtpPort} />
-              <input type="hidden" name="smtpSecure"     value={String(data.smtpSecure)} />
-              <input type="hidden" name="smtpEmail"      value={data.smtpEmail} />
-              <input type="hidden" name="smtpPassword"   value={data.smtpPassword} />
+              <input type="hidden" name="smtpHost"       value={submitSmtp.host} />
+              <input type="hidden" name="smtpPort"       value={submitSmtp.port} />
+              <input type="hidden" name="smtpSecure"     value={String(submitSmtp.secure)} />
+              <input type="hidden" name="smtpEmail"      value={submitSmtp.user} />
+              <input type="hidden" name="smtpPassword"   value={submitSmtp.pass} />
               <input type="hidden" name="recipientEmail" value={data.recipientEmail} />
-              <input type="hidden" name="exportTarget"   value={data.recipientTemplate} />
+              <input type="hidden" name="exportTarget"   value={data.recipientSlot} />
               <Button type="submit" disabled={isPending} className="gap-1.5">
                 {isPending ? "Wird eingerichtet…" : <><span>Setup abschließen</span><ArrowRight size={16} aria-hidden /></>}
               </Button>

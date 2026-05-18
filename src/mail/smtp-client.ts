@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import { readCredentialSecret, updateCredentialVerificationStatus } from "@/lib/secrets/credential-store";
 import { getStoredSmtpAccount } from "@/mail/smtp-settings";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
+import { renderSubjectTemplate } from "@/lib/recipients";
 
 export type SmtpVerifyResult = {
   label: string;
@@ -18,6 +19,8 @@ export type SendInvoiceMailOptions = {
   invoiceDate: string | null;
   amountGross: number | null;
   currency: string | null;
+  /** Optionales Betreff-Template ({{vendor}}/{{date}}/{{amount}}); leer → Default. */
+  subjectTemplate?: string | null;
   /** PDF-Inhalt als Buffer (aus Supabase Storage geladen) — kein Dateisystempfad. */
   pdfContent: Buffer;
   originalFilename: string;
@@ -52,14 +55,16 @@ export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<
     options.amountGross != null
       ? `${options.amountGross.toFixed(2)} ${options.currency ?? ""}`.trim()
       : "";
-  const subject = [
-    "Rechnung",
-    options.vendorName,
-    options.invoiceDate ?? null,
-    amountStr || null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const template = options.subjectTemplate?.trim();
+  const subject = template
+    ? renderSubjectTemplate(template, {
+        vendor: options.vendorName,
+        date: options.invoiceDate,
+        amount: amountStr || null,
+      })
+    : ["Rechnung", options.vendorName, options.invoiceDate ?? null, amountStr || null]
+        .filter(Boolean)
+        .join(" · ");
 
   const body = [
     `Rechnung von ${options.vendorName}`,

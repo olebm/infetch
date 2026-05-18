@@ -171,7 +171,16 @@ export function MailboxConnectContent({
     fd.set("tcSmtpUser",   separateSmtp ? smtpEmail : email);
     fd.set("tcSmtpPass",   separateSmtp ? smtpPassword : password);
 
-    const result = await testMailConnectionAction(null, fd);
+    let result: Awaited<ReturnType<typeof testMailConnectionAction>>;
+    try {
+      result = await testMailConnectionAction(null, fd);
+    } catch (e) {
+      setSettingsTestPhase("error");
+      setSettingsTestErrors({
+        imap: e instanceof Error ? e.message : "Verbindungstest konnte nicht ausgeführt werden.",
+      });
+      return;
+    }
 
     if (result.imap.ok && result.smtp.ok) {
       setSettingsTestPhase("success");

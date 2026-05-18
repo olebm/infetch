@@ -4,6 +4,7 @@ import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 import { canExport } from "@/lib/tier";
 import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";
 import { withAdvisoryLock } from "@/lib/db/advisory-lock";
+import { readJsonSetting } from "@/lib/db/settings-store";
 
 export type DispatchResult = {
   enqueued: number;
@@ -82,6 +83,9 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
     ORDER BY exports.created_at ASC
   `;
 
+  // Org-wide subject template (one default for all recipients); empty → built-in default.
+  const subjectTemplate = await readJsonSetting<string>("invoice_subject_template", "");
+
   let sent = 0;
   let failed = 0;
 
@@ -123,6 +127,7 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
         invoiceDate: row.invoiceDate,
         amountGross: row.amountGross,
         currency: row.currency,
+        subjectTemplate,
         pdfContent,
         originalFilename: file.originalFilename,
       });

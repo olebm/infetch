@@ -713,6 +713,34 @@ export async function updateConfidenceThresholdAction(
   }
 }
 
+export type SubjectTemplateState = {
+  status: "idle" | "success" | "error";
+  message: string;
+  value?: string;
+};
+
+export async function updateInvoiceSubjectTemplateAction(
+  _previousState: SubjectTemplateState,
+  formData: FormData,
+): Promise<SubjectTemplateState> {
+  void _previousState;
+  await requireCurrentAuth();
+  try {
+    const raw = String(formData.get("subjectTemplate") || "").replace(/[\r\n]+/g, " ").trim();
+    if (raw.length > 200) {
+      return { status: "error", message: "Betreff-Schema ist zu lang (max. 200 Zeichen)." };
+    }
+    await writeJsonSetting("invoice_subject_template", raw);
+    revalidatePath("/einstellungen");
+    return { status: "success", message: "Betreff-Schema gespeichert.", value: raw };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Konnte nicht speichern.",
+    };
+  }
+}
+
 export async function disconnectIntegrationAction(
   _previousState: IntegrationFormState,
   formData: FormData,

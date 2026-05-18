@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/status/status-badge";
 import { AddRecipientButton } from "@/components/einstellungen/recipient-modal";
 import { clearExportTargetAction } from "@/app/(app)/einstellungen/actions";
 import { ConfidenceSlider } from "@/components/einstellungen/confidence-slider";
+import { SubjectTemplateCard } from "@/components/einstellungen/subject-template-card";
 import { ScanIntervalSelector } from "@/components/einstellungen/scan-interval-selector";
 import { Tabs, type TabItem } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -33,6 +34,7 @@ export default async function SetupPage() {
   const [
     exportTargets,
     confidenceThreshold,
+    invoiceSubjectTemplate,
     imapPrimary,
     imapSecondary,
     primaryHasCredential,
@@ -44,6 +46,7 @@ export default async function SetupPage() {
   ] = await Promise.all([
     getExportTargets(auth?.organization?.id ?? null),
     readJsonSetting<number>("auto_approve_confidence", appConfig.features.autoApprovalConfidenceThreshold),
+    readJsonSetting<string>("invoice_subject_template", ""),
     getPrimaryMailAccount(),
     getSecondaryMailAccount(),
     hasConfiguredCredential("imap", "primary", auth?.organization?.id),
@@ -139,6 +142,16 @@ export default async function SetupPage() {
             Noch keine Empfänger eingerichtet.
           </div>
         )}
+      </Card>
+
+      <Card padding="none">
+        <div className="p-5">
+          <div className="mb-1 text-sm font-medium text-ink">Betreff der Weiterleitung</div>
+          <div className="mb-4 text-xs text-muted">
+            Gilt für alle Empfänger. Platzhalter werden pro Rechnung ersetzt; leer = interner Standard.
+          </div>
+          <SubjectTemplateCard initialValue={invoiceSubjectTemplate} />
+        </div>
       </Card>
 
     </div>
