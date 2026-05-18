@@ -1014,7 +1014,7 @@ export async function upsertAutoApprovalRule(input: {
     await sql`
       UPDATE auto_approval_rules
       SET vendor_id = ${input.vendorId}, vendor_pattern = ${input.vendorPattern},
-          max_amount_cents = ${input.maxAmountCents}, enabled = ${input.enabled ? 1 : 0},
+          max_amount_cents = ${input.maxAmountCents}, enabled = ${input.enabled},
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ${input.id}
         AND organization_id IS NOT DISTINCT FROM ${input.organizationId}`;
@@ -1028,7 +1028,7 @@ export async function upsertAutoApprovalRule(input: {
   }
   const [inserted] = await sql<Array<{ id: string }>>`
     INSERT INTO auto_approval_rules (organization_id, vendor_id, vendor_pattern, max_amount_cents, enabled)
-    VALUES (${input.organizationId}, ${input.vendorId}, ${input.vendorPattern}, ${input.maxAmountCents}, ${input.enabled ? 1 : 0})
+    VALUES (${input.organizationId}, ${input.vendorId}, ${input.vendorPattern}, ${input.maxAmountCents}, ${input.enabled})
     RETURNING id`;
   const row = (await sql<AutoApprovalRow[]>`
     SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,

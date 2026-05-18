@@ -176,14 +176,14 @@ ALTER TABLE integration_targets
   ADD COLUMN IF NOT EXISTS organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
 
 -- Keine ableitbare Verknüpfung. Konfigurierte Rows (aktiv oder mit OAuth-Token)
--- dürfen nicht still einer falschen Org zugeordnet werden. `enabled` ist
--- INTEGER (0/1) — daher `<> 0`.
+-- dürfen nicht still einer falschen Org zugeordnet werden. `enabled` wurde in
+-- Migration 0017 von INTEGER auf BOOLEAN umgestellt — daher `IS TRUE`.
 DO $$
 DECLARE configured int;
 BEGIN
   SELECT COUNT(*) INTO configured
   FROM integration_targets
-  WHERE enabled <> 0 OR oauth_token_ref IS NOT NULL;
+  WHERE enabled IS TRUE OR oauth_token_ref IS NOT NULL;
   IF configured > 0 THEN
     RAISE EXCEPTION
       'integration_targets: % konfigurierte Rows. Pro Org klonen und organization_id setzen, bevor der globale UNIQUE(provider) entfernt wird.', configured;
