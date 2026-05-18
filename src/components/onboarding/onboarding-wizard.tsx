@@ -3,14 +3,13 @@
 import { Fragment, useActionState, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, ArrowLeft, ArrowRight, Info, Loader2, WifiOff, ChevronDown, ExternalLink } from "lucide-react";
+import { Check, ArrowLeft, ArrowRight, Info, Loader2, WifiOff } from "lucide-react";
 import { completeOnboardingAction, type OnboardingState } from "@/app/onboarding/actions";
 import { testMailConnectionAction } from "@/mail/connection-test";
 import { Button } from "@/components/ui/button";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { MailboxConnectContent, type MailboxData } from "@/components/credentials/mailbox-connect-content";
-import { RECIPIENTS, type TargetSlot } from "@/lib/recipients";
-import { getProviderFromEmail } from "@/lib/mail-providers";
+import { RECIPIENTS, type TargetSlot, isSharedInboxRecipient } from "@/lib/recipients";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,10 +28,9 @@ type WizardData = {
   recipientEmail: string;
   recipientKey: string;       // selected RECIPIENTS key, or "custom"
   recipientSlot: TargetSlot;  // export slot derived from the selected recipient
-  // Optional separate sending mailbox (e.g. the address registered at the tax
-  // software). When enabled, invoices are sent from this account instead of
-  // the receiving (IMAP) one.
-  senderEnabled: boolean;
+  // Separate sending mailbox — the address registered at the accounting
+  // software. Only collected (and mandatory) for shared-inbox recipients;
+  // then invoices are sent from this account instead of the receiving one.
   senderEmail: string;
   senderPassword: string;
   senderSmtpHost: string;
@@ -42,7 +40,23 @@ type WizardData = {
 
 // ─── Steps config ─────────────────────────────────────────────────────────────
 
-const STEPS = ["Postfach", "Buchhaltung", "Bestätigung"] as const;
+type StepKey = "postfach" | "buchhaltung" | "versand" | "bestaetigung";
+
+const STEP_LABELS: Record<StepKey, string> = {
+  postfach: "Postfach",
+  buchhaltung: "Buchhaltung",
+  versand: "Versand",
+  bestaetigung: "Bestätigung",
+};
+
+// The "versand" step only exists for recipients that share one inbox across
+// all customers (Kontist/Accountable/sevDesk) — they identify the customer by
+// sender address. Recipients with a per-user inbox skip it entirely.
+function stepKeysFor(recipientKey: string): StepKey[] {
+  return isSharedInboxRecipient(recipientKey)
+    ? ["postfach", "buchhaltung", "versand", "bestaetigung"]
+    : ["postfach", "buchhaltung", "bestaetigung"];
+}
 
 // ─── sessionStorage helpers ───────────────────────────────────────────────────
 
@@ -89,7 +103,6 @@ const DEFAULT_DATA: WizardData = {
   recipientName: "", recipientEmail: "",
   recipientKey: "custom",
   recipientSlot: "kontist",
-  senderEnabled: false,
   senderEmail: "", senderPassword: "",
   senderSmtpHost: "", senderSmtpPort: 465, senderSmtpSecure: true,
 };
@@ -106,7 +119,7 @@ const IMAP_SMTP_DEFAULTS = {
 function effectiveSmtp(d: WizardData): {
   host: string; port: number; secure: boolean; user: string; pass: string;
 } {
-  if (d.senderEnabled) {
+  if (isSharedInboxRecipient(d.recipientKey)) {
     return {
       host: d.senderSmtpHost,
       port: d.senderSmtpPort,
@@ -165,24 +178,6 @@ export function OnboardingWizard() {
   type TestPhase = "idle" | "testing" | "success" | "error";
   const [testPhase, setTestPhase] = useState<TestPhase>("idle");
   const [testErrors, setTestErrors] = useState<{ imap?: string; smtp?: string }>({});
-  const [senderShowAdv, setSenderShowAdv] = useState(false);
-
-  function handleSenderEmailChange(value: string) {
-    const provider = getProviderFromEmail(value);
-    setData((d) => ({
-      ...d,
-      senderEmail: value,
-      // Auto-fill the send SMTP server from the address' provider. If unknown,
-      // keep whatever is there so the manual Server-Details still apply.
-      ...(provider
-        ? {
-            senderSmtpHost: provider.smtp.host,
-            senderSmtpPort: provider.smtp.port,
-            senderSmtpSecure: provider.smtp.secure,
-          }
-        : {}),
-    }));
-  }
 
   useEffect(() => {
     if (!hydrated) return;
@@ -193,78 +188,114 @@ export function OnboardingWizard() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setData((d) => ({ ...d, [key]: e.target.value }));
 
-  const selectedRecipientHint =
+  const selectedRecipient =
     data.recipientKey === "custom"
       ? null
-      : RECIPIENTS.find((r) => r.key === data.recipientKey)?.hint ?? null;
+      : RECIPIENTS.find((r) => r.key === data.recipientKey) ?? null;
+  const selectedRecipientHint = selectedRecipient?.hint ?? null;
 
   const submitSmtp = effectiveSmtp(data);
-  const senderProvider = data.senderEnabled ? getProviderFromEmail(data.senderEmail) : null;
+
+  // Active step sequence depends on the chosen recipient (Versand step only
+  // for shared-inbox recipients). `step` is an index into this list; the
+  // recipient is always picked at "buchhaltung" (index 1) before any later
+  // step, so the conditional tail can't cause index drift.
+  const stepKeys = stepKeysFor(data.recipientKey);
+  const clampedStep = Math.min(step, stepKeys.length - 1);
+  const currentKey = stepKeys[clampedStep];
+  const isLastStep = clampedStep === stepKeys.length - 1;
+
+  const advance = () => setStep(() => Math.min(stepKeys.length - 1, clampedStep + 1));
+
+  // Connection test against the receiving IMAP + a given SMTP account.
+  // On success, advances to the next step after a short confirmation.
+  const runTestAndAdvance = async (smtp: {
+    host: string; port: number; secure: boolean; user: string; pass: string;
+  }) => {
+    setTestPhase("testing");
+    setTestErrors({});
+
+    const fd = new FormData();
+    fd.set("tcImapHost",   data.imapHost);
+    fd.set("tcImapPort",   String(data.imapPort));
+    fd.set("tcImapSecure", String(data.imapSecure));
+    fd.set("tcImapUser",   data.imapEmail);
+    fd.set("tcImapPass",   data.imapPassword);
+    fd.set("tcSmtpHost",   smtp.host);
+    fd.set("tcSmtpPort",   String(smtp.port));
+    fd.set("tcSmtpSecure", String(smtp.secure));
+    fd.set("tcSmtpUser",   smtp.user);
+    fd.set("tcSmtpPass",   smtp.pass);
+
+    let result: Awaited<ReturnType<typeof testMailConnectionAction>>;
+    try {
+      result = await testMailConnectionAction(null, fd);
+    } catch (e) {
+      setTestPhase("error");
+      setTestErrors({
+        imap: e instanceof Error ? e.message : "Verbindungstest konnte nicht ausgeführt werden.",
+      });
+      return;
+    }
+
+    if (result.imap.ok && result.smtp.ok) {
+      setTestPhase("success");
+      setTimeout(() => {
+        setTestPhase("idle");
+        advance();
+      }, 900);
+    } else {
+      setTestPhase("error");
+      setTestErrors({
+        imap: result.imap.ok ? undefined : result.imap.error,
+        smtp: result.smtp.ok ? undefined : result.smtp.error,
+      });
+    }
+  };
 
   const next = async () => {
     setValidationError(null);
 
-    if (step === 0) {
+    if (currentKey === "postfach") {
       if (!data.imapEmail)    { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
       if (!data.imapPassword) { setValidationError("Bitte Passwort eingeben."); return; }
       if (!data.imapHost)     { setValidationError("Server-Details fehlen — bitte Provider auswählen oder manuell eingeben."); return; }
-      if (data.senderEnabled) {
-        if (!data.senderEmail)    { setValidationError("Bitte die abweichende Sende-Adresse eingeben."); return; }
-        if (!data.senderPassword) { setValidationError("Bitte das Passwort für die Sende-Adresse eingeben."); return; }
-        if (!data.senderSmtpHost) { setValidationError("Sende-Server unbekannt — bitte Server-Details der Sende-Adresse manuell eingeben."); return; }
-      }
+      // Postfach = receiving mailbox only (its own SMTP / IMAP credentials).
+      await runTestAndAdvance({
+        host: data.smtpHost,
+        port: data.smtpPort,
+        secure: data.smtpSecure,
+        user: data.smtpEmail || data.imapEmail,
+        pass: data.smtpPassword || data.imapPassword,
+      });
+      return;
+    }
 
-      setTestPhase("testing");
-      setTestErrors({});
-
-      const smtp = effectiveSmtp(data);
-
-      const fd = new FormData();
-      fd.set("tcImapHost",   data.imapHost);
-      fd.set("tcImapPort",   String(data.imapPort));
-      fd.set("tcImapSecure", String(data.imapSecure));
-      fd.set("tcImapUser",   data.imapEmail);
-      fd.set("tcImapPass",   data.imapPassword);
-      fd.set("tcSmtpHost",   smtp.host);
-      fd.set("tcSmtpPort",   String(smtp.port));
-      fd.set("tcSmtpSecure", String(smtp.secure));
-      fd.set("tcSmtpUser",   smtp.user);
-      fd.set("tcSmtpPass",   smtp.pass);
-
-      let result: Awaited<ReturnType<typeof testMailConnectionAction>>;
-      try {
-        result = await testMailConnectionAction(null, fd);
-      } catch (e) {
-        setTestPhase("error");
-        setTestErrors({
-          imap: e instanceof Error ? e.message : "Verbindungstest konnte nicht ausgeführt werden.",
-        });
+    if (currentKey === "buchhaltung") {
+      if (!data.recipientEmail) {
+        setValidationError("Bitte Empfänger-Adresse eingeben.");
         return;
       }
-
-      if (result.imap.ok && result.smtp.ok) {
-        setTestPhase("success");
-        setTimeout(() => {
-          setTestPhase("idle");
-          setStep((s) => Math.min(STEPS.length - 1, s + 1));
-        }, 900);
-      } else {
-        setTestPhase("error");
-        setTestErrors({
-          imap: result.imap.ok ? undefined : result.imap.error,
-          smtp: result.smtp.ok ? undefined : result.smtp.error,
-        });
-      }
+      advance();
       return;
     }
 
-    if (step === 1 && !data.recipientEmail) {
-      setValidationError("Bitte Empfänger-Adresse eingeben.");
+    if (currentKey === "versand") {
+      // Mandatory for shared-inbox recipients — the address registered there.
+      if (!data.senderEmail)    { setValidationError("Bitte die Sende-Adresse eingeben (die bei der Buchhaltungs-Software hinterlegte)."); return; }
+      if (!data.senderPassword) { setValidationError("Bitte das Passwort der Sende-Adresse eingeben."); return; }
+      if (!data.senderSmtpHost) { setValidationError("Sende-Server unbekannt — bitte Server-Details manuell eingeben."); return; }
+      await runTestAndAdvance({
+        host: data.senderSmtpHost,
+        port: data.senderSmtpPort,
+        secure: data.senderSmtpSecure,
+        user: data.senderEmail,
+        pass: data.senderPassword,
+      });
       return;
     }
-    setStep((s) => Math.min(STEPS.length - 1, s + 1));
   };
-  const back = () => { setValidationError(null); setTestPhase("idle"); setTestErrors({}); setStep((s) => Math.max(0, s - 1)); };
+  const back = () => { setValidationError(null); setTestPhase("idle"); setTestErrors({}); setStep(() => Math.max(0, clampedStep - 1)); };
 
   // Stable so MailboxConnectContent's data-sync effect doesn't re-fire every render.
   const handleMailboxData = useCallback((d: MailboxData | null) => {
@@ -286,6 +317,32 @@ export function OnboardingWizard() {
       }));
     } else {
       setData((prev) => ({ ...prev, ...IMAP_SMTP_DEFAULTS }));
+    }
+  }, []);
+
+  // Send mailbox uses the same MailboxConnectContent as the receiving one;
+  // we only consume its SMTP side (the send account isn't read via IMAP).
+  const handleSenderMailboxData = useCallback((d: MailboxData | null) => {
+    setTestPhase((p) => (p === "error" ? "idle" : p));
+    setTestErrors((e) => (Object.keys(e).length ? {} : e));
+    if (d) {
+      setData((prev) => ({
+        ...prev,
+        senderEmail: d.smtpEmail,
+        senderPassword: d.smtpPassword,
+        senderSmtpHost: d.smtpHost,
+        senderSmtpPort: d.smtpPort,
+        senderSmtpSecure: d.smtpSecure,
+      }));
+    } else {
+      setData((prev) => ({
+        ...prev,
+        senderEmail: "",
+        senderPassword: "",
+        senderSmtpHost: "",
+        senderSmtpPort: 465,
+        senderSmtpSecure: true,
+      }));
     }
   }, []);
 
@@ -313,30 +370,30 @@ export function OnboardingWizard() {
       {/* ── Progress ──────────────────────────────────────────────────────── */}
       <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 mt-6 sm:mt-8 mb-2">
         <div className="flex items-center justify-between gap-2">
-          {STEPS.map((label, i) => (
-            <Fragment key={label}>
+          {stepKeys.map((key, i) => (
+            <Fragment key={key}>
               <div className="flex min-w-0 items-center gap-2">
                 <div
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
-                    i < step
+                    i < clampedStep
                       ? "bg-ok text-white"
-                      : i === step
+                      : i === clampedStep
                         ? "bg-brand text-paper"
                         : "border border-line bg-white text-muted"
                   }`}
                 >
-                  {i < step ? <Check size={12} /> : i + 1}
+                  {i < clampedStep ? <Check size={12} /> : i + 1}
                 </div>
                 <span
                   className={`hidden xs:block truncate text-xs font-medium ${
-                    i === step ? "text-ink" : "text-muted"
+                    i === clampedStep ? "text-ink" : "text-muted"
                   }`}
                 >
-                  {label}
+                  {STEP_LABELS[key]}
                 </span>
               </div>
-              {i < STEPS.length - 1 && (
-                <div className={`h-px flex-1 ${i < step ? "bg-ok" : "bg-line"}`} />
+              {i < stepKeys.length - 1 && (
+                <div className={`h-px flex-1 ${i < clampedStep ? "bg-ok" : "bg-line"}`} />
               )}
             </Fragment>
           ))}
@@ -346,14 +403,14 @@ export function OnboardingWizard() {
       {/* ── Step content ──────────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 sm:px-6 py-6 sm:py-8 md:py-12">
 
-        {/* 0 — Postfach */}
-        {step === 0 && (
+        {/* Postfach — receiving mailbox */}
+        {currentKey === "postfach" && (
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-3xl">
               Mit welchem Postfach sollen wir arbeiten?
             </h1>
             <p className="mt-2 text-sm text-muted">
-              Drei Schritte, dann scannt Infetch alle 5 Minuten und leitet Rechnungen automatisch weiter.
+              In wenigen Schritten — danach scannt Infetch alle 5 Minuten und leitet Rechnungen automatisch weiter.
             </p>
             <div className="mt-6 rounded-md border border-line bg-paper p-5">
               <MailboxConnectContent
@@ -361,140 +418,34 @@ export function OnboardingWizard() {
                 onDataChange={handleMailboxData}
               />
             </div>
+          </div>
+        )}
 
-            {/* Optional: separate sending mailbox */}
-            <div className="mt-4 rounded-md border border-line bg-paper p-5">
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={data.senderEnabled}
-                  onChange={(e) => setData((d) => ({ ...d, senderEnabled: e.target.checked }))}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-ink">
-                    Rechnungen von einer anderen Adresse senden
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    Falls deine Buchhaltungs-Software nur Belege von einer bestimmten Adresse akzeptiert
-                    (z. B. der dort hinterlegten E-Mail). Empfang bleibt das Postfach oben.
-                  </span>
-                </span>
-              </label>
+        {/* Versand — only for shared-inbox recipients (mandatory) */}
+        {currentKey === "versand" && (
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-3xl">
+              Von welcher Adresse sollen wir senden?
+            </h1>
+            <p className="mt-2 text-sm text-muted">
+              <span className="font-medium text-ink">{selectedRecipient?.label ?? "Diese Software"}</span>{" "}
+              nutzt eine Sammel-Adresse{selectedRecipient?.email ? <> (<span className="font-mono">{selectedRecipient.email}</span>)</> : null}{" "}
+              und erkennt dich an deiner <span className="font-medium text-ink">Absender-Adresse</span>.
+              Trage die dort hinterlegte E-Mail ein — von diesem Postfach senden wir die Rechnungen.
+              Empfang bleibt dein Postfach aus Schritt 1.
+            </p>
 
-              {data.senderEnabled && (
-                <div className="mt-4 space-y-4 border-t border-line/60 pt-4">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-muted">
-                      Sende-Adresse
-                    </label>
-                    <input
-                      type="email"
-                      value={data.senderEmail}
-                      onChange={(e) => handleSenderEmailChange(e.target.value)}
-                      placeholder="versand@example.com"
-                      autoComplete="username"
-                      inputMode="email"
-                      className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                    />
-                  </div>
-
-                  {senderProvider && (
-                    <div className="flex items-center gap-2.5 rounded-md border border-ok/20 bg-ok/5 px-3 py-2">
-                      <VendorLogo domain={senderProvider.domain} name={senderProvider.name} size={20} />
-                      <span className="text-xs text-ink">
-                        <span className="font-medium">{senderProvider.name}</span>
-                        {" "}erkannt — Sende-Server automatisch konfiguriert.
-                      </span>
-                    </div>
-                  )}
-
-                  {senderProvider?.hint && (
-                    <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs text-ink">
-                      <span className="font-medium">Wichtig: </span>
-                      {senderProvider.hint}
-                      {senderProvider.appPasswordUrl && (
-                        <a
-                          href={senderProvider.appPasswordUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-1.5 inline-flex items-center gap-0.5 font-medium text-brand hover:underline"
-                        >
-                          App-Passwort erstellen <ExternalLink size={10} aria-hidden />
-                        </a>
-                      )}
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-muted">
-                      {senderProvider?.hint ? "App-Passwort" : "Passwort"}
-                    </label>
-                    <input
-                      type="password"
-                      value={data.senderPassword}
-                      onChange={set("senderPassword")}
-                      placeholder="•••• •••• •••• ••••"
-                      autoComplete="new-password"
-                      className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                    />
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setSenderShowAdv((v) => !v)}
-                    className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink"
-                  >
-                    <ChevronDown
-                      size={13}
-                      className={`transition-transform ${senderShowAdv ? "rotate-180" : ""}`}
-                      aria-hidden
-                    />
-                    Server-Details
-                    {senderProvider && !senderShowAdv && (
-                      <span className="text-muted/60">· automatisch konfiguriert</span>
-                    )}
-                  </button>
-
-                  {senderShowAdv && (
-                    <div className="rounded border border-line/60 bg-surface p-4">
-                      <div className="mb-2 text-xs font-medium text-muted">SMTP — Versand-Server</div>
-                      <div className="space-y-1.5">
-                        <input
-                          value={data.senderSmtpHost}
-                          onChange={(e) => setData((d) => ({ ...d, senderSmtpHost: e.target.value }))}
-                          placeholder="smtp.example.com"
-                          inputMode="url"
-                          className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
-                        />
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={data.senderSmtpPort}
-                            onChange={(e) => setData((d) => ({ ...d, senderSmtpPort: Number(e.target.value) }))}
-                            inputMode="numeric"
-                            className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
-                          />
-                          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={data.senderSmtpSecure}
-                              onChange={(e) => setData((d) => ({ ...d, senderSmtpSecure: e.target.checked }))}
-                            />
-                            SSL/TLS
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+            <div className="mt-6 rounded-md border border-line bg-paper p-5">
+              <MailboxConnectContent
+                mode="onboarding"
+                onDataChange={handleSenderMailboxData}
+              />
             </div>
           </div>
         )}
 
-        {/* 1 — Buchhaltung */}
-        {step === 1 && (
+        {/* Buchhaltung — recipient */}
+        {currentKey === "buchhaltung" && (
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-3xl">
               Wer bekommt die Rechnungen?
@@ -605,8 +556,8 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* 2 — Bestätigung */}
-        {step === 2 && (
+        {/* Bestätigung */}
+        {currentKey === "bestaetigung" && (
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-3xl">
               Alles bereit — kurze Zusammenfassung.
@@ -617,7 +568,7 @@ export function OnboardingWizard() {
                 <dt className="w-28 shrink-0 text-xs text-muted">Posteingang</dt>
                 <dd className="text-sm text-ink">{data.imapEmail || "IMAP-Zugang"}</dd>
               </div>
-              {data.senderEnabled && data.senderEmail && (
+              {isSharedInboxRecipient(data.recipientKey) && data.senderEmail && (
                 <div className="flex items-baseline gap-3 px-4 py-3">
                   <dt className="w-28 shrink-0 text-xs text-muted">Versand</dt>
                   <dd className="text-sm text-ink font-mono">{data.senderEmail}</dd>
@@ -685,11 +636,11 @@ export function OnboardingWizard() {
 
         {/* ── Footer nav ────────────────────────────────────────────────── */}
         <div className="mt-6 flex items-center justify-between">
-          <Button variant="ghost" onClick={back} disabled={step === 0 || testPhase === "testing"} className="gap-1.5">
+          <Button variant="ghost" onClick={back} disabled={clampedStep === 0 || testPhase === "testing"} className="gap-1.5">
             <ArrowLeft size={16} aria-hidden /> zurück
           </Button>
 
-          {step < STEPS.length - 1 ? (
+          {!isLastStep ? (
             <Button
               onClick={next}
               disabled={testPhase === "testing" || testPhase === "success"}

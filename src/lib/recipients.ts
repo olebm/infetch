@@ -88,6 +88,19 @@ export const RECIPIENTS: Recipient[] = [
   },
 ];
 
+/**
+ * True if the recipient uses a single shared inbox for all customers
+ * (e.g. belege@kontist.com). Such services identify the customer by the
+ * SENDER address, so invoices must be sent from the address registered there
+ * — which is why onboarding shows a dedicated mandatory "Versand" step for
+ * these. Recipients with a per-user inbox (empty preset email) or a custom
+ * recipient don't need it.
+ */
+export function isSharedInboxRecipient(recipientKey: string): boolean {
+  const r = RECIPIENTS.find((x) => x.key === recipientKey);
+  return !!r && r.email.trim() !== "";
+}
+
 // ── Subject template ──────────────────────────────────────────────────────────
 
 export type SubjectVars = {
