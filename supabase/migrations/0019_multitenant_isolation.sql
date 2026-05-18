@@ -45,15 +45,25 @@ WHERE i.id = f.invoice_id
   AND f.organization_id IS NULL
   AND i.organization_id IS NOT NULL;
 
--- Sanity: nicht zuordenbare Datei-Rows (verwaiste / org-lose Rechnung) dürfen
--- nicht still ihre Mandantenbindung verlieren.
+-- Verwaiste Datei-Rows (invoice_id IS NULL, weil die Rechnung via
+-- ON DELETE SET NULL gelöscht wurde) sind legitim org-los — sie haben keine
+-- Mandantenbindung, die verloren gehen könnte, und brechen den neuen
+-- UNIQUE(organization_id, sha256) nicht (NULL gilt in Postgres als distinct).
+-- Sie bleiben mit organization_id = NULL bestehen; der reguläre Import-Pfad
+-- matcht sie nicht (Dedup-Query ist org-scoped).
+--
+-- Sanity-Guard NUR für den unerwarteten Fall: Datei hängt an einer
+-- existierenden Rechnung, die aber keine organization_id hat (von 0011 für
+-- invoices eigentlich ausgeschlossen) → manuell prüfen statt still falsch.
 DO $$
-DECLARE orphan int;
+DECLARE unattributed int;
 BEGIN
-  SELECT COUNT(*) INTO orphan FROM invoice_files WHERE organization_id IS NULL;
-  IF orphan > 0 THEN
+  SELECT COUNT(*) INTO unattributed
+  FROM invoice_files
+  WHERE organization_id IS NULL AND invoice_id IS NOT NULL;
+  IF unattributed > 0 THEN
     RAISE EXCEPTION
-      'invoice_files: % Rows ohne ableitbare organization_id. Manuell zuordnen, bevor sha256 pro Org unique wird.', orphan;
+      'invoice_files: % Rows mit existierender Rechnung aber ohne ableitbare organization_id. Manuell prüfen (invoices.organization_id sollte seit 0011 NOT NULL sein).', unattributed;
   END IF;
 END $$;
 
