@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Loader2, Search, WifiOff } from "lucide-react";
+import { Loader2, Search, WifiOff } from "lucide-react";
 import type { DiscoveredSender } from "@/senders/discovered-senders";
 import { blockSenderAction, unblockSenderAction } from "@/app/(app)/senders/actions";
 import { verifyOnboardingConnectionAction } from "@/app/onboarding/actions";
