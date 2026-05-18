@@ -20,6 +20,7 @@ export type DiscoveredSender = {
 };
 
 export type SenderObservation = {
+  organizationId: string | null;
   fromAddress: string;
   displayName?: string | null;
   hadPdfAttachments: boolean;
@@ -53,11 +54,11 @@ export async function recordSenderObservation(
 
   await sql`
     INSERT INTO discovered_senders (
-      from_address, from_domain, display_name,
+      organization_id, from_address, from_domain, display_name,
       mail_count, pdf_count, imported_count, blocked_count
     )
-    VALUES (${fromAddress}, ${fromDomain}, ${displayName}, 1, ${pdfDelta}, ${importedDelta}, ${blockedDelta})
-    ON CONFLICT(from_address) DO UPDATE SET
+    VALUES (${observation.organizationId}, ${fromAddress}, ${fromDomain}, ${displayName}, 1, ${pdfDelta}, ${importedDelta}, ${blockedDelta})
+    ON CONFLICT(organization_id, from_address) DO UPDATE SET
       mail_count = discovered_senders.mail_count + 1,
       pdf_count = discovered_senders.pdf_count + excluded.pdf_count,
       imported_count = discovered_senders.imported_count + excluded.imported_count,
@@ -68,17 +69,24 @@ export async function recordSenderObservation(
   `;
 
   const rows = await sql<{ id: number; blocked: boolean }[]>`
-    SELECT id, blocked FROM discovered_senders WHERE from_address = ${fromAddress}
+    SELECT id, blocked FROM discovered_senders
+    WHERE from_address = ${fromAddress}
+      AND organization_id IS NOT DISTINCT FROM ${observation.organizationId}
   `;
   const row = rows[0];
   return { id: row.id, blocked: Boolean(row.blocked) };
 }
 
-export async function isSenderBlocked(fromAddress: string | null | undefined): Promise<boolean> {
+export async function isSenderBlocked(
+  fromAddress: string | null | undefined,
+  organizationId: string | null,
+): Promise<boolean> {
   const normalized = normalizeAddress(fromAddress);
   if (!normalized) return false;
   const rows = await sql<{ blocked: boolean }[]>`
-    SELECT blocked FROM discovered_senders WHERE from_address = ${normalized}
+    SELECT blocked FROM discovered_senders
+    WHERE from_address = ${normalized}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
   `;
   return Boolean(rows[0]?.blocked);
 }
@@ -93,6 +101,7 @@ export async function isSenderBlocked(fromAddress: string | null | undefined): P
  */
 export async function isSenderAutoIgnored(
   fromAddress: string | null | undefined,
+  organizationId: string | null,
   options: { minIgnoredStreak?: number; lookbackDays?: number } = {},
 ): Promise<boolean> {
   const normalized = normalizeAddress(fromAddress);
@@ -108,6 +117,7 @@ export async function isSenderAutoIgnored(
     WHERE m.from_address = ${normalized}
       AND f.source_type = 'mail'
       AND i.status IN ('ready', 'exported')
+      AND i.organization_id IS NOT DISTINCT FROM ${organizationId}
       AND i.created_at::TIMESTAMPTZ >= NOW() - (${lookbackDays} || ' days')::INTERVAL
     LIMIT 1
   `;
@@ -120,6 +130,7 @@ export async function isSenderAutoIgnored(
     JOIN mail_messages m ON m.id = CAST(f.source_ref_id AS INTEGER)
     WHERE m.from_address = ${normalized}
       AND f.source_type = 'mail'
+      AND i.organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY i.created_at DESC
     LIMIT ${streak}
   `;
@@ -128,7 +139,9 @@ export async function isSenderAutoIgnored(
   return recent.every((r) => r.status === "ignored");
 }
 
-export async function listDiscoveredSenders(): Promise<DiscoveredSender[]> {
+export async function listDiscoveredSenders(
+  organizationId: string | null,
+): Promise<DiscoveredSender[]> {
   const rows = await sql<Array<Omit<DiscoveredSender, "blocked"> & { blocked: boolean }>>`
     SELECT
       ds.id,
@@ -149,35 +162,47 @@ export async function listDiscoveredSenders(): Promise<DiscoveredSender[]> {
     FROM discovered_senders ds
     LEFT JOIN vendors ON vendors.id = ds.matched_vendor_id
     WHERE ds.pdf_count > 0
+      AND ds.organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY ds.pdf_count DESC, ds.mail_count DESC, ds.last_seen_at DESC
   `;
   return rows.map((row) => ({ ...row, blocked: Boolean(row.blocked) }));
 }
 
-export async function blockSender(senderId: number, reason: string | null): Promise<void> {
+export async function blockSender(
+  senderId: number,
+  reason: string | null,
+  organizationId: string | null,
+): Promise<void> {
   await sql`
     UPDATE discovered_senders
     SET blocked = TRUE, blocked_reason = ${reason || null}, blocked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
     WHERE id = ${senderId}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
   `;
 }
 
-export async function unblockSender(senderId: number): Promise<void> {
+export async function unblockSender(
+  senderId: number,
+  organizationId: string | null,
+): Promise<void> {
   await sql`
     UPDATE discovered_senders
     SET blocked = FALSE, blocked_reason = NULL, blocked_at = NULL, updated_at = CURRENT_TIMESTAMP
     WHERE id = ${senderId}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
   `;
 }
 
 export async function linkSenderToVendor(
   senderId: number,
   vendorId: number | null,
+  organizationId: string | null,
 ): Promise<void> {
   await sql`
     UPDATE discovered_senders
     SET matched_vendor_id = ${vendorId}, updated_at = CURRENT_TIMESTAMP
     WHERE id = ${senderId}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
   `;
 }
 
@@ -188,7 +213,9 @@ export type BackfillResult = {
 };
 
 export async function backfillFromMailMessages(): Promise<BackfillResult> {
+  // Pro Org gruppieren — Org via mail_account herleiten.
   const summary = await sql<Array<{
+    organizationId: string | null;
     fromAddress: string;
     mailCount: string;
     pdfCount: string;
@@ -197,6 +224,7 @@ export async function backfillFromMailMessages(): Promise<BackfillResult> {
     lastSeen: string;
   }>>`
     SELECT
+      ma.organization_id AS "organizationId",
       LOWER(mm.from_address) AS "fromAddress",
       COUNT(*) AS "mailCount",
       SUM(CASE WHEN mm.status NOT IN ('no_pdf', 'pending') THEN 1 ELSE 0 END) AS "pdfCount",
@@ -204,8 +232,9 @@ export async function backfillFromMailMessages(): Promise<BackfillResult> {
       MIN(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP::TEXT)) AS "firstSeen",
       MAX(COALESCE(mm.date, mm.seen_at, CURRENT_TIMESTAMP::TEXT)) AS "lastSeen"
     FROM mail_messages mm
+    JOIN mail_accounts ma ON ma.id = mm.mail_account_id
     WHERE mm.from_address IS NOT NULL AND mm.from_address != ''
-    GROUP BY LOWER(mm.from_address)
+    GROUP BY ma.organization_id, LOWER(mm.from_address)
     HAVING SUM(CASE WHEN mm.status NOT IN ('no_pdf', 'pending') THEN 1 ELSE 0 END) > 0
   `;
 
@@ -221,12 +250,12 @@ export async function backfillFromMailMessages(): Promise<BackfillResult> {
 
     await sql`
       INSERT INTO discovered_senders (
-        from_address, from_domain, display_name,
+        organization_id, from_address, from_domain, display_name,
         mail_count, pdf_count, imported_count, blocked_count,
         first_seen_at, last_seen_at
       )
-      VALUES (${address}, ${extractDomain(address)}, NULL, ${mailCount}, ${pdfCount}, ${importedCount}, 0, ${row.firstSeen}, ${row.lastSeen})
-      ON CONFLICT(from_address) DO UPDATE SET
+      VALUES (${row.organizationId}, ${address}, ${extractDomain(address)}, NULL, ${mailCount}, ${pdfCount}, ${importedCount}, 0, ${row.firstSeen}, ${row.lastSeen})
+      ON CONFLICT(organization_id, from_address) DO UPDATE SET
         mail_count = GREATEST(discovered_senders.mail_count, excluded.mail_count),
         pdf_count = GREATEST(discovered_senders.pdf_count, excluded.pdf_count),
         imported_count = GREATEST(discovered_senders.imported_count, excluded.imported_count),
@@ -265,13 +294,14 @@ function nameFromDomain(domain: string): string {
 export async function autoAssignSenders(): Promise<AutoAssignResult> {
   const unmatched = await sql<Array<{
     id: number;
+    organizationId: string | null;
     fromAddress: string;
     fromDomain: string;
     displayName: string | null;
     pdfCount: number;
   }>>`
-    SELECT id, from_address AS "fromAddress", from_domain AS "fromDomain",
-      display_name AS "displayName", pdf_count AS "pdfCount"
+    SELECT id, organization_id AS "organizationId", from_address AS "fromAddress",
+      from_domain AS "fromDomain", display_name AS "displayName", pdf_count AS "pdfCount"
     FROM discovered_senders
     WHERE matched_vendor_id IS NULL AND blocked = FALSE
   `;
@@ -321,8 +351,8 @@ export async function autoAssignSenders(): Promise<AutoAssignResult> {
     }
 
     const inserted = await sql<{ id: number }[]>`
-      INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
-      VALUES (${name}, ${key}, 'service', FALSE, TRUE, TRUE)
+      INSERT INTO vendors (organization_id, name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
+      VALUES (${sender.organizationId}, ${name}, ${key}, 'service', FALSE, TRUE, TRUE)
       RETURNING id
     `;
     const newVendorRow = inserted[0];

@@ -27,7 +27,7 @@ function parseSenderId(formData: FormData): number {
   return id;
 }
 
-async function getSenderRow(id: number) {
+async function getSenderRow(id: number, organizationId: string | null) {
   const rows = await sql<Array<{
     id: number;
     fromAddress: string;
@@ -37,7 +37,9 @@ async function getSenderRow(id: number) {
   }>>`
     SELECT id, from_address AS "fromAddress", from_domain AS "fromDomain",
       display_name AS "displayName", matched_vendor_id AS "matchedVendorId"
-    FROM discovered_senders WHERE id = ${id}
+    FROM discovered_senders
+    WHERE id = ${id}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
   `;
   return rows[0];
 }
@@ -52,13 +54,14 @@ export async function blockSenderAction(
   formData: FormData,
 ): Promise<SenderActionState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   try {
     const senderId = parseSenderId(formData);
     const reason = String(formData.get("reason") || "").trim() || null;
-    const sender = await getSenderRow(senderId);
+    const sender = await getSenderRow(senderId, orgId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
-    await blockSender(senderId, reason);
+    await blockSender(senderId, reason, orgId);
     refreshSenderViews();
     return {
       status: "success",
@@ -74,12 +77,13 @@ export async function unblockSenderAction(
   formData: FormData,
 ): Promise<SenderActionState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   try {
     const senderId = parseSenderId(formData);
-    const sender = await getSenderRow(senderId);
+    const sender = await getSenderRow(senderId, orgId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
-    await unblockSender(senderId);
+    await unblockSender(senderId, orgId);
     refreshSenderViews();
     return { status: "success", message: `${sender.fromAddress} ist wieder freigegeben.` };
   } catch (error) {
@@ -95,7 +99,8 @@ export async function linkSenderToVendorAction(
   formData: FormData,
 ): Promise<SenderActionState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   try {
     const senderId = parseSenderId(formData);
     const rawVendor = String(formData.get("vendorId") || "").trim();
@@ -103,9 +108,9 @@ export async function linkSenderToVendorAction(
     if (vendorId !== null && (!Number.isInteger(vendorId) || vendorId <= 0)) {
       return { status: "error", message: "Ungültige Vendor-ID." };
     }
-    const sender = await getSenderRow(senderId);
+    const sender = await getSenderRow(senderId, orgId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
-    await linkSenderToVendor(senderId, vendorId);
+    await linkSenderToVendor(senderId, vendorId, orgId);
     refreshSenderViews();
     return {
       status: "success",
@@ -134,10 +139,11 @@ export async function createVendorFromSenderAction(
   formData: FormData,
 ): Promise<SenderActionState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   try {
     const senderId = parseSenderId(formData);
-    const sender = await getSenderRow(senderId);
+    const sender = await getSenderRow(senderId, orgId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
 
     const name = (String(formData.get("vendorName") || "").trim() || sender.displayName || sender.fromDomain).trim();
@@ -156,8 +162,8 @@ export async function createVendorFromSenderAction(
       vendorId = existingVendor.id;
     } else {
       const insertRows = await sql<{ id: number }[]>`
-        INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
-        VALUES (${name}, ${baseKey}, ${category}, FALSE, TRUE, TRUE)
+        INSERT INTO vendors (organization_id, name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
+        VALUES (${orgId}, ${name}, ${baseKey}, ${category}, FALSE, TRUE, TRUE)
         RETURNING id
       `;
       vendorId = Number(insertRows[0].id);
@@ -177,7 +183,7 @@ export async function createVendorFromSenderAction(
       ON CONFLICT DO NOTHING
     `;
 
-    await linkSenderToVendor(senderId, vendorId);
+    await linkSenderToVendor(senderId, vendorId, orgId);
     refreshSenderViews();
 
     return {

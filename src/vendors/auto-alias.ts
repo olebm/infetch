@@ -51,7 +51,7 @@ export type AutoAliasResult = {
  *      (falls vorhanden)
  */
 export async function learnFromManualMatch(
-  input: { invoiceId: number; vendorId: number },
+  input: { invoiceId: number; vendorId: number; organizationId: string | null },
 ): Promise<AutoAliasResult> {
   const sender = await getSenderFromInvoice(input.invoiceId);
   const senderEmail = sender.fromAddress;
@@ -124,6 +124,7 @@ export async function learnFromManualMatch(
     UPDATE discovered_senders
     SET matched_vendor_id = ${input.vendorId}, updated_at = CURRENT_TIMESTAMP
     WHERE from_address = ${senderEmail.toLowerCase()}
+      AND organization_id IS NOT DISTINCT FROM ${input.organizationId}
   `;
 
   return {
