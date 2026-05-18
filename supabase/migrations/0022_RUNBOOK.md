@@ -1,5 +1,24 @@
 # Runbook — Multitenancy-Schema auf Prod bringen (0022 → 0019 → 0020 → 0021)
 
+> ## ⏸️ STATUS (eingefroren) — Stand zuletzt
+> - **Problem:** `https://app.infetch.de/einstellungen` (und alle org-Seiten)
+>   liefern LIVE 500 — Prod-DB ist Pre-0019, deployter `main` erwartet
+>   Post-0019 (`column "organization_id" does not exist`, 42703).
+> - **Analyse + Plan: fertig.** Recon abgeschlossen, Checkpoint 1 aufgelöst
+>   (1 echte Org `tools` = `185109b5-4a88-44d1-ad22-73d6e8a47f8e`).
+> - **Artefakte:** `0022_prebackfill_org_attribution.sql` + dieses Runbook.
+>   Branch: `chore/db-multitenant-prod-migration` (NICHT in `main`, kein Deploy).
+> - **➡️ NÄCHSTER SCHRITT:** Operator fährt **Phase A** (Backup+Klon) und
+>   **Phase C** (Staging-Dry-Run gegen Klon) und schickt die Phase-C-NOTICEs
+>   + Phase-D-Outputs zurück. Erst danach Freigabe für **Phase E (Prod)**.
+> - **Blockiert durch:** kein Prod-/Supabase-Zugriff aus der Dev-Umgebung —
+>   SQL muss der Operator ausführen.
+> - **Bewusst aufgeschoben:** Test-Pollution-Purge (Orgs `order`,`Test User`,
+>   8× `org-quota-test-*` — alle als Junk bestätigt) → separater späterer
+>   Lauf mit eigenem Backup, NICHT im kritischen Pfad.
+> - **Sicherheits-TODO (offen):** `DATABASE_URL` des Fremd-Containers
+>   `os.betaform.io` erschien in einem SSH-Log → Passwort rotieren.
+
 **Kontext:** `main` (deployt) erwartet das Post-0019-Schema, die Prod-DB ist
 aber Pre-0019 → org-gescopte Seiten (z. B. `/einstellungen`) liefern 500
 (`column "organization_id" does not exist`, Postgres 42703). Migrationen
