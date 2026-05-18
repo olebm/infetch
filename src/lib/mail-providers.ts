@@ -29,7 +29,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     hint: "Gmail erfordert ein App-Passwort — kein normales Google-Passwort funktioniert hier.",
     appPasswordUrl: "https://myaccount.google.com/apppasswords",
     imap: { host: "imap.gmail.com", port: 993, secure: true },
-    smtp: { host: "smtp.gmail.com", port: 465, secure: true },
+    smtp: { host: "smtp.gmail.com", port: 587, secure: false },
   },
   {
     id: "outlook",
@@ -57,7 +57,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     hint: "Yahoo erfordert ein App-Passwort in den Sicherheitseinstellungen.",
     appPasswordUrl: "https://login.yahoo.com/account/security",
     imap: { host: "imap.mail.yahoo.com", port: 993, secure: true },
-    smtp: { host: "smtp.mail.yahoo.com", port: 465, secure: true },
+    smtp: { host: "smtp.mail.yahoo.com", port: 587, secure: false },
   },
   {
     id: "gmx",
@@ -65,7 +65,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "gmx.net",
     domains: ["gmx.de", "gmx.net", "gmx.at", "gmx.ch", "gmx.com"],
     imap: { host: "imap.gmx.net", port: 993, secure: true },
-    smtp: { host: "mail.gmx.net", port: 465, secure: true },
+    smtp: { host: "mail.gmx.net", port: 587, secure: false },
   },
   {
     id: "webde",
@@ -73,7 +73,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "web.de",
     domains: ["web.de"],
     imap: { host: "imap.web.de", port: 993, secure: true },
-    smtp: { host: "smtp.web.de", port: 465, secure: true },
+    smtp: { host: "smtp.web.de", port: 587, secure: false },
   },
   {
     id: "tonline",
@@ -81,7 +81,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "t-online.de",
     domains: ["t-online.de", "magenta.de"],
     imap: { host: "secureimap.t-online.de", port: 993, secure: true },
-    smtp: { host: "securesmtp.t-online.de", port: 465, secure: true },
+    smtp: { host: "securesmtp.t-online.de", port: 587, secure: false },
   },
   {
     id: "mailboxorg",
@@ -89,7 +89,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "mailbox.org",
     domains: ["mailbox.org"],
     imap: { host: "imap.mailbox.org", port: 993, secure: true },
-    smtp: { host: "smtp.mailbox.org", port: 465, secure: true },
+    smtp: { host: "smtp.mailbox.org", port: 587, secure: false },
   },
   {
     id: "fastmail",
@@ -97,7 +97,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "fastmail.com",
     domains: ["fastmail.com", "fastmail.fm"],
     imap: { host: "imap.fastmail.com", port: 993, secure: true },
-    smtp: { host: "smtp.fastmail.com", port: 465, secure: true },
+    smtp: { host: "smtp.fastmail.com", port: 587, secure: false },
   },
   {
     id: "posteo",
@@ -105,7 +105,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "posteo.de",
     domains: ["posteo.de", "posteo.net"],
     imap: { host: "posteo.de", port: 993, secure: true },
-    smtp: { host: "posteo.de", port: 465, secure: true },
+    smtp: { host: "posteo.de", port: 587, secure: false },
   },
   {
     id: "ionos",
@@ -113,7 +113,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "ionos.de",
     domains: ["ionos.de", "ionos.com", "1und1.de", "1und1.com"],
     imap: { host: "imap.ionos.de", port: 993, secure: true },
-    smtp: { host: "smtp.ionos.de", port: 465, secure: true },
+    smtp: { host: "smtp.ionos.de", port: 587, secure: false },
   },
   {
     id: "strato",
@@ -121,7 +121,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "strato.de",
     domains: ["strato.de"],
     imap: { host: "imap.strato.de", port: 993, secure: true },
-    smtp: { host: "smtp.strato.de", port: 465, secure: true },
+    smtp: { host: "smtp.strato.de", port: 587, secure: false },
   },
   {
     id: "freenet",
@@ -129,7 +129,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "freenet.de",
     domains: ["freenet.de"],
     imap: { host: "mx.freenet.de", port: 993, secure: true },
-    smtp: { host: "mx.freenet.de", port: 465, secure: true },
+    smtp: { host: "mx.freenet.de", port: 587, secure: false },
   },
   {
     id: "zoho",
@@ -137,7 +137,7 @@ export const MAIL_PROVIDERS: MailProvider[] = [
     domain: "zoho.com",
     domains: ["zoho.com", "zoho.eu", "zohomail.com"],
     imap: { host: "imap.zoho.eu", port: 993, secure: true },
-    smtp: { host: "smtp.zoho.eu", port: 465, secure: true },
+    smtp: { host: "smtp.zoho.eu", port: 587, secure: false },
   },
   {
     id: "protonmail",
@@ -166,7 +166,7 @@ export const MAIL_BACKENDS: MailBackend[] = [
     hint: "Google Workspace erfordert ein App-Passwort — kein normales Google-Passwort.",
     appPasswordUrl: "https://myaccount.google.com/apppasswords",
     imap: { host: "imap.gmail.com", port: 993, secure: true },
-    smtp: { host: "smtp.gmail.com", port: 465, secure: true },
+    smtp: { host: "smtp.gmail.com", port: 587, secure: false },
   },
   {
     id: "microsoft-365",
@@ -180,21 +180,21 @@ export const MAIL_BACKENDS: MailBackend[] = [
     name: "IONOS Hosting",
     domain: "ionos.de",
     imap: { host: "imap.ionos.de", port: 993, secure: true },
-    smtp: { host: "smtp.ionos.de", port: 465, secure: true },
+    smtp: { host: "smtp.ionos.de", port: 587, secure: false },
   },
   {
     id: "strato-hosting",
     name: "Strato Hosting",
     domain: "strato.de",
     imap: { host: "imap.strato.de", port: 993, secure: true },
-    smtp: { host: "smtp.strato.de", port: 465, secure: true },
+    smtp: { host: "smtp.strato.de", port: 587, secure: false },
   },
   {
     id: "zoho-hosting",
     name: "Zoho Mail",
     domain: "zoho.com",
     imap: { host: "imap.zoho.eu", port: 993, secure: true },
-    smtp: { host: "smtp.zoho.eu", port: 465, secure: true },
+    smtp: { host: "smtp.zoho.eu", port: 587, secure: false },
   },
 ];
 
