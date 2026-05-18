@@ -338,7 +338,7 @@ export function MailboxConnectContent({
           type="password"
           name={mode === "settings" ? "mailPassword" : undefined}
           value={password}
-          onChange={(e) => { setPassword(e.target.value); setTestResult(null); }}
+          onChange={(e) => setPassword(e.target.value)}
           placeholder="•••• •••• •••• ••••"
           autoComplete="new-password"
           enterKeyHint="done"

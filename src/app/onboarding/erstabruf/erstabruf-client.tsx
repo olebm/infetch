@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Check, Loader2, Search, WifiOff } from "lucide-react";
 import type { DiscoveredSender } from "@/senders/discovered-senders";
 import { blockSenderAction, unblockSenderAction } from "@/app/(app)/senders/actions";
@@ -190,15 +191,15 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
               </p>
             )}
             <div className="mt-6 flex flex-col gap-2">
-              <a
+              <Link
                 href="/onboarding"
                 className="inline-flex h-10 items-center justify-center rounded bg-brand px-4 text-sm font-medium text-white hover:opacity-90"
               >
                 Postfach neu einrichten
-              </a>
-              <a href="/" className="text-xs text-muted hover:text-ink">
+              </Link>
+              <Link href="/" className="text-xs text-muted hover:text-ink">
                 Zur App — ich kümmere mich später darum
-              </a>
+              </Link>
             </div>
           </div>
         </main>
