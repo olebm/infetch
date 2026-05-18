@@ -178,6 +178,9 @@ export function OnboardingWizard() {
   type TestPhase = "idle" | "testing" | "success" | "error";
   const [testPhase, setTestPhase] = useState<TestPhase>("idle");
   const [testErrors, setTestErrors] = useState<{ imap?: string; smtp?: string }>({});
+  // Which protocols the current step's test actually cares about: Postfach
+  // (receiving) checks IMAP + its SMTP; Versand (send-only) checks SMTP only.
+  const [testScope, setTestScope] = useState<{ imap: boolean; smtp: boolean }>({ imap: true, smtp: true });
 
   useEffect(() => {
     if (!hydrated) return;
@@ -209,9 +212,11 @@ export function OnboardingWizard() {
 
   // Connection test against the receiving IMAP + a given SMTP account.
   // On success, advances to the next step after a short confirmation.
-  const runTestAndAdvance = async (smtp: {
-    host: string; port: number; secure: boolean; user: string; pass: string;
-  }) => {
+  const runTestAndAdvance = async (
+    smtp: { host: string; port: number; secure: boolean; user: string; pass: string },
+    scope: { imap: boolean; smtp: boolean },
+  ) => {
+    setTestScope(scope);
     setTestPhase("testing");
     setTestErrors({});
 
@@ -238,7 +243,10 @@ export function OnboardingWizard() {
       return;
     }
 
-    if (result.imap.ok && result.smtp.ok) {
+    const imapOk = scope.imap ? result.imap.ok : true;
+    const smtpOk = scope.smtp ? result.smtp.ok : true;
+
+    if (imapOk && smtpOk) {
       setTestPhase("success");
       setTimeout(() => {
         setTestPhase("idle");
@@ -247,8 +255,8 @@ export function OnboardingWizard() {
     } else {
       setTestPhase("error");
       setTestErrors({
-        imap: result.imap.ok ? undefined : result.imap.error,
-        smtp: result.smtp.ok ? undefined : result.smtp.error,
+        imap: scope.imap && !result.imap.ok ? result.imap.error : undefined,
+        smtp: scope.smtp && !result.smtp.ok ? result.smtp.error : undefined,
       });
     }
   };
@@ -260,14 +268,17 @@ export function OnboardingWizard() {
       if (!data.imapEmail)    { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
       if (!data.imapPassword) { setValidationError("Bitte Passwort eingeben."); return; }
       if (!data.imapHost)     { setValidationError("Server-Details fehlen — bitte Provider auswählen oder manuell eingeben."); return; }
-      // Postfach = receiving mailbox only (its own SMTP / IMAP credentials).
-      await runTestAndAdvance({
-        host: data.smtpHost,
-        port: data.smtpPort,
-        secure: data.smtpSecure,
-        user: data.smtpEmail || data.imapEmail,
-        pass: data.smtpPassword || data.imapPassword,
-      });
+      // Postfach = receiving mailbox: check IMAP (reading) + its SMTP.
+      await runTestAndAdvance(
+        {
+          host: data.smtpHost,
+          port: data.smtpPort,
+          secure: data.smtpSecure,
+          user: data.smtpEmail || data.imapEmail,
+          pass: data.smtpPassword || data.imapPassword,
+        },
+        { imap: true, smtp: true },
+      );
       return;
     }
 
@@ -285,13 +296,17 @@ export function OnboardingWizard() {
       if (!data.senderEmail)    { setValidationError("Bitte die Sende-Adresse eingeben (die bei der Buchhaltungs-Software hinterlegte)."); return; }
       if (!data.senderPassword) { setValidationError("Bitte das Passwort der Sende-Adresse eingeben."); return; }
       if (!data.senderSmtpHost) { setValidationError("Sende-Server unbekannt — bitte Server-Details manuell eingeben."); return; }
-      await runTestAndAdvance({
-        host: data.senderSmtpHost,
-        port: data.senderSmtpPort,
-        secure: data.senderSmtpSecure,
-        user: data.senderEmail,
-        pass: data.senderPassword,
-      });
+      // Versand = send-only mailbox: only SMTP is relevant.
+      await runTestAndAdvance(
+        {
+          host: data.senderSmtpHost,
+          port: data.senderSmtpPort,
+          secure: data.senderSmtpSecure,
+          user: data.senderEmail,
+          pass: data.senderPassword,
+        },
+        { imap: false, smtp: true },
+      );
       return;
     }
   };
@@ -566,7 +581,7 @@ export function OnboardingWizard() {
             <dl className="mt-6 divide-y divide-line rounded-md border border-line bg-paper">
               <div className="flex items-baseline gap-3 px-4 py-3">
                 <dt className="w-28 shrink-0 text-xs text-muted">Posteingang</dt>
-                <dd className="text-sm text-ink">{data.imapEmail || "IMAP-Zugang"}</dd>
+                <dd className="text-sm text-ink font-mono">{data.imapEmail || "IMAP-Zugang"}</dd>
               </div>
               {isSharedInboxRecipient(data.recipientKey) && data.senderEmail && (
                 <div className="flex items-baseline gap-3 px-4 py-3">
@@ -615,13 +630,19 @@ export function OnboardingWizard() {
         {testPhase === "testing" && (
           <div className="mt-4 flex items-center gap-2 text-sm text-muted">
             <Loader2 size={14} className="animate-spin shrink-0" aria-hidden />
-            <span>Prüfe IMAP und SMTP…</span>
+            <span>
+              Prüfe {testScope.imap && testScope.smtp ? "IMAP und SMTP" : testScope.smtp ? "SMTP" : "IMAP"}…
+            </span>
           </div>
         )}
         {testPhase === "success" && (
           <div className="mt-4 flex items-center gap-3 text-sm text-ok">
-            <span className="flex items-center gap-1"><Check size={14} aria-hidden /> IMAP verbunden</span>
-            <span className="flex items-center gap-1"><Check size={14} aria-hidden /> SMTP verbunden</span>
+            {testScope.imap && (
+              <span className="flex items-center gap-1"><Check size={14} aria-hidden /> IMAP verbunden</span>
+            )}
+            {testScope.smtp && (
+              <span className="flex items-center gap-1"><Check size={14} aria-hidden /> SMTP verbunden</span>
+            )}
           </div>
         )}
         {testPhase === "error" && (
