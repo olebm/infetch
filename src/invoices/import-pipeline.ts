@@ -155,10 +155,13 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   // ────────────────────────────────────────────────────────────────────────────
 
   const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
+  // Dedup ist pro Org — dasselbe PDF in zwei Orgs ist KEINE Dublette
+  // (Migration 0019: UNIQUE(organization_id, sha256)).
   const existingRows = await sql<ExistingFileRow[]>`
     SELECT id, invoice_id AS "invoiceId", original_filename AS "originalFilename"
     FROM invoice_files
     WHERE sha256 = ${sha256}
+      AND organization_id IS NOT DISTINCT FROM ${input.organizationId ?? null}
   `;
   const existing = existingRows[0];
 
@@ -235,11 +238,13 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
 
       const fileRows = await tx<{ id: number }[]>`
         INSERT INTO invoice_files (
-          invoice_id, original_filename, stored_path, sha256, size_bytes, mime_type, source_type, source_ref_id
+          invoice_id, organization_id, original_filename, stored_path, sha256,
+          size_bytes, mime_type, source_type, source_ref_id
         )
         VALUES (
-          ${newInvoiceId}, ${input.originalFilename}, ${storedPath}, ${sha256},
-          ${buffer.byteLength}, ${input.mimeType || "application/pdf"},
+          ${newInvoiceId}, ${input.organizationId ?? null}, ${input.originalFilename},
+          ${storedPath}, ${sha256}, ${buffer.byteLength},
+          ${input.mimeType || "application/pdf"},
           ${input.sourceType}, ${input.sourceRefId || null}
         )
         RETURNING id
@@ -247,6 +252,7 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
       const newFileId = Number(fileRows[0].id);
 
       await upsertVendorMonthStatusTx(tx, {
+        organizationId: input.organizationId ?? null,
         vendorId: vendor.vendorId,
         invoiceId: newInvoiceId,
         invoiceDate: parsed.invoiceDate,
@@ -316,6 +322,7 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   } else {
     const aiResult = await runInvoiceAiExtraction({
       invoiceId,
+      organizationId: input.organizationId ?? null,
       originalFilename: input.originalFilename,
       pdfText: extraction.text,
       localParsed: {
@@ -397,6 +404,7 @@ function calculateConfidence(
 async function upsertVendorMonthStatusTx(
   tx: postgres.TransactionSql,
   input: {
+    organizationId: string | null;
     vendorId: number | null;
     invoiceId: number;
     invoiceDate: string | null;
@@ -413,15 +421,15 @@ async function upsertVendorMonthStatusTx(
 
   await tx`
     INSERT INTO vendor_month_status (
-      vendor_id, year_month, mail_status, portal_status, manual_status, final_status,
-      source_used, invoice_id, last_checked_at
+      organization_id, vendor_id, year_month, mail_status, portal_status, manual_status,
+      final_status, source_used, invoice_id, last_checked_at
     )
     VALUES (
-      ${input.vendorId}, ${yearMonth},
+      ${input.organizationId}, ${input.vendorId}, ${yearMonth},
       ${statusBySource.mailStatus}, ${statusBySource.portalStatus}, ${statusBySource.manualStatus},
       'found', ${statusBySource.sourceUsed}, ${input.invoiceId}, CURRENT_TIMESTAMP
     )
-    ON CONFLICT(vendor_id, year_month) DO UPDATE SET
+    ON CONFLICT(organization_id, vendor_id, year_month) DO UPDATE SET
       mail_status = excluded.mail_status,
       portal_status = excluded.portal_status,
       manual_status = excluded.manual_status,

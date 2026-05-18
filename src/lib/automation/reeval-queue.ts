@@ -14,6 +14,7 @@ export type ReevalResult = {
 
 type Row = {
   id: number;
+  organization_id: string | null;
   vendor_id: number | null;
   vendor_name: string | null;
   invoice_date: string | null;
@@ -30,7 +31,7 @@ type Row = {
  */
 export async function reevaluateReviewQueue(): Promise<ReevalResult> {
   const rows = await sql<Row[]>`
-    SELECT i.id, i.vendor_id, v.name AS vendor_name, i.invoice_date, i.amount_gross, ae.output_json
+    SELECT i.id, i.organization_id, i.vendor_id, v.name AS vendor_name, i.invoice_date, i.amount_gross, ae.output_json
     FROM invoices i
     LEFT JOIN vendors v ON v.id = i.vendor_id
     LEFT JOIN ai_extractions ae ON ae.invoice_id = i.id AND ae.status = 'succeeded'
@@ -69,6 +70,7 @@ export async function reevaluateReviewQueue(): Promise<ReevalResult> {
 
     // Phase 2: Echte Rechnung → Auto-Approval erneut versuchen
     const decision = await evaluateAutoApproval(extraction, {
+      organizationId: row.organization_id,
       vendorId: row.vendor_id,
       vendorName: row.vendor_name,
       amountGross: row.amount_gross,

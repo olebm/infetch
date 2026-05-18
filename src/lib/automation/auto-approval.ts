@@ -9,6 +9,7 @@ export type AutoApprovalDecision =
   | { autoApproved: false; reason: string };
 
 export type AutoApprovalInput = {
+  organizationId: string | null;
   vendorId: number | null;
   vendorName: string | null;
   amountGross: number | null;
@@ -53,7 +54,11 @@ export async function evaluateAutoApproval(
   if (minConfidence < PER_FIELD_RULE_THRESHOLD) {
     return { autoApproved: false, reason: "per-field confidence below threshold" };
   }
-  const rules = await getAutoApprovalRulesForVendor(resolved.vendorId, resolved.vendorName);
+  const rules = await getAutoApprovalRulesForVendor(
+    resolved.vendorId,
+    resolved.vendorName,
+    resolved.organizationId,
+  );
   if (rules.length === 0) {
     return { autoApproved: false, reason: "no matching rule" };
   }

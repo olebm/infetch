@@ -123,7 +123,7 @@ export async function InvoiceInboxView({
   const [statusCountsRaw, privatCount, stats] = await Promise.all([
     getInvoiceStatusCounts(orgId),
     getPrivateInvoiceCount(orgId),
-    getDashboardStats(),
+    getDashboardStats(orgId),
   ]);
   const counts = new Map(statusCountsRaw.map((c) => [c.status, Number(c.count)]));
   const activeYear = year ?? null;

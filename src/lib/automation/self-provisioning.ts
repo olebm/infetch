@@ -13,6 +13,7 @@ export type ProvisioningResult = {
 };
 
 type Candidate = {
+  organizationId: string | null;
   vendorId: number;
   vendorName: string;
   successCount: string;
@@ -33,8 +34,11 @@ export async function provisionAutoApprovalRules(): Promise<ProvisioningResult> 
   const multiplier = appConfig.selfHealing.selfProvisionAmountMultiplier;
 
   // Vendor-Stats: erfolgreiche Imports (ready/exported) und failures in den letzten 90 Tagen
+  // Pro (Org, Vendor) gruppieren — Auto-Approval-Rules sind seit Migration 0019
+  // org-scoped. NOT EXISTS prüft die Regel ebenfalls pro Org.
   const candidates = await sql<Candidate[]>`
     SELECT
+      i.organization_id AS "organizationId",
       v.id AS "vendorId",
       v.name AS "vendorName",
       SUM(CASE WHEN i.status IN ('ready', 'exported') THEN 1 ELSE 0 END) AS "successCount",
@@ -46,8 +50,9 @@ export async function provisionAutoApprovalRules(): Promise<ProvisioningResult> 
       AND NOT EXISTS (
         SELECT 1 FROM auto_approval_rules r
         WHERE r.vendor_id = v.id AND r.enabled = TRUE
+          AND r.organization_id IS NOT DISTINCT FROM i.organization_id
       )
-    GROUP BY v.id, v.name
+    GROUP BY i.organization_id, v.id, v.name
     HAVING SUM(CASE WHEN i.status IN ('ready', 'exported') THEN 1 ELSE 0 END) >= ${minImports}
        AND SUM(CASE WHEN i.status = 'failed' THEN 1 ELSE 0 END) = 0
        AND MAX(CASE WHEN i.status IN ('ready', 'exported') THEN i.amount_gross END) IS NOT NULL
@@ -64,8 +69,8 @@ export async function provisionAutoApprovalRules(): Promise<ProvisioningResult> 
     const maxCents = Math.ceil(candidate.maxAmount * multiplier * 100);
 
     await sql`
-      INSERT INTO auto_approval_rules (vendor_id, vendor_pattern, max_amount_cents, enabled)
-      VALUES (${candidate.vendorId}, NULL, ${maxCents}, TRUE)
+      INSERT INTO auto_approval_rules (organization_id, vendor_id, vendor_pattern, max_amount_cents, enabled)
+      VALUES (${candidate.organizationId}, ${candidate.vendorId}, NULL, ${maxCents}, TRUE)
     `;
 
     result.provisioned.push({

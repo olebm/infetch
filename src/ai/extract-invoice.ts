@@ -36,6 +36,7 @@ export type InvoiceAiRunResult =
 export async function runInvoiceAiExtraction(
   input: {
     invoiceId: number;
+    organizationId: string | null;
     originalFilename: string;
     pdfText: string;
     localParsed: LocalParsedInvoice;
@@ -293,6 +294,7 @@ async function applyAiExtractionToInvoice(invoiceId: number, extraction: Invoice
 
   if (status !== "ready") {
     const decision = await evaluateAutoApproval(extraction, {
+      organizationId: input.organizationId,
       vendorId,
       vendorName: extraction.vendor,
       amountGross,
