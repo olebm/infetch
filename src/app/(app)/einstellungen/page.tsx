@@ -50,7 +50,7 @@ export default async function SetupPage() {
     hasStoredCredentialRef("imap", "primary", auth?.organization?.id),
     hasConfiguredCredential("imap", "secondary", auth?.organization?.id),
     hasStoredCredentialRef("imap", "secondary", auth?.organization?.id),
-    listIntegrationTargets(),
+    listIntegrationTargets(auth?.organization?.id ?? null),
     getOrgTier(auth?.organization?.id ?? null),
   ]);
 

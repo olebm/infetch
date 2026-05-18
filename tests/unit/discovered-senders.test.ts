@@ -12,8 +12,31 @@ import {
   unblockSender,
 } from "@/senders/discovered-senders";
 
-// NOTE: These tests now use the global postgres sql client.
-// They require a real Postgres connection (DATABASE_URL env var).
+// NOTE: discovered_senders is org-scoped since migration 0020. Every reader/
+// writer takes an organizationId and discovered_senders.organization_id has an
+// FK to organizations. The DB-touching tests therefore own their organization.
+
+const TEST_ORG_ID = `org-senders-test-${Date.now()}`;
+const TEST_USER_ID = `user-senders-test-${Date.now()}`;
+
+async function setupOrg() {
+  await sql`
+    INSERT INTO users (id, email, name)
+    VALUES (${TEST_USER_ID}, ${`senders-test-${Date.now()}@infetch.local`}, 'Senders Test')
+    ON CONFLICT DO NOTHING
+  `;
+  await sql`
+    INSERT INTO organizations (id, name, slug, tier, owner_user_id)
+    VALUES (${TEST_ORG_ID}, 'Senders Test Org', ${`senders-test-${Date.now()}`}, 'pro', ${TEST_USER_ID})
+    ON CONFLICT DO NOTHING
+  `;
+}
+
+async function cleanupOrg() {
+  await sql`DELETE FROM discovered_senders WHERE organization_id = ${TEST_ORG_ID}`;
+  await sql`DELETE FROM organizations WHERE id = ${TEST_ORG_ID}`;
+  await sql`DELETE FROM users WHERE id = ${TEST_USER_ID}`;
+}
 
 describe("discovered senders helpers", () => {
   it("normalizes addresses to trimmed lowercase", () => {
@@ -30,11 +53,14 @@ describe("discovered senders helpers", () => {
 
 describe("recordSenderObservation", () => {
   beforeEach(async () => {
-    await sql`DELETE FROM discovered_senders WHERE from_address LIKE '%@openai-test.com'`;
+    await cleanupOrg();
+    await setupOrg();
   });
+  afterEach(cleanupOrg);
 
   it("creates a new sender row on first observation and increments counters on repeats", async () => {
     const first = await recordSenderObservation({
+      organizationId: TEST_ORG_ID,
       fromAddress: "billing@openai-test.com",
       displayName: "OpenAI Billing",
       hadPdfAttachments: true,
@@ -43,13 +69,14 @@ describe("recordSenderObservation", () => {
     expect(first.blocked).toBe(false);
 
     await recordSenderObservation({
+      organizationId: TEST_ORG_ID,
       fromAddress: "billing@openai-test.com",
       displayName: null,
       hadPdfAttachments: true,
       pdfsImported: 0,
     });
 
-    const all = await listDiscoveredSenders();
+    const all = await listDiscoveredSenders(TEST_ORG_ID);
     const found = all.filter((s) => s.fromAddress === "billing@openai-test.com");
     expect(found).toHaveLength(1);
     expect(found[0].fromAddress).toBe("billing@openai-test.com");
@@ -62,13 +89,14 @@ describe("recordSenderObservation", () => {
 
   it("counts blocked skips separately and does not import", async () => {
     await recordSenderObservation({
+      organizationId: TEST_ORG_ID,
       fromAddress: "spam@openai-test.com",
       hadPdfAttachments: true,
       pdfsImported: 0,
       blockedSkip: true,
     });
 
-    const all = await listDiscoveredSenders();
+    const all = await listDiscoveredSenders(TEST_ORG_ID);
     const sender = all.find((s) => s.fromAddress === "spam@openai-test.com")!;
     expect(sender.blockedCount).toBe(1);
     expect(sender.importedCount).toBe(0);
@@ -77,30 +105,33 @@ describe("recordSenderObservation", () => {
 
 describe("block and link helpers", () => {
   beforeEach(async () => {
-    await sql`DELETE FROM discovered_senders WHERE from_address = 'ops@vendor-test.com'`;
+    await cleanupOrg();
+    await setupOrg();
     await recordSenderObservation({
+      organizationId: TEST_ORG_ID,
       fromAddress: "ops@vendor-test.com",
       hadPdfAttachments: true,
       pdfsImported: 0,
     });
   });
+  afterEach(cleanupOrg);
 
   it("blocks and unblocks a sender", async () => {
-    const all = await listDiscoveredSenders();
+    const all = await listDiscoveredSenders(TEST_ORG_ID);
     const sender = all.find((s) => s.fromAddress === "ops@vendor-test.com")!;
-    expect(await isSenderBlocked("ops@vendor-test.com")).toBe(false);
+    expect(await isSenderBlocked("ops@vendor-test.com", TEST_ORG_ID)).toBe(false);
 
-    await blockSender(sender.id, "Werbung");
-    expect(await isSenderBlocked("OPS@VENDOR-TEST.COM")).toBe(true);
-    const allAfterBlock = await listDiscoveredSenders();
+    await blockSender(sender.id, "Werbung", TEST_ORG_ID);
+    expect(await isSenderBlocked("OPS@VENDOR-TEST.COM", TEST_ORG_ID)).toBe(true);
+    const allAfterBlock = await listDiscoveredSenders(TEST_ORG_ID);
     expect(allAfterBlock.find((s) => s.fromAddress === "ops@vendor-test.com")?.blockedReason).toBe("Werbung");
 
-    await unblockSender(sender.id);
-    expect(await isSenderBlocked("ops@vendor-test.com")).toBe(false);
+    await unblockSender(sender.id, TEST_ORG_ID);
+    expect(await isSenderBlocked("ops@vendor-test.com", TEST_ORG_ID)).toBe(false);
   });
 
   it("links a sender to a vendor", async () => {
-    const all = await listDiscoveredSenders();
+    const all = await listDiscoveredSenders(TEST_ORG_ID);
     const sender = all.find((s) => s.fromAddress === "ops@vendor-test.com")!;
 
     await sql`
@@ -113,8 +144,8 @@ describe("block and link helpers", () => {
     `;
     const vendorId = vendorRows[0].id;
 
-    await linkSenderToVendor(sender.id, vendorId);
-    const updated = await listDiscoveredSenders();
+    await linkSenderToVendor(sender.id, vendorId, TEST_ORG_ID);
+    const updated = await listDiscoveredSenders(TEST_ORG_ID);
     const updatedSender = updated.find((s) => s.fromAddress === "ops@vendor-test.com")!;
     expect(updatedSender.matchedVendorId).toBe(vendorId);
     expect(updatedSender.matchedVendorName).toBe("Vendor Test");

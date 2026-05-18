@@ -16,22 +16,38 @@ export type DashboardStats = {
   exportReady: number;
 };
 
-export async function getDashboardStats(): Promise<DashboardStats> {
-  const count = async (query: TemplateStringsArray, ...args: unknown[]) => {
-    const rows = await (sql as unknown as (...a: unknown[]) => Promise<CountRow[]>)(query, ...args);
-    return Number(rows[0]?.count ?? 0);
-  };
-
+export async function getDashboardStats(
+  organizationId: string | null,
+): Promise<DashboardStats> {
+  const c = (rows: CountRow[]) => Number(rows[0]?.count ?? 0);
   return {
-    invoicesTotal: Number((await sql`SELECT COUNT(*) AS count FROM invoices`)[0].count),
-    downloadedPdfs: Number((await sql`SELECT COUNT(*) AS count FROM invoice_files`)[0].count),
-    needsReview: Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count),
-    duplicates: Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'duplicate'`)[0].count),
-    missing: Number((await sql`SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status WHERE final_status = 'missing'`)[0].count),
-    actionRequired: Number((await sql`SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status WHERE final_status = 'action_required'`)[0].count),
-    exportReady: Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'ready'`)[0].count),
+    invoicesTotal: c(await sql<CountRow[]>`
+      SELECT COUNT(*) AS count FROM invoices
+      WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`),
+    downloadedPdfs: c(await sql<CountRow[]>`
+      SELECT COUNT(*) AS count FROM invoice_files
+      WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`),
+    needsReview: c(await sql<CountRow[]>`
+      SELECT COUNT(*) AS count FROM invoices
+      WHERE status = 'needs_review'
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
+    duplicates: c(await sql<CountRow[]>`
+      SELECT COUNT(*) AS count FROM invoices
+      WHERE status = 'duplicate'
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
+    missing: c(await sql<CountRow[]>`
+      SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status
+      WHERE final_status = 'missing'
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
+    actionRequired: c(await sql<CountRow[]>`
+      SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status
+      WHERE final_status = 'action_required'
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
+    exportReady: c(await sql<CountRow[]>`
+      SELECT COUNT(*) AS count FROM exports
+      WHERE status = 'ready'
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
   };
-  void count;
 }
 
 type SyncRunType = "imap_scan" | "missing_check" | "portal_fallback" | "ai_analysis" | "export";
@@ -966,19 +982,10 @@ function mapAutoApprovalRow(row: AutoApprovalRow): AutoApprovalRule {
   };
 }
 
-export async function listAutoApprovalRules(): Promise<AutoApprovalRule[]> {
-  const rows = await sql<AutoApprovalRow[]>`
-    SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
-            r.created_at, r.updated_at, v.name AS vendor_name
-    FROM auto_approval_rules r
-    LEFT JOIN vendors v ON v.id = r.vendor_id
-    ORDER BY r.enabled DESC, COALESCE(v.name, r.vendor_pattern) ASC`;
-  return rows.map(mapAutoApprovalRow);
-}
-
 export async function getAutoApprovalRulesForVendor(
   vendorId: number | null,
   vendorName: string | null,
+  organizationId: string | null,
 ): Promise<AutoApprovalRule[]> {
   const rows = await sql<AutoApprovalRow[]>`
     SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
@@ -986,6 +993,7 @@ export async function getAutoApprovalRulesForVendor(
     FROM auto_approval_rules r
     LEFT JOIN vendors v ON v.id = r.vendor_id
     WHERE r.enabled IS TRUE
+      AND r.organization_id IS NOT DISTINCT FROM ${organizationId}
       AND (
         (r.vendor_id IS NOT NULL AND r.vendor_id = ${vendorId})
         OR (r.vendor_pattern IS NOT NULL
@@ -997,6 +1005,7 @@ export async function getAutoApprovalRulesForVendor(
 
 export async function upsertAutoApprovalRule(input: {
   id?: number;
+  organizationId: string | null;
   vendorId: number | null;
   vendorPattern: string | null;
   maxAmountCents: number | null;
@@ -1006,9 +1015,10 @@ export async function upsertAutoApprovalRule(input: {
     await sql`
       UPDATE auto_approval_rules
       SET vendor_id = ${input.vendorId}, vendor_pattern = ${input.vendorPattern},
-          max_amount_cents = ${input.maxAmountCents}, enabled = ${input.enabled ? 1 : 0},
+          max_amount_cents = ${input.maxAmountCents}, enabled = ${input.enabled},
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${input.id}`;
+      WHERE id = ${input.id}
+        AND organization_id IS NOT DISTINCT FROM ${input.organizationId}`;
     const updated = (await sql<AutoApprovalRow[]>`
       SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
               r.created_at, r.updated_at, v.name AS vendor_name
@@ -1018,8 +1028,8 @@ export async function upsertAutoApprovalRule(input: {
     return mapAutoApprovalRow(updated);
   }
   const [inserted] = await sql<Array<{ id: string }>>`
-    INSERT INTO auto_approval_rules (vendor_id, vendor_pattern, max_amount_cents, enabled)
-    VALUES (${input.vendorId}, ${input.vendorPattern}, ${input.maxAmountCents}, ${input.enabled ? 1 : 0})
+    INSERT INTO auto_approval_rules (organization_id, vendor_id, vendor_pattern, max_amount_cents, enabled)
+    VALUES (${input.organizationId}, ${input.vendorId}, ${input.vendorPattern}, ${input.maxAmountCents}, ${input.enabled})
     RETURNING id`;
   const row = (await sql<AutoApprovalRow[]>`
     SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
@@ -1030,8 +1040,14 @@ export async function upsertAutoApprovalRule(input: {
   return mapAutoApprovalRow(row);
 }
 
-export async function deleteAutoApprovalRule(id: number): Promise<void> {
-  await sql`DELETE FROM auto_approval_rules WHERE id = ${id}`;
+export async function deleteAutoApprovalRule(
+  id: number,
+  organizationId: string | null,
+): Promise<void> {
+  await sql`
+    DELETE FROM auto_approval_rules
+    WHERE id = ${id}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}`;
 }
 
 export type IntegrationProvider = "lexoffice" | "sevdesk" | "datev";
@@ -1074,38 +1090,47 @@ function mapIntegrationRow(row: IntegrationRow): IntegrationTarget {
   };
 }
 
-export async function listIntegrationTargets(): Promise<IntegrationTarget[]> {
+export async function listIntegrationTargets(
+  organizationId: string | null,
+): Promise<IntegrationTarget[]> {
   const rows = await sql<IntegrationRow[]>`
     SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
             last_verified_at, created_at, updated_at
     FROM integration_targets
+    WHERE organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY enabled DESC, provider ASC`;
   return rows.map(mapIntegrationRow);
 }
 
 export async function getIntegrationTarget(
   provider: IntegrationProvider,
+  organizationId: string | null,
 ): Promise<IntegrationTarget | null> {
   const row = (await sql<IntegrationRow[]>`
     SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
             last_verified_at, created_at, updated_at
     FROM integration_targets
-    WHERE provider = ${provider}`)[0];
+    WHERE provider = ${provider}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}`)[0];
   return row ? mapIntegrationRow(row) : null;
 }
 
-export async function getActiveIntegrationTarget(): Promise<IntegrationTarget | null> {
+export async function getActiveIntegrationTarget(
+  organizationId: string | null,
+): Promise<IntegrationTarget | null> {
   const row = (await sql<IntegrationRow[]>`
     SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
             last_verified_at, created_at, updated_at
     FROM integration_targets
     WHERE enabled IS TRUE
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY updated_at DESC
     LIMIT 1`)[0];
   return row ? mapIntegrationRow(row) : null;
 }
 
 export async function upsertIntegrationTarget(input: {
+  organizationId: string | null;
   provider: IntegrationProvider;
   label: string;
   oauthTokenRef?: string | null;
@@ -1114,27 +1139,37 @@ export async function upsertIntegrationTarget(input: {
 }): Promise<IntegrationTarget> {
   const enabledFlag = input.enabled ?? true;
   await sql`
-    INSERT INTO integration_targets (provider, label, oauth_token_ref, external_account_id, enabled)
-    VALUES (${input.provider}, ${input.label}, ${input.oauthTokenRef ?? null}, ${input.externalAccountId ?? null}, ${enabledFlag})
-    ON CONFLICT(provider) DO UPDATE SET
+    INSERT INTO integration_targets (organization_id, provider, label, oauth_token_ref, external_account_id, enabled)
+    VALUES (${input.organizationId}, ${input.provider}, ${input.label}, ${input.oauthTokenRef ?? null}, ${input.externalAccountId ?? null}, ${enabledFlag})
+    ON CONFLICT(organization_id, provider) DO UPDATE SET
       label = EXCLUDED.label,
       oauth_token_ref = COALESCE(EXCLUDED.oauth_token_ref, integration_targets.oauth_token_ref),
       external_account_id = COALESCE(EXCLUDED.external_account_id, integration_targets.external_account_id),
       enabled = EXCLUDED.enabled,
       updated_at = CURRENT_TIMESTAMP`;
-  const target = await getIntegrationTarget(input.provider);
+  const target = await getIntegrationTarget(input.provider, input.organizationId);
   if (!target) throw new Error(`Integration ${input.provider} not found after upsert`);
   return target;
 }
 
-export async function disableIntegrationTarget(provider: IntegrationProvider): Promise<void> {
+export async function disableIntegrationTarget(
+  provider: IntegrationProvider,
+  organizationId: string | null,
+): Promise<void> {
   await sql`
-    UPDATE integration_targets SET enabled = FALSE, updated_at = CURRENT_TIMESTAMP WHERE provider = ${provider}`;
+    UPDATE integration_targets SET enabled = FALSE, updated_at = CURRENT_TIMESTAMP
+    WHERE provider = ${provider}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}`;
 }
 
-export async function markIntegrationVerified(provider: IntegrationProvider): Promise<void> {
+export async function markIntegrationVerified(
+  provider: IntegrationProvider,
+  organizationId: string | null,
+): Promise<void> {
   await sql`
-    UPDATE integration_targets SET last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE provider = ${provider}`;
+    UPDATE integration_targets SET last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE provider = ${provider}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}`;
 }
 
 export async function recordInvoiceExternalRef(
@@ -1420,7 +1455,9 @@ export type SenderWithStats = {
   invoiceSum: number;
 };
 
-export async function listSendersWithStats(): Promise<SenderWithStats[]> {
+export async function listSendersWithStats(
+  organizationId: string | null,
+): Promise<SenderWithStats[]> {
   const rows = await sql<Array<Omit<SenderWithStats, "blocked"> & { blocked: number }>>`
     SELECT
       ds.id,
@@ -1443,10 +1480,12 @@ export async function listSendersWithStats(): Promise<SenderWithStats[]> {
         FROM invoices i
         WHERE i.vendor_id = ds.matched_vendor_id
           AND i.status = 'exported'
+          AND i.organization_id IS NOT DISTINCT FROM ${organizationId}
       ), 0) AS "invoiceSum"
     FROM discovered_senders ds
     LEFT JOIN vendors v ON v.id = ds.matched_vendor_id
     WHERE ds.pdf_count > 0
+      AND ds.organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY "invoiceSum" DESC, ds.pdf_count DESC, ds.mail_count DESC`;
 
   return rows.map((row) => ({ ...row, blocked: Boolean(row.blocked) }));

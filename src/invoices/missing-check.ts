@@ -8,10 +8,12 @@ type VendorRow = {
   id: number;
   name: string;
   portalEnabled: boolean;
+  organizationId: string | null;
 };
 
 type InvoiceSignal = {
   id: number;
+  organizationId: string | null;
   vendorId: number;
   source: "manual" | "mail" | "portal";
   yearMonth: string;
@@ -41,34 +43,49 @@ export async function runMissingInvoiceCheck(): Promise<MissingCheckResult> {
   const syncRunId = Number(syncRunRows[0].id);
 
   try {
+    // vendor_month_status ist seit Migration 0019 org-scoped → pro Org prüfen.
+    const orgs = await sql<{ id: string }[]>`
+      SELECT id FROM organizations WHERE deleted_at IS NULL ORDER BY created_at
+    `;
+    // organization_id mitladen: pro Org nur die für sie relevanten Vendors
+    // prüfen (eigene + globale Seeds). Ohne diesen Filter bekäme jede Org
+    // "missing"-Rows für die privaten Vendors ALLER anderen Orgs.
     const vendors = await sql<VendorRow[]>`
-      SELECT id, name, portal_enabled AS "portalEnabled"
+      SELECT id, name, portal_enabled AS "portalEnabled",
+             organization_id AS "organizationId"
       FROM vendors
       ORDER BY name
     `;
     const months = getSyncMonths();
-    const invoiceByVendorMonth = await getInvoiceSignals();
+    const invoiceByOrgVendorMonth = await getInvoiceSignals();
     const summary = { checked: 0, found: 0, required: 0, actionRequired: 0, disabled: 0 };
 
-    for (const vendor of vendors) {
-      for (const yearMonth of months) {
-        const signal = invoiceByVendorMonth.get(`${vendor.id}:${yearMonth}`);
-        const sourceStatus = await resolveSourceStatus(vendor, yearMonth, signal);
-        const final = resolveVendorMonthStatus(sourceStatus);
-        await upsertVendorMonthStatus({
-          vendorId: vendor.id,
-          yearMonth,
-          sourceStatus,
-          finalStatus: final.finalStatus,
-          sourceUsed: final.sourceUsed,
-          invoiceId: signal?.id ?? null,
-        });
+    for (const org of orgs) {
+      // Nur eigene + globale Seed-Vendors dieser Org.
+      const orgVendors = vendors.filter(
+        (v) => v.organizationId === null || v.organizationId === org.id,
+      );
+      for (const vendor of orgVendors) {
+        for (const yearMonth of months) {
+          const signal = invoiceByOrgVendorMonth.get(`${org.id}:${vendor.id}:${yearMonth}`);
+          const sourceStatus = await resolveSourceStatus(vendor, yearMonth, signal, org.id);
+          const final = resolveVendorMonthStatus(sourceStatus);
+          await upsertVendorMonthStatus({
+            organizationId: org.id,
+            vendorId: vendor.id,
+            yearMonth,
+            sourceStatus,
+            finalStatus: final.finalStatus,
+            sourceUsed: final.sourceUsed,
+            invoiceId: signal?.id ?? null,
+          });
 
-        summary.checked += 1;
-        if (final.finalStatus === "found") summary.found += 1;
-        if (sourceStatus.portalStatus === "required") summary.required += 1;
-        if (final.finalStatus === "action_required") summary.actionRequired += 1;
-        if (sourceStatus.portalStatus === "disabled") summary.disabled += 1;
+          summary.checked += 1;
+          if (final.finalStatus === "found") summary.found += 1;
+          if (sourceStatus.portalStatus === "required") summary.required += 1;
+          if (final.finalStatus === "action_required") summary.actionRequired += 1;
+          if (sourceStatus.portalStatus === "disabled") summary.disabled += 1;
+        }
       }
     }
 
@@ -104,7 +121,8 @@ export async function runMissingInvoiceCheck(): Promise<MissingCheckResult> {
 
 async function getInvoiceSignals() {
   const rows = await sql<InvoiceSignal[]>`
-    SELECT id, vendor_id AS "vendorId", source, SUBSTR(invoice_date, 1, 7) AS "yearMonth"
+    SELECT id, organization_id AS "organizationId", vendor_id AS "vendorId",
+           source, SUBSTR(invoice_date, 1, 7) AS "yearMonth"
     FROM invoices
     WHERE vendor_id IS NOT NULL
       AND invoice_date IS NOT NULL
@@ -116,7 +134,7 @@ async function getInvoiceSignals() {
 
   const map = new Map<string, InvoiceSignal>();
   for (const row of rows) {
-    const key = `${row.vendorId}:${row.yearMonth}`;
+    const key = `${row.organizationId}:${row.vendorId}:${row.yearMonth}`;
     if (!map.has(key)) map.set(key, row);
   }
   return map;
@@ -126,6 +144,7 @@ async function resolveSourceStatus(
   vendor: VendorRow,
   yearMonth: string,
   signal: InvoiceSignal | undefined,
+  organizationId: string | null,
 ): Promise<SourceStatus> {
   if (signal?.source === "manual") {
     return { manualStatus: "imported", mailStatus: "unchecked", portalStatus: "not_needed" };
@@ -141,6 +160,7 @@ async function resolveSourceStatus(
     SELECT portal_status AS "portalStatus"
     FROM vendor_month_status
     WHERE vendor_id = ${vendor.id} AND year_month = ${yearMonth}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
   `;
 
   if (!vendor.portalEnabled) {
@@ -154,6 +174,7 @@ async function resolveSourceStatus(
 }
 
 async function upsertVendorMonthStatus(input: {
+  organizationId: string | null;
   vendorId: number;
   yearMonth: string;
   sourceStatus: SourceStatus;
@@ -163,15 +184,15 @@ async function upsertVendorMonthStatus(input: {
 }): Promise<void> {
   await sql`
     INSERT INTO vendor_month_status (
-      vendor_id, year_month, mail_status, portal_status, manual_status, final_status,
-      source_used, invoice_id, last_checked_at
+      organization_id, vendor_id, year_month, mail_status, portal_status, manual_status,
+      final_status, source_used, invoice_id, last_checked_at
     )
     VALUES (
-      ${input.vendorId}, ${input.yearMonth},
+      ${input.organizationId}, ${input.vendorId}, ${input.yearMonth},
       ${input.sourceStatus.mailStatus}, ${input.sourceStatus.portalStatus}, ${input.sourceStatus.manualStatus},
       ${input.finalStatus}, ${input.sourceUsed}, ${input.invoiceId}, CURRENT_TIMESTAMP
     )
-    ON CONFLICT(vendor_id, year_month) DO UPDATE SET
+    ON CONFLICT(organization_id, vendor_id, year_month) DO UPDATE SET
       mail_status = excluded.mail_status,
       portal_status = excluded.portal_status,
       manual_status = excluded.manual_status,

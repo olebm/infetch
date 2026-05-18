@@ -159,7 +159,7 @@ async function runPrimaryImapScanImpl(
             { uid: true, envelope: true, source: true },
             { uid: true },
           )) {
-            await processMessage(account.id, uidValidity, message, summary, bypassQuota);
+            await processMessage(account.id, account.organizationId ?? null, uidValidity, message, summary, bypassQuota);
           }
         }
       } finally {
@@ -236,6 +236,7 @@ async function runPrimaryImapScanImpl(
 
 async function processMessage(
   mailAccountId: number,
+  organizationId: string | null,
   uidValidity: string,
   message: FetchMessageObject,
   summary: Omit<ImapScanResult, "syncRunId">,
@@ -262,10 +263,14 @@ async function processMessage(
   summary.messagesProcessed += 1;
   summary.pdfsFound += parsed.pdfAttachments.length;
 
-  const senderBlocked = parsed.fromAddress ? await isSenderBlocked(parsed.fromAddress) : false;
+  const senderBlocked = parsed.fromAddress
+    ? await isSenderBlocked(parsed.fromAddress, organizationId)
+    : false;
   // Sender-Memory: spart Mistral-Call wenn der Sender Junk-PDFs sendet.
   const senderAutoIgnored =
-    !senderBlocked && parsed.fromAddress ? await isSenderAutoIgnored(parsed.fromAddress) : false;
+    !senderBlocked && parsed.fromAddress
+      ? await isSenderAutoIgnored(parsed.fromAddress, organizationId)
+      : false;
 
   if (!parsed.pdfAttachments.length) {
     await markMailMessage(mailMessageId, "no_pdf");
@@ -276,6 +281,7 @@ async function processMessage(
     summary.blockedSenders += 1;
     if (parsed.fromAddress) {
       await recordSenderObservation({
+        organizationId,
         fromAddress: parsed.fromAddress,
         displayName: parsed.fromName,
         hadPdfAttachments: true,
@@ -287,12 +293,7 @@ async function processMessage(
     return;
   }
 
-  // Org-ID für Quota-Check aus mail_accounts laden (einmalig pro Nachricht)
-  const orgRows = await sql<{ organizationId: string | null }[]>`
-    SELECT organization_id AS "organizationId" FROM mail_accounts WHERE id = ${mailAccountId} LIMIT 1
-  `;
-  const organizationId = orgRows[0]?.organizationId ?? null;
-
+  // organizationId wird vom Account in scanOne() durchgereicht.
   let importedForMessage = 0;
   let quotaBlocked = false;
   for (const attachment of parsed.pdfAttachments) {
@@ -320,6 +321,7 @@ async function processMessage(
 
   if (parsed.fromAddress) {
     await recordSenderObservation({
+      organizationId,
       fromAddress: parsed.fromAddress,
       displayName: parsed.fromName,
       hadPdfAttachments: true,

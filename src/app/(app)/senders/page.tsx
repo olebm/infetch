@@ -1,4 +1,5 @@
 import { SendersView } from "@/components/senders/senders-view";
+import { getCurrentAuth } from "@/lib/auth/current";
 import {
   listSendersWithStats,
   getVendorInvoices,
@@ -13,7 +14,8 @@ export default async function SendersPage({
   searchParams: Promise<{ sender?: string }>;
 }) {
   const params = await searchParams;
-  const senders = await listSendersWithStats();
+  const auth = await getCurrentAuth();
+  const senders = await listSendersWithStats(auth?.organization?.id ?? null);
 
   const selectedId = params.sender ? Number(params.sender) : null;
   let vendorInvoices: VendorInvoiceRow[] | null = null;

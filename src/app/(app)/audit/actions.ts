@@ -54,7 +54,8 @@ export async function updateInvoiceReviewAction(
 ): Promise<InvoiceReviewState> {
   void _previousState;
 
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
 
   try {
     const invoiceId = Number(formData.get("invoiceId"));
@@ -95,7 +96,7 @@ export async function updateInvoiceReviewAction(
     // die Sender-Domain als Domain-Alias — damit kuenftige Mails vom selben
     // Sender automatisch matchen und nicht erneut im Review landen.
     if (newVendorId && newVendorId !== previousVendorId) {
-      const result = await learnFromManualMatch({ invoiceId, vendorId: newVendorId });
+      const result = await learnFromManualMatch({ invoiceId, vendorId: newVendorId, organizationId: orgId });
       if (result.learned) {
         await recordSyncEvent({
           level: "info",
@@ -184,20 +185,25 @@ export async function restoreInvoiceFromPrivateAction(invoiceId: number): Promis
 }
 
 export async function markSenderDomainPrivateAction(domain: string): Promise<void> {
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   const senders = await sql<Array<{ id: number }>>`
-    SELECT id FROM discovered_senders WHERE from_domain = ${domain} AND blocked = FALSE
+    SELECT id FROM discovered_senders
+    WHERE from_domain = ${domain} AND blocked = FALSE
+      AND organization_id IS NOT DISTINCT FROM ${orgId}
   `;
   for (const s of senders) {
-    await blockSender(s.id, "Privat");
+    await blockSender(s.id, "Privat", orgId);
   }
   await sql`
     UPDATE invoices SET is_private = TRUE
-    WHERE id IN (
-      SELECT i.id FROM invoices i
-      JOIN discovered_senders ds ON ds.matched_vendor_id = i.vendor_id
-      WHERE ds.from_domain = ${domain}
-    )
+    WHERE organization_id IS NOT DISTINCT FROM ${orgId}
+      AND id IN (
+        SELECT i.id FROM invoices i
+        JOIN discovered_senders ds ON ds.matched_vendor_id = i.vendor_id
+        WHERE ds.from_domain = ${domain}
+          AND ds.organization_id IS NOT DISTINCT FROM ${orgId}
+      )
   `;
   revalidatePath("/audit");
   revalidatePath("/senders");

@@ -499,7 +499,8 @@ export async function saveAutoApprovalRuleAction(
   formData: FormData,
 ): Promise<AutoApprovalRuleFormState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   try {
     const idValue = String(formData.get("id") || "").trim();
     const vendorIdValue = String(formData.get("vendorId") || "").trim();
@@ -530,6 +531,7 @@ export async function saveAutoApprovalRuleAction(
 
     await upsertAutoApprovalRule({
       id: idValue ? Number(idValue) : undefined,
+      organizationId: orgId,
       vendorId,
       vendorPattern: vendorPattern ? vendorPattern : null,
       maxAmountCents,
@@ -549,14 +551,15 @@ export async function deleteAutoApprovalRuleAction(
   formData: FormData,
 ): Promise<AutoApprovalRuleFormState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   try {
     const idValue = String(formData.get("id") || "").trim();
     const id = Number(idValue);
     if (!idValue || Number.isNaN(id)) {
       return { status: "error", message: "Ungültige Regel-ID." };
     }
-    await deleteAutoApprovalRule(id);
+    await deleteAutoApprovalRule(id, orgId);
     revalidatePath("/einstellungen");
     return { status: "success", message: "Regel entfernt." };
   } catch (error) {
@@ -605,13 +608,14 @@ export async function saveLexofficeApiKeyAction(
     });
 
     await upsertIntegrationTarget({
+      organizationId: auth?.organization?.id ?? null,
       provider: "lexoffice",
       label: profile.companyName,
       oauthTokenRef: secretRef,
       externalAccountId: profile.organizationId,
       enabled: true,
     });
-    await markIntegrationVerified("lexoffice");
+    await markIntegrationVerified("lexoffice", auth?.organization?.id ?? null);
 
     revalidatePath("/einstellungen");
     return {
@@ -660,13 +664,14 @@ export async function saveSevdeskApiKeyAction(
     });
 
     await upsertIntegrationTarget({
+      organizationId: auth?.organization?.id ?? null,
       provider: "sevdesk",
       label,
       oauthTokenRef: secretRef,
       externalAccountId: userInfo.sevClient?.id ?? userInfo.id,
       enabled: true,
     });
-    await markIntegrationVerified("sevdesk");
+    await markIntegrationVerified("sevdesk", auth?.organization?.id ?? null);
 
     revalidatePath("/einstellungen");
     return {
@@ -713,13 +718,13 @@ export async function disconnectIntegrationAction(
   formData: FormData,
 ): Promise<IntegrationFormState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
   try {
     const provider = String(formData.get("provider") || "").trim() as IntegrationProvider;
     if (!["lexoffice", "sevdesk", "datev"].includes(provider)) {
       return { status: "error", message: "Unbekannter Provider." };
     }
-    await disableIntegrationTarget(provider);
+    await disableIntegrationTarget(provider, auth.organization?.id ?? null);
     revalidatePath("/einstellungen");
     return { status: "success", message: `${provider} getrennt.`, provider };
   } catch (error) {

@@ -72,7 +72,7 @@ export async function attemptAutoTransfer(
   if (invoice.status !== "ready") return { pushed: false, reason: "status not ready" };
   if (invoice.externalRef) return { pushed: false, reason: "already transferred" };
 
-  const integration = await getActiveIntegrationTarget();
+  const integration = await getActiveIntegrationTarget(organizationId ?? null);
   if (!integration) return { pushed: false, reason: "no active integration" };
 
   const file = await loadInvoiceFile(invoiceId);

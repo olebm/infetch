@@ -36,6 +36,7 @@ export type InvoiceAiRunResult =
 export async function runInvoiceAiExtraction(
   input: {
     invoiceId: number;
+    organizationId: string | null;
     originalFilename: string;
     pdfText: string;
     localParsed: LocalParsedInvoice;
@@ -52,7 +53,7 @@ export async function runInvoiceAiExtraction(
   if (existing?.status === "succeeded" && existing.outputJson) {
     const parsed = parseStoredExtraction(existing.outputJson);
     if (parsed) {
-      await applyAiExtractionToInvoice(input.invoiceId, parsed);
+      await applyAiExtractionToInvoice(input.invoiceId, input.organizationId, parsed);
       return { status: "cached", inputHash, extraction: parsed };
     }
   }
@@ -139,7 +140,7 @@ export async function runInvoiceAiExtraction(
       error: null,
       outputJson: JSON.stringify(extraction),
     });
-    await applyAiExtractionToInvoice(input.invoiceId, extraction);
+    await applyAiExtractionToInvoice(input.invoiceId, input.organizationId, extraction);
     await recordSyncEvent({
       level: "info",
       eventType: "mistral_extraction_succeeded",
@@ -254,7 +255,11 @@ async function upsertAiExtraction(input: {
   `;
 }
 
-async function applyAiExtractionToInvoice(invoiceId: number, extraction: InvoiceAiExtraction): Promise<void> {
+async function applyAiExtractionToInvoice(
+  invoiceId: number,
+  organizationId: string | null,
+  extraction: InvoiceAiExtraction,
+): Promise<void> {
   const currentRows = await sql<{
     vendorId: number | null;
     invoiceNumber: string | null;
@@ -293,6 +298,7 @@ async function applyAiExtractionToInvoice(invoiceId: number, extraction: Invoice
 
   if (status !== "ready") {
     const decision = await evaluateAutoApproval(extraction, {
+      organizationId,
       vendorId,
       vendorName: extraction.vendor,
       amountGross,

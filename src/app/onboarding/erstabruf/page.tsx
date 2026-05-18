@@ -9,7 +9,7 @@ export default async function ErstabrufPage() {
   const auth = await getCurrentAuth();
   if (!auth) redirect("/login");
 
-  const senders = await listDiscoveredSenders();
+  const senders = await listDiscoveredSenders(auth.organization?.id ?? null);
 
   return <ErstabrufClient senders={senders} />;
 }
