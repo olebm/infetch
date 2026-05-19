@@ -262,7 +262,7 @@ export async function InvoiceInboxView({
       {/* Fehlt tab content */}
       {activeTab === "fehlt" && (
         <div className="mt-6">
-          <MissingListView />
+          <MissingListView organizationId={orgId} />
         </div>
       )}
 

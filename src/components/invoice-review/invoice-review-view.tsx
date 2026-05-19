@@ -23,7 +23,7 @@ export async function InvoiceReviewView({
   }
 
   const [vendors, duplicateCandidates, vendorSuggestions, exportTargetsAll, adjacent] = await Promise.all([
-    getVendors(),
+    getVendors(orgId),
     getInvoiceReviewOptions(invoiceId, 50, orgId),
     getVendorSuggestions(invoiceId, 3),
     getExportTargets(orgId),

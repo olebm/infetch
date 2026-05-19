@@ -2,6 +2,7 @@ import { CircleDot, ShieldCheck } from "lucide-react";
 import { sql } from "@/lib/db/client";
 import { listOnlineAccounts } from "@/portals/credential-meta";
 import { getVendors } from "@/lib/db/queries";
+import { getCurrentAuth } from "@/lib/auth/current";
 import { hasStoredCredentialRef } from "@/lib/secrets/credential-store";
 import { listRecipes } from "@/portals/agent/recipe-cache";
 import { getCommunityRecipeStats } from "@/portals/agent/community-sync";
@@ -14,10 +15,12 @@ import { UpgradeCard } from "@/components/online-accounts/upgrade-card";
 import { canAddOnlineAccount, getTier } from "@/lib/tier";
 
 export async function OnlineAccountsView() {
+  const auth = await getCurrentAuth();
+  const orgId = auth?.organization?.id ?? null;
   const [accounts, recipes, allVendors, communityStats, tier] = await Promise.all([
     listOnlineAccounts(),
     listRecipes(),
-    getVendors(),
+    getVendors(orgId),
     getCommunityRecipeStats(),
     getTier(),
   ]);

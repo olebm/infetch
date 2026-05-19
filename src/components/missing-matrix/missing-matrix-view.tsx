@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { getMissingMatrix } from "@/lib/db/queries";
+import { getCurrentAuth } from "@/lib/auth/current";
 import { StatusBadge } from "@/components/status/status-badge";
 import { MissingCheckForm } from "@/components/missing-matrix/missing-check-form";
 import { toggleVendorHiddenAction } from "@/app/(app)/fehlt/actions";
 
 export async function MissingMatrixView({ includeHidden = false }: { includeHidden?: boolean }) {
-  const rows = await getMissingMatrix(includeHidden);
+  const auth = await getCurrentAuth();
+  const orgId = auth?.organization?.id ?? null;
+  const rows = await getMissingMatrix(orgId, includeHidden);
   const months = rows[0]?.months.map((month) => month.month) || [];
 
   return (
