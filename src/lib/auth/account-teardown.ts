@@ -52,64 +52,89 @@ export async function hardDeleteOrgData(
 ): Promise<void> {
   const hasOrgCol = (t: string) => optOrgCols.has(t);
 
+  // Drift-Guard auf TABELLEN-Ebene: das gedriftete Prod-Schema kann ganze
+  // Tabellen vermissen lassen, die in den Migrationen existieren (z. B.
+  // mail_inbound_addresses). Ein DELETE auf eine fehlende Tabelle (42P01)
+  // würde die ganze Transaktion abbrechen → vorab erfassen, was real da ist,
+  // und Statements für fehlende Tabellen überspringen. (Die optOrgCols-
+  // Statements sind implizit schon tabellen-sicher: getOptionalOrgColumns
+  // liefert eine fehlende Tabelle gar nicht erst zurück.)
+  const present = new Set(
+    (
+      await tx<{ t: string }[]>`
+        SELECT table_name t FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name IN (
+          'portal_runs','ai_extractions','exports','sync_events',
+          'vendor_month_status','invoice_files','invoices','mail_messages',
+          'mail_accounts','credential_refs','usage_events',
+          'mail_inbound_addresses','discovered_senders','vendor_aliases',
+          'portal_sessions','auto_approval_rules','vendors','organizations'
+        )
+      `
+    ).map((r) => r.t),
+  );
+  const run = async (table: string, exec: () => Promise<unknown>) => {
+    if (present.has(table)) await exec();
+  };
+
   // ── Invoice-Subgraph ───────────────────────────────────────────────────
-  await tx`
+  await run("portal_runs", () => tx`
     UPDATE portal_runs SET downloaded_invoice_id = NULL
     WHERE downloaded_invoice_id IN (
       SELECT id FROM invoices WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("ai_extractions", () => tx`
     DELETE FROM ai_extractions WHERE invoice_id IN (
       SELECT id FROM invoices WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("exports", () => tx`
     DELETE FROM exports
     WHERE organization_id = ${oid}
        OR invoice_id IN (
          SELECT id FROM invoices WHERE organization_id = ${oid}
        )
-  `;
-  await tx`
+  `);
+  await run("sync_events", () => tx`
     DELETE FROM sync_events WHERE invoice_id IN (
       SELECT id FROM invoices WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("vendor_month_status", () => tx`
     DELETE FROM vendor_month_status WHERE invoice_id IN (
       SELECT id FROM invoices WHERE organization_id = ${oid}
     )
-  `;
+  `);
   if (hasOrgCol("vendor_month_status")) {
     await tx`DELETE FROM vendor_month_status WHERE organization_id = ${oid}`;
   }
-  await tx`
+  await run("invoice_files", () => tx`
     DELETE FROM invoice_files WHERE invoice_id IN (
       SELECT id FROM invoices WHERE organization_id = ${oid}
     )
-  `;
+  `);
   if (hasOrgCol("invoice_files")) {
     await tx`DELETE FROM invoice_files WHERE organization_id = ${oid}`;
   }
-  await tx`
+  await run("invoices", () => tx`
     UPDATE invoices SET duplicate_of_invoice_id = NULL
     WHERE organization_id = ${oid} AND duplicate_of_invoice_id IS NOT NULL
-  `;
-  await tx`DELETE FROM invoices WHERE organization_id = ${oid}`;
+  `);
+  await run("invoices", () => tx`DELETE FROM invoices WHERE organization_id = ${oid}`);
 
-  // ── Mail & Credentials (Basisschema-Spalten, immer vorhanden) ──────────
-  await tx`
+  // ── Mail & Credentials ─────────────────────────────────────────────────
+  await run("mail_messages", () => tx`
     DELETE FROM mail_messages WHERE mail_account_id IN (
       SELECT id FROM mail_accounts WHERE organization_id = ${oid}
     )
-  `;
-  await tx`DELETE FROM mail_accounts WHERE organization_id = ${oid}`;
-  await tx`DELETE FROM credential_refs WHERE organization_id = ${oid}`;
+  `);
+  await run("mail_accounts", () => tx`DELETE FROM mail_accounts WHERE organization_id = ${oid}`);
+  await run("credential_refs", () => tx`DELETE FROM credential_refs WHERE organization_id = ${oid}`);
 
-  // ── Org-scoped Misc (0001-Spalten: immer vorhanden) ────────────────────
-  await tx`DELETE FROM usage_events WHERE organization_id = ${oid}`;
-  await tx`DELETE FROM mail_inbound_addresses WHERE organization_id = ${oid}`;
+  // ── Org-scoped Misc (Basisschema — aber Prod kann driften) ─────────────
+  await run("usage_events", () => tx`DELETE FROM usage_events WHERE organization_id = ${oid}`);
+  await run("mail_inbound_addresses", () => tx`DELETE FROM mail_inbound_addresses WHERE organization_id = ${oid}`);
 
   // ── Org-scoped Misc (migrations-spät: nur falls Spalte existiert) ───────
   if (hasOrgCol("export_targets")) {
@@ -123,49 +148,49 @@ export async function hardDeleteOrgData(
   }
 
   // ── Org-eigene Custom-Vendors (globale org=NULL bleiben!) ──────────────
-  await tx`
+  await run("discovered_senders", () => tx`
     UPDATE discovered_senders SET matched_vendor_id = NULL
     WHERE matched_vendor_id IN (
       SELECT id FROM vendors WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("vendor_aliases", () => tx`
     DELETE FROM vendor_aliases WHERE vendor_id IN (
       SELECT id FROM vendors WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("portal_sessions", () => tx`
     DELETE FROM portal_sessions WHERE vendor_id IN (
       SELECT id FROM vendors WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("portal_runs", () => tx`
     DELETE FROM portal_runs WHERE vendor_id IN (
       SELECT id FROM vendors WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("vendor_month_status", () => tx`
     DELETE FROM vendor_month_status WHERE vendor_id IN (
       SELECT id FROM vendors WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("sync_events", () => tx`
     DELETE FROM sync_events WHERE vendor_id IN (
       SELECT id FROM vendors WHERE organization_id = ${oid}
     )
-  `;
-  await tx`
+  `);
+  await run("auto_approval_rules", () => tx`
     DELETE FROM auto_approval_rules WHERE vendor_id IN (
       SELECT id FROM vendors WHERE organization_id = ${oid}
     )
-  `;
-  if (hasOrgCol("auto_approval_rules")) {
+  `);
+  if (present.has("auto_approval_rules") && hasOrgCol("auto_approval_rules")) {
     await tx`DELETE FROM auto_approval_rules WHERE organization_id = ${oid}`;
   }
-  await tx`DELETE FROM vendors WHERE organization_id = ${oid}`;
+  await run("vendors", () => tx`DELETE FROM vendors WHERE organization_id = ${oid}`);
 
   // ── Org selbst ─────────────────────────────────────────────────────────
-  await tx`DELETE FROM organizations WHERE id = ${oid}`;
+  await run("organizations", () => tx`DELETE FROM organizations WHERE id = ${oid}`);
 }
 
 /**
