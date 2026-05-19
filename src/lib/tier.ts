@@ -11,6 +11,7 @@
  */
 
 import { sql } from "@/lib/db/client";
+import { appConfig } from "@/lib/config/env";
 
 export type Tier = "free" | "pro" | "business";
 
@@ -96,6 +97,11 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
  * Fallback: INVOICE_AGENT_TIER env-var, dann "free".
  */
 export async function getOrgTier(organizationId: string | null | undefined): Promise<Tier> {
+  // Free-only Launch: zentrale Klemme. Solange Pro deaktiviert ist, ist die
+  // effektive Stufe IMMER "free" — unabhängig von organizations.tier (z. B.
+  // Alt-Abos). Damit greifen alle nachgelagerten Gates (canExport, Limits,
+  // isPro-Props) automatisch als Free.
+  if (!appConfig.billing.proEnabled) return "free";
   if (organizationId) {
     const rows = await sql<{ tier: string }[]>`
       SELECT tier FROM organizations WHERE id = ${organizationId} LIMIT 1
@@ -110,6 +116,7 @@ export async function getOrgTier(organizationId: string | null | undefined): Pro
 
 /** Liest Tier aus INVOICE_AGENT_TIER env-var. Fallback: "free". */
 export function getEnvTier(): Tier {
+  if (!appConfig.billing.proEnabled) return "free";
   const raw = process.env.INVOICE_AGENT_TIER?.trim().toLowerCase();
   if (raw === "pro") return "pro";
   if (raw === "business") return "business";

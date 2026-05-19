@@ -19,6 +19,10 @@ export function ManualImportForm() {
   const [state, formAction, isPending] = useActionState(importManualPdfAction, initialState);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Launch-Entscheidung: manueller PDF-Upload ausgeblendet (Code bleibt
+  // erhalten). Reaktivieren per NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED=true.
+  if (process.env.NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED !== "true") return null;
+
   return (
     <div className="rounded border border-line bg-white shadow-soft">
       {/* Toggle-Header */}

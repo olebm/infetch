@@ -13,7 +13,9 @@ type ProBadgeProps = {
  * Für Pro-User unsichtbar.
  */
 export function ProBadge({ feature, className = "" }: ProBadgeProps) {
-  const { openModal } = useUpgrade();
+  const { openModal, proEnabled } = useUpgrade();
+
+  if (!proEnabled) return null; // Free-only Launch: keine Pro-Hinweise
 
   return (
     <button

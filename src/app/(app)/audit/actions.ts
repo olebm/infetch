@@ -10,6 +10,7 @@ import { updateInvoiceReview, type ReviewStatus } from "@/invoices/review";
 import { learnFromManualMatch } from "@/vendors/auto-alias";
 import { recordSyncEvent } from "@/lib/db/events";
 import { blockSender } from "@/senders/discovered-senders";
+import { appConfig } from "@/lib/config/env";
 
 export type ManualImportState = {
   status: "idle" | "success" | "duplicate" | "error";
@@ -25,6 +26,12 @@ export async function importManualPdfAction(
   _previousState: ManualImportState,
   formData: FormData,
 ): Promise<ManualImportState> {
+  // Manueller Upload ausgeblendet (Launch). Serverseitige Absicherung,
+  // falls die Action doch aufgerufen wird.
+  if (!appConfig.features.manualUpload) {
+    return { status: "error", message: "Manueller Upload ist derzeit deaktiviert." };
+  }
+
   const file = formData.get("invoicePdf");
 
   if (!(file instanceof File)) {

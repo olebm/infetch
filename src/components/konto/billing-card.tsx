@@ -41,7 +41,7 @@ type Props = {
 };
 
 export function BillingCard({ tier, limits, hasStripeCustomer = false }: Props) {
-  const { openModal } = useUpgrade();
+  const { openModal, proEnabled } = useUpgrade();
   const isFree = tier === "free";
   const isPaidTier = !isFree;
   const features = PLAN_FEATURES[tier];
@@ -91,7 +91,7 @@ export function BillingCard({ tier, limits, hasStripeCustomer = false }: Props) 
             {limits.label}
           </span>
 
-          {isFree && (
+          {isFree && proEnabled && (
             <button
               type="button"
               onClick={() => openModal("Plan upgraden")}
@@ -137,7 +137,7 @@ export function BillingCard({ tier, limits, hasStripeCustomer = false }: Props) 
       )}
 
       {/* Free → Pro nudge */}
-      {isFree && (
+      {isFree && proEnabled && (
         <div className="border-t border-line bg-brand/[0.03] px-5 py-4">
           <div className="text-xs text-muted">
             Mit{" "}

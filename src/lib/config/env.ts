@@ -29,7 +29,16 @@ export const appConfig = {
     model: process.env.MISTRAL_MODEL || "mistral-small-latest",
     sendPdfBinary: process.env.AI_SEND_PDF_BINARY === "true",
   },
+  billing: {
+    // Free-only Launch: ohne explizit gesetzte Variable ist Pro AUS.
+    // Reaktivieren später per NEXT_PUBLIC_PRO_ENABLED=true (Server + Browser,
+    // da NEXT_PUBLIC_ zur Build-Zeit inlined wird).
+    proEnabled: process.env.NEXT_PUBLIC_PRO_ENABLED === "true",
+  },
   features: {
+    // Manueller PDF-Upload: standardmäßig ausgeblendet (Launch-Entscheidung).
+    // Reaktivieren per NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED=true.
+    manualUpload: process.env.NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED === "true",
     mailFirst: process.env.MAIL_FIRST_STRATEGY !== "false",
     portalFallback: process.env.PORTAL_FALLBACK_ENABLED === "true",
     enablePortals: process.env.ENABLE_PORTALS === "true",
