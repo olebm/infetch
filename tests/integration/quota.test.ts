@@ -1,4 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Free-only Launch klemmt den Tier zentral auf "free", solange
+// billing.proEnabled false ist (#8, bewusst reversibel). Die Quota-Tests
+// prüfen das volle Tier-System (free/pro/business) → Pro explizit an.
+vi.mock("@/lib/config/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/config/env")>();
+  return {
+    ...actual,
+    appConfig: {
+      ...actual.appConfig,
+      billing: { ...actual.appConfig.billing, proEnabled: true },
+    },
+  };
+});
+
 import { sql } from "@/lib/db/client";
 import {
   canImportInvoice,
@@ -122,21 +137,21 @@ describe("Quota-Enforcement (Tier-System)", () => {
 
   // ── canImportInvoice ──────────────────────────────────────────────────────────
 
-  it("canImportInvoice gibt allowed=true zurück wenn unter dem Free-Limit (15)", async () => {
+  it("canImportInvoice gibt allowed=true zurück wenn unter dem Free-Limit (30)", async () => {
     await setupOrg("free");
-    await insertInvoices(14);
+    await insertInvoices(29);
     const result = await canImportInvoice(TEST_ORG_ID);
     expect(result.allowed).toBe(true);
-    expect(result.current).toBe(14);
-    expect(result.max).toBe(15);
+    expect(result.current).toBe(29);
+    expect(result.max).toBe(30);
   });
 
-  it("canImportInvoice gibt allowed=false zurück wenn Free-Limit erreicht (15)", async () => {
+  it("canImportInvoice gibt allowed=false zurück wenn Free-Limit erreicht (30)", async () => {
     await setupOrg("free");
-    await insertInvoices(15);
+    await insertInvoices(30);
     const result = await canImportInvoice(TEST_ORG_ID);
     expect(result.allowed).toBe(false);
-    expect(result.current).toBe(15);
+    expect(result.current).toBe(30);
   });
 
   it("canImportInvoice gibt allowed=true für Pro-Org unter 150", async () => {
@@ -189,8 +204,8 @@ describe("Quota-Enforcement (Tier-System)", () => {
   });
 
   it("isNearInvoiceLimit gibt true zurück bei ≥80% des Limits", async () => {
-    await setupOrg("free"); // Limit: 15 → 80% = 12
-    await insertInvoices(12);
+    await setupOrg("free"); // Limit: 30 → 80% = 24
+    await insertInvoices(24);
     expect(await isNearInvoiceLimit(TEST_ORG_ID)).toBe(true);
   });
 

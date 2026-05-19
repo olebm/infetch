@@ -28,7 +28,9 @@ jobs:
       # not from local VCS state, so no full checkout / dependency install.
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: .github/scripts
+          sparse-checkout: |
+            .github/scripts
+            .nvmrc
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v4
         with:
