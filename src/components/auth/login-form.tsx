@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { provisionAfterOtp } from "@/app/login/actions";
 
@@ -17,9 +17,18 @@ export function LoginForm({ next }: LoginFormProps) {
     "idle" | "loading" | "sent" | "verifying" | "error"
   >("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [cooldown, setCooldown] = useState(0);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   const code = digits.join("");
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => {
+      setCooldown((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
 
   function focusInput(index: number) {
     const el = inputsRef.current[index];
@@ -99,6 +108,36 @@ export function LoginForm({ next }: LoginFormProps) {
     setDigits(Array(CODE_LENGTH).fill(""));
   }
 
+  async function requestOtp(
+    targetEmail: string,
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
+    const supabase = createSupabaseBrowserClient();
+    const redirectTo =
+      `${window.location.origin}/auth/callback` +
+      (next && next !== "/" ? `?next=${encodeURIComponent(next)}` : "");
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: targetEmail,
+      options: {
+        emailRedirectTo: redirectTo,
+        shouldCreateUser: true,
+      },
+    });
+
+    if (!error) return { ok: true };
+    if (error.status === 429) {
+      return {
+        ok: false,
+        message:
+          "Zu viele Anmelde-Anfragen. Bitte in ein paar Minuten erneut versuchen.",
+      };
+    }
+    return {
+      ok: false,
+      message: error.message || "Code konnte nicht gesendet werden.",
+    };
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = email.trim().toLowerCase();
@@ -107,26 +146,33 @@ export function LoginForm({ next }: LoginFormProps) {
     setStatus("loading");
     setErrorMsg("");
 
-    const supabase = createSupabaseBrowserClient();
-    const redirectTo =
-      `${window.location.origin}/auth/callback` +
-      (next && next !== "/" ? `?next=${encodeURIComponent(next)}` : "");
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: trimmed,
-      options: {
-        emailRedirectTo: redirectTo,
-        shouldCreateUser: true,
-      },
-    });
-
-    if (error) {
-      setStatus("error");
-      setErrorMsg(error.message);
-    } else {
+    const res = await requestOtp(trimmed);
+    if (res.ok) {
+      // Supabase erzwingt ~60 s Cooldown pro Adresse – im UI spiegeln.
+      setCooldown(60);
       resetCode();
       setStatus("sent");
       setTimeout(() => focusInput(0), 50);
+    } else {
+      setStatus("error");
+      setErrorMsg(res.message);
+    }
+  }
+
+  async function handleResend() {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || cooldown > 0 || status === "verifying") return;
+
+    setErrorMsg("");
+    const res = await requestOtp(trimmed);
+    // Auf dem Code-Screen bleiben: ein zuvor zugestellter Code bleibt
+    // gültig, daher auch bei 429 nicht zurück in den Eingabe-Screen.
+    setCooldown(60);
+    if (res.ok) {
+      resetCode();
+      setTimeout(() => focusInput(0), 50);
+    } else {
+      setErrorMsg(res.message);
     }
   }
 
@@ -215,17 +261,29 @@ export function LoginForm({ next }: LoginFormProps) {
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => {
-            setStatus("idle");
-            resetCode();
-            setErrorMsg("");
-          }}
-          className="mt-3 text-xs text-muted underline underline-offset-4 decoration-line"
-        >
-          Andere E-Mail verwenden
-        </button>
+        <div className="mt-3 flex items-center justify-between text-xs">
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={cooldown > 0 || status === "verifying"}
+            className="text-muted underline underline-offset-4 decoration-line disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
+          >
+            {cooldown > 0
+              ? `Code erneut senden (${cooldown}s)`
+              : "Code erneut senden"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatus("idle");
+              resetCode();
+              setErrorMsg("");
+            }}
+            className="text-muted underline underline-offset-4 decoration-line"
+          >
+            Andere E-Mail verwenden
+          </button>
+        </div>
       </div>
     );
   }
