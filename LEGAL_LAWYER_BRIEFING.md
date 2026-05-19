@@ -127,8 +127,8 @@ vollständig/korrekt sind.**
 - **Bewusst offen während des Interims:** P3-Klauseln (AGB §11/§9/§5(4)),
   B2C-Pflichtinfos, kein Aktualisierungsservice. Restrisiko wird **befristet
   und informiert** getragen.
-- **Ziel-Datum anwaltliche Ablösung: bis 17. Juli 2026**
-  (≈ 8 Wochen; Platzhalter — vom Betreiber zu bestätigen/anzupassen).
+- **Ziel-Datum anwaltliche Ablösung: bis 1. August 2026**
+  (vom Betreiber bestätigt am 19.05.2026).
   Wird das Datum überschritten, ist der Interim-Status erneut bewusst zu
   entscheiden, nicht stillschweigend zu verlängern.
 
