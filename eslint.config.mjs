@@ -10,6 +10,7 @@ const eslintConfig = [
       "node_modules/**",
       "data/**",
       "coverage/**",
+      ".github/**", // CI-only scripts (Node runtime, no app tsconfig context)
       "public/pdf.worker.min.mjs", // vendored, minified PDF.js worker
     ],
   },
