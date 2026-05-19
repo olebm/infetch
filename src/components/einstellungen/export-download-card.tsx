@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Download } from "lucide-react";
 import { ProBadge } from "@/components/ui/pro-badge";
 import { Card, CardHeader } from "@/components/ui/card";
+import {
+  deleteAccountAction,
+  type AccountDeletionState,
+} from "@/app/(app)/einstellungen/actions";
 
 export type VendorOption = { id: number; name: string };
 
@@ -11,11 +15,23 @@ type Props = {
   years: number[];
   vendors: VendorOption[];
   isPro: boolean;
+  email: string;
 };
 
-export function ExportDownloadCard({ years, vendors, isPro }: Props) {
+const DELETE_INITIAL: AccountDeletionState = { status: "idle", message: "" };
+
+export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
   const [year, setYear]     = useState<string>("");
   const [vendor, setVendor] = useState<string>("");
+  const [confirm, setConfirm] = useState<string>("");
+  const [deleteState, deleteAction, deletePending] = useActionState(
+    deleteAccountAction,
+    DELETE_INITIAL,
+  );
+
+  const confirmMatches =
+    confirm.trim().toLowerCase() === email.trim().toLowerCase() &&
+    email.length > 0;
 
   // Free: vendorId muss gesetzt sein → Download pro Anbieter oder einzeln
   // Pro:  kein vendor nötig → Bulk-Export aller Rechnungen
@@ -132,19 +148,41 @@ export function ExportDownloadCard({ years, vendors, isPro }: Props) {
       <div className="my-5 border-t border-line" />
 
       {/* ── Konto löschen ────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-sm font-medium text-ink">Konto löschen</div>
-          <div className="mt-0.5 text-xs text-muted">
-            Alle Daten werden unwiderruflich gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.
-          </div>
+      <div>
+        <div className="text-sm font-medium text-ink">Konto löschen</div>
+        <div className="mt-0.5 text-xs text-muted">
+          Dein Konto, dein Arbeitsbereich und alle hochgeladenen Rechnungen
+          werden sofort und unwiderruflich gelöscht. Ein laufendes Abo wird
+          gekündigt. Diese Aktion kann nicht rückgängig gemacht werden.
         </div>
-        <a
-          href="mailto:support@infetch.de?subject=Konto+löschen&body=Bitte+lösche+mein+Konto."
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded border border-danger/30 bg-danger-soft px-4 text-sm text-danger transition-colors hover:border-danger/60"
-        >
-          Anfragen
-        </a>
+
+        <form action={deleteAction} className="mt-3 space-y-2">
+          <label className="block text-xs text-muted">
+            Zur Bestätigung deine E-Mail-Adresse{" "}
+            <span className="font-mono text-ink">{email}</span> eingeben:
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              type="email"
+              name="confirm"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              autoComplete="off"
+              placeholder={email}
+              className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-danger focus:ring-2 focus:ring-danger/20 sm:max-w-xs"
+            />
+            <button
+              type="submit"
+              disabled={!confirmMatches || deletePending}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded border border-danger/30 bg-danger-soft px-4 text-sm text-danger transition-colors hover:border-danger/60 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deletePending ? "Wird gelöscht…" : "Konto endgültig löschen"}
+            </button>
+          </div>
+          {deleteState.status === "error" && (
+            <div className="text-xs text-danger">{deleteState.message}</div>
+          )}
+        </form>
       </div>
     </Card>
   );

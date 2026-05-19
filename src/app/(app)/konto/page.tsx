@@ -146,6 +146,7 @@ export default async function KontoPage() {
           years={invoiceYears}
           vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
           isPro={isPro}
+          email={auth?.user?.email ?? ""}
         />
 
       </div>

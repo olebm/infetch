@@ -42,3 +42,30 @@ export function tierFromPriceId(priceId: string | null | undefined): "pro" | "bu
   if (priceId === appConfig.stripe.priceIdBusiness) return "business";
   return null;
 }
+
+// ── Subscription cancellation ──────────────────────────────────────────────────
+
+/**
+ * Beendet ein Abo sofort (z. B. bei Konto-Löschung), damit nach dem Löschen
+ * nicht weiter abgerechnet wird. Idempotent: ein bereits gelöschtes/unbekanntes
+ * Abo wird als Erfolg behandelt. Wirft nur bei unerwarteten Stripe-Fehlern,
+ * damit der Aufrufer die Löschung abbrechen kann, statt still weiterzulaufen.
+ */
+export async function cancelSubscriptionImmediately(
+  subscriptionId: string | null | undefined,
+): Promise<void> {
+  if (!subscriptionId) return;
+  const stripe = getStripeClientOrNull();
+  if (!stripe) return; // Stripe nicht konfiguriert → nichts abzurechnen
+  try {
+    await stripe.subscriptions.cancel(subscriptionId);
+  } catch (error) {
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code?: string }).code
+        : undefined;
+    // Abo existiert nicht (mehr) → Ziel bereits erreicht.
+    if (code === "resource_missing") return;
+    throw error;
+  }
+}
