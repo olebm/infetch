@@ -44,8 +44,8 @@ export default async function LoginPage({
             </Link>
           </div>
 
-          {/* Foto (linksbündig, konsistent mit Logo/Trust) mit Tagline auf dem Bild (unten) */}
-          <div className="flex flex-1 flex-col justify-center py-6">
+          {/* Foto zentriert im linken Bereich, mit Tagline auf dem Bild (unten) */}
+          <div className="flex flex-1 flex-col items-center justify-center py-6">
             <div
               className="relative w-full max-w-[400px] overflow-hidden rounded-xl"
               style={{ aspectRatio: "2/3" }}
