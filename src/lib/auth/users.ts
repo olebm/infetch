@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { sql } from "@/lib/db/client";
 import { sendOnboardingEmail } from "@/lib/mail/notify";
+import { purgeDeadUser } from "@/lib/auth/account-teardown";
 import type { OrganizationRow, UserRow } from "@/lib/auth/session";
 
 function slugify(input: string): string {
@@ -132,8 +133,7 @@ export async function ensureUserProvisioned(supabaseUser: {
   email: string;
   user_metadata?: Record<string, unknown> | null;
 }): Promise<boolean> {
-  const existing = await findUserByEmail(supabaseUser.email);
-  if (existing) return false;
+  const email = supabaseUser.email.toLowerCase();
 
   const meta = supabaseUser.user_metadata ?? {};
   const invitedOrgId = meta.invited_org_id as string | undefined;
@@ -145,23 +145,63 @@ export async function ensureUserProvisioned(supabaseUser: {
     : "member";
   const name = (meta.full_name as string | undefined) ?? null;
 
-  if (invitedOrgId) {
-    await createUserAndJoinOrg({
-      email: supabaseUser.email,
-      name,
-      userId: supabaseUser.id,
-      organizationId: invitedOrgId,
-      role: validRole,
-    });
-  } else {
-    await createUserWithDefaultOrg({
-      email: supabaseUser.email,
-      name,
-      userId: supabaseUser.id,
-    });
-    void sendOnboardingEmail({ to: supabaseUser.email, name }).catch((err) =>
-      console.error("[auth] onboarding email failed:", err),
-    );
+  async function provisionFresh(): Promise<void> {
+    if (invitedOrgId) {
+      await createUserAndJoinOrg({
+        email: supabaseUser.email,
+        name,
+        userId: supabaseUser.id,
+        organizationId: invitedOrgId,
+        role: validRole,
+      });
+    } else {
+      await createUserWithDefaultOrg({
+        email: supabaseUser.email,
+        name,
+        userId: supabaseUser.id,
+      });
+      void sendOnboardingEmail({ to: supabaseUser.email, name }).catch((err) =>
+        console.error("[auth] onboarding email failed:", err),
+      );
+    }
+  }
+
+  // Bestehende Zeile per E-Mail OHNE deleted_at-Filter suchen: findUserByEmail
+  // filtert deleted_at IS NULL, die users_email_key-UNIQUE-Constraint deckt
+  // aber auch soft-gelöschte Zeilen ab — eine übersehene Leiche führte sonst
+  // zu doppeltem INSERT + 23505 (Login schlug fehl).
+  async function lookup(): Promise<{ id: string; deletedAt: string | null } | undefined> {
+    const rows = await sql<{ id: string; deletedAt: string | null }[]>`
+      SELECT id, deleted_at AS "deletedAt" FROM users WHERE email = ${email} LIMIT 1
+    `;
+    return rows[0];
+  }
+
+  const existing = await lookup();
+  if (existing) {
+    // Lebende Zeile → bereits provisioniert.
+    if (existing.deletedAt === null) return false;
+    // Soft-gelöschte Alt-Leiche (alter Löschpfad). Policy: gelöscht = weg,
+    // danach frisches Konto. Tote Daten restlos hart wegräumen.
+    await purgeDeadUser(existing.id);
+  }
+
+  // Self-healing: selbst wenn lookup eine Leiche verfehlt (Race, Edge) darf
+  // ein 23505 NICHT als Login-Fehler durchschlagen — re-resolven, eine tote
+  // Zeile aufräumen und genau einmal erneut anlegen.
+  try {
+    await provisionFresh();
+  } catch (err) {
+    if ((err as { code?: string }).code !== "23505") throw err;
+    const again = await lookup();
+    if (again?.deletedAt != null) {
+      await purgeDeadUser(again.id);
+      await provisionFresh();
+    } else if (again) {
+      return false; // zwischenzeitlich lebend angelegt → bereits provisioniert
+    } else {
+      throw err;
+    }
   }
 
   return true;

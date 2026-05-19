@@ -24,6 +24,7 @@ import { writeJsonSetting } from "@/lib/db/settings-store";
 import { verifyLexofficeConnection, LexofficeApiError } from "@/lib/integrations/lexoffice-client";
 import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sevdesk-client";
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
+import { getOptionalOrgColumns, hardDeleteOrgData } from "@/lib/auth/account-teardown";
 import { updateUserProfile, invalidateAllOtherSessions } from "@/lib/auth/session";
 import { canExport } from "@/lib/tier";
 import {
@@ -911,24 +912,50 @@ type OrgConnectionRow = {
  * Inhaber-Quelle ist organizations.owner_user_id (maßgeblich, von Billing/
  * Automation genutzt) — NICHT org_members.role, das (Prod-Drift) abweichen kann.
  *
- * Vorgehen (bewusst KEIN harter Cascade-Delete — Prod-Schema-Drift):
+ * Vorgehen (echter Hard-Delete — Konto = unwiderruflich weg, danach kann
+ * sich der Nutzer frisch neu registrieren):
  *  1. Validierung + Eigentümer-Guard: Ist der Nutzer maßgeblicher Inhaber
  *     einer Organisation mit weiteren Mitgliedern → Abbruch mit Hinweis.
  *  2. Stripe-Abo der allein-besessenen Orgs sofort kündigen (extern, zuerst —
  *     schlägt das fehl, wird NICHTS gelöscht).
- *  3. DB-Transaktion: allein-besessene Orgs + Nutzer soft-deleten
- *     (deleted_at), org_members des Nutzers entfernen.
+ *  2b. Storage-Pfade einsammeln, BEVOR die Zeilen gelöscht werden.
+ *  3. DB-Transaktion: geordneter Child→Parent-Hard-Delete aller Tenant-Daten
+ *     der allein-besessenen Orgs, dann org_members + users-Zeile hart löschen.
+ *     Drift-robust: verlässt sich NICHT auf ON DELETE CASCADE und referenziert
+ *     migrations-spätere organization_id-Spalten nur, wenn sie real existieren
+ *     (auf dem gedrifteten Prod-Schema können sie fehlen). Geteilte/globale
+ *     Daten (Vendors mit organization_id IS NULL, Portal-Recipes) bleiben
+ *     unangetastet — nur org-eigene Custom-Vendors werden mitgelöscht.
  *  4. Storage hart löschen (nach DB-Commit): Rechnungs-PDFs, Rohtext, Avatar.
  *  5. Supabase-Auth-User hart löschen → Login dauerhaft unmöglich.
  *  6. Lokale Session beenden und zur Login-Seite leiten.
  *
- * Relationale Metadaten-Zeilen bleiben soft-deleted und werden später per
- * Purge-Job endgültig entfernt.
+ * Es bleiben KEINE soft-deleted Metadaten-Zeilen zurück.
  */
 export async function deleteAccountAction(
   _prev: AccountDeletionState,
   formData: FormData,
 ): Promise<AccountDeletionState> {
+  // GUARD: Ein lokaler/Dev-Prozess, der auf die gehostete Prod-Supabase
+  // zeigt, darf NIEMALS Konten löschen. Genau so wurden am 2026-05-19 zwei
+  // echte Accounts versehentlich gelöscht (npm run dev nutzt .env.local =
+  // Prod-DB). Prod selbst läuft mit NODE_ENV=production und ist nicht
+  // betroffen; geblockt wird nur „Dev/Test gegen gehostetes Supabase".
+  if (
+    /supabase\.co/i.test(process.env.DATABASE_URL ?? "") &&
+    process.env.NODE_ENV !== "production"
+  ) {
+    console.error(
+      "[deleteAccountAction] BLOCKED: non-production process targeting hosted Supabase — refusing destructive account deletion.",
+    );
+    return {
+      status: "error",
+      message:
+        "Konto-Löschung in dieser Umgebung deaktiviert (Dev-Prozess auf Prod-DB). " +
+        "Aus Sicherheitsgründen blockiert.",
+    };
+  }
+
   const auth = await requireCurrentAuth();
   const userId = auth.user.id;
   const authUserId = auth.session.id; // Supabase auth.users id
@@ -1017,39 +1044,13 @@ export async function deleteAccountAction(
     };
   }
 
-  // 3. DB-Transaktion zuerst: Orgs + Nutzer soft-deleten, Mitgliedschaften
-  //    entfernen. Schlägt das fehl, ist NICHTS in Storage gelöscht und der
-  //    Nutzer kann sich noch einloggen → sauberer Fehler-Rückgabe.
+  // 2b. Storage-Pfade einsammeln BEVOR die DB-Zeilen verschwinden — der
+  //     Hard-Delete in Schritt 3 entfernt invoice_files/invoices, danach
+  //     ließen sich die Objektschlüssel nicht mehr ermitteln.
+  const pdfPaths: string[] = [];
+  const rawTextPaths: string[] = [];
   try {
-    await sql.begin(async (tx) => {
-      for (const org of soloOrgs) {
-        await tx`
-          UPDATE organizations
-          SET deleted_at = NOW()::TEXT, updated_at = NOW()::TEXT
-          WHERE id = ${org.orgId}
-        `;
-      }
-      await tx`DELETE FROM org_members WHERE user_id = ${userId}`;
-      await tx`
-        UPDATE users
-        SET deleted_at = NOW()::TEXT, updated_at = NOW()::TEXT
-        WHERE id = ${userId}
-      `;
-    });
-  } catch (error) {
-    console.error("[deleteAccountAction] DB teardown failed:", error);
-    return {
-      status: "error",
-      message:
-        "Konto konnte nicht vollständig gelöscht werden. Bitte Support kontaktieren.",
-    };
-  }
-
-  // 4. Storage hart löschen — NACH dem DB-Commit (der Nutzer ist jetzt bereits
-  //    ausgesperrt). Best-effort: Fehler dürfen das Löschen nicht blockieren,
-  //    der unwiderrufliche Kern ist bereits erfolgt.
-  for (const org of soloOrgs) {
-    try {
+    for (const org of soloOrgs) {
       const pdfRows = await sql<{ storedPath: string }[]>`
         SELECT f.stored_path AS "storedPath"
         FROM invoice_files f
@@ -1061,20 +1062,67 @@ export async function deleteAccountAction(
         FROM invoices
         WHERE organization_id = ${org.orgId} AND raw_text_path IS NOT NULL
       `;
-      for (const r of pdfRows) {
-        await deleteFromStorage(BUCKETS.INVOICES, r.storedPath);
-      }
-      for (const r of rawRows) {
-        if (r.rawTextPath) {
-          await deleteFromStorage(BUCKETS.RAW_TEXT, r.rawTextPath);
-        }
-      }
-    } catch (error) {
-      console.error(
-        `[deleteAccountAction] storage purge failed for org ${org.orgId}:`,
-        error,
-      );
+      for (const r of pdfRows) pdfPaths.push(r.storedPath);
+      for (const r of rawRows) if (r.rawTextPath) rawTextPaths.push(r.rawTextPath);
     }
+  } catch (error) {
+    console.error("[deleteAccountAction] storage path collection failed:", error);
+    return {
+      status: "error",
+      message:
+        "Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.",
+    };
+  }
+
+  // Drift-Guard: welche migrations-späten organization_id-Spalten real
+  // existieren (siehe getOptionalOrgColumns) — auf dem gedrifteten
+  // Prod-Schema können sie fehlen.
+  let optOrgCols: Set<string>;
+  try {
+    optOrgCols = await getOptionalOrgColumns();
+  } catch (error) {
+    console.error("[deleteAccountAction] column probe failed:", error);
+    return {
+      status: "error",
+      message:
+        "Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.",
+    };
+  }
+
+  // 3. DB-Transaktion: geordneter Child→Parent-Hard-Delete (geteilte Logik
+  //    mit dem Login-Aufräumpfad). Schlägt etwas fehl, rollt alles zurück,
+  //    in Storage ist noch nichts gelöscht und der Nutzer kann sich
+  //    weiterhin einloggen → sauberer Fehler-Rückgabe.
+  try {
+    await sql.begin(async (tx) => {
+      for (const org of soloOrgs) {
+        await hardDeleteOrgData(tx, org.orgId, optOrgCols);
+      }
+      // Mitgliedschaften des Nutzers (auch in Fremd-Orgs) + User-Zeile hart.
+      await tx`DELETE FROM org_members WHERE user_id = ${userId}`;
+      await tx`DELETE FROM users WHERE id = ${userId}`;
+    });
+  } catch (error) {
+    console.error("[deleteAccountAction] DB teardown failed:", error);
+    return {
+      status: "error",
+      message:
+        "Konto konnte nicht vollständig gelöscht werden. Bitte Support kontaktieren.",
+    };
+  }
+
+  // 4. Storage hart löschen — NACH dem DB-Commit (der Nutzer ist jetzt bereits
+  //    weg). Best-effort: Fehler dürfen den Abschluss nicht blockieren, der
+  //    unwiderrufliche Kern (DB) ist bereits erfolgt.
+  try {
+    for (const path of pdfPaths) {
+      await deleteFromStorage(BUCKETS.INVOICES, path);
+    }
+    for (const path of rawTextPaths) {
+      await deleteFromStorage(BUCKETS.RAW_TEXT, path);
+    }
+  } catch (error) {
+    console.error("[deleteAccountAction] storage purge failed:", error);
   }
 
   // Avatar (Bucket "avatars", Schlüssel "{userId}/avatar.{ext}").
@@ -1092,15 +1140,16 @@ export async function deleteAccountAction(
     console.error("[deleteAccountAction] avatar purge failed:", error);
   }
 
-  // 5. Supabase-Auth-User hart löschen. Schlägt das fehl, ist der Nutzer
-  //    durch users.deleted_at bereits dauerhaft ausgesperrt (findUserByEmail
-  //    filtert deleted_at) — nur protokollieren, nicht abbrechen.
+  // 5. Supabase-Auth-User hart löschen. Schlägt das fehl, ist die
+  //    Postgres-users-Zeile dennoch bereits hart gelöscht — ein erneuter
+  //    Login würde via ensureUserProvisioned schlicht ein FRISCHES Konto
+  //    anlegen (kein Wiederaufleben der alten Daten). Nur protokollieren.
   try {
     const admin = createSupabaseAdminClient();
     const { error } = await admin.auth.admin.deleteUser(authUserId);
     if (error) {
       console.error(
-        "[deleteAccountAction] supabase deleteUser failed (user is locked out via soft-delete; auth row needs manual cleanup):",
+        "[deleteAccountAction] supabase deleteUser failed (postgres profile already hard-deleted; auth row needs manual cleanup):",
         error,
       );
     }
