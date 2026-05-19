@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PublicShell } from "@/components/layout/public-shell";
+import { LEGAL_STAND, AVV_VERSION } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "AVV (DSGVO) — Infetch",
@@ -11,8 +12,8 @@ export default function AvvPage() {
       <p><strong>Auftragsverarbeiter:</strong> betaform | Ole Beekmann<br />
       <strong>Rechtsgrundlage:</strong> Art. 28 DSGVO<br />
       <strong>Abschluss:</strong> Click-through beim Akzeptieren der AGB<br />
-      <strong>Version:</strong> 1.0<br />
-      <strong>Stand:</strong> 15. Mai 2026</p>
+      <strong>Version:</strong> {AVV_VERSION}<br />
+      <strong>Stand:</strong> {LEGAL_STAND}</p>
 
       <hr />
 
@@ -26,9 +27,9 @@ export default function AvvPage() {
       <h2>2. Art und Zweck der Verarbeitung</h2>
       <p><strong>Art der Verarbeitung:</strong></p>
       <ul>
-        <li>Erhebung und Speicherung von E-Mail-Inhalten (IMAP-Abruf)</li>
-        <li>Analyse und Extraktion strukturierter Daten aus PDF-Dokumenten (KI-gestützt via Mistral AI)</li>
-        <li>Speicherung extrahierter Rechnungsfelder in einer Datenbank</li>
+        <li>Temporärer Abruf von E-Mail-Inhalten verbundener Postfächer (IMAP) zur Rechnungserkennung</li>
+        <li>Analyse und Extraktion strukturierter Daten aus erkannten Rechnungs-PDFs (KI-gestützt via Mistral AI)</li>
+        <li>Dauerhafte Speicherung ausschließlich der als Rechnung erkannten Dokumente und der extrahierten Rechnungsfelder; übrige Postfachinhalte werden nicht dauerhaft gespeichert</li>
         <li>Übermittlung von Rechnungsdokumenten an vom Verantwortlichen konfigurierte Empfänger</li>
       </ul>
       <p><strong>Zweck:</strong> Erbringung der Infetch-SaaS-Leistung gemäß Hauptvertrag (AGB).</p>
@@ -86,10 +87,11 @@ export default function AvvPage() {
           <thead><tr><th>Dienstleister</th><th>Zweck</th><th>Standort</th><th>Zertifizierung</th></tr></thead>
           <tbody>
             <tr><td>Hetzner Online GmbH</td><td>Server-Hosting, Datenspeicherung</td><td>Deutschland (Frankfurt)</td><td>ISO 27001</td></tr>
-            <tr><td>Supabase Inc.</td><td>Datenbank, Authentifizierung</td><td>EU (Frankfurt)</td><td>SOC 2</td></tr>
+            <tr><td>Supabase Inc.</td><td>Datenbank, Authentifizierung</td><td>US-Unternehmen; Datenhaltung EU (Frankfurt/AWS)</td><td>SOC 2 · EU-U.S. DPF / SCCs Art. 46 DSGVO</td></tr>
             <tr><td>Brevo SAS</td><td>Transaktionale E-Mails</td><td>Frankreich (EU)</td><td>ISO 27001</td></tr>
             <tr><td>Mistral AI SAS</td><td>KI-Textextraktion aus Rechnungen</td><td>Frankreich (EU)</td><td>Kein Training mit Kundendaten</td></tr>
             <tr><td>Sentry Inc.</td><td>Fehler-Monitoring (anonymisiert)</td><td>USA (SCCs gem. Art. 46 DSGVO)</td><td>SCCs</td></tr>
+            <tr><td>Brandfetch Inc.</td><td>Anbieter-Logos (CDN; nur IP-Adresse beim Logo-Abruf)</td><td>USA (SCCs gem. Art. 46 DSGVO)</td><td>SCCs</td></tr>
             <tr><td>Stripe Payments Europe Ltd.</td><td>Zahlungsabwicklung</td><td>Irland (EU)</td><td>PCI DSS</td></tr>
           </tbody>
         </table>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PublicShell } from "@/components/layout/public-shell";
+import { LEGAL_STAND } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Datenschutz — Infetch",
@@ -10,7 +11,7 @@ export default function DatenschutzPage() {
     <PublicShell title="Datenschutzerklärung">
       <p><strong>Verantwortlicher:</strong> betaform | Ole Beekmann · hallo@infetch.de<br />
       <strong>Rechtsgrundlage:</strong> Art. 13, 14 DSGVO<br />
-      <strong>Stand:</strong> 15. Mai 2026</p>
+      <strong>Stand:</strong> {LEGAL_STAND}</p>
 
       <hr />
 
@@ -29,7 +30,7 @@ export default function DatenschutzPage() {
         <table>
           <thead><tr><th>Daten</th><th>Zweck</th><th>Rechtsgrundlage</th><th>Dienstleister</th></tr></thead>
           <tbody>
-            <tr><td>E-Mail-Adresse, Anmeldezeitpunkt, Session-Token</td><td>Zugang zur Anwendung</td><td>Art. 6 Abs. 1 lit. b DSGVO</td><td>Supabase Inc. (EU, Frankfurt)</td></tr>
+            <tr><td>E-Mail-Adresse, Anmeldezeitpunkt, Session-Token</td><td>Zugang zur Anwendung</td><td>Art. 6 Abs. 1 lit. b DSGVO</td><td>Supabase Inc. (US-Unternehmen; Datenhaltung in der EU/Frankfurt auf AWS. Drittlandgarantien: EU-U.S. Data Privacy Framework bzw. EU-Standardvertragsklauseln gem. Art. 46 DSGVO)</td></tr>
           </tbody>
         </table>
       </div>
@@ -125,8 +126,12 @@ export default function DatenschutzPage() {
 
       <h2>5. Weitergabe an Dritte</h2>
       <p>Deine Daten werden nicht verkauft. Weitergabe erfolgt ausschließlich an die oben genannten Auftragsverarbeiter, die vertraglich zur Einhaltung der DSGVO verpflichtet sind (<a href="/avv">→ AVV</a>).</p>
+      <p>Mit allen Auftragsverarbeitern (u. a. Supabase, Mistral AI, Brevo, Stripe, Sentry, Hetzner) bestehen Auftragsverarbeitungsverträge nach Art. 28 DSGVO bzw. — bei Drittlandbezug — Standardvertragsklauseln nach Art. 46 DSGVO. Die jeweiligen Verträge sind über die Rechtsseiten der Anbieter abrufbar oder können bei uns angefordert werden (<a href="mailto:hallo@infetch.de">hallo@infetch.de</a>).</p>
 
-      <h2>6. Deine Rechte</h2>
+      <h2>6. Keine automatisierte Entscheidung im Einzelfall</h2>
+      <p>Die KI-gestützte Erkennung und Vorklassifikation von Rechnungen ist eine reine Vorverarbeitung. Es findet <strong>keine automatisierte Entscheidung mit rechtlicher Wirkung oder vergleichbarer erheblicher Beeinträchtigung</strong> im Sinne des Art. 22 DSGVO statt; erkannte Rechnungen werden vor einer Weiterleitung nutzerseitig kontrolliert.</p>
+
+      <h2>7. Deine Rechte</h2>
       <p>Du hast gegenüber uns folgende Rechte:</p>
       <ul>
         <li><strong>Auskunft</strong> (Art. 15 DSGVO): Welche Daten wir über dich haben</li>
@@ -139,11 +144,11 @@ export default function DatenschutzPage() {
       </ul>
       <p>Anfragen bitte an: <a href="mailto:hallo@infetch.de">hallo@infetch.de</a></p>
 
-      <h2>7. Auftragsverarbeitung</h2>
+      <h2>8. Auftragsverarbeitung</h2>
       <p>Soweit wir Daten im Auftrag unserer Kunden verarbeiten, geschieht dies auf Grundlage eines Auftragsverarbeitungsvertrages (AVV) nach Art. 28 DSGVO.<br />
       <a href="/avv">→ AVV einsehen</a></p>
 
-      <h2>8. Änderungen dieser Erklärung</h2>
+      <h2>9. Änderungen dieser Erklärung</h2>
       <p>Wir können diese Datenschutzerklärung bei wesentlichen Änderungen unserer Dienste aktualisieren. Das Datum der letzten Änderung ist oben angegeben.</p>
     </PublicShell>
   );

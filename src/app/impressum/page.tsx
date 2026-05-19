@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PublicShell } from "@/components/layout/public-shell";
+import { LEGAL_STAND } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Impressum — Infetch",
@@ -10,7 +11,7 @@ export default function ImpressumPage() {
     <PublicShell title="Impressum">
       <p><strong>Rechtsgrundlage:</strong> § 5 DDG · § 18 Abs. 2 MStV<br />
       <strong>Betreiber:</strong> betaform | Ole Beekmann<br />
-      <strong>Stand:</strong> 15. Mai 2026</p>
+      <strong>Stand:</strong> {LEGAL_STAND}</p>
 
       <hr />
 
@@ -33,10 +34,8 @@ export default function ImpressumPage() {
       <p>Gemäß § 27a Umsatzsteuergesetz:<br />
       DE318609562</p>
 
-      <h2>Streitschlichtung</h2>
-      <p>Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:<br />
-      <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer">https://ec.europa.eu/consumers/odr/</a></p>
-      <p>Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
+      <h2>Verbraucherstreitbeilegung</h2>
+      <p>Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen (§ 36 VSBG).</p>
     </PublicShell>
   );
 }
