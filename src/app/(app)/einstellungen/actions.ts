@@ -26,6 +26,12 @@ import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sev
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
 import { updateUserProfile, invalidateAllOtherSessions } from "@/lib/auth/session";
 import { canExport } from "@/lib/tier";
+import {
+  createSupabaseAdminClient,
+  createSupabaseServerClient,
+} from "@/lib/supabase/server";
+import { cancelSubscriptionImmediately } from "@/lib/stripe";
+import { BUCKETS, deleteFromStorage } from "@/lib/supabase/storage";
 
 export type CredentialFormState = {
   status: "idle" | "success" | "error";
@@ -879,4 +885,236 @@ export async function switchOrganizationAction(
     };
   }
   redirect("/");
+}
+
+// ── Konto löschen (Self-Service, unwiderruflich) ───────────────────────────────
+
+export type AccountDeletionState = {
+  status: "idle" | "error";
+  message: string;
+};
+
+type OrgConnectionRow = {
+  orgId: string;
+  orgName: string;
+  ownerUserId: string;
+  stripeSubscriptionId: string | null;
+  memberCount: number;
+  isMember: boolean;
+};
+
+/**
+ * Löscht das eigene Konto sofort und unwiderruflich.
+ *
+ * Bestätigung: Der Nutzer muss seine eigene E-Mail-Adresse eintippen.
+ *
+ * Inhaber-Quelle ist organizations.owner_user_id (maßgeblich, von Billing/
+ * Automation genutzt) — NICHT org_members.role, das (Prod-Drift) abweichen kann.
+ *
+ * Vorgehen (bewusst KEIN harter Cascade-Delete — Prod-Schema-Drift):
+ *  1. Validierung + Eigentümer-Guard: Ist der Nutzer maßgeblicher Inhaber
+ *     einer Organisation mit weiteren Mitgliedern → Abbruch mit Hinweis.
+ *  2. Stripe-Abo der allein-besessenen Orgs sofort kündigen (extern, zuerst —
+ *     schlägt das fehl, wird NICHTS gelöscht).
+ *  3. DB-Transaktion: allein-besessene Orgs + Nutzer soft-deleten
+ *     (deleted_at), org_members des Nutzers entfernen.
+ *  4. Storage hart löschen (nach DB-Commit): Rechnungs-PDFs, Rohtext, Avatar.
+ *  5. Supabase-Auth-User hart löschen → Login dauerhaft unmöglich.
+ *  6. Lokale Session beenden und zur Login-Seite leiten.
+ *
+ * Relationale Metadaten-Zeilen bleiben soft-deleted und werden später per
+ * Purge-Job endgültig entfernt.
+ */
+export async function deleteAccountAction(
+  _prev: AccountDeletionState,
+  formData: FormData,
+): Promise<AccountDeletionState> {
+  const auth = await requireCurrentAuth();
+  const userId = auth.user.id;
+  const authUserId = auth.session.id; // Supabase auth.users id
+  const email = auth.user.email.trim().toLowerCase();
+
+  const confirm = String(formData.get("confirm") ?? "")
+    .trim()
+    .toLowerCase();
+  if (confirm !== email) {
+    return {
+      status: "error",
+      message:
+        "Bitte gib zur Bestätigung deine E-Mail-Adresse exakt ein.",
+    };
+  }
+
+  // 1. Alle Orgs ermitteln, mit denen der Nutzer verbunden ist — entweder als
+  //    autoritativer Inhaber (organizations.owner_user_id, NOT NULL, von
+  //    Billing/Automation genutzt) ODER als org_members-Mitglied. owner_user_id
+  //    ist die maßgebliche Inhaber-Quelle; org_members.role kann (Prod-Drift)
+  //    davon abweichen und darf NICHT über Org-Abbau entscheiden.
+  let connections: OrgConnectionRow[];
+  try {
+    connections = await sql<OrgConnectionRow[]>`
+      SELECT
+        o.id                     AS "orgId",
+        o.name                   AS "orgName",
+        o.owner_user_id          AS "ownerUserId",
+        o.stripe_subscription_id AS "stripeSubscriptionId",
+        (SELECT COUNT(*) FROM org_members om
+           WHERE om.organization_id = o.id) AS "memberCount",
+        EXISTS (SELECT 1 FROM org_members om
+           WHERE om.organization_id = o.id
+             AND om.user_id = ${userId}) AS "isMember"
+      FROM organizations o
+      WHERE o.deleted_at IS NULL
+        AND (
+          o.owner_user_id = ${userId}
+          OR EXISTS (SELECT 1 FROM org_members om
+               WHERE om.organization_id = o.id AND om.user_id = ${userId})
+        )
+    `;
+  } catch (error) {
+    console.error("[deleteAccountAction] org lookup failed:", error);
+    return {
+      status: "error",
+      message: "Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.",
+    };
+  }
+
+  // Für jede Org: Bin ich der maßgebliche Inhaber? Gibt es ANDERE Mitglieder?
+  const owned = connections.filter((c) => c.ownerUserId === userId);
+  const otherMembers = (c: OrgConnectionRow) =>
+    c.memberCount - (c.isMember ? 1 : 0);
+
+  // Guard: maßgeblicher Inhaber, aber weitere Mitglieder → blockieren
+  // (keine Inhaberschafts-Übertragung implementiert).
+  const blocking = owned.find((c) => otherMembers(c) >= 1);
+  if (blocking) {
+    return {
+      status: "error",
+      message:
+        `In „${blocking.orgName}“ bist du einziger Inhaber, aber es gibt ` +
+        `weitere Mitglieder. Übertrage zuerst die Inhaberschaft oder ` +
+        `entferne die anderen Mitglieder, dann kannst du dein Konto löschen.`,
+    };
+  }
+
+  // Allein-besessene Orgs: maßgeblicher Inhaber, keine anderen Mitglieder
+  // → komplett abbauen. Orgs, in denen der Nutzer nur (Nicht-Inhaber-)
+  // Mitglied ist, bleiben unangetastet (nur die Mitgliedschaft wird entfernt).
+  const soloOrgs = owned.filter((c) => otherMembers(c) === 0);
+
+  // 2. Stripe zuerst — bei Fehler abbrechen, bevor etwas zerstört wird.
+  try {
+    for (const org of soloOrgs) {
+      await cancelSubscriptionImmediately(org.stripeSubscriptionId);
+    }
+  } catch (error) {
+    console.error("[deleteAccountAction] stripe cancel failed:", error);
+    return {
+      status: "error",
+      message:
+        "Das Abo konnte nicht gekündigt werden. Konto wurde NICHT gelöscht. " +
+        "Bitte Support kontaktieren.",
+    };
+  }
+
+  // 3. DB-Transaktion zuerst: Orgs + Nutzer soft-deleten, Mitgliedschaften
+  //    entfernen. Schlägt das fehl, ist NICHTS in Storage gelöscht und der
+  //    Nutzer kann sich noch einloggen → sauberer Fehler-Rückgabe.
+  try {
+    await sql.begin(async (tx) => {
+      for (const org of soloOrgs) {
+        await tx`
+          UPDATE organizations
+          SET deleted_at = NOW()::TEXT, updated_at = NOW()::TEXT
+          WHERE id = ${org.orgId}
+        `;
+      }
+      await tx`DELETE FROM org_members WHERE user_id = ${userId}`;
+      await tx`
+        UPDATE users
+        SET deleted_at = NOW()::TEXT, updated_at = NOW()::TEXT
+        WHERE id = ${userId}
+      `;
+    });
+  } catch (error) {
+    console.error("[deleteAccountAction] DB teardown failed:", error);
+    return {
+      status: "error",
+      message:
+        "Konto konnte nicht vollständig gelöscht werden. Bitte Support kontaktieren.",
+    };
+  }
+
+  // 4. Storage hart löschen — NACH dem DB-Commit (der Nutzer ist jetzt bereits
+  //    ausgesperrt). Best-effort: Fehler dürfen das Löschen nicht blockieren,
+  //    der unwiderrufliche Kern ist bereits erfolgt.
+  for (const org of soloOrgs) {
+    try {
+      const pdfRows = await sql<{ storedPath: string }[]>`
+        SELECT f.stored_path AS "storedPath"
+        FROM invoice_files f
+        INNER JOIN invoices i ON i.id = f.invoice_id
+        WHERE i.organization_id = ${org.orgId}
+      `;
+      const rawRows = await sql<{ rawTextPath: string | null }[]>`
+        SELECT raw_text_path AS "rawTextPath"
+        FROM invoices
+        WHERE organization_id = ${org.orgId} AND raw_text_path IS NOT NULL
+      `;
+      for (const r of pdfRows) {
+        await deleteFromStorage(BUCKETS.INVOICES, r.storedPath);
+      }
+      for (const r of rawRows) {
+        if (r.rawTextPath) {
+          await deleteFromStorage(BUCKETS.RAW_TEXT, r.rawTextPath);
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[deleteAccountAction] storage purge failed for org ${org.orgId}:`,
+        error,
+      );
+    }
+  }
+
+  // Avatar (Bucket "avatars", Schlüssel "{userId}/avatar.{ext}").
+  try {
+    const admin = createSupabaseAdminClient();
+    const { data: avatarFiles } = await admin.storage
+      .from("avatars")
+      .list(userId);
+    if (avatarFiles && avatarFiles.length > 0) {
+      await admin.storage
+        .from("avatars")
+        .remove(avatarFiles.map((f) => `${userId}/${f.name}`));
+    }
+  } catch (error) {
+    console.error("[deleteAccountAction] avatar purge failed:", error);
+  }
+
+  // 5. Supabase-Auth-User hart löschen. Schlägt das fehl, ist der Nutzer
+  //    durch users.deleted_at bereits dauerhaft ausgesperrt (findUserByEmail
+  //    filtert deleted_at) — nur protokollieren, nicht abbrechen.
+  try {
+    const admin = createSupabaseAdminClient();
+    const { error } = await admin.auth.admin.deleteUser(authUserId);
+    if (error) {
+      console.error(
+        "[deleteAccountAction] supabase deleteUser failed (user is locked out via soft-delete; auth row needs manual cleanup):",
+        error,
+      );
+    }
+  } catch (error) {
+    console.error("[deleteAccountAction] supabase deleteUser threw:", error);
+  }
+
+  // 6. Lokale Session beenden, dann zur Login-Seite.
+  try {
+    const supabase = await createSupabaseServerClient();
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error("[deleteAccountAction] signOut failed:", error);
+  }
+
+  redirect("/login?deleted=1");
 }
