@@ -18,6 +18,11 @@ data/*.db-wal
 !data/**/.gitkeep
 !data/.gitkeep
 
+# Postgres dumps — NEVER commit (contain prod data / secrets)
+*.dump
+*.dump.*
+*.sql.gz
+
 # Build artifacts
 tsconfig.tsbuildinfo
 
