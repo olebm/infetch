@@ -1,6 +1,7 @@
 import { Crown } from "lucide-react";
 import { getLimits, type Tier } from "@/lib/tier";
 import { isStripeConfigured } from "@/lib/stripe";
+import { appConfig } from "@/lib/config/env";
 
 type Props = {
   tier: Tier;
@@ -9,6 +10,7 @@ type Props = {
 };
 
 export function UpgradeCard({ tier, current, max }: Props) {
+  if (!appConfig.billing.proEnabled) return null; // Free-only Launch
   if (tier !== "free") return null;
   if (!Number.isFinite(max)) return null;
 

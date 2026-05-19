@@ -4,6 +4,7 @@ import { VendorLogo } from "@/components/ui/vendor-logo";
 import { LogoStrip } from "./logo-strip";
 import { ContactController } from "./contact-controller";
 import { MobileNav } from "./mobile-nav";
+import { appConfig } from "@/lib/config/env";
 
 // ─── Tooltip helper ───────────────────────────────────────────────────────────
 
@@ -25,6 +26,8 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
+  // Free-only Launch: kein Preis-/Pro-Marketing auf der Landingpage.
+  const proEnabled = appConfig.billing.proEnabled;
   return (
     <div className="overflow-x-hidden">
       {/* ================================================================== */}
@@ -39,7 +42,7 @@ export default function LandingPage() {
             <a href="#how" className="hover:text-ink">Wie es funktioniert</a>
             <a href="#features" className="hover:text-ink">Funktionen</a>
             <a href="#sicherheit" className="hover:text-ink">Sicherheit</a>
-            <a href="#preise" className="hover:text-ink">Preise</a>
+            {proEnabled && <a href="#preise" className="hover:text-ink">Preise</a>}
             <a href="#faq" className="hover:text-ink">FAQ</a>
           </nav>
           <div className="hidden md:flex items-center gap-2 ml-auto">
@@ -649,6 +652,7 @@ export default function LandingPage() {
       {/* ================================================================== */}
       {/* PREISE                                                              */}
       {/* ================================================================== */}
+      {proEnabled && (
       <section id="preise" className="py-20 md:py-28 bg-paper border-y border-line">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8">
           <div className="max-w-2xl">
@@ -716,6 +720,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ================================================================== */}
       {/* FAQ                                                                 */}
@@ -810,7 +815,7 @@ export default function LandingPage() {
             <ul className="mt-3 space-y-2 text-sm text-ink">
               <li><a href="#how" className="hover:text-muted">Wie es funktioniert</a></li>
               <li><a href="#features" className="hover:text-muted">Funktionen</a></li>
-              <li><a href="#preise" className="hover:text-muted">Preise</a></li>
+              {proEnabled && <li><a href="#preise" className="hover:text-muted">Preise</a></li>}
             </ul>
           </div>
           <div>

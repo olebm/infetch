@@ -31,9 +31,11 @@ function Cell({ value, isPro }: { value: string | "check" | "x"; isPro: boolean 
 }
 
 export function UpgradeModal() {
-  const { open, closeModal, stripeConfigured, feature } = useUpgrade();
+  const { open, closeModal, stripeConfigured, feature, proEnabled } = useUpgrade();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (!proEnabled) return null; // Free-only Launch: kein Upgrade-Modal
 
   async function handleUpgrade() {
     setLoading(true);

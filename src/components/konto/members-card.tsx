@@ -248,7 +248,7 @@ function PendingInviteRow({ invite, canRevoke }: { invite: PendingInvite; canRev
 
 export function MembersCard({ members, pendingInvitations, currentUserId, currentUserRole, orgName, maxUsers, isPro }: Props) {
   const [showInviteForm, setShowInviteForm] = useState(false);
-  const { openModal } = useUpgrade();
+  const { openModal, proEnabled } = useUpgrade();
 
   const canInvite = currentUserRole === "owner" || currentUserRole === "admin";
   const atLimit = members.length >= maxUsers;
@@ -308,7 +308,7 @@ export function MembersCard({ members, pendingInvitations, currentUserId, curren
       </ul>
 
       {/* Upgrade CTA — Free only */}
-      {!isPro && (
+      {!isPro && proEnabled && (
         <div className="flex items-center gap-4 border-t border-line bg-brand/[0.03] px-5 py-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand/20 bg-brand/10 text-brand">
             <Users size={15} aria-hidden />

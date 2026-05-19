@@ -56,6 +56,11 @@ function getBaseUrl(request: NextRequest): string {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // ── Free-only Launch: Upgrade-Pfad serverseitig geschlossen ──────────────────
+  if (!appConfig.billing.proEnabled) {
+    return NextResponse.json({ error: "pro_disabled" }, { status: 403 });
+  }
+
   // ── Auth-Check ───────────────────────────────────────────────────────────────
   const auth = await getCurrentAuth();
   if (!auth?.user?.id || !auth?.organization?.id) {

@@ -14,6 +14,12 @@ const LINKS = [
 export function MobileNav() {
   const [open, setOpen] = useState(false);
 
+  // Free-only Launch: "Preise" ausblenden (NEXT_PUBLIC_ ist im Browser inlined).
+  const links =
+    process.env.NEXT_PUBLIC_PRO_ENABLED === "true"
+      ? LINKS
+      : LINKS.filter((l) => l.href !== "#preise");
+
   return (
     <>
       {/* Hamburger button */}
@@ -39,7 +45,7 @@ export function MobileNav() {
       {open && (
         <div className="md:hidden absolute top-16 left-0 right-0 z-50 bg-white border-b border-line shadow-pop">
           <nav className="max-w-[1180px] mx-auto px-6 py-5 flex flex-col gap-1">
-            {LINKS.map(({ href, label }) => (
+            {links.map(({ href, label }) => (
               <a
                 key={href}
                 href={href}
