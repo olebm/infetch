@@ -29,17 +29,22 @@ test.describe("Konto-Seite", () => {
     await expect(tierBadge.first()).toBeVisible();
   });
 
-  test("Free-Tier zeigt Upgrade-Button", async ({ page }) => {
+  test("Free-Tier zeigt Upgrade-Button (nur wenn Pro aktiv)", async ({ page }) => {
     await page.goto("/konto");
     await expect(page.getByTestId("app-main")).toBeVisible();
     await page.waitForLoadState("networkidle");
 
     const tierBadge = page.getByText(/^Free$/i).first();
     const isFree = await tierBadge.isVisible({ timeout: 3_000 }).catch(() => false);
+    const proEnabled = process.env.NEXT_PUBLIC_PRO_ENABLED === "true";
+    const upgradeBtn = page.getByRole("button", { name: /upgrade/i }).first();
 
-    if (isFree) {
-      // Upgrade-Button muss sichtbar sein
-      await expect(page.getByRole("button", { name: /upgrade/i }).first()).toBeVisible();
+    if (isFree && proEnabled) {
+      // Free + Pro aktiv → Upgrade-Button muss sichtbar sein
+      await expect(upgradeBtn).toBeVisible();
+    } else if (isFree && !proEnabled) {
+      // Free-only Launch (#8): Upgrade-Pfad bewusst ausgeblendet
+      await expect(upgradeBtn).toBeHidden();
     } else {
       // Paid-Tier: "Abonnement verwalten" oder kein Upgrade-Button
       test.info().annotations.push({ type: "info", description: "Paid tier — Upgrade-Button nicht erwartet" });

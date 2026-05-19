@@ -71,13 +71,16 @@ function matchesPrefix(pathname: string, prefixes: string[]): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  // Behind Coolify / Traefik the real hostname is forwarded via headers.
-  // Priority: x-forwarded-host → host → nextUrl.hostname (internal fallback).
-  const hostname = (
+  // Behind Coolify / Traefik the real host is forwarded via headers.
+  // Priority: x-forwarded-host → host → nextUrl.host (internal fallback).
+  // forwardedHost keeps any non-standard port (needed for redirects on
+  // local/dev or proxied non-443 setups); hostname is the port-stripped,
+  // lowercased form used only for domain-class comparison.
+  const forwardedHost =
     request.headers.get("x-forwarded-host") ??
     request.headers.get("host") ??
-    request.nextUrl.hostname
-  ).split(":")[0].toLowerCase();
+    request.nextUrl.host;
+  const hostname = forwardedHost.split(":")[0].toLowerCase();
 
   // ── Landing-Domain Routing ─────────────────────────────────────────────────
   if (LANDING_HOSTNAMES.includes(hostname)) {
@@ -142,7 +145,7 @@ export async function proxy(request: NextRequest) {
   // identisch zur bewährten Logik in src/app/auth/callback/route.ts.
   if (!userId) {
     const proto = request.headers.get("x-forwarded-proto") ?? "https";
-    const loginUrl = new URL(`${proto}://${hostname}/login`);
+    const loginUrl = new URL(`${proto}://${forwardedHost}/login`);
     if (pathname !== "/") {
       loginUrl.searchParams.set("next", `${pathname}${search}`);
     }

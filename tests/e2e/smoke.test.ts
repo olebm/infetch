@@ -16,12 +16,12 @@ test.describe("Auth-Schutz", () => {
     await context.close();
   });
 
-  test("/login lädt und zeigt Magic-Link-Formular", async ({ browser }) => {
+  test("/login lädt und zeigt Login-Code-Formular", async ({ browser }) => {
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
     await page.goto("/login");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText(/Magic-Link/).first()).toBeVisible();
+    await expect(page.getByText(/Login-Code/).first()).toBeVisible();
     await expect(page.getByRole("textbox", { name: /E-Mail/i })).toBeVisible();
     await context.close();
   });
