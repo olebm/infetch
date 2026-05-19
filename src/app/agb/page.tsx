@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PublicShell } from "@/components/layout/public-shell";
+import { LEGAL_STAND } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "AGB — Infetch",
@@ -9,9 +10,9 @@ export default function AgbPage() {
   return (
     <PublicShell title="Allgemeine Geschäftsbedingungen">
       <p><strong>Betreiber:</strong> betaform | Ole Beekmann · hallo@infetch.de<br />
-      <strong>Plattform:</strong> infetch.de<br />
+      <strong>Plattform:</strong> infetch.de (Anwendungsbereich: app.infetch.de)<br />
       <strong>Rechtsgrundlage:</strong> §§ 305 ff. BGB<br />
-      <strong>Stand:</strong> 14. Mai 2025</p>
+      <strong>Stand:</strong> {LEGAL_STAND}</p>
 
       <hr />
 
