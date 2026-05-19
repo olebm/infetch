@@ -195,15 +195,18 @@ export default function LandingPage() {
       </section>
 
       {/* ================================================================== */}
-      {/* TRUST RIEGEL                                                        */}
+      {/* LOGO STRIP + TRUST                                                  */}
       {/* ================================================================== */}
-      <section className="border-t border-line bg-paper">
-        <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-6">
-          <p className="text-center text-sm text-ink leading-relaxed max-w-2xl mx-auto">
-            Nur erkannte Rechnungs-PDFs werden gespeichert — der Rest deines
-            Postfachs bleibt unberührt und wird nie gespeichert.
-          </p>
-          <div className="mt-4 flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-xs text-muted">
+      <section className="border-y border-line bg-paper">
+        <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-10">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-muted text-center mb-7">
+            Erkennt Rechnungen von
+          </div>
+          <LogoStrip />
+          <div className="mt-6 text-center text-xs text-muted">
+            Und alle weiteren — die KI erkennt Absender und Betrag automatisch.
+          </div>
+          <div className="mt-8 pt-6 border-t border-line flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-xs text-muted">
             {[
               "Verschlüsselt (AES-256)",
               "EU-Server · Frankfurt",
@@ -216,21 +219,6 @@ export default function LandingPage() {
                 {t}
               </span>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================== */}
-      {/* LOGO STRIP                                                          */}
-      {/* ================================================================== */}
-      <section className="border-y border-line bg-paper">
-        <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-10">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-muted text-center mb-7">
-            Erkennt Rechnungen von
-          </div>
-          <LogoStrip />
-          <div className="mt-6 text-center text-xs text-muted">
-            Und alle weiteren — die KI erkennt Absender und Betrag automatisch.
           </div>
         </div>
       </section>
