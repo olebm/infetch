@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { provisionAfterOtp } from "@/app/login/actions";
 
@@ -17,9 +17,18 @@ export function LoginForm({ next }: LoginFormProps) {
     "idle" | "loading" | "sent" | "verifying" | "error"
   >("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [cooldown, setCooldown] = useState(0);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   const code = digits.join("");
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => {
+      setCooldown((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
 
   function focusInput(index: number) {
     const el = inputsRef.current[index];
@@ -99,6 +108,49 @@ export function LoginForm({ next }: LoginFormProps) {
     setDigits(Array(CODE_LENGTH).fill(""));
   }
 
+  async function sendCode(targetEmail: string) {
+    const supabase = createSupabaseBrowserClient();
+    const redirectTo =
+      `${window.location.origin}/auth/callback` +
+      (next && next !== "/" ? `?next=${encodeURIComponent(next)}` : "");
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: targetEmail,
+      options: {
+        emailRedirectTo: redirectTo,
+        shouldCreateUser: true,
+      },
+    });
+
+    if (!error) {
+      // Supabase erzwingt ~60 s Cooldown pro Adresse – im UI spiegeln,
+      // damit Mehrfach-Klicks das Limit nicht selbst auslösen.
+      setCooldown(60);
+      resetCode();
+      setStatus("sent");
+      setErrorMsg("");
+      setTimeout(() => focusInput(0), 50);
+      return;
+    }
+
+    // 429 = Supabase verweigert den Versand (Stunden- oder 60-s-Limit).
+    // Trotzdem zur Code-Eingabe schalten: ein zuvor zugestellter Code
+    // bleibt gültig, und der Nutzer kommt sonst nicht zur Eingabemaske.
+    if (error.status === 429) {
+      setCooldown(60);
+      resetCode();
+      setStatus("sent");
+      setErrorMsg(
+        "Zu viele Anfragen. Falls du eben schon einen Code per E-Mail erhalten hast, gib ihn unten ein – sonst versuch es in ca. einer Minute erneut.",
+      );
+      setTimeout(() => focusInput(0), 50);
+      return;
+    }
+
+    setStatus("error");
+    setErrorMsg(error.message || "Code konnte nicht gesendet werden.");
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = email.trim().toLowerCase();
@@ -106,28 +158,14 @@ export function LoginForm({ next }: LoginFormProps) {
 
     setStatus("loading");
     setErrorMsg("");
+    await sendCode(trimmed);
+  }
 
-    const supabase = createSupabaseBrowserClient();
-    const redirectTo =
-      `${window.location.origin}/auth/callback` +
-      (next && next !== "/" ? `?next=${encodeURIComponent(next)}` : "");
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: trimmed,
-      options: {
-        emailRedirectTo: redirectTo,
-        shouldCreateUser: true,
-      },
-    });
-
-    if (error) {
-      setStatus("error");
-      setErrorMsg(error.message);
-    } else {
-      resetCode();
-      setStatus("sent");
-      setTimeout(() => focusInput(0), 50);
-    }
+  async function handleResend() {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || cooldown > 0 || status === "verifying") return;
+    setErrorMsg("");
+    await sendCode(trimmed);
   }
 
   async function handleVerify(e: React.FormEvent) {
@@ -215,17 +253,29 @@ export function LoginForm({ next }: LoginFormProps) {
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => {
-            setStatus("idle");
-            resetCode();
-            setErrorMsg("");
-          }}
-          className="mt-3 text-xs text-muted underline underline-offset-4 decoration-line"
-        >
-          Andere E-Mail verwenden
-        </button>
+        <div className="mt-3 flex items-center justify-between text-xs">
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={cooldown > 0 || status === "verifying"}
+            className="text-muted underline underline-offset-4 decoration-line disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
+          >
+            {cooldown > 0
+              ? `Code erneut senden (${cooldown}s)`
+              : "Code erneut senden"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatus("idle");
+              resetCode();
+              setErrorMsg("");
+            }}
+            className="text-muted underline underline-offset-4 decoration-line"
+          >
+            Andere E-Mail verwenden
+          </button>
+        </div>
       </div>
     );
   }
