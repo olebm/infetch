@@ -675,7 +675,7 @@ export default function LandingPage() {
                 Zum Ausprobieren — kein Ablaufdatum.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-ink flex-1">
-                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>15 Rechnungen / Monat</li>
+                <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>30 Rechnungen / Monat</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>1 Postfach (IMAP)</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>Auto-Pilot aktiv</li>
                 <li className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-muted/50 shrink-0"></span>500 MB Speicher</li>

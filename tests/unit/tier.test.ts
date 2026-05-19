@@ -1,4 +1,19 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// Free-only Launch klemmt den Tier zentral auf "free", solange
+// billing.proEnabled false ist (#8, bewusst reversibel). Diese Tests prüfen
+// die Tier-Logik für den reaktivierten Zustand → Pro explizit an.
+vi.mock("@/lib/config/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/config/env")>();
+  return {
+    ...actual,
+    appConfig: {
+      ...actual.appConfig,
+      billing: { ...actual.appConfig.billing, proEnabled: true },
+    },
+  };
+});
+
 import { getEnvTier, getLimits, getScanSinceDate, TIER_LIMITS } from "@/lib/tier";
 
 // ── Pure Funktionen (kein DB nötig) ──────────────────────────────────────────
@@ -38,9 +53,9 @@ describe("getEnvTier", () => {
 });
 
 describe("getLimits / TIER_LIMITS", () => {
-  it("Free-Tier: 15 Rechnungen/Monat, 500 MB, kein Export, keine Bulk-Downloads", () => {
+  it("Free-Tier: 30 Rechnungen/Monat, 500 MB, kein Export, keine Bulk-Downloads", () => {
     const limits = getLimits("free");
-    expect(limits.maxInvoicesPerMonth).toBe(15);
+    expect(limits.maxInvoicesPerMonth).toBe(30);
     expect(limits.maxStorageBytes).toBe(500 * 1024 * 1024);
     expect(limits.exportEnabled).toBe(false);
     expect(limits.bulkDownloadEnabled).toBe(false);

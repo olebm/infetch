@@ -21,7 +21,6 @@ const ROWS: Row[] = [
   { label: "Alle Rechnungen exportieren",  free: "x",     pro: "check"  },
   { label: "Retroaktiver Scan (12 Mo.)",   free: "x",     pro: "check"  },
   { label: "lexoffice / sevDesk",          free: "x",     pro: "check"  },
-  { label: "DATEV-Export",                 free: "x",     pro: "check"  },
 ];
 
 function Cell({ value, isPro }: { value: string | "check" | "x"; isPro: boolean }) {
