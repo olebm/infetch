@@ -118,7 +118,7 @@ function HeroRunning({
       {(inboxEmail || recipientEmail) && (
         <p className="mt-3 max-w-xl text-muted md:mt-6">
           {inboxEmail && (
-            <>Wir scannen <span className="text-ink">{inboxEmail}</span> alle 5 Min. </>
+            <>Wir scannen <span className="text-ink">{inboxEmail}</span> automatisch. </>
           )}
           {recipientEmail && (
             <>Sichere Treffer gehen direkt an <span className="text-ink">{recipientEmail}</span>. </>
@@ -190,7 +190,7 @@ function HeroFresh({ setup }: { setup: Setup }) {
           Wir warten auf deine <em>erste Rechnung.</em>
         </h2>
         <p className="mt-5 max-w-md text-muted">
-          Infetch scannt dein Postfach alle 5 Minuten. Sobald eine Rechnung ankommt, übernehmen wir den Rest.
+          Infetch scannt dein Postfach automatisch im Hintergrund. Sobald eine Rechnung ankommt, übernehmen wir den Rest.
         </p>
       </div>
       <FreshChecklist setup={setup} />

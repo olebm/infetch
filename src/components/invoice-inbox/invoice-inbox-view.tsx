@@ -292,7 +292,7 @@ export async function InvoiceInboxView({
                         ? "Rechnungen, die du als privat markierst, landen hier und werden nicht weitergeleitet."
                         : search || activeYear
                           ? "Probier einen anderen Filter oder lad eine PDF hoch."
-                          : "Wir warten auf die erste Rechnung. Schau in 5 Min nochmal."
+                          : "Wir warten auf die erste Rechnung. Schau gleich nochmal vorbei."
                 }
                 action={
                   search || activeYear

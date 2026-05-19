@@ -227,7 +227,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                 </h1>
                 <p className="mt-5 leading-relaxed text-muted">
                   Aus den letzten 12 Monaten — bereits in Infetch. Ab jetzt
-                  scannen wir alle 5 Minuten automatisch weiter.
+                  scannen wir dein Postfach automatisch weiter.
                 </p>
               </>
             ) : (
@@ -238,8 +238,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                 <p className="mt-5 leading-relaxed text-muted">
                   In den letzten 12 Monaten haben wir keine eindeutigen
                   Rechnungen gefunden. Kein Problem — ab jetzt scannt Infetch
-                  alle 5 Minuten automatisch weiter und holt neue Rechnungen
-                  sofort.
+                  dein Postfach automatisch weiter und holt neue Rechnungen.
                 </p>
               </>
             )}

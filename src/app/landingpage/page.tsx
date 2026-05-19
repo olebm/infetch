@@ -47,7 +47,7 @@ export default function LandingPage() {
           </nav>
           <div className="hidden md:flex items-center gap-2 ml-auto">
             <Link href="https://app.infetch.de/login" className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90">
-              Kostenlos starten
+              Anmelden
             </Link>
           </div>
           {/* Mobile: Anmelden + Hamburger */}
@@ -68,7 +68,7 @@ export default function LandingPage() {
         <div className="max-w-[1180px] mx-auto pl-6 md:pl-8 pr-6 md:pr-8 lg:pr-0 pt-8 md:pt-24 pb-12 md:pb-20 grid md:grid-cols-[1fr_1.1fr] gap-12 lg:gap-14 items-center">
 
           <div className="min-w-0">
-            <Tip label="Scannt dein Postfach alle 5 Minuten nach neuen Rechnungen">
+            <Tip label="Scannt dein Postfach automatisch nach neuen Rechnungen">
               <div className="inline-flex items-center gap-2 text-xs text-ok cursor-default">
                 <span className="w-1.5 h-1.5 rounded-full bg-ok pulse-dot"></span>
                 Auto-Pilot · scannt jetzt
@@ -186,7 +186,7 @@ export default function LandingPage() {
               </ul>
 
               <div className="px-5 py-3 border-t border-line bg-surface flex items-center justify-between text-xs text-muted">
-                <span>nächster Scan in <span className="text-ink stat-num">2:14</span></span>
+                <span>Auto-Pilot <span className="text-ink stat-num">aktiv</span></span>
                 <span className="stat-num">247 Rechnungen · Mai 2026</span>
               </div>
             </div>
@@ -297,7 +297,7 @@ export default function LandingPage() {
                     <span className="w-1.5 h-1.5 rounded-full bg-ok"></span>verbunden
                   </span>
                 </div>
-                <div className="px-4 py-3 text-xs text-muted stat-num">IMAP · alle 5 Min</div>
+                <div className="px-4 py-3 text-xs text-muted stat-num">IMAP · automatisch</div>
               </div>
             </div>
 
@@ -455,9 +455,9 @@ export default function LandingPage() {
               <div className="mt-6 mock-window">
                 <ul className="divide-y divide-line">
                   {[
-                    { domain: "notion.so",  name: "Notion Team Plan",   expect: "erwartet 02. Mai · 32,00 €", label: "3 Tage spät",   cls: "text-warn" },
-                    { domain: "figma.com",  name: "Figma Inc.",          expect: "erwartet 12. Mai · 45,00 €", label: "heute fällig",  cls: "text-muted" },
-                    { domain: "dropbox.com", name: "Dropbox Business",    expect: "erwartet 14. Mai · 13,99 €", label: "in 2 Tagen",   cls: "text-muted" },
+                    { domain: "notion.so",  name: "Notion Team Plan",   expect: "monatlich · 32,00 €", label: "Mai fehlt",     cls: "text-warn" },
+                    { domain: "figma.com",  name: "Figma Inc.",          expect: "monatlich · 45,00 €", label: "Mai erhalten",  cls: "text-muted" },
+                    { domain: "dropbox.com", name: "Dropbox Business",    expect: "monatlich · 13,99 €", label: "Mai erhalten", cls: "text-muted" },
                   ].map(({ domain, name, expect, label, cls }) => (
                     <li key={domain} className="px-4 py-3 flex items-center gap-4 row-hover">
                       <VendorLogo domain={domain} name={name} size={36} />
@@ -483,7 +483,6 @@ export default function LandingPage() {
                   {[
                     { domain: "lexoffice.de", name: "lexoffice", label: "Primär",   email: "belege@lexoffice.de"  },
                     { domain: "sevdesk.de",   name: "sevDesk",   label: "Sekundär", email: "buchhaltung@studio.de"},
-                    { domain: "datev.de",     name: "DATEV",     label: "Kopie",    email: "steuer@kanzlei.de"   },
                   ].map(({ domain, name, label, email }) => (
                     <li key={label} className="px-4 py-3 flex items-center gap-4 row-hover">
                       <VendorLogo domain={domain} name={name} size={36} />

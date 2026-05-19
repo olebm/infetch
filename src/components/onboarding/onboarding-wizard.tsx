@@ -425,7 +425,7 @@ export function OnboardingWizard() {
               Mit welchem Postfach sollen wir arbeiten?
             </h1>
             <p className="mt-2 text-sm text-muted">
-              In wenigen Schritten — danach scannt Infetch alle 5 Minuten und leitet Rechnungen automatisch weiter.
+              In wenigen Schritten — danach scannt Infetch dein Postfach automatisch und leitet Rechnungen weiter.
             </p>
             <div className="mt-6 rounded-md border border-line bg-paper p-5">
               <MailboxConnectContent

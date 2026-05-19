@@ -12,7 +12,7 @@ export default function AvvPage() {
       <strong>Rechtsgrundlage:</strong> Art. 28 DSGVO<br />
       <strong>Abschluss:</strong> Click-through beim Akzeptieren der AGB<br />
       <strong>Version:</strong> 1.0<br />
-      <strong>Stand:</strong> 14. Mai 2025</p>
+      <strong>Stand:</strong> 15. Mai 2026</p>
 
       <hr />
 
@@ -69,8 +69,8 @@ export default function AvvPage() {
           <thead><tr><th>Maßnahme</th><th>Umsetzung bei Infetch</th></tr></thead>
           <tbody>
             <tr><td>Verschlüsselung in Übertragung</td><td>TLS 1.2+ für alle Verbindungen</td></tr>
-            <tr><td>Verschlüsselung im Ruhezustand</td><td>Datenbank-Verschlüsselung (Supabase/Hetzner AES-256)</td></tr>
-            <tr><td>Zugangskontrollen</td><td>Magic Link (kein Passwort), rollenbasierte Berechtigungen</td></tr>
+            <tr><td>Verschlüsselung im Ruhezustand</td><td>Datenbank-Verschlüsselung (Supabase/Hetzner AES-256); gespeicherte Rechnungs-PDFs und extrahierter Text zusätzlich anwendungsseitig AES-256-GCM-verschlüsselt</td></tr>
+            <tr><td>Zugangskontrollen</td><td>Anmeldung per Einmal-Code an die E-Mail-Adresse (kein Passwort), rollenbasierte Berechtigungen</td></tr>
             <tr><td>Zugriffsprotokolle</td><td>Server-Logs, Sentry-Monitoring (anonymisiert)</td></tr>
             <tr><td>Datensicherung</td><td>Tägliche Backups, 7-Tage-Retention</td></tr>
             <tr><td>Incident Response</td><td>Meldung an Verantwortlichen bei Datenpanne innerhalb 72 h (hallo@infetch.de)</td></tr>
