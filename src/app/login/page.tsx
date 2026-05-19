@@ -44,27 +44,32 @@ export default async function LoginPage({
             </Link>
           </div>
 
-          {/* Tagline */}
-          <div className="mt-6">
-            <p className="font-display text-2xl text-ink leading-[1.08] max-w-[22ch]">
-              Rechnungen, die sich <em>selbst</em> weiterleiten.
-            </p>
-            <p className="mt-3 text-sm text-muted leading-relaxed max-w-[30ch]">
-              Postfach verbinden — Infetch erledigt den Rest automatisch.
-            </p>
-          </div>
-
-          {/* Photo */}
-          <div className="flex-1 flex items-center justify-center py-4">
-            <div className="relative w-full max-w-[280px] rounded-xl overflow-hidden shadow-lift" style={{ aspectRatio: "2/3" }}>
+          {/* Foto (linksbündig, konsistent mit Logo/Trust) mit Tagline auf dem Bild (unten) */}
+          <div className="flex flex-1 flex-col justify-center py-6">
+            <div
+              className="relative w-full max-w-[400px] overflow-hidden rounded-xl"
+              style={{ aspectRatio: "2/3" }}
+            >
               <Image
                 src="/images/photos/login-window.webp"
                 alt="Person blickt ruhig aus dem Fenster — alles läuft automatisch"
                 fill
                 className="object-cover object-center"
-                sizes="280px"
+                sizes="400px"
                 priority
               />
+
+              {/* Scrim für Lesbarkeit des Textes auf dem Bild */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-white via-white/70 to-transparent" />
+
+              <div className="absolute inset-x-0 bottom-0 p-6">
+                <p className="font-display text-2xl text-ink leading-[1.08] max-w-[18ch]">
+                  Rechnungen, die sich <em>selbst</em> weiterleiten.
+                </p>
+                <p className="mt-2 text-sm text-muted leading-relaxed max-w-[26ch]">
+                  Postfach verbinden — Infetch erledigt den Rest automatisch.
+                </p>
+              </div>
             </div>
           </div>
 

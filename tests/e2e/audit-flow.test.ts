@@ -14,8 +14,13 @@ test.describe("Audit-Posteingang", () => {
     await page.goto("/audit");
     await expect(page.getByTestId("app-main")).toBeVisible();
 
-    // Upload-Panel vorhanden
-    await expect(page.getByRole("button", { name: /PDF manuell hochladen/i })).toBeVisible();
+    // Immer vorhanden, unabhängig von Feature-Flags
+    await expect(page.getByRole("heading", { name: "Posteingang" })).toBeVisible();
+
+    // Upload-Panel nur wenn manueller Upload aktiv (Free-only Launch #8 blendet aus)
+    if (process.env.NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED === "true") {
+      await expect(page.getByRole("button", { name: /PDF manuell hochladen/i })).toBeVisible();
+    }
   });
 
   test("Suche ist bedienbar", async ({ page }) => {
@@ -35,44 +40,53 @@ test.describe("Rechnungs-Detailseite", () => {
   test("Existierende Rechnung öffnet Detail-View oder Seite zeigt Upload-Hinweis", async ({
     page,
   }) => {
-    // Eine Rechnung über Upload erstellen, damit ein Eintrag existiert
     await page.goto("/audit");
     await page.waitForLoadState("networkidle");
-    await page.getByRole("button", { name: /PDF manuell hochladen/i }).click();
-    await expect(page.locator("#invoicePdf")).toBeVisible({ timeout: 10_000 });
-    await page.locator("#invoicePdf").setInputFiles(TEST_PDF_PATH);
-    await page.getByRole("button", { name: /^Importieren$/i }).click();
 
-    // Auf Import-Abschluss warten — Status sichtbar ODER Seite navigiert nach revalidatePath
-    const statusLocator = page.locator(".bg-ok-soft, .bg-violet-50, .bg-danger-soft");
-    await statusLocator.waitFor({ state: "visible", timeout: 15_000 }).catch(async () => {
-      // Nach revalidatePath-Navigation ggf. bereits in der Liste sichtbar
-      await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
-    });
+    const manualUpload = process.env.NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED === "true";
 
-    // Seite neu laden um Listeneintrag zu sehen
-    await page.reload();
-    await page.waitForLoadState("networkidle");
+    if (manualUpload) {
+      // Eine Rechnung über Upload erstellen, damit ein Eintrag existiert
+      await page.getByRole("button", { name: /PDF manuell hochladen/i }).click();
+      await expect(page.locator("#invoicePdf")).toBeVisible({ timeout: 10_000 });
+      await page.locator("#invoicePdf").setInputFiles(TEST_PDF_PATH);
+      await page.getByRole("button", { name: /^Importieren$/i }).click();
+
+      // Auf Import-Abschluss warten — Status sichtbar ODER Seite navigiert nach revalidatePath
+      const statusLocator = page.locator(".bg-ok-soft, .bg-violet-50, .bg-danger-soft");
+      await statusLocator.waitFor({ state: "visible", timeout: 15_000 }).catch(async () => {
+        await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
+      });
+
+      await page.reload();
+      await page.waitForLoadState("networkidle");
+    }
 
     // Ersten Link zu einer Rechnung in der Liste finden
     const invoiceLink = page.locator('a[href*="/audit/"]').first();
+    const hasInvoice = await invoiceLink.isVisible({ timeout: 5_000 }).catch(() => false);
 
-    if (await invoiceLink.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await invoiceLink.click();
-      await page.waitForLoadState("networkidle");
-
-      // Detail-View geladen — URL enthält Invoice-ID
-      await expect(page).toHaveURL(/\/audit\/\d+/);
-
-      // Grundlegende UI-Elemente vorhanden
-      await expect(page.getByTestId("app-main")).toBeVisible();
-
-      // Zurück-Link existiert
-      const backLink = page
-        .getByRole("link", { name: /zurück|posteingang|audit/i })
-        .or(page.locator('a[href="/audit"]'));
-      await expect(backLink.first()).toBeVisible();
+    if (!hasInvoice) {
+      // Kein Eintrag (z. B. Free-only Launch ohne manuellen Upload) →
+      // Posteingang muss trotzdem strukturell rendern (Empty-State-Hinweis).
+      await expect(page.getByRole("heading", { name: "Posteingang" })).toBeVisible();
+      return;
     }
+
+    await invoiceLink.click();
+    await page.waitForLoadState("networkidle");
+
+    // Detail-View geladen — URL enthält Invoice-ID
+    await expect(page).toHaveURL(/\/audit\/\d+/);
+
+    // Grundlegende UI-Elemente vorhanden
+    await expect(page.getByTestId("app-main")).toBeVisible();
+
+    // Zurück-Link existiert
+    const backLink = page
+      .getByRole("link", { name: /zurück|posteingang|audit/i })
+      .or(page.locator('a[href="/audit"]'));
+    await expect(backLink.first()).toBeVisible();
   });
 
   test("Review-Formular enthält Kernfelder wenn Rechnung geöffnet", async ({ page }) => {

@@ -26,7 +26,7 @@ export default async function KontoPage() {
 
   const [invoiceYears, vendors, userOrgs, orgMembers, pendingInvitations, activeSessions, profileFields, tier, orgRow] = await Promise.all([
     getInvoiceYears(),
-    getVendors(),
+    getVendors(orgId),
     auth ? loadUserOrganizations(auth.user.id) : Promise.resolve([]),
     auth?.organization ? loadOrgMembers(auth.organization.id) : Promise.resolve([]),
     auth?.organization ? loadPendingInvitations(auth.organization.id) : Promise.resolve([]),

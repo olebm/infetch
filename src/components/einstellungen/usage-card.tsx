@@ -140,7 +140,6 @@ export async function UsageCard({ organizationId }: Props) {
               <PlanRow label="Download: alle Rechnungen (Bulk)" freeNo proOk />
               <PlanRow label="Retroaktiver Scan (12 Mo.)" freeNo proOk />
               <PlanRow label="Export (lexoffice / sevDesk)" freeNo proOk />
-              <PlanRow label="DATEV-Export" freeNo proOk />
             </tbody>
           </table>
           <div className="mt-4">

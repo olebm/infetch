@@ -132,6 +132,54 @@ jobs:
           CREATE UNIQUE INDEX IF NOT EXISTS uniq_export_targets_org_target
             ON export_targets (organization_id, target);
 
+          -- Schema-Teil aus 0019_multitenant_isolation.sql / 0020_discovered_senders_per_org.sql
+          -- (Migrationen werden in CI nicht eingespielt: Backfill-UPDATEs gegen die
+          -- leere CI-DB sind sinnlos und 0019 RAISEt auf nicht-attribuierbare Rows;
+          -- RLS-Policies nutzen auth.uid(), Tests laufen als Owner "ci" und umgehen
+          -- RLS ohnehin). Ohne diese Spalten: column "organization_id" does not exist.
+          ALTER TABLE invoice_files
+            ADD COLUMN IF NOT EXISTS organization_id TEXT
+            REFERENCES organizations(id) ON DELETE CASCADE;
+          ALTER TABLE invoice_files DROP CONSTRAINT IF EXISTS invoice_files_sha256_key;
+          CREATE UNIQUE INDEX IF NOT EXISTS uniq_invoice_files_org_sha256
+            ON invoice_files (organization_id, sha256);
+          CREATE INDEX IF NOT EXISTS idx_invoice_files_org
+            ON invoice_files (organization_id);
+
+          ALTER TABLE vendor_month_status
+            ADD COLUMN IF NOT EXISTS organization_id TEXT
+            REFERENCES organizations(id) ON DELETE CASCADE;
+          ALTER TABLE vendor_month_status
+            DROP CONSTRAINT IF EXISTS vendor_month_status_vendor_id_year_month_key;
+          CREATE UNIQUE INDEX IF NOT EXISTS uniq_vendor_month_status_org
+            ON vendor_month_status (organization_id, vendor_id, year_month);
+          CREATE INDEX IF NOT EXISTS idx_vendor_month_status_org
+            ON vendor_month_status (organization_id);
+
+          ALTER TABLE discovered_senders
+            ADD COLUMN IF NOT EXISTS organization_id TEXT
+            REFERENCES organizations(id) ON DELETE CASCADE;
+          ALTER TABLE discovered_senders DROP CONSTRAINT IF EXISTS discovered_senders_from_address_key;
+          CREATE UNIQUE INDEX IF NOT EXISTS uniq_discovered_senders_org_addr
+            ON discovered_senders (organization_id, from_address);
+          CREATE INDEX IF NOT EXISTS idx_discovered_senders_org
+            ON discovered_senders (organization_id);
+
+          ALTER TABLE auto_approval_rules
+            ADD COLUMN IF NOT EXISTS organization_id TEXT
+            REFERENCES organizations(id) ON DELETE CASCADE;
+          CREATE INDEX IF NOT EXISTS idx_auto_approval_rules_org
+            ON auto_approval_rules (organization_id);
+
+          ALTER TABLE integration_targets
+            ADD COLUMN IF NOT EXISTS organization_id TEXT
+            REFERENCES organizations(id) ON DELETE CASCADE;
+          ALTER TABLE integration_targets DROP CONSTRAINT IF EXISTS integration_targets_provider_key;
+          CREATE UNIQUE INDEX IF NOT EXISTS uniq_integration_targets_org_provider
+            ON integration_targets (organization_id, provider);
+          CREATE INDEX IF NOT EXISTS idx_integration_targets_org
+            ON integration_targets (organization_id);
+
           -- Minimal Supabase Vault stub — plain-text storage, no pgsodium required.
           CREATE SCHEMA IF NOT EXISTS vault;
           CREATE TABLE IF NOT EXISTS vault.secrets (

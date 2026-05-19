@@ -5,7 +5,7 @@
  * Fallback für lokale Instanzen ohne Auth: INVOICE_AGENT_TIER env-var.
  *
  * Preise (Stand Mai 2026):
- *   Free:  €0        — 15 Rechnungen/Monat, 1 Postfach, 500 MB
+ *   Free:  €0        — 30 Rechnungen/Monat, 1 Postfach, 500 MB
  *   Pro:   €19/Monat — 150 Rechnungen/Monat, 3 Postfächer, 2 GB
  *   Business: kommt später (Portal-Agent, Multi-Org, Datev)
  */
@@ -47,7 +47,7 @@ const GB = 1024 * MB;
 
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
-    maxInvoicesPerMonth:   15,
+    maxInvoicesPerMonth:   30,
     maxMailAccounts:       1,
     maxUsers:              1,
     maxStorageBytes:       500 * MB,
@@ -65,10 +65,10 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     maxMailAccounts:       3,
     maxUsers:              3,
     maxStorageBytes:       2 * GB,
-    maxOnlineAccounts:     0,
+    maxOnlineAccounts:     5,
     autoApprovalEnabled:   true,
     exportEnabled:         true,
-    datevExportEnabled:    true,
+    datevExportEnabled:    false,
     bulkDownloadEnabled:     true,
     retroactiveScanEnabled:  true,
     label:                   "Pro",
@@ -78,8 +78,8 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     maxInvoicesPerMonth:   Number.POSITIVE_INFINITY,
     maxMailAccounts:       Number.POSITIVE_INFINITY,
     maxUsers:              Number.POSITIVE_INFINITY,
-    maxStorageBytes:       50 * GB,
-    maxOnlineAccounts:     Number.POSITIVE_INFINITY,
+    maxStorageBytes:       20 * GB,
+    maxOnlineAccounts:     20,
     autoApprovalEnabled:   true,
     exportEnabled:         true,
     datevExportEnabled:    true,

@@ -10,6 +10,14 @@ import { expect, test } from "@playwright/test";
 const TEST_PDF_PATH = path.join("tests/e2e/fixtures/minimal.pdf");
 
 test.describe("Manueller PDF-Upload", () => {
+  // Free-only Launch (#8) blendet den manuellen Upload aus. Feature ist
+  // reversibel via NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED=true — diese Specs
+  // testen dann den realen Flow; im Launch-Zustand werden sie übersprungen.
+  test.skip(
+    process.env.NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED !== "true",
+    "Manueller Upload im Free-only Launch deaktiviert (NEXT_PUBLIC_MANUAL_UPLOAD_ENABLED)",
+  );
+
   test("Upload-Panel öffnet sich per Klick", async ({ page }) => {
     await page.goto("/audit");
     await expect(page.getByTestId("app-main")).toBeVisible();

@@ -77,8 +77,8 @@ function RowActions({ item }: { item: MissingItem }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export async function MissingListView() {
-  const items = await getMissingItems();
+export async function MissingListView({ organizationId }: { organizationId: string | null }) {
+  const items = await getMissingItems(organizationId);
 
   if (items.length === 0) {
     return (

@@ -623,11 +623,20 @@ export type VendorRow = {
   portalCategory: string | null;
 };
 
-export async function getVendors(): Promise<VendorRow[]> {
+// Lieferanten sind hybrid: globaler Seed-Katalog (organization_id IS NULL,
+// via vendors/seed.ts + upsertVendor) plus org-eigene Vendoren aus der
+// Sender-Erkennung (organization_id gesetzt, senders/actions +
+// discovered-senders). Ohne Filter sähe Org A die org-eigenen Vendoren von
+// Org B (Name/canonical_key/Portal-Config) — Cross-Tenant-Leak. Sichtbar ist
+// daher nur: globaler Katalog + eigene Org (deckungsgleich mit RLS-Policy
+// vendors_org).
+export async function getVendors(organizationId: string | null): Promise<VendorRow[]> {
   return await sql<VendorRow[]>`
     SELECT id, name, canonical_key AS "canonicalKey", category, portal_enabled AS "portalEnabled", hidden,
       portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory"
     FROM vendors
+    WHERE organization_id IS NULL
+       OR organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY name`;
 }
 
@@ -678,7 +687,7 @@ export type MissingItem = {
 
 const BUCKET_PRIORITY: Record<MissingItem["bucket"], number> = { help: 0, auto: 1, wait: 2 };
 
-export async function getMissingItems(): Promise<MissingItem[]> {
+export async function getMissingItems(organizationId: string | null): Promise<MissingItem[]> {
   const rows = await sql<Array<{
     vendorId: number;
     vendorName: string;
@@ -706,7 +715,15 @@ export async function getMissingItems(): Promise<MissingItem[]> {
       ) AS "avgAmount"
     FROM vendor_month_status vms
     JOIN vendors v ON v.id = vms.vendor_id
-    WHERE v.hidden = 0 AND vms.final_status IN ('missing', 'action_required', 'unchecked')
+    -- hidden::boolean: in Prod ist die Spalte INTEGER (Migration 0001), in
+    -- CI BOOLEAN (reconcile-schema.sql). Der Cast normalisiert beide Typen,
+    -- sonst wirft genau eine der beiden Umgebungen.
+    -- vendor_month_status ist die Mandanten-Grenze (organization_id via
+    -- Migration 0019). Ohne diesen Filter leakt der Missing-Status-Cache
+    -- anderer Orgs über /audit?tab=fehlt. Muster wie getDashboardStats.
+    WHERE v.hidden::boolean IS NOT TRUE
+      AND vms.final_status IN ('missing', 'action_required', 'unchecked')
+      AND vms.organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY v.name ASC, vms.year_month DESC`;
 
   type Entry = { item: MissingItem; count: number };
@@ -756,9 +773,9 @@ export async function getMissingItems(): Promise<MissingItem[]> {
     });
 }
 
-export async function getMissingMatrix(includeHidden = false) {
-  const allVendors = await getVendors();
-  const vendors = includeHidden ? allVendors : allVendors.filter((v) => v.hidden === 0);
+export async function getMissingMatrix(organizationId: string | null, includeHidden = false) {
+  const allVendors = await getVendors(organizationId);
+  const vendors = includeHidden ? allVendors : allVendors.filter((v) => !v.hidden);
   const months = Array.from({ length: appConfig.syncMonthsBack }, (_, index) =>
     format(subMonths(new Date(), appConfig.syncMonthsBack - index - 1), "yyyy-MM"),
   );
@@ -774,7 +791,8 @@ export async function getMissingMatrix(includeHidden = false) {
     SELECT vendor_id AS "vendorId", year_month AS "yearMonth", mail_status AS "mailStatus",
       portal_status AS "portalStatus", manual_status AS "manualStatus",
       final_status AS "finalStatus", source_used AS "sourceUsed"
-    FROM vendor_month_status`;
+    FROM vendor_month_status
+    WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`;
   const statusByVendorMonth = new Map(statuses.map((status) => [`${status.vendorId}:${status.yearMonth}`, status]));
 
   return vendors.map((vendor) => ({

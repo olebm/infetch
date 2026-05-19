@@ -25,7 +25,7 @@ const PLAN_FEATURES: Record<Tier, string[]> = {
   business: [
     "Unbegrenzte Rechnungen",
     "Unbegrenzte Postfächer",
-    "50 GB Speicher",
+    "20 GB Speicher",
     "Alle Pro-Features",
     "Portal-Agent (Beta)",
     "Datev-Export",

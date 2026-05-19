@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
+import { sql } from "@/lib/db/client";
 
 const STUB_EMAIL = "test@infetch.local";
 const STUB_NAME = "Test User";
@@ -42,6 +43,29 @@ export async function POST(_req: NextRequest) {
     const existing = await findUserByEmail(STUB_EMAIL);
     if (!existing) {
       await createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, userId: supabaseUserId });
+    }
+
+    // Onboarding-Gate (layout.tsx): ohne Primary-IMAP-Account leitet die App
+    // auf /onboarding um. Für E2E muss der Test-User vollständig onboardet sein,
+    // sonst rendert keine geschützte Route die App-Shell.
+    const userRow = await findUserByEmail(STUB_EMAIL);
+    if (userRow) {
+      const orgRows = await sql<{ organization_id: string }[]>`
+        SELECT organization_id FROM org_members
+        WHERE user_id = ${userRow.id}
+        ORDER BY organization_id LIMIT 1
+      `;
+      const orgId = orgRows[0]?.organization_id;
+      if (orgId) {
+        await sql`
+          INSERT INTO mail_accounts (label, host, port, secure, username, status, organization_id)
+          SELECT 'Primary IMAP', 'imap.test.local', 993, TRUE, ${STUB_EMAIL}, 'configured', ${orgId}
+          WHERE NOT EXISTS (
+            SELECT 1 FROM mail_accounts
+            WHERE organization_id = ${orgId} AND label = 'Primary IMAP'
+          )
+        `;
+      }
     }
   } catch {
     // Non-fatal
