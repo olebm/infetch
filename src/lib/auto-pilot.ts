@@ -42,7 +42,7 @@ type JobState = {
 };
 
 const jobs: Record<JobName, JobState> = {
-  mailScan: { cron: "*/30 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  mailScan: { cron: "0 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
   missingCheck: { cron: "0 6 * * *", task: null, lastRunAt: null, lastError: null, running: false },
   exportDispatch: { cron: "*/15 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
   portalFetch: { cron: "0 */4 * * *", task: null, lastRunAt: null, lastError: null, running: false },

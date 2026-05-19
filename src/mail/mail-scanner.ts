@@ -245,14 +245,13 @@ async function processMessage(
   if (!message.source) return;
 
   const parsed = await extractPdfAttachments(message.source);
+  // Datensparsamkeit: bei der Erstanlage NUR technische Koordinaten ablegen.
+  // Absender/Betreff/Message-ID/Datum werden erst gespeichert, wenn aus der
+  // Mail eine Rechnung erkannt wurde (attachInvoiceMailMetadata weiter unten).
   const mailMessageId = await upsertMailMessage({
     mailAccountId,
     uid: message.uid,
     uidValidity,
-    messageId: parsed.messageId,
-    fromAddress: parsed.fromAddress,
-    subject: parsed.subject,
-    date: parsed.date?.toISOString() || null,
   });
 
   const existing = await sql<{ processedAt: string | null }[]>`
@@ -296,6 +295,10 @@ async function processMessage(
   // organizationId wird vom Account in scanOne() durchgereicht.
   let importedForMessage = 0;
   let quotaBlocked = false;
+  // True, sobald die Mail eine erkannte Rechnung enthielt (neu importiert ODER
+  // bereits bekanntes Duplikat). Nur dann dürfen/müssen Absender, Betreff &
+  // Co. gespeichert werden — die Vendor-Alias-Erkennung joint darüber.
+  let recognizedInvoiceInMessage = false;
   for (const attachment of parsed.pdfAttachments) {
     const result = await importPdfBuffer({
       buffer: attachment.content,
@@ -309,8 +312,10 @@ async function processMessage(
     if (result.ok && result.status === "imported") {
       summary.imported += 1;
       importedForMessage += 1;
+      recognizedInvoiceInMessage = true;
     } else if (result.ok && result.status === "duplicate") {
       summary.duplicates += 1;
+      recognizedInvoiceInMessage = true;
     } else {
       summary.failed += 1;
       if (!result.ok && result.status === "quota_exceeded") {
@@ -337,28 +342,41 @@ async function processMessage(
     return;
   }
 
+  // Metadaten NUR für Mails mit erkannter Rechnung nachtragen. Nicht-Rechnungen,
+  // blockierte & Junk-Mails behalten ausschließlich ihren technischen
+  // UID-Marker — kein Absender, kein Betreff, kein Postfach-Inhalt.
+  if (recognizedInvoiceInMessage) {
+    await attachInvoiceMailMetadata(mailMessageId, {
+      messageId: parsed.messageId,
+      fromAddress: parsed.fromAddress,
+      subject: parsed.subject,
+      date: parsed.date?.toISOString() || null,
+    });
+  }
+
   await markMailMessage(mailMessageId, importedForMessage > 0 ? "processed" : "no_new_invoice");
 }
 
+/**
+ * Legt die Dedupe-Zeile für eine gescannte Mail an — bewusst NUR mit
+ * technischen Koordinaten (Account, Mailbox, IMAP-UID). Absender, Betreff,
+ * Message-ID und Datum werden hier absichtlich NICHT gespeichert; das
+ * übernimmt attachInvoiceMailMetadata() ausschließlich für Mails, aus denen
+ * eine Rechnung erkannt wurde. So bleibt von Nicht-Rechnungen, blockierten
+ * und Junk-Mails kein Postfach-Inhalt zurück, nur ein opaker UID-Marker zur
+ * Idempotenz.
+ */
 async function upsertMailMessage(input: {
   mailAccountId: number;
   uid: number;
   uidValidity: string;
-  messageId: string | null;
-  fromAddress: string | null;
-  subject: string | null;
-  date: string | null;
 }): Promise<number> {
   await sql`
     INSERT INTO mail_messages (
-      mail_account_id, mailbox, uid, uidvalidity, message_id, from_address, subject, date, seen_at, status
+      mail_account_id, mailbox, uid, uidvalidity, seen_at, status
     )
-    VALUES (${input.mailAccountId}, 'INBOX', ${input.uid}, ${input.uidValidity}, ${input.messageId}, ${input.fromAddress}, ${input.subject}, ${input.date}, CURRENT_TIMESTAMP, 'pending')
+    VALUES (${input.mailAccountId}, 'INBOX', ${input.uid}, ${input.uidValidity}, CURRENT_TIMESTAMP, 'pending')
     ON CONFLICT(mail_account_id, mailbox, uidvalidity, uid) DO UPDATE SET
-      message_id = COALESCE(mail_messages.message_id, excluded.message_id),
-      from_address = COALESCE(mail_messages.from_address, excluded.from_address),
-      subject = COALESCE(mail_messages.subject, excluded.subject),
-      date = COALESCE(mail_messages.date, excluded.date),
       seen_at = CURRENT_TIMESTAMP
   `;
 
@@ -368,6 +386,28 @@ async function upsertMailMessage(input: {
     WHERE mail_account_id = ${input.mailAccountId} AND mailbox = 'INBOX' AND uidvalidity = ${input.uidValidity} AND uid = ${input.uid}
   `;
   return rows[0].id;
+}
+
+/**
+ * Trägt Absender/Betreff/Message-ID/Datum nach — NUR für Mails mit erkannter
+ * Rechnung. Diese Metadaten werden von der Vendor-Alias-Erkennung
+ * (auto-alias/suggestions) über invoice_files → mail_messages benötigt.
+ * COALESCE schützt bereits gesetzte Werte (idempotent bei Re-Scan).
+ */
+async function attachInvoiceMailMetadata(id: number, input: {
+  messageId: string | null;
+  fromAddress: string | null;
+  subject: string | null;
+  date: string | null;
+}): Promise<void> {
+  await sql`
+    UPDATE mail_messages
+    SET message_id   = COALESCE(message_id, ${input.messageId}),
+        from_address = COALESCE(from_address, ${input.fromAddress}),
+        subject      = COALESCE(subject, ${input.subject}),
+        date         = COALESCE(date, ${input.date})
+    WHERE id = ${id}
+  `;
 }
 
 async function markMailMessage(id: number, status: string): Promise<void> {

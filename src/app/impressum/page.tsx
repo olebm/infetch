@@ -8,13 +8,13 @@ export const metadata: Metadata = {
 export default function ImpressumPage() {
   return (
     <PublicShell title="Impressum">
-      <p><strong>Rechtsgrundlage:</strong> § 5 TMG · § 55 RStV<br />
+      <p><strong>Rechtsgrundlage:</strong> § 5 DDG · § 18 Abs. 2 MStV<br />
       <strong>Betreiber:</strong> betaform | Ole Beekmann<br />
       <strong>Stand:</strong> 15. Mai 2026</p>
 
       <hr />
 
-      <h2>Angaben gemäß § 5 TMG</h2>
+      <h2>Angaben gemäß § 5 DDG</h2>
       <p>
         <strong>betaform | Ole Beekmann</strong><br />
         Glindersweg 34<br />
