@@ -1,5 +1,6 @@
 import path from "node:path";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
+import { canExport } from "@/lib/tier";
 import { recordSyncEvent } from "@/lib/db/events";
 import {
   getActiveIntegrationTarget,
@@ -66,6 +67,11 @@ export async function attemptAutoTransfer(
 ): Promise<{ pushed: boolean; provider?: IntegrationProvider; externalRef?: string; reason?: string }> {
   if (!appConfig.features.enableApiIntegrations) {
     return { pushed: false, reason: "api integrations disabled" };
+  }
+  // Tier-Gate (INFETCH-158): API-Direkt-Push nur für Pro/Business.
+  // SMTP-Forward ist tier-unabhängig und läuft NICHT durch diesen Pfad.
+  if (!(await canExport(organizationId ?? null))) {
+    return { pushed: false, reason: "export not enabled on this tier" };
   }
   const invoice = await loadInvoiceForTransfer(invoiceId, organizationId ?? null);
   if (!invoice) return { pushed: false, reason: "invoice not found" };

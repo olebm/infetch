@@ -25,7 +25,7 @@ import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sev
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
 import { getOptionalOrgColumns, hardDeleteOrgData } from "@/lib/auth/account-teardown";
 import { updateUserProfile, invalidateAllOtherSessions } from "@/lib/auth/session";
-import { canExport } from "@/lib/tier";
+import { canExport, getOrgTier, getLimits } from "@/lib/tier";
 import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
@@ -302,6 +302,23 @@ export async function saveMailboxCredentialsAction(
         WHERE id = ${existingImap.id}
       `;
     } else {
+      // Tier-Gate (INFETCH-156): maxMailAccounts vor neuem INSERT prüfen.
+      // Updates bestehender Slots sind unbegrenzt erlaubt — nur neue Einträge
+      // zählen gegen das Kontingent.
+      const tier = await getOrgTier(organizationId);
+      const { maxMailAccounts } = getLimits(tier);
+      if (Number.isFinite(maxMailAccounts)) {
+        const countRows = await scopedSql<{ count: string }[]>`
+          SELECT COUNT(*) AS count FROM mail_accounts WHERE organization_id = ${organizationId}
+        `;
+        const currentCount = Number(countRows[0]?.count ?? 0);
+        if (currentCount >= maxMailAccounts) {
+          return {
+            status: "error",
+            message: `Dein Plan erlaubt maximal ${maxMailAccounts} Postfach${maxMailAccounts !== 1 ? "fächer" : ""}. Bitte auf Pro upgraden für mehr Postfächer.`,
+          };
+        }
+      }
       await scopedSql`
         INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
         VALUES (${slotLabel}, ${imapHost}, ${imapPort}, ${imapSecure}, ${email}, ${imapCredRefId}, 'configured', ${organizationId})
