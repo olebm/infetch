@@ -15,6 +15,23 @@ describe("credential store metadata", () => {
     expect(ref).not.toContain("example.com");
   });
 
+  it("produces distinct refs for different organizations (cross-tenant isolation)", () => {
+    // Regression for MULTITENANCY_HARDENING_PLAN.md 1.2 — without an
+    // organizationId, two orgs sharing the same scope+ownerId would collide
+    // on a single shared secret. With organizationId woven in, the hash
+    // differs deterministically.
+    const refOrgA = buildSecretRef("lexoffice", "default", "org-A");
+    const refOrgB = buildSecretRef("lexoffice", "default", "org-B");
+    const refNoOrg = buildSecretRef("lexoffice", "default");
+
+    expect(refOrgA).not.toBe(refOrgB);
+    expect(refOrgA).not.toBe(refNoOrg);
+    expect(refOrgB).not.toBe(refNoOrg);
+
+    // Stable per org (same inputs → same ref)
+    expect(buildSecretRef("lexoffice", "default", "org-A")).toBe(refOrgA);
+  });
+
   it("masks visible identifiers", () => {
     expect(maskIdentifier("rechnung@example.com")).toBe("re***@example.com");
     expect(maskIdentifier("abcdef")).toBe("ab***ef");
