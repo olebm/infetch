@@ -1,6 +1,7 @@
 import cron, { type ScheduledTask } from "node-cron";
 import fs from "node:fs/promises";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
+import { listConfiguredImapAccounts } from "@/mail/imap-client";
 import { runMissingInvoiceCheck } from "@/invoices/missing-check";
 import { dispatchPendingExports } from "@/exports/export-pipeline";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
@@ -172,9 +173,20 @@ export function startAutoPilot() {
     });
   }
 
-  // Catch-up: trigger immediate mail-scan + export-dispatch on startup
-  setTimeout(() => {
-    runJob("mailScan").catch(() => {});
+  // Catch-up: trigger immediate mail-scan + export-dispatch on startup.
+  // mailScan nur wenn auch ein IMAP-Account konfiguriert ist — sonst wirft der
+  // Scanner "Kein konfiguriertes IMAP-Postfach vorhanden" und vergiftet sync_runs
+  // mit einer failed-Row, die das Onboarding-Polling als "User-Scan gescheitert"
+  // fehlinterpretiert (latest-row-Race).
+  setTimeout(async () => {
+    try {
+      const accounts = await listConfiguredImapAccounts();
+      if (accounts.length > 0) {
+        runJob("mailScan").catch(() => {});
+      }
+    } catch {
+      /* best-effort: catch-up darf scheitern */
+    }
     runJob("exportDispatch").catch(() => {});
   }, 5_000);
 }
