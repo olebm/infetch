@@ -14,7 +14,6 @@ import { AddRecipientButton } from "@/components/einstellungen/recipient-modal";
 import { clearExportTargetAction } from "@/app/(app)/einstellungen/actions";
 import { ConfidenceSlider } from "@/components/einstellungen/confidence-slider";
 import { SubjectTemplateCard } from "@/components/einstellungen/subject-template-card";
-import { ScanIntervalSelector } from "@/components/einstellungen/scan-interval-selector";
 import { Tabs, type TabItem } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -217,8 +216,9 @@ export default async function SetupPage() {
 
       <Card padding="lg">
         <div className="text-sm font-medium text-ink">Scan-Intervall</div>
-        <div className="mb-3 mt-0.5 text-xs text-muted">Wie oft holen wir neue Mails ab?</div>
-        <ScanIntervalSelector />
+        <div className="mt-0.5 text-xs text-muted">
+          Infetch holt automatisch jede Stunde neue Mails ab.
+        </div>
       </Card>
 
       <Card padding="lg">
