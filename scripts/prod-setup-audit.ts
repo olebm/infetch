@@ -15,7 +15,9 @@
  * (MISTRAL_API_KEY wird übergeben, damit getSetupSnapshot keine
  * Konfigurations-Lücke meldet — das KI-Backend ist global, nicht org-bound.)
  */
-import { sql } from "@/lib/db/client";
+// Audit ist per Definition cross-org (zählt alle Prod-Orgs) — daher der
+// `unsafeGlobalSql`-Alias statt des gescopten Clients.
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getSetupSnapshot } from "@/lib/db/queries";
 
 type OrgRow = { id: string; name: string; tier: string; created_at: string };
