@@ -34,14 +34,29 @@ Out of scope:
 - Issues that require physical access to the machine running Infetch
 - Issues in browser-extension companions or external tools that integrate with Infetch
 
-## Known limitations
+## Deployment models
 
-Some of these are documented design trade-offs rather than vulnerabilities. They are listed here so you don't waste time reporting them:
+Infetch ships in two flavors. Section "Self-hosted limitations" below applies only to the open-source single-user mode; section "Multi-tenant SaaS" applies to the hosted product at `app.infetch.de`.
 
-- **Single-user model.** Infetch has no concept of multiple users or tenants. If multiple OS users share the same machine, they share the same data directory unless paths are overridden.
+### Multi-tenant SaaS deployment (`app.infetch.de`)
+
+The hosted product is multi-tenant. Tenant isolation is enforced through several defense layers:
+
+- **`organization_id` on every user-data table.** Invoices, mail accounts, mail messages, credentials, exports, vendors (and their aliases) all carry `organization_id`. Migrations 0010, 0011, 0019, 0020 manage org-scoped RLS policies.
+- **Supabase Row-Level Security policies** on all user-data tables. Policies require an `org_members` membership match against `auth.uid()`.
+- **Server-side org filters.** Server Actions and API routes that touch user data run on a postgres-superuser connection (via Supavisor) which bypasses RLS — they therefore filter by `organization_id` manually in every query. Defense-in-depth via a `createScopedSql` wrapper migration (Stream D) is in progress; see ESLint allowlist `SQL_CLIENT_ALLOWLIST` in `eslint.config.mjs`.
+- **Cross-tenant IDOR regression tests** in `tests/integration/security/cross-tenant-idor.test.ts` and `tests/integration/tenant-isolation*.test.ts` lock in the contract: a user in Org A must never read or modify resources of Org B.
+
+If you find a way to read or modify data across organizations, please report it as described above — that class of bug is highest priority.
+
+### Self-hosted limitations
+
+These design trade-offs apply only when you run Infetch yourself with a single OS user; they are not vulnerabilities in the hosted product:
+
+- **Single-user mode.** The self-hosted reference setup has no concept of multiple tenants. If multiple OS users share the same machine, they share the same data directory unless paths are overridden.
 - **Local network exposure.** The app binds to `127.0.0.1:3000` by default. If you change the bind host, anyone on your network can access your invoices.
-- **OS Keychain dependency on macOS.** Credentials are stored via the macOS Keychain. On Linux containers, an env-based fallback is currently planned but not implemented — see [docs/self-hosting.md](docs/self-hosting.md).
-- **Mistral API exposure.** AI extraction is enabled by default (the product is built around full automation). When it runs, PDF invoices and extracted text are sent to Mistral's servers. You can disable it entirely via `MISTRAL_ENABLED=false` or in `/einstellungen`. Local extraction is always attempted first; Mistral is skipped when the local result is already sufficient.
+- **OS Keychain dependency on macOS.** In self-hosted mode credentials are stored via the macOS Keychain. On Linux containers, an env-based fallback is currently planned but not implemented — see [docs/self-hosting.md](docs/self-hosting.md). In the hosted SaaS, credentials live in Supabase Vault (pgsodium).
+- **Mistral API exposure.** AI extraction is enabled by default (the product is built around full automation). When it runs, PDF invoices and extracted text are sent to Mistral's servers. You can disable it entirely via `MISTRAL_ENABLED=false` or in `/einstellungen`. Local extraction is always attempted first; Mistral is skipped when the local result is already sufficient. We do not train models on customer data ourselves and do not forward content to third parties for marketing. The Mistral-side training/retention guarantee depends on the active Mistral plan; see [LEGAL_LAWYER_BRIEFING.md](LEGAL_LAWYER_BRIEFING.md) for the documented subprocessor agreement.
 
 ## Production deployment notes
 
