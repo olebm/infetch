@@ -4,6 +4,7 @@
 export interface ParsedArgs {
   databaseUrl: string | null;
   upTo: string | null;
+  skip: string[];
   sets: string[];
   snapshotMode: "ci-fresh" | "prod-replay";
   migrationsDir: string | null;
@@ -16,6 +17,7 @@ export function extractVersion(filename: string): string;
 
 export interface SelectMigrationFilesOptions {
   upTo?: string;
+  skip?: string[];
 }
 
 export function selectMigrationFiles(
@@ -38,6 +40,7 @@ export interface ApplyAllMigrationsOptions {
   };
   migrationsDir: string;
   upTo?: string | null;
+  skip?: string[];
   sets?: string[];
   logger?: Pick<Console, "log" | "error">;
 }

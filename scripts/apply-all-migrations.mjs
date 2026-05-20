@@ -36,6 +36,7 @@ export function parseArgs(argv) {
   const out = {
     databaseUrl: null,
     upTo: null,
+    skip: [],
     sets: [],
     snapshotMode: "ci-fresh",
     migrationsDir: null,
@@ -44,6 +45,8 @@ export function parseArgs(argv) {
     const a = argv[i];
     if (a.startsWith("--up-to=")) out.upTo = a.slice("--up-to=".length);
     else if (a === "--up-to") out.upTo = argv[++i];
+    else if (a.startsWith("--skip=")) out.skip.push(a.slice("--skip=".length));
+    else if (a === "--skip") out.skip.push(argv[++i]);
     else if (a.startsWith("--set=")) out.sets.push(a.slice("--set=".length));
     else if (a === "--set") out.sets.push(argv[++i]);
     else if (a.startsWith("--snapshot-mode=")) out.snapshotMode = a.slice("--snapshot-mode=".length);
@@ -69,13 +72,15 @@ export function extractVersion(filename) {
   return m[1];
 }
 
-export function selectMigrationFiles(allFiles, { upTo } = {}) {
+export function selectMigrationFiles(allFiles, { upTo, skip = [] } = {}) {
   const sorted = allFiles
     .filter((f) => f.endsWith(".sql"))
     .slice()
     .sort();
-  if (!upTo) return sorted;
-  return sorted.filter((f) => extractVersion(f) <= upTo);
+  const skipSet = new Set(skip);
+  let filtered = sorted.filter((f) => !skipSet.has(extractVersion(f)));
+  if (upTo) filtered = filtered.filter((f) => extractVersion(f) <= upTo);
+  return filtered;
 }
 
 // ───────────────────── DB-side logic (importable for integration tests) ─────────────────────
@@ -91,6 +96,7 @@ export async function applyAllMigrations({
   sql,
   migrationsDir,
   upTo = null,
+  skip = [],
   sets = [],
   logger = console,
 }) {
@@ -110,7 +116,7 @@ export async function applyAllMigrations({
   const applied = new Set(appliedRows.map((r) => r.version));
 
   const allFiles = readdirSync(migrationsDir);
-  const toApply = selectMigrationFiles(allFiles, { upTo });
+  const toApply = selectMigrationFiles(allFiles, { upTo, skip });
 
   const summary = { applied: [], skipped: [], total: toApply.length };
 
@@ -162,6 +168,8 @@ function printHelp() {
       "",
       "Options:",
       "  --up-to=NNNN              Stop after migration NNNN (inclusive)",
+      "  --skip=NNNN               Skip a specific migration version. Repeatable.",
+      "                            Example: --skip=0002 (CI vanilla Postgres has no supabase_vault).",
       "  --set key=value           Set a GUC. Repeatable. Example: --set app.designated_org=<uuid>",
       "  --snapshot-mode=MODE      ci-fresh (default) | prod-replay",
       "  --migrations-dir=PATH     Override default supabase/migrations/",
@@ -204,6 +212,7 @@ export async function main(argv = process.argv.slice(2)) {
       sql,
       migrationsDir,
       upTo: parsed.upTo,
+      skip: parsed.skip,
       sets: parsed.sets,
     });
     console.log(
