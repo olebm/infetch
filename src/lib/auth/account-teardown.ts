@@ -30,7 +30,8 @@ export async function getOptionalOrgColumns(
       AND column_name = 'organization_id'
       AND table_name IN (
         'export_targets', 'invoice_files', 'vendor_month_status',
-        'discovered_senders', 'integration_targets', 'auto_approval_rules'
+        'discovered_senders', 'integration_targets', 'auto_approval_rules',
+        'portal_recipes', 'portal_run_logs'
       )
   `;
   return new Set(cols.map((c) => c.tableName));
@@ -211,6 +212,16 @@ export async function hardDeleteOrgData(
       SELECT canonical_key FROM vendors WHERE organization_id = ${oid}
     )
   `);
+  // Migration 0025+ hat portal_recipes + portal_run_logs zusätzlich um eine
+  // organization_id-Spalte ergänzt (Multi-Tenant-RLS). Auch dort den
+  // org-direkten Cleanup ausführen — der vendor_key-Subquery oben bleibt
+  // als Fallback für Spuren ohne org_id-Eintrag.
+  if (hasOrgCol("portal_run_logs")) {
+    await tx`DELETE FROM portal_run_logs WHERE organization_id = ${oid}`;
+  }
+  if (hasOrgCol("portal_recipes")) {
+    await tx`DELETE FROM portal_recipes WHERE organization_id = ${oid}`;
+  }
   await run("vendors", () => tx`DELETE FROM vendors WHERE organization_id = ${oid}`);
 
   // ── Org selbst ─────────────────────────────────────────────────────────

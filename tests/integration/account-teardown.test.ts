@@ -311,6 +311,8 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
       "vendor_month_status",
       "invoice_files",
       "auto_approval_rules",
+      "portal_recipes",   // org_id seit 0025+ — org-direkter Cleanup
+      "portal_run_logs",  // org_id seit 0025+ — zusätzlich zum vendor_key-Pfad
     ]);
 
     const rows = await sql<{ tableName: string }[]>`

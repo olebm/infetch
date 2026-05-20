@@ -16,5 +16,9 @@ export default async function OnboardingPage() {
       redirect("/");
     }
   }
-  return <OnboardingWizard />;
+  // userId an den Wizard durchreichen, damit sein sessionStorage-Key user-
+  // scoped ist. Sonst sieht ein User, der sich nach Konto-Löschung mit
+  // gleicher Mail neu anmeldet, die Wizard-Eingaben des Vorgängers — die
+  // neue userId garantiert einen frischen Storage-Slot.
+  return <OnboardingWizard userId={auth.user.id} />;
 }
