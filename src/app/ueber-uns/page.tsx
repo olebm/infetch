@@ -5,9 +5,35 @@ export const metadata: Metadata = {
   title: "Über uns — Infetch",
 };
 
+// BreadcrumbList (INFETCH-134): Hilft Google & KI-Suchsystemen, die
+// Seitenstruktur zu verstehen. Startseite → Über uns.
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Startseite",
+      item: "https://infetch.de",
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Über uns",
+      item: "https://infetch.de/ueber-uns",
+    },
+  ],
+};
+
 export default function UeberUnsPage() {
   return (
-    <PublicShell title="Über uns">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <PublicShell title="Über uns">
       <h2>Warum Infetch existiert</h2>
       <p>Buchhaltung ist kein Wettbewerbsvorteil — sie ist Pflicht. Trotzdem verbringen Selbstständige und kleine Teams jeden Monat Stunden damit, Rechnungen aus Postfächern zu fischen, manuell zu prüfen und weiterzuleiten. Infetch macht das automatisch, damit du dich um das kümmern kannst, was wirklich zählt.</p>
       <p>Wir glauben: Gute Software erledigt die lästigen Dinge zuverlässig im Hintergrund — und hält dich trotzdem in der Kontrolle.</p>
@@ -37,5 +63,6 @@ export default function UeberUnsPage() {
       <h2>Kontakt</h2>
       <p>E-Mail: <a href="mailto:hallo@infetch.de">hallo@infetch.de</a></p>
     </PublicShell>
+    </>
   );
 }
