@@ -170,7 +170,7 @@ export async function completeOnboardingAction(
     `;
 
     // 4) Trigger first scan
-    runPrimaryImapScan().catch(() => {
+    runPrimaryImapScan({ limitToOrgId: organizationId }).catch(() => {
       // Ignore — first-scan errors are visible in the activity log
     });
 
@@ -214,6 +214,7 @@ export type OnboardingScanStatus = {
   imported: number;
   duplicates: number;
   pdfsFound: number;
+  messagesSeen: number;
   messagesProcessed: number;
   failed: number;
   error?: string;
@@ -235,7 +236,7 @@ export async function getOnboardingScanStatusAction(): Promise<OnboardingScanSta
   `;
   const row = rows[0];
   if (!row) {
-    return { state: "none", imported: 0, duplicates: 0, pdfsFound: 0, messagesProcessed: 0, failed: 0 };
+    return { state: "none", imported: 0, duplicates: 0, pdfsFound: 0, messagesSeen: 0, messagesProcessed: 0, failed: 0 };
   }
 
   let summary: Record<string, unknown> = {};
@@ -258,6 +259,7 @@ export async function getOnboardingScanStatusAction(): Promise<OnboardingScanSta
     imported: num("imported"),
     duplicates: num("duplicates"),
     pdfsFound: num("pdfsFound"),
+    messagesSeen: num("messagesSeen"),
     messagesProcessed: num("messagesProcessed"),
     failed: num("failed"),
     error: typeof summary.error === "string" ? (summary.error as string) : undefined,

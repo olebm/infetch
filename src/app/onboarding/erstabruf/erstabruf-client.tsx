@@ -176,7 +176,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           <div className="mx-auto w-full max-w-xl px-6">
             <div className="text-xs uppercase tracking-[0.14em] text-muted">Erstabruf</div>
             <h1 className="mt-3 font-display text-4xl leading-[1.05] text-ink md:text-5xl">
-              Wir holen deine<br />Rechnungen aus 12 Monaten.
+              Wir durchsuchen<br />dein Postfach.
             </h1>
             <p className="mt-5 leading-relaxed text-muted">
               Das kann je nach Postfachgröße ein paar Minuten dauern — bitte
@@ -190,8 +190,8 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
 
             <dl className="mt-8 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
               <div>
-                <dt className="text-xs text-muted">Mails geprüft</dt>
-                <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesProcessed ?? 0}</dd>
+                <dt className="text-xs text-muted">Mails durchsucht</dt>
+                <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesSeen ?? 0}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">PDFs gefunden</dt>
@@ -226,8 +226,8 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                   {imported === 1 ? "Rechnung" : "Rechnungen"} geholt.
                 </h1>
                 <p className="mt-5 leading-relaxed text-muted">
-                  Aus den letzten 12 Monaten — bereits in Infetch. Ab jetzt
-                  scannen wir dein Postfach automatisch weiter.
+                  Bereits in Infetch. Ab jetzt läuft der Scan automatisch
+                  im Hintergrund weiter.
                 </p>
               </>
             ) : (
@@ -236,17 +236,16 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                   Postfach durchsucht.
                 </h1>
                 <p className="mt-5 leading-relaxed text-muted">
-                  In den letzten 12 Monaten haben wir keine eindeutigen
-                  Rechnungen gefunden. Kein Problem — ab jetzt scannt Infetch
-                  dein Postfach automatisch weiter und holt neue Rechnungen.
+                  Aktuell keine Rechnungen gefunden. Infetch scannt dein
+                  Postfach ab jetzt automatisch im Hintergrund weiter.
                 </p>
               </>
             )}
 
             <dl className="mt-10 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
               <div>
-                <dt className="text-xs text-muted">Mails geprüft</dt>
-                <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesProcessed ?? 0}</dd>
+                <dt className="text-xs text-muted">Mails durchsucht</dt>
+                <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesSeen ?? 0}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">PDFs gefunden</dt>
