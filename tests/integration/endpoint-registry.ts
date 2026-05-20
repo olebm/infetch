@@ -121,4 +121,6 @@ export const ORG_SCOPED_DEFERRED: readonly string[] = [
   "portal_run_logs", // 0025+ — Portal-Spuren multi-tenant
   "usage_events", // 0001
   "vendor_month_status", // 0019, depends on vendors
+  "portal_recipes", // 0026, NULL = legacy/global; seed depends on vendors
+  "portal_run_logs", // 0026, NULL = legacy/global; FK on portal_recipes
 ];
