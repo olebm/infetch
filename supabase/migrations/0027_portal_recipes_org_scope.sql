@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- 0026 — Portal-Schema Org-Scope (INFETCH-177)
+-- 0027 — Portal-Schema Org-Scope (INFETCH-177)
 -- ══════════════════════════════════════════════════════════════════════════════
 --
 -- Context: PR #35 (Stream A) hat den Cascade-Delete von `portal_recipes` und
@@ -13,8 +13,8 @@
 -- die org_id setzen — der Code-Pfad dafür kommt in einem Folge-PR
 -- (removeOnlineAccount-Cascade-Restore + record-Pfad-Anpassung).
 --
--- Dependent on: Migration 0025 (für `app_org_match()`-Helper). Apply muss in
--- Reihenfolge geschehen: 0025 → 0026.
+-- Dependent on: Migration 0026 (für `app_org_match()`-Helper). Apply muss in
+-- Reihenfolge geschehen: 0026 → 0027.
 
 -- ── Add organization_id columns ───────────────────────────────────────────────
 ALTER TABLE portal_recipes
@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_portal_run_logs_org_vendor
 -- ── RLS-Policies ──────────────────────────────────────────────────────────────
 -- Auch portal_recipes + portal_run_logs hatten zwar RLS aktiviert, aber KEINE
 -- Policies definiert — d.h. unter Supabase-JS-Client wären die Tabellen
--- komplett unsichtbar gewesen. Wir nutzen app_org_match() aus 0025 als
+-- komplett unsichtbar gewesen. Wir nutzen app_org_match() aus 0026 als
 -- Standard-Pattern; NULL bleibt sichtbar als legacy/global.
 
 -- portal_recipes: legacy NULL ist global sichtbar; eigene Org-Recipes via match
