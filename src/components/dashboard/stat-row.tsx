@@ -1,4 +1,5 @@
 import { getAutomationStats } from "@/lib/db/queries";
+import { getCurrentAuth } from "@/lib/auth/current";
 
 function Stat({
   value,
@@ -27,7 +28,8 @@ function Stat({
 }
 
 export async function StatRow() {
-  const stats = await getAutomationStats();
+  const auth = await getCurrentAuth();
+  const stats = await getAutomationStats(auth?.organization?.id ?? null);
 
   return (
     <div className="flex items-start divide-x divide-line/50 overflow-x-auto">

@@ -263,12 +263,24 @@ export type AutomationStats = {
   daysActive: number | null;
 };
 
-export async function getAutomationStats(): Promise<AutomationStats> {
+export async function getAutomationStats(organizationId: string | null = null): Promise<AutomationStats> {
+  // SEC (INFETCH-176): Pflicht-Org-Filter. Ohne orgId → Null-Defaults statt
+  // globaler Aggregate über alle Mandanten. Dashboard reicht auth.organization.id
+  // rein; ohne Org-Kontext (z.B. neuer User vor Org-Erstellung) sieht der User
+  // einen Null-Zustand statt fremde Daten.
+  if (!organizationId) {
+    return {
+      exportedToday: 0,
+      exportedThisWeek: 0,
+      exportedLifetime: 0,
+      needsReview: 0,
+      hoursSavedLifetime: 0,
+      daysActive: null,
+    };
+  }
   // PERF: vier separate COUNT-Queries auf `exports WHERE status='sent'` zu einer
   // aggregierten Query zusammengefasst (FILTER + MIN). needsReview bleibt
   // separat, da andere Tabelle — parallel ausgeführt.
-  // ANMERKUNG: Diese Funktion ist aktuell NICHT org-gescoped — sie liefert
-  // globale Stats über alle Mandanten. TODO Org-Scope (siehe Wrapper-Migration).
   const [exportAgg, needsReviewRow] = await Promise.all([
     sql<{ today: string; thisWeek: string; lifetime: string; days: number | null }[]>`
       SELECT
@@ -276,9 +288,12 @@ export async function getAutomationStats(): Promise<AutomationStats> {
         COUNT(*) FILTER (WHERE sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '7 days') AS "thisWeek",
         COUNT(*) AS lifetime,
         EXTRACT(EPOCH FROM (NOW() - MIN(sent_at)::TIMESTAMP))::INTEGER / 86400 AS days
-      FROM exports WHERE status = 'sent'
+      FROM exports WHERE status = 'sent' AND organization_id = ${organizationId}
     `,
-    sql<{ count: string }[]>`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`,
+    sql<{ count: string }[]>`
+      SELECT COUNT(*) AS count FROM invoices
+      WHERE status = 'needs_review' AND organization_id = ${organizationId}
+    `,
   ]);
 
   const agg = exportAgg[0];
@@ -1443,11 +1458,19 @@ export type SecondaryStats = {
   forecastRestMonth: number | null;
 };
 
-export async function getSecondaryStats(): Promise<SecondaryStats> {
+export async function getSecondaryStats(organizationId: string | null = null): Promise<SecondaryStats> {
+  // SEC (INFETCH-176): Pflicht-Org-Filter. Ohne orgId → Null-Defaults statt
+  // globaler Aggregate über alle Mandanten.
+  if (!organizationId) {
+    return {
+      daysSinceLastIntervention: null,
+      avgLatencyMin: null,
+      filteredThisMonth: 0,
+      forecastRestMonth: null,
+    };
+  }
   // PERF: vorher 5–6 sequenzielle Queries; jetzt drei parallele Aggregate.
   // Reduktion auf max. 3 DB-Roundtrips bei gleichem Output-Shape.
-  // ANMERKUNG: Funktion ist aktuell NICHT org-gescoped (globale Stats über
-  // alle Mandanten). TODO Org-Scope (siehe Wrapper-Migration).
   const [invoicesAgg, exportsAgg, latencyRows] = await Promise.all([
     sql<{ daysSinceReview: number | null; filteredThisMonth: string }[]>`
       SELECT
@@ -1456,20 +1479,21 @@ export async function getSecondaryStats(): Promise<SecondaryStats> {
           WHERE status IN ('ignored', 'duplicate')
             AND TO_CHAR(created_at::TIMESTAMP, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')
         ) AS "filteredThisMonth"
-      FROM invoices
+      FROM invoices WHERE organization_id = ${organizationId}
     `,
     sql<{ lifetime: string; minSent: number | null; last30: string }[]>`
       SELECT
         COUNT(*) AS lifetime,
         EXTRACT(EPOCH FROM (NOW() - MIN(sent_at::TIMESTAMP)))::INTEGER / 86400 AS "minSent",
         COUNT(*) FILTER (WHERE sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '30 days') AS last30
-      FROM exports WHERE status = 'sent'
+      FROM exports WHERE status = 'sent' AND organization_id = ${organizationId}
     `,
     sql<{ avgMin: number | null }[]>`
       SELECT AVG(EXTRACT(EPOCH FROM (e.sent_at::TIMESTAMP - i.created_at::TIMESTAMP)) / 60) AS "avgMin"
       FROM exports e
       JOIN invoices i ON i.id = e.invoice_id
       WHERE e.status = 'sent' AND e.sent_at IS NOT NULL
+        AND e.organization_id = ${organizationId}
     `,
   ]);
 
