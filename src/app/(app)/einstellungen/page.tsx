@@ -21,6 +21,7 @@ import { getCurrentAuth } from "@/lib/auth/current";
 import { UsageCard } from "@/components/einstellungen/usage-card";
 import { IntegrationsSection, type IntegrationStatus } from "@/components/einstellungen/integrations-section";
 import { RetroactiveScanCard } from "@/components/einstellungen/retroactive-scan-card";
+import { ScanHistoryCard } from "@/components/einstellungen/scan-history-card";
 import { getOrgTier } from "@/lib/tier";
 
 
@@ -243,6 +244,8 @@ export default async function SetupPage() {
       <Card padding="lg">
         <RetroactiveScanCard isPro={isPro} />
       </Card>
+
+      <ScanHistoryCard />
     </div>
   );
 

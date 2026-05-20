@@ -1490,6 +1490,72 @@ export async function getLastScanFailure(): Promise<
   };
 }
 
+export type RecentScanRow = {
+  id: number;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  triggeredBy: string;
+  messagesSeen: number;
+  pdfsFound: number;
+  imported: number;
+  duplicates: number;
+  failed: number;
+  errorSnippet: string | null;
+};
+
+// Letzte N IMAP-Scan-Runs fuer die Scan-History-Anzeige in den Einstellungen.
+// Bewusst global (sync_runs ist nicht org-scoped) — fuer Free-only-Launch
+// unkritisch, fuer Multi-Tenant-Strictness waere Schema-Aenderung noetig.
+export async function getRecentScans(limit = 20): Promise<RecentScanRow[]> {
+  const rows = await sql<
+    {
+      id: number;
+      status: string;
+      startedAt: string;
+      finishedAt: string | null;
+      triggeredBy: string | null;
+      summaryJson: string | null;
+    }[]
+  >`
+    SELECT id, status, started_at AS "startedAt", finished_at AS "finishedAt",
+           triggered_by AS "triggeredBy", summary_json AS "summaryJson"
+    FROM sync_runs
+    WHERE type = 'imap_scan'
+    ORDER BY id DESC
+    LIMIT ${limit}
+  `;
+
+  return rows.map((row) => {
+    let summary: Record<string, unknown> = {};
+    try {
+      summary = JSON.parse(row.summaryJson || "{}") as Record<string, unknown>;
+    } catch {
+      // kaputtes JSON: alle Counter bleiben 0
+    }
+    const num = (k: string) =>
+      typeof summary[k] === "number" ? (summary[k] as number) : 0;
+    let errorSnippet: string | null = null;
+    if (row.status === "failed" && typeof summary.error === "string") {
+      const trimmed = summary.error.split("\n")[0].slice(0, 200).trim();
+      errorSnippet = trimmed || null;
+    }
+    return {
+      id: Number(row.id),
+      status: row.status,
+      startedAt: row.startedAt,
+      finishedAt: row.finishedAt,
+      triggeredBy: row.triggeredBy || "system",
+      messagesSeen: num("messagesSeen"),
+      pdfsFound: num("pdfsFound"),
+      imported: num("imported"),
+      duplicates: num("duplicates"),
+      failed: num("failed"),
+      errorSnippet,
+    };
+  });
+}
+
 export type SecondaryStats = {
   daysSinceLastIntervention: number | null;
   avgLatencyMin: number | null;
