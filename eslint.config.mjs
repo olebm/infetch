@@ -16,18 +16,13 @@ import nextTypescript from "eslint-config-next/typescript";
 const SQL_CLIENT_ALLOWLIST = [
   // Server Actions (Wave 1 — wartet auf PR #35-Merge, dann auf createScopedSql)
   "src/app/(app)/audit/actions.ts",
-  "src/app/(app)/einstellungen/actions.ts",
   "src/app/(app)/fehlt/actions.ts",
   "src/app/(app)/online-accounts/actions.ts",
-  "src/app/(app)/senders/actions.ts",
   // API Routes (Wave 2)
   // Bracketed dir segments ([fileId]) are interpreted as a glob char class
   // by the matcher — match with a wildcard segment instead.
   "src/app/api/invoice-files/*/route.ts",
   "src/app/api/export/download/route.ts",
-  // Core query/data files (Wave 1 follow-up nach PR-Merges)
-  "src/app/(app)/konto/page.tsx",
-  "src/components/online-accounts/online-accounts-view.tsx",
   "src/invoices/review.ts",
   "src/lib/auth/account-teardown.ts",
   "src/lib/db/queries.ts",

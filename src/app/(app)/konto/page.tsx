@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/status/status-badge";
 import { VendorLogo } from "@/components/ui/vendor-logo";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql } from "@/lib/db/unsafe-global";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,7 @@ export default async function KontoPage() {
     auth ? getUserProfileFields(auth.user.id) : Promise.resolve(null),
     getOrgTier(orgId),
     orgId
-      ? sql<{ stripe_customer_id: string | null }[]>`SELECT stripe_customer_id FROM organizations WHERE id = ${orgId} LIMIT 1`.catch(() => [] as { stripe_customer_id: string | null }[])
+      ? unsafeGlobalSql<{ stripe_customer_id: string | null }[]>`SELECT stripe_customer_id FROM organizations WHERE id = ${orgId} LIMIT 1`.catch(() => [] as { stripe_customer_id: string | null }[])
       : Promise.resolve([] as { stripe_customer_id: string | null }[]),
   ]);
 

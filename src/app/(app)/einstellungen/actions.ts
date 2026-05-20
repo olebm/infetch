@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { sql } from "@/lib/db/client";
 import { IMAP_MAIL_ACCOUNT_SLOTS } from "@/mail/imap-account-slots";
 import { SMTP_ACCOUNT_SLOTS } from "@/mail/smtp-account-slots";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
@@ -76,6 +75,7 @@ export async function saveImapCredentialAction(
   void _previousState;
 
   const auth = await requireCurrentAuth();
+  const scopedSql = auth.scopedSql!;
 
   try {
     const slotParam = String(formData.get("imapSlot") || "primary").trim();
@@ -107,7 +107,7 @@ export async function saveImapCredentialAction(
         label: credentialLabel,
         secret: password,
       });
-      const credRows = await sql<{ id: number }[]>`
+      const credRows = await scopedSql<{ id: number }[]>`
         SELECT id FROM credential_refs WHERE secret_ref = ${secretRef}
       `;
       credentialRefId = credRows[0]?.id ?? null;
@@ -115,7 +115,7 @@ export async function saveImapCredentialAction(
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     } else {
       // SECURITY: Lookup scoped auf Organisation — verhindert Cross-Tenant-Match
-      const existingRows = await sql<{ credential_ref_id: number | null }[]>`
+      const existingRows = await scopedSql<{ credential_ref_id: number | null }[]>`
         SELECT credential_ref_id FROM mail_accounts
         WHERE label = ${slot.label}
           AND (organization_id = ${organizationId}
@@ -127,7 +127,7 @@ export async function saveImapCredentialAction(
 
     // SECURITY: Lookup scoped auf Organisation. Ohne Scope hätte Org B einen
     // Datensatz mit label='Primary IMAP' von Org A überschrieben.
-    const existingAccountRows = await sql<{ id: number }[]>`
+    const existingAccountRows = await scopedSql<{ id: number }[]>`
       SELECT id FROM mail_accounts
       WHERE label = ${slot.label}
         AND (organization_id = ${organizationId}
@@ -137,7 +137,7 @@ export async function saveImapCredentialAction(
     const existingAccount = existingAccountRows[0];
 
     if (existingAccount) {
-      await sql`
+      await scopedSql`
         UPDATE mail_accounts
         SET host = ${host}, port = ${port}, secure = ${secure}, username = ${username},
             credential_ref_id = ${credentialRefId},
@@ -146,7 +146,7 @@ export async function saveImapCredentialAction(
         WHERE id = ${existingAccount.id}
       `;
     } else {
-      await sql`
+      await scopedSql`
         INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
         VALUES (${slot.label}, ${host}, ${port}, ${secure}, ${username}, ${credentialRefId}, 'configured', ${organizationId})
       `;
@@ -227,6 +227,7 @@ export async function saveMailboxCredentialsAction(
   void _previousState;
 
   const auth = await requireCurrentAuth();
+  const scopedSql = auth.scopedSql!;
 
   try {
     const mailSlot   = (String(formData.get("mailSlot") || "primary") === "secondary" ? "secondary" : "primary") as "primary" | "secondary";
@@ -263,7 +264,7 @@ export async function saveMailboxCredentialsAction(
         label: slotPwd,
         secret: password,
       });
-      const credRows = await sql<{ id: number }[]>`
+      const credRows = await scopedSql<{ id: number }[]>`
         SELECT id FROM credential_refs WHERE secret_ref = ${secretRef}
       `;
       imapCredRefId = credRows[0]?.id ?? null;
@@ -271,7 +272,7 @@ export async function saveMailboxCredentialsAction(
       return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
     } else {
       // SECURITY: Lookup scoped auf Organisation
-      const existingRows = await sql<{ credential_ref_id: number | null }[]>`
+      const existingRows = await scopedSql<{ credential_ref_id: number | null }[]>`
         SELECT credential_ref_id FROM mail_accounts
         WHERE label = ${slotLabel}
           AND (organization_id = ${organizationId}
@@ -282,7 +283,7 @@ export async function saveMailboxCredentialsAction(
     }
 
     // SECURITY: Lookup scoped auf Organisation
-    const existingImapRows = await sql<{ id: number }[]>`
+    const existingImapRows = await scopedSql<{ id: number }[]>`
       SELECT id FROM mail_accounts
       WHERE label = ${slotLabel}
         AND (organization_id = ${organizationId}
@@ -292,7 +293,7 @@ export async function saveMailboxCredentialsAction(
     const existingImap = existingImapRows[0];
 
     if (existingImap) {
-      await sql`
+      await scopedSql`
         UPDATE mail_accounts
         SET host = ${imapHost}, port = ${imapPort}, secure = ${imapSecure}, username = ${email},
             credential_ref_id = ${imapCredRefId},
@@ -301,7 +302,7 @@ export async function saveMailboxCredentialsAction(
         WHERE id = ${existingImap.id}
       `;
     } else {
-      await sql`
+      await scopedSql`
         INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
         VALUES (${slotLabel}, ${imapHost}, ${imapPort}, ${imapSecure}, ${email}, ${imapCredRefId}, 'configured', ${organizationId})
       `;
@@ -849,10 +850,11 @@ export async function clearExportTargetAction(formData: FormData): Promise<void>
   // Mit Migration 0013 ist organization_id NOT NULL pro Konfig-Row.
   const auth = await requireCurrentAuth();
   if (!auth.organization) return;
+  const scopedSql = auth.scopedSql!;
 
   const id = Number(formData.get("targetId"));
   if (!Number.isInteger(id) || id <= 0) return;
-  await sql`
+  await scopedSql`
     UPDATE export_targets
     SET recipient_email = NULL, enabled = FALSE, smtp_slot = 'primary', updated_at = CURRENT_TIMESTAMP
     WHERE id = ${id} AND organization_id = ${auth.organization.id}
@@ -868,17 +870,18 @@ export async function switchOrganizationAction(
   try {
     const auth = await getCurrentAuth();
     if (!auth) return { status: "error", message: "Nicht angemeldet." };
+    const scopedSql = auth.scopedSql!;
 
     const orgId = String(formData.get("orgId") || "").trim();
     if (!orgId) return { status: "error", message: "Keine Organisation angegeben." };
 
     // Verify membership
-    const memberRows = await sql`
+    const memberRows = await scopedSql`
       SELECT 1 FROM org_members WHERE organization_id = ${orgId} AND user_id = ${auth.user.id}
     `;
     if (!memberRows[0]) return { status: "error", message: "Kein Zugriff auf diese Organisation." };
 
-    await sql`
+    await scopedSql`
       UPDATE sessions SET active_organization_id = ${orgId} WHERE id = ${auth.session.id}
     `;
   } catch (error) {
@@ -959,6 +962,7 @@ export async function deleteAccountAction(
   }
 
   const auth = await requireCurrentAuth();
+  const scopedSql = auth.scopedSql!;
   const userId = auth.user.id;
   const authUserId = auth.session.id; // Supabase auth.users id
   const email = auth.user.email.trim().toLowerCase();
@@ -981,7 +985,7 @@ export async function deleteAccountAction(
   //    davon abweichen und darf NICHT über Org-Abbau entscheiden.
   let connections: OrgConnectionRow[];
   try {
-    connections = await sql<OrgConnectionRow[]>`
+    connections = await scopedSql<OrgConnectionRow[]>`
       SELECT
         o.id                     AS "orgId",
         o.name                   AS "orgName",
@@ -1053,13 +1057,13 @@ export async function deleteAccountAction(
   const rawTextPaths: string[] = [];
   try {
     for (const org of soloOrgs) {
-      const pdfRows = await sql<{ storedPath: string }[]>`
+      const pdfRows = await scopedSql<{ storedPath: string }[]>`
         SELECT f.stored_path AS "storedPath"
         FROM invoice_files f
         INNER JOIN invoices i ON i.id = f.invoice_id
         WHERE i.organization_id = ${org.orgId}
       `;
-      const rawRows = await sql<{ rawTextPath: string | null }[]>`
+      const rawRows = await scopedSql<{ rawTextPath: string | null }[]>`
         SELECT raw_text_path AS "rawTextPath"
         FROM invoices
         WHERE organization_id = ${org.orgId} AND raw_text_path IS NOT NULL
@@ -1096,7 +1100,7 @@ export async function deleteAccountAction(
   //    in Storage ist noch nichts gelöscht und der Nutzer kann sich
   //    weiterhin einloggen → sauberer Fehler-Rückgabe.
   try {
-    await sql.begin(async (tx) => {
+    await scopedSql.begin(async (tx) => {
       for (const org of soloOrgs) {
         await hardDeleteOrgData(tx, org.orgId, optOrgCols);
       }
