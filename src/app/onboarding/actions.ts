@@ -58,8 +58,9 @@ export async function completeOnboardingAction(
       imapPort   = Number(formData.get("imapPort")  || 993);
       imapSecure = String(formData.get("imapSecure") || "true") !== "false";
       smtpHost   = manualSmtpHost;
-      smtpPort   = Number(formData.get("smtpPort")  || 465);
-      smtpSecure = String(formData.get("smtpSecure") || "true") !== "false";
+      // Fallback 587/STARTTLS für unbekannte Domains (siehe wizard/mailbox-connect-content).
+      smtpPort   = Number(formData.get("smtpPort")  || 587);
+      smtpSecure = String(formData.get("smtpSecure") || "false") !== "false";
     } else {
       // Fall back to auto-detection from e-mail domain
       const provider = getProviderFromEmail(email);
@@ -67,8 +68,8 @@ export async function completeOnboardingAction(
       imapPort   = provider?.imap.port   ?? 993;
       imapSecure = provider?.imap.secure ?? true;
       smtpHost   = provider?.smtp.host   ?? "";
-      smtpPort   = provider?.smtp.port   ?? 465;
-      smtpSecure = provider?.smtp.secure ?? true;
+      smtpPort   = provider?.smtp.port   ?? 587;
+      smtpSecure = provider?.smtp.secure ?? false;
 
       if (!imapHost || !smtpHost) {
         return {

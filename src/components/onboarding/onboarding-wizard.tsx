@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Check, ArrowLeft, ArrowRight, Info, Loader2, WifiOff } from "lucide-react";
 import { completeOnboardingAction, type OnboardingState } from "@/app/onboarding/actions";
+import { logout } from "@/app/login/actions";
 import { testMailConnectionAction } from "@/mail/connection-test";
 import { Button } from "@/components/ui/button";
 import { VendorLogo } from "@/components/ui/vendor-logo";
@@ -49,10 +50,15 @@ const STEP_LABELS: Record<StepKey, string> = {
   bestaetigung: "Bestätigung",
 };
 
-// The "versand" step only exists for recipients that share one inbox across
-// all customers (Kontist/Accountable/sevDesk) — they identify the customer by
-// sender address. Recipients with a per-user inbox skip it entirely.
-function stepKeysFor(recipientKey: string): StepKey[] {
+// Vollständige Schrittliste — immer 4. Der Stepper-Indikator zeigt diese
+// Reihenfolge konsistent an, damit User die Gesamtlänge des Setups kennen.
+const DISPLAY_STEP_KEYS: StepKey[] = ["postfach", "buchhaltung", "versand", "bestaetigung"];
+
+// Tatsächlich durchlaufene Schritte — der "versand"-Step entfällt für
+// Recipients mit Per-User-Inbox (z. B. Billomat, Papierkram). Im Stepper
+// erscheint er dann als übersprungen (heller Stil), Navigation/Validation
+// kennen ihn aber nicht.
+function activeStepKeysFor(recipientKey: string): StepKey[] {
   return isSharedInboxRecipient(recipientKey)
     ? ["postfach", "buchhaltung", "versand", "bestaetigung"]
     : ["postfach", "buchhaltung", "bestaetigung"];
@@ -83,7 +89,10 @@ function saveToStorage(step: number, data: WizardData): void {
     const { imapPassword: _ip, smtpPassword: _sp, senderPassword: _snp, ...rest } = data;
     sessionStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ step: Math.min(step, 1), data: rest } satisfies PersistedState),
+      // Voller Step persistieren — der Component clampt beim Render auf
+      // stepKeys.length - 1, falls die activeKeys-Liste später kürzer ist.
+      // Passwörter bewusst nicht persistieren (siehe destructuring oben).
+      JSON.stringify({ step, data: rest } satisfies PersistedState),
     );
   } catch {}
 }
@@ -98,19 +107,23 @@ function clearStorage(): void {
 const DEFAULT_DATA: WizardData = {
   imapEmail: "", imapPassword: "",
   imapHost: "", imapPort: 993, imapSecure: true,
-  smtpHost: "", smtpPort: 465, smtpSecure: true,
+  // SMTP-Fallback für unbekannte Domains: 587 + STARTTLS ist heute der
+  // gängige Standard; 465 (implizites SSL) führt bei vielen Mailservern
+  // (z. B. IONOS-Custom-Domains) zu Connect-Errors. Provider-Presets
+  // überschreiben das pro Anbieter (siehe mail-providers.ts).
+  smtpHost: "", smtpPort: 587, smtpSecure: false,
   smtpEmail: "", smtpPassword: "",
   recipientName: "", recipientEmail: "",
   recipientKey: "custom",
   recipientSlot: "kontist",
   senderEmail: "", senderPassword: "",
-  senderSmtpHost: "", senderSmtpPort: 465, senderSmtpSecure: true,
+  senderSmtpHost: "", senderSmtpPort: 587, senderSmtpSecure: false,
 };
 
 const IMAP_SMTP_DEFAULTS = {
   imapEmail: "", imapPassword: "",
   imapHost: "", imapPort: 993, imapSecure: true,
-  smtpHost: "", smtpPort: 465, smtpSecure: true,
+  smtpHost: "", smtpPort: 587, smtpSecure: false,
   smtpEmail: "", smtpPassword: "",
 };
 
@@ -158,15 +171,22 @@ export function OnboardingWizard() {
   useEffect(() => {
     const saved = loadFromStorage();
     if (saved) {
-      const restored = { ...DEFAULT_DATA, ...saved.data, imapPassword: "", smtpPassword: "" };
-      // MailboxConnectContent manages its own UI state — clear IMAP/SMTP fields
-      // when restoring to step 0 so the component and wizard state stay in sync.
+      // Passwörter werden bewusst nicht persistiert — Restore stellt nur
+      // Email + Server-Daten wieder her. MailboxConnectContent füllt sich
+      // beim Mount aus `initialEmail` + `initialServers`.
+      const restored = {
+        ...DEFAULT_DATA,
+        ...saved.data,
+        imapPassword: "",
+        smtpPassword: "",
+        senderPassword: "",
+      };
       /* eslint-disable react-hooks/set-state-in-effect */
-      setData(saved.step === 0 ? { ...restored, ...IMAP_SMTP_DEFAULTS } : restored);
+      setData(restored);
       setStep(saved.step);
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
     setHydrated(true);
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   const [actionState, formAction, isPending] = useActionState(
@@ -203,10 +223,14 @@ export function OnboardingWizard() {
   // for shared-inbox recipients). `step` is an index into this list; the
   // recipient is always picked at "buchhaltung" (index 1) before any later
   // step, so the conditional tail can't cause index drift.
-  const stepKeys = stepKeysFor(data.recipientKey);
+  const stepKeys = activeStepKeysFor(data.recipientKey);
   const clampedStep = Math.min(step, stepKeys.length - 1);
   const currentKey = stepKeys[clampedStep];
   const isLastStep = clampedStep === stepKeys.length - 1;
+  // Display-Index = Position des aktuellen Active-Steps im Display-Array.
+  // So springt der Highlight bei per-User-Recipients über "versand" hinweg,
+  // ohne dass der Schritt aus dem Stepper verschwindet.
+  const displayCurrentIdx = DISPLAY_STEP_KEYS.indexOf(currentKey);
 
   const advance = () => setStep(() => Math.min(stepKeys.length - 1, clampedStep + 1));
 
@@ -312,6 +336,18 @@ export function OnboardingWizard() {
   };
   const back = () => { setValidationError(null); setTestPhase("idle"); setTestErrors({}); setStep(() => Math.max(0, clampedStep - 1)); };
 
+  // Auf Step 0 ersetzt der Button "Abbrechen" die Zurück-Aktion: persistierten
+  // Wizard-State löschen, Supabase-Session beenden, zurück zum Login. Das
+  // angelegte (leere) User-Konto bleibt in Auth — ohne mail_account ist es
+  // wirkungslos und wird beim nächsten Setup-Versuch übernommen.
+  const handleCancel = async () => {
+    clearStorage();
+    setValidationError(null);
+    setTestPhase("idle");
+    setTestErrors({});
+    await logout();
+  };
+
   // Stable so MailboxConnectContent's data-sync effect doesn't re-fire every render.
   const handleMailboxData = useCallback((d: MailboxData | null) => {
     setTestPhase((p) => (p === "error" ? "idle" : p));
@@ -320,7 +356,10 @@ export function OnboardingWizard() {
       setData((prev) => ({
         ...prev,
         imapEmail: d.email,
-        imapPassword: d.password,
+        // Wenn die Mailbox-Komponente nach Back-Navigation neu mountet, ist
+        // ihr Passwort-Feld leer — wir wollen aber das ursprünglich getippte
+        // Passwort nicht überschreiben.
+        imapPassword: d.password || prev.imapPassword,
         imapHost: d.imapHost,
         imapPort: d.imapPort,
         imapSecure: d.imapSecure,
@@ -328,7 +367,7 @@ export function OnboardingWizard() {
         smtpPort: d.smtpPort,
         smtpSecure: d.smtpSecure,
         smtpEmail: d.smtpEmail,
-        smtpPassword: d.smtpPassword,
+        smtpPassword: d.smtpPassword || prev.smtpPassword,
       }));
     } else {
       setData((prev) => ({ ...prev, ...IMAP_SMTP_DEFAULTS }));
@@ -344,7 +383,8 @@ export function OnboardingWizard() {
       setData((prev) => ({
         ...prev,
         senderEmail: d.smtpEmail,
-        senderPassword: d.smtpPassword,
+        // Passwort beim Re-Mount nicht durch leeren Wert überschreiben.
+        senderPassword: d.smtpPassword || prev.senderPassword,
         senderSmtpHost: d.smtpHost,
         senderSmtpPort: d.smtpPort,
         senderSmtpSecure: d.smtpSecure,
@@ -355,16 +395,25 @@ export function OnboardingWizard() {
         senderEmail: "",
         senderPassword: "",
         senderSmtpHost: "",
-        senderSmtpPort: 465,
-        senderSmtpSecure: true,
+        senderSmtpPort: 587,
+        senderSmtpSecure: false,
       }));
     }
   }, []);
 
-  if (actionState.status === "success") {
+  // Nach erfolgreichem Setup: kurz sichtbarer Erfolgs-State, dann zum
+  // Erstabruf-Screen. Im Render-Body zu pushen war ein Side-Effect-Bug:
+  // konnte zu doppelten Navigationen führen und der User sah keinen
+  // klaren Übergang ("kein Erfolgserlebnis"-Report). Der Erfolgs-Zustand
+  // wird direkt aus `actionState.status` abgeleitet — kein zusätzlicher
+  // State nötig.
+  const setupSucceeded = actionState.status === "success";
+  useEffect(() => {
+    if (!setupSucceeded) return;
     clearStorage();
-    router.push("/onboarding/erstabruf");
-  }
+    const t = setTimeout(() => router.push("/onboarding/erstabruf"), 900);
+    return () => clearTimeout(t);
+  }, [setupSucceeded, router]);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -385,33 +434,40 @@ export function OnboardingWizard() {
       {/* ── Progress ──────────────────────────────────────────────────────── */}
       <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 mt-6 sm:mt-8 mb-2">
         <div className="flex items-center justify-between gap-2">
-          {stepKeys.map((key, i) => (
-            <Fragment key={key}>
-              <div className="flex min-w-0 items-center gap-2">
-                <div
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
-                    i < clampedStep
-                      ? "bg-ok text-white"
-                      : i === clampedStep
-                        ? "bg-brand text-paper"
-                        : "border border-line bg-white text-muted"
-                  }`}
-                >
-                  {i < clampedStep ? <Check size={12} /> : i + 1}
+          {DISPLAY_STEP_KEYS.map((key, i) => {
+            const isPast = i < displayCurrentIdx;
+            const isCurrent = i === displayCurrentIdx;
+            const isSkipped = !stepKeys.includes(key);
+            return (
+              <Fragment key={key}>
+                <div className="flex min-w-0 items-center gap-2">
+                  <div
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                      isPast
+                        ? "bg-ok text-white"
+                        : isCurrent
+                          ? "bg-brand text-paper"
+                          : isSkipped
+                            ? "border border-dashed border-line bg-white text-muted/60"
+                            : "border border-line bg-white text-muted"
+                    }`}
+                  >
+                    {isPast ? <Check size={12} /> : i + 1}
+                  </div>
+                  <span
+                    className={`hidden xs:block truncate text-xs font-medium ${
+                      isCurrent ? "text-ink" : isSkipped ? "text-muted/60" : "text-muted"
+                    }`}
+                  >
+                    {STEP_LABELS[key]}
+                  </span>
                 </div>
-                <span
-                  className={`hidden xs:block truncate text-xs font-medium ${
-                    i === clampedStep ? "text-ink" : "text-muted"
-                  }`}
-                >
-                  {STEP_LABELS[key]}
-                </span>
-              </div>
-              {i < stepKeys.length - 1 && (
-                <div className={`h-px flex-1 ${i < clampedStep ? "bg-ok" : "bg-line"}`} />
-              )}
-            </Fragment>
-          ))}
+                {i < DISPLAY_STEP_KEYS.length - 1 && (
+                  <div className={`h-px flex-1 ${i < displayCurrentIdx ? "bg-ok" : "bg-line"}`} />
+                )}
+              </Fragment>
+            );
+          })}
         </div>
       </div>
 
@@ -430,6 +486,15 @@ export function OnboardingWizard() {
             <div className="mt-6 rounded-md border border-line bg-paper p-5">
               <MailboxConnectContent
                 mode="onboarding"
+                initialEmail={data.imapEmail || undefined}
+                initialServers={{
+                  imapHost: data.imapHost || undefined,
+                  imapPort: data.imapPort,
+                  imapSecure: data.imapSecure,
+                  smtpHost: data.smtpHost || undefined,
+                  smtpPort: data.smtpPort,
+                  smtpSecure: data.smtpSecure,
+                }}
                 onDataChange={handleMailboxData}
               />
             </div>
@@ -453,6 +518,13 @@ export function OnboardingWizard() {
             <div className="mt-6 rounded-md border border-line bg-paper p-5">
               <MailboxConnectContent
                 mode="onboarding"
+                purpose="smtp-only"
+                initialEmail={data.senderEmail || undefined}
+                initialServers={{
+                  smtpHost: data.senderSmtpHost || undefined,
+                  smtpPort: data.senderSmtpPort,
+                  smtpSecure: data.senderSmtpSecure,
+                }}
                 onDataChange={handleSenderMailboxData}
               />
             </div>
@@ -606,9 +678,9 @@ export function OnboardingWizard() {
             <div className="mt-4 flex items-start gap-3 rounded-md border border-brand/20 bg-brand-soft p-4">
               <Info size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden />
               <div className="text-sm text-ink">
-                <div className="font-medium">Du kannst jederzeit aussteigen.</div>
+                <div className="font-medium">Jederzeit kündbar.</div>
                 <div className="mt-0.5 text-muted">
-                  In den Einstellungen pausieren, Empfänger anpassen oder Konto schließen.
+                  Du kannst Infetch in den Einstellungen pausieren, Empfänger anpassen oder dein Konto schließen.
                 </div>
               </div>
             </div>
@@ -657,9 +729,25 @@ export function OnboardingWizard() {
 
         {/* ── Footer nav ────────────────────────────────────────────────── */}
         <div className="mt-6 flex items-center justify-between">
-          <Button variant="ghost" onClick={back} disabled={clampedStep === 0 || testPhase === "testing"} className="gap-1.5">
-            <ArrowLeft size={16} aria-hidden /> zurück
-          </Button>
+          {clampedStep === 0 ? (
+            <Button
+              variant="ghost"
+              onClick={handleCancel}
+              disabled={testPhase === "testing"}
+              className="gap-1.5"
+            >
+              <ArrowLeft size={16} aria-hidden /> Abbrechen
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              onClick={back}
+              disabled={testPhase === "testing"}
+              className="gap-1.5"
+            >
+              <ArrowLeft size={16} aria-hidden /> zurück
+            </Button>
+          )}
 
           {!isLastStep ? (
             <Button
@@ -689,8 +777,14 @@ export function OnboardingWizard() {
               <input type="hidden" name="smtpPassword"   value={submitSmtp.pass} />
               <input type="hidden" name="recipientEmail" value={data.recipientEmail} />
               <input type="hidden" name="exportTarget"   value={data.recipientSlot} />
-              <Button type="submit" disabled={isPending} className="gap-1.5">
-                {isPending ? "Wird eingerichtet…" : <><span>Setup abschließen</span><ArrowRight size={16} aria-hidden /></>}
+              <Button type="submit" disabled={isPending || setupSucceeded} className="gap-1.5">
+                {setupSucceeded ? (
+                  <><Check size={16} aria-hidden /> Postfach verbunden — starte Scan…</>
+                ) : isPending ? (
+                  <><Loader2 size={16} className="animate-spin" aria-hidden /> Postfach wird verbunden…</>
+                ) : (
+                  <><span>Setup abschließen</span><ArrowRight size={16} aria-hidden /></>
+                )}
               </Button>
             </form>
           )}

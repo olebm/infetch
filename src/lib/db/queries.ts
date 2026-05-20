@@ -117,7 +117,13 @@ export async function getPipelineSnapshot(organizationId: string): Promise<Pipel
 }
 
 export async function getSetupSnapshot(organizationId?: string | null) {
-  const exportTargetActive = Number((await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled IS TRUE AND recipient_email IS NOT NULL`)[0].count) > 0;
+  // Export-Target-Check org-gescoped — sonst würden ältere Records anderer
+  // Orgs (oder ein einzelner enabled-Eintrag irgendwo) den Status für eine
+  // frische Org fälschlich "aktiv" melden bzw. eine vollständig aufgesetzte
+  // Org von einer fremden disabled-Row beeinträchtigen.
+  const exportTargetActive = organizationId
+    ? Number((await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled IS TRUE AND recipient_email IS NOT NULL AND organization_id = ${organizationId}`)[0].count) > 0
+    : Number((await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled IS TRUE AND recipient_email IS NOT NULL AND organization_id IS NULL`)[0].count) > 0;
   const mistralConfigured =
     (await hasConfiguredCredential("mistral")) || appConfig.mistral.configured;
   return {

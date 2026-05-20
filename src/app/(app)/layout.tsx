@@ -7,29 +7,30 @@ import { SupportModal } from "@/components/support/support-modal";
 import { SupportFab } from "@/components/support/support-fab";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { isStripeConfigured } from "@/lib/stripe";
-import { getPrimaryMailAccount } from "@/lib/db/queries";
+import { getPrimaryMailAccount, getSetupSnapshot } from "@/lib/db/queries";
 import { MailInvalidBanner } from "@/components/status/mail-invalid-banner";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const auth = await getCurrentAuth();
   const userEmail = auth?.user?.email ?? undefined;
 
-  // Kein Mail-Account → Onboarding noch nicht abgeschlossen.
-  // Scoped auf die Organisation des eingeloggten Users; proxy.ts stellt sicher
-  // dass wir hier nur mit authentifizierten Requests landen.
+  // Hard-Gate auf vollständiges Setup: ohne IMAP+SMTP+Export-Ziel würde der
+  // User mit "Einrichtung nicht abgeschlossen"-Banner auf dem Dashboard
+  // landen — besser zurück in den Wizard.
   const orgId = auth?.organization?.id;
   if (!orgId) {
     redirect("/onboarding");
   }
-  const mailAccount = await getPrimaryMailAccount(orgId);
-  if (!mailAccount) {
+  const setup = await getSetupSnapshot(orgId);
+  if (!setup.imapConfigured || !setup.smtpConfigured || !setup.exportTargetActive) {
     redirect("/onboarding");
   }
+  const mailAccount = await getPrimaryMailAccount(orgId);
 
   return (
     <UpgradeProvider stripeConfigured={isStripeConfigured()}>
       <SupportProvider>
-        {mailAccount.status === "invalid" && <MailInvalidBanner />}
+        {mailAccount?.status === "invalid" && <MailInvalidBanner />}
         <AppShell>{children}</AppShell>
         <UpgradeModal />
         <SupportModal userEmail={userEmail} />

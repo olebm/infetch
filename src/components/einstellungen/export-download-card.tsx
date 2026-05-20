@@ -24,6 +24,7 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
   const [year, setYear]     = useState<string>("");
   const [vendor, setVendor] = useState<string>("");
   const [confirm, setConfirm] = useState<string>("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteState, deleteAction, deletePending] = useActionState(
     deleteAccountAction,
     DELETE_INITIAL,
@@ -59,15 +60,27 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
             <select
               value={vendor}
               onChange={(e) => setVendor(e.target.value)}
-              className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              disabled={vendors.length === 0}
+              className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <option value="">{isPro ? "Alle Anbieter" : "Anbieter wählen…"}</option>
+              <option value="">
+                {vendors.length === 0
+                  ? "Noch keine Anbieter erkannt"
+                  : isPro
+                    ? "Alle Anbieter"
+                    : "Anbieter wählen…"}
+              </option>
               {vendors.map((v) => (
                 <option key={v.id} value={String(v.id)}>
                   {v.name}
                 </option>
               ))}
             </select>
+            {vendors.length === 0 && (
+              <p className="mt-1 text-[11px] text-muted">
+                Sobald Rechnungen eintreffen, erscheinen sie hier.
+              </p>
+            )}
           </div>
 
           {/* Year filter — Free + Pro */}
@@ -172,8 +185,9 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
               className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-danger focus:ring-2 focus:ring-danger/20 sm:max-w-xs"
             />
             <button
-              type="submit"
+              type="button"
               disabled={!confirmMatches || deletePending}
+              onClick={() => setShowDeleteModal(true)}
               className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded border border-danger/30 bg-danger-soft px-4 text-sm text-danger transition-colors hover:border-danger/60 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {deletePending ? "Wird gelöscht…" : "Konto endgültig löschen"}
@@ -181,6 +195,50 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
           </div>
           {deleteState.status === "error" && (
             <div className="text-xs text-danger">{deleteState.message}</div>
+          )}
+
+          {/* Bestätigungs-Modal — bewusst leichtgewichtig (kein Wort-Tippen),
+              schützt aber vor Fehlklicks. Submit erfolgt aus dem Modal über
+              denselben Form-Action — der hidden submit-Button ruft `confirm`
+              aus dem Outer-Form ab, das ihn umschließt. */}
+          {showDeleteModal && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-modal-title"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setShowDeleteModal(false);
+              }}
+            >
+              <div className="w-full max-w-md rounded-lg border border-line bg-paper p-6 shadow-lg">
+                <div id="delete-modal-title" className="text-base font-semibold text-ink">
+                  Konto wirklich löschen?
+                </div>
+                <p className="mt-2 text-sm text-muted">
+                  Deine Postfach-Verbindung, alle Rechnungen und Organisations-Daten
+                  werden <strong className="text-ink">unwiderruflich</strong> gelöscht.
+                  Diese Aktion kann nicht rückgängig gemacht werden.
+                </p>
+                <div className="mt-5 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(false)}
+                    disabled={deletePending}
+                    className="inline-flex h-9 items-center rounded border border-line bg-white px-3 text-sm text-ink hover:bg-surface disabled:opacity-50"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!confirmMatches || deletePending}
+                    className="inline-flex h-9 items-center gap-2 rounded border border-danger/40 bg-danger px-3 text-sm font-medium text-white hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deletePending ? "Wird gelöscht…" : "Endgültig löschen"}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </form>
       </div>

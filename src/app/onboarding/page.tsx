@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireCurrentAuth } from "@/lib/auth/current";
-import { getPrimaryMailAccount } from "@/lib/db/queries";
+import { getSetupSnapshot } from "@/lib/db/queries";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +9,12 @@ export default async function OnboardingPage() {
   const auth = await requireCurrentAuth();
   const orgId = auth.organization?.id;
   if (orgId) {
-    const mailAccount = await getPrimaryMailAccount(orgId);
-    if (mailAccount) redirect("/");
+    // Setup vollständig → direkt aufs Dashboard. Spiegelt das Hard-Gate
+    // im (app)/layout.tsx und vermeidet Redirect-Loops.
+    const setup = await getSetupSnapshot(orgId);
+    if (setup.imapConfigured && setup.smtpConfigured && setup.exportTargetActive) {
+      redirect("/");
+    }
   }
   return <OnboardingWizard />;
 }

@@ -42,8 +42,28 @@ interface MailboxConnectContentProps {
   mode: "settings" | "onboarding";
   slot?: "primary" | "secondary";
   initialEmail?: string;
+  /**
+   * Optional vorausgefüllte Server-Werte — z. B. wenn der Wizard
+   * nach Back-Navigation diese Komponente neu mountet und der
+   * Parent-State bereits IMAP/SMTP-Defaults oder vom User getippte
+   * Custom-Werte hält. Hat Vorrang vor Provider-Auto-Detection.
+   */
+  initialServers?: {
+    imapHost?: string;
+    imapPort?: number;
+    imapSecure?: boolean;
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpSecure?: boolean;
+  };
   onDataChange?: (data: MailboxData | null) => void;
   onSuccess?: () => void;
+  /**
+   * "full" (Default) zeigt sowohl IMAP- als auch SMTP-Felder. "smtp-only"
+   * blendet IMAP komplett aus — gedacht für reine Versand-Postfächer
+   * (z. B. Onboarding-Step "Versand" bei Shared-Inbox-Recipients).
+   */
+  purpose?: "full" | "smtp-only";
 }
 
 const initialState: CredentialFormState = { status: "idle", message: "" };
@@ -61,21 +81,36 @@ export function MailboxConnectContent({
   mode,
   slot = "primary",
   initialEmail,
+  initialServers,
   onDataChange,
   onSuccess,
+  purpose = "full",
 }: MailboxConnectContentProps) {
+  const smtpOnly = purpose === "smtp-only";
   const initProvider = initialEmail ? detectProvider(initialEmail) : null;
+  // Reihenfolge: explizite Initial-Server (vom Parent) → Provider-Preset → harter Fallback.
+  const initImapHost   = initialServers?.imapHost   ?? initProvider?.imap.host   ?? "";
+  const initImapPort   = initialServers?.imapPort   ?? initProvider?.imap.port   ?? 993;
+  const initImapSecure = initialServers?.imapSecure ?? initProvider?.imap.secure ?? true;
+  const initSmtpHost   = initialServers?.smtpHost   ?? initProvider?.smtp.host   ?? "";
+  const initSmtpPort   = initialServers?.smtpPort   ?? initProvider?.smtp.port   ?? 587;
+  const initSmtpSecure = initialServers?.smtpSecure ?? initProvider?.smtp.secure ?? false;
+  // Falls Parent custom Server-Werte mitgibt, soll der Server-Details-Accordion
+  // direkt aufgeklappt sein — User sieht sofort, dass die Felder befüllt sind.
+  const initShowAdv    = Boolean(initialServers?.imapHost || initialServers?.smtpHost) && !initProvider;
 
   const [email, setEmail]               = useState(initialEmail ?? "");
   const [password, setPassword]         = useState("");
   const [provider, setProvider]         = useState<MailProvider | null>(initProvider);
-  const [showAdv, setShowAdv]           = useState(false);
-  const [imapHost, setImapHost]         = useState(initProvider?.imap.host ?? "");
-  const [imapPort, setImapPort]         = useState(initProvider?.imap.port ?? 993);
-  const [imapSecure, setImapSecure]     = useState(initProvider?.imap.secure ?? true);
-  const [smtpHost, setSmtpHost]         = useState(initProvider?.smtp.host ?? "");
-  const [smtpPort, setSmtpPort]         = useState(initProvider?.smtp.port ?? 465);
-  const [smtpSecure, setSmtpSecure]     = useState(initProvider?.smtp.secure ?? true);
+  const [showAdv, setShowAdv]           = useState(initShowAdv);
+  const [imapHost, setImapHost]         = useState(initImapHost);
+  const [imapPort, setImapPort]         = useState(initImapPort);
+  const [imapSecure, setImapSecure]     = useState(initImapSecure);
+  const [smtpHost, setSmtpHost]         = useState(initSmtpHost);
+  // Fallback für unbekannte Domain: 587 + STARTTLS (heutiger Standard, weit
+  // verbreitet bei Custom-Domains/Hostern). Provider-Presets überschreiben das.
+  const [smtpPort, setSmtpPort]         = useState(initSmtpPort);
+  const [smtpSecure, setSmtpSecure]     = useState(initSmtpSecure);
   const [backend, setBackend]           = useState<MailBackend | null>(null);
   const [separateSmtp, setSeparateSmtp] = useState(false);
   const [smtpEmail, setSmtpEmail]       = useState("");
@@ -98,7 +133,10 @@ export function MailboxConnectContent({
 
   useEffect(() => {
     if (mode !== "onboarding" || !onDataChange) return;
-    if (!email || !imapHost || !smtpHost) {
+    const minimallyValid = smtpOnly
+      ? Boolean(email && smtpHost)
+      : Boolean(email && imapHost && smtpHost);
+    if (!minimallyValid) {
       onDataChange(null);
     } else {
       onDataChange({
@@ -115,7 +153,7 @@ export function MailboxConnectContent({
     mode, onDataChange, email, password,
     imapHost, imapPort, imapSecure,
     smtpHost, smtpPort, smtpSecure, provider, backend,
-    separateSmtp, smtpEmail, smtpPassword,
+    separateSmtp, smtpEmail, smtpPassword, smtpOnly,
   ]);
 
   // ── Live provider detection ───────────────────────────────────────────────
@@ -148,7 +186,7 @@ export function MailboxConnectContent({
       // Switched away from a known domain — clear auto-filled settings
       setBackend(null);
       setImapHost(""); setImapPort(993); setImapSecure(true);
-      setSmtpHost(""); setSmtpPort(465); setSmtpSecure(true);
+      setSmtpHost(""); setSmtpPort(587); setSmtpSecure(false);
     }
   }
 
@@ -249,7 +287,7 @@ export function MailboxConnectContent({
             onClick={() => {
               setBackend(null);
               setImapHost(""); setImapPort(993); setImapSecure(true);
-              setSmtpHost(""); setSmtpPort(465); setSmtpSecure(true);
+              setSmtpHost(""); setSmtpPort(587); setSmtpSecure(false);
             }}
             className="shrink-0 text-xs text-muted hover:text-ink"
           >
@@ -374,33 +412,35 @@ export function MailboxConnectContent({
 
       {showAdv && (
         <div className="rounded border border-line/60 bg-surface p-4 space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {/* IMAP */}
-            <div>
-              <div className="mb-2 text-xs font-medium text-muted">IMAP — Empfangs-Server</div>
-              <div className="space-y-1.5">
-                <input
-                  value={imapHost}
-                  onChange={(e) => setImapHost(e.target.value)}
-                  placeholder="imap.example.com"
-                  inputMode="url"
-                  className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
-                />
-                <div className="flex items-center gap-2">
+          <div className={smtpOnly ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
+            {/* IMAP — versteckt bei reinen Versand-Postfächern */}
+            {!smtpOnly && (
+              <div>
+                <div className="mb-2 text-xs font-medium text-muted">IMAP — Empfangs-Server</div>
+                <div className="space-y-1.5">
                   <input
-                    type="number"
-                    value={imapPort}
-                    onChange={(e) => setImapPort(Number(e.target.value))}
-                    inputMode="numeric"
-                    className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+                    value={imapHost}
+                    onChange={(e) => setImapHost(e.target.value)}
+                    placeholder="imap.example.com"
+                    inputMode="url"
+                    className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                   />
-                  <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
-                    <input type="checkbox" checked={imapSecure} onChange={(e) => setImapSecure(e.target.checked)} />
-                    SSL/TLS
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={imapPort}
+                      onChange={(e) => setImapPort(Number(e.target.value))}
+                      inputMode="numeric"
+                      className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+                    />
+                    <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
+                      <input type="checkbox" checked={imapSecure} onChange={(e) => setImapSecure(e.target.checked)} />
+                      SSL/TLS
+                    </label>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
             {/* SMTP */}
             <div>
               <div className="mb-2 text-xs font-medium text-muted">SMTP — Versand-Server</div>
@@ -429,40 +469,44 @@ export function MailboxConnectContent({
             </div>
           </div>
 
-          {/* Separate SMTP credentials */}
-          <div className="border-t border-line/60 pt-3">
-            <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={separateSmtp}
-                onChange={(e) => setSeparateSmtp(e.target.checked)}
-              />
-              Versand verwendet andere Zugangsdaten als Empfang
-            </label>
-            {separateSmtp && (
-              <div className="mt-3 space-y-2">
+          {/* Separate SMTP credentials — Advanced-Option, im Onboarding
+              ausgeblendet (verwirrt mehr als sie hilft); bleibt im Settings-
+              Mode für Profi-Setups erhalten. */}
+          {mode !== "onboarding" && !smtpOnly && (
+            <div className="border-t border-line/60 pt-3">
+              <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
                 <input
-                  type="email"
-                  name={mode === "settings" ? "smtpEmail" : undefined}
-                  value={smtpEmail}
-                  onChange={(e) => setSmtpEmail(e.target.value)}
-                  placeholder="versand@example.com"
-                  autoComplete="username"
-                  inputMode="email"
-                  className="h-8 w-full rounded border border-line bg-white px-2 text-xs outline-none focus:border-brand"
+                  type="checkbox"
+                  checked={separateSmtp}
+                  onChange={(e) => setSeparateSmtp(e.target.checked)}
                 />
-                <input
-                  type="password"
-                  name={mode === "settings" ? "smtpPassword" : undefined}
-                  value={smtpPassword}
-                  onChange={(e) => setSmtpPassword(e.target.value)}
-                  placeholder="SMTP-Passwort"
-                  autoComplete="new-password"
-                  className="h-8 w-full rounded border border-line bg-white px-2 text-xs outline-none focus:border-brand"
-                />
-              </div>
-            )}
-          </div>
+                Versand verwendet andere Zugangsdaten als Empfang
+              </label>
+              {separateSmtp && (
+                <div className="mt-3 space-y-2">
+                  <input
+                    type="email"
+                    name={mode === "settings" ? "smtpEmail" : undefined}
+                    value={smtpEmail}
+                    onChange={(e) => setSmtpEmail(e.target.value)}
+                    placeholder="versand@example.com"
+                    autoComplete="username"
+                    inputMode="email"
+                    className="h-8 w-full rounded border border-line bg-white px-2 text-xs outline-none focus:border-brand"
+                  />
+                  <input
+                    type="password"
+                    name={mode === "settings" ? "smtpPassword" : undefined}
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder="SMTP-Passwort"
+                    autoComplete="new-password"
+                    className="h-8 w-full rounded border border-line bg-white px-2 text-xs outline-none focus:border-brand"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
