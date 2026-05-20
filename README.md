@@ -67,13 +67,14 @@ For machine-level overrides see [.env.example](.env.example). Credentials (IMAP 
 
 ## Architecture
 
-- **Next.js 16** (App Router, Server Actions) + **SQLite** (via better-sqlite3)
+- **Next.js 16** (App Router, Server Actions) + **Supabase Postgres** (per-org RLS)
+- **Supabase Storage** for invoice PDFs (AES-256-GCM envelope-encrypted at rest)
 - **Playwright** for portal automation
 - **Mistral AI** for PDF extraction and portal-recipe recording
 - **node-cron** for the in-app auto-pilot (mail scan, missing-check, export-dispatch, portal fetch, community-sync)
-- **OS Keychain** for credential storage (macOS native)
+- **Supabase Vault (pgsodium)** for credential storage in the hosted SaaS; OS Keychain in the self-hosted reference
 
-All processing is local. Outbound network calls are limited to: your IMAP/SMTP server, the Mistral API (if enabled), and the GitHub raw URL for community-recipe sync.
+The hosted SaaS at `app.infetch.de` is multi-tenant (Hetzner Frankfurt + Supabase eu-central-1). Outbound network calls are limited to: your IMAP/SMTP server, the Mistral API (if enabled), Stripe, and Sentry. The repository can also be run as a single-user self-hosted variant — see [SECURITY.md](SECURITY.md#deployment-models).
 
 ## Contributing
 
