@@ -37,7 +37,7 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
     // und meldet fälschlich "nicht configured" → HeroBlocked-Banner trotz
     // vollständigem User-Setup. Hard-Gate im Layout nutzt orgId korrekt.
     setupProp ? Promise.resolve(setupProp) : getSetupSnapshot(orgId),
-    getAutomationStats(),
+    getAutomationStats(orgId),
     getPrimaryMailAccount(),
     getExportTargets(orgId),
   ]);

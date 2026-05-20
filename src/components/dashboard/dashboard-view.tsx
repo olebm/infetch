@@ -91,8 +91,8 @@ export async function DashboardView() {
     // anzeigt, obwohl der Hard-Gate im (app)/layout.tsx den User korrekt
     // durchlässt. Bug nach PR #33 entdeckt.
     getSetupSnapshot(orgId),
-    getAutomationStats(),
-    getSecondaryStats(),
+    getAutomationStats(orgId),
+    getSecondaryStats(orgId),
     getDailyTimeseries(30),
     getTopVendors(5),
     getOverdueVendors(),

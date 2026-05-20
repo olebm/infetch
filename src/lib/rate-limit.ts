@@ -101,12 +101,19 @@ export const aiProxyGlobalLimiter = new InMemoryRateLimiter(120, 60_000);
  */
 export const aiProxyIpLimiter = new InMemoryRateLimiter(20, 60_000);
 
+// ── AI-Proxy org-scoped (INFETCH-165, tier-aware) ────────────────────────────
+
 /**
- * Pro-Org-Limit auf den AI-Proxy: 20 Extraktionen pro Minute pro Organisation.
- * Verhindert, dass eine einzelne Org das globale Mistral-Budget für andere Orgs
- * leerräumt — Defense-in-Depth gegen Free-Tier-Missbrauch.
+ * Pro-Org-Limit (Free-Tier): max. 20 KI-Extraktionen pro Minute.
+ * Free-Orgs haben ein niedrigeres Limit, da kein Zahlungsnachweis.
  */
-export const aiProxyOrgLimiter = new InMemoryRateLimiter(20, 60_000);
+export const aiProxyOrgFreeLimiter = new InMemoryRateLimiter(20, 60_000);
+
+/**
+ * Pro-Org-Limit (Pro/Business-Tier): max. 100 KI-Extraktionen pro Minute.
+ * Zahlende Orgs bekommen 5× mehr Headroom für Batch-Imports.
+ */
+export const aiProxyOrgProLimiter = new InMemoryRateLimiter(100, 60_000);
 
 // ── Globales API-Limit (Middleware) ───────────────────────────────────────────
 

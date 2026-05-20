@@ -5,7 +5,14 @@ import { appConfig } from "@/lib/config/env";
 import { callMistralInvoiceExtractor } from "@/ai/mistral-client";
 import { invoiceAiExtractionSchema } from "@/ai/schemas";
 import { recordUsageEvent, estimateMistralCostCents } from "@/lib/usage/track";
-import { aiProxyGlobalLimiter, aiProxyIpLimiter, aiProxyOrgLimiter, clientIpFromHeaders } from "@/lib/rate-limit";
+import {
+  aiProxyGlobalLimiter,
+  aiProxyIpLimiter,
+  aiProxyOrgFreeLimiter,
+  aiProxyOrgProLimiter,
+  clientIpFromHeaders,
+} from "@/lib/rate-limit";
+import { getOrgTier } from "@/lib/tier";
 
 const requestSchema = z.object({
   pdfText: z.string().min(1).max(200_000),
@@ -64,25 +71,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Rate-Limit: schützt das Mistral-Budget, falls das Bearer-Token leakt
-  // oder ein Mandant das Budget anderer Mandanten leerräumt.
+  // Rate-Limit: schützt das Mistral-Budget, falls das Bearer-Token leakt.
   const ip = clientIpFromHeaders(request.headers);
   const ipCheck = aiProxyIpLimiter.check(ip);
   const globalCheck = aiProxyGlobalLimiter.check("global");
-  const orgCheck = body.organizationId ? aiProxyOrgLimiter.check(body.organizationId) : null;
-  const limited = !ipCheck.ok
-    ? ipCheck
-    : !globalCheck.ok
-      ? globalCheck
-      : orgCheck && !orgCheck.ok
-        ? orgCheck
-        : null;
+  const limited = !ipCheck.ok ? ipCheck : !globalCheck.ok ? globalCheck : null;
   if (limited) {
     const retryAfter = Math.max(1, Math.ceil((limited.resetAt - Date.now()) / 1000));
     return NextResponse.json(
       { error: "rate_limited" },
       { status: 429, headers: { "retry-after": String(retryAfter) } },
     );
+  }
+
+  // Tier-aware Org-Limit (INFETCH-165): Free-Orgs sind strenger gedrosselt als
+  // Pro/Business-Orgs — verhindert Free-Tier-Missbrauch bei gleichzeitig
+  // ausreichend Headroom für zahlende Kunden.
+  if (body.organizationId) {
+    const tier = await getOrgTier(body.organizationId);
+    const orgLimiter = tier === "free" ? aiProxyOrgFreeLimiter : aiProxyOrgProLimiter;
+    const orgCheck = orgLimiter.check(body.organizationId);
+    if (!orgCheck.ok) {
+      const retryAfter = Math.max(1, Math.ceil((orgCheck.resetAt - Date.now()) / 1000));
+      return NextResponse.json(
+        { error: "rate_limited" },
+        { status: 429, headers: { "retry-after": String(retryAfter) } },
+      );
+    }
   }
 
   try {
