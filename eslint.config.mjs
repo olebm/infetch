@@ -14,15 +14,6 @@ import nextTypescript from "eslint-config-next/typescript";
 // New code MUST NOT be added here — write it against scoped-query /
 // unsafe-global from the start.
 const SQL_CLIENT_ALLOWLIST = [
-  // Server Actions (Wave 1 — wartet auf PR #35-Merge, dann auf createScopedSql)
-  "src/app/(app)/audit/actions.ts",
-  "src/app/(app)/fehlt/actions.ts",
-  "src/app/(app)/online-accounts/actions.ts",
-  "src/app/api/export/download/route.ts",
-  "src/invoices/review.ts",
-  "src/lib/auth/account-teardown.ts",
-  "src/lib/db/queries.ts",
-  "src/vendors/suggestions.ts",
   // Test files: kept on the allowlist long-term. Tests legitimately seed
   // and inspect multiple orgs at once; migrating them to unsafeGlobalSql
   // would be busywork that obscures the test intent.

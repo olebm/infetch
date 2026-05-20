@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { syncStoredInvoiceFileNamesForInvoice } from "@/invoices/file-names";
 import { importManualPdf } from "@/invoices/import-pipeline";
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
