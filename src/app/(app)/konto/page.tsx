@@ -1,10 +1,10 @@
 import { getInvoiceYears, getVendors } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { loadOrgMembers, loadUserOrganizations, loadActiveSessions, getUserProfileFields, loadPendingInvitations } from "@/lib/auth/session";
+import { loadOrgMembers, loadUserOrganizations, getUserProfileFields, loadPendingInvitations } from "@/lib/auth/session";
 import { ExportDownloadCard } from "@/components/einstellungen/export-download-card";
 import { getOrgTier, getLimits } from "@/lib/tier";
 import { ProfilForm } from "@/components/einstellungen/profil-form";
-import { SessionsSection, SwitchOrgButton } from "@/components/einstellungen/sessions-section";
+import { SwitchOrgButton } from "@/components/einstellungen/sessions-section";
 import { MembersCard } from "@/components/konto/members-card";
 import { BillingCard } from "@/components/konto/billing-card";
 import { Card } from "@/components/ui/card";
@@ -24,13 +24,12 @@ export default async function KontoPage() {
   const auth = await getCurrentAuth();
   const orgId = auth?.organization?.id ?? null;
 
-  const [invoiceYears, vendors, userOrgs, orgMembers, pendingInvitations, activeSessions, profileFields, tier, orgRow] = await Promise.all([
+  const [invoiceYears, vendors, userOrgs, orgMembers, pendingInvitations, profileFields, tier, orgRow] = await Promise.all([
     getInvoiceYears(),
     getVendors(orgId),
     auth ? loadUserOrganizations(auth.user.id) : Promise.resolve([]),
     auth?.organization ? loadOrgMembers(auth.organization.id) : Promise.resolve([]),
     auth?.organization ? loadPendingInvitations(auth.organization.id) : Promise.resolve([]),
-    auth ? loadActiveSessions(auth.user.id) : Promise.resolve([]),
     auth ? getUserProfileFields(auth.user.id) : Promise.resolve(null),
     getOrgTier(orgId),
     orgId
@@ -50,7 +49,7 @@ export default async function KontoPage() {
     <div className="screen-enter screen-enter-active">
       <PageHeader
         title="Mein Konto"
-        subline="Profil, Arbeitsbereich, Sicherheit und Abrechnung."
+        subline="Profil, Arbeitsbereich und Paket."
       />
 
       <div className="mt-8 space-y-4">
@@ -120,28 +119,10 @@ export default async function KontoPage() {
           />
         </Card>
 
-        {/* 4 ── Abrechnung ──────────────────────────────────────────────────── */}
+        {/* 4 ── Paket ──────────────────────────────────────────────────────── */}
         <BillingCard tier={tier} limits={limits} hasStripeCustomer={hasStripeCustomer} />
 
-        {/* 5 ── Sicherheit ──────────────────────────────────────────────────── */}
-        <Card padding="lg">
-          <div className="mb-3 text-sm font-medium text-ink">Sicherheit</div>
-          <ul className="divide-y divide-line border-y border-line">
-            <li className="flex items-center gap-3 py-3">
-              <div className="flex-1">
-                <div className="text-sm text-ink">Magic-Link</div>
-                <div className="text-xs text-muted">Login per E-Mail — kein Passwort.</div>
-              </div>
-              <StatusBadge status="configured" label="aktiv" />
-            </li>
-            <SessionsSection
-              sessionCount={activeSessions.length}
-              lastUsedAt={activeSessions[0]?.lastUsedAt ?? null}
-            />
-          </ul>
-        </Card>
-
-        {/* 6 ── Daten & Konto ───────────────────────────────────────────────── */}
+        {/* 5 ── Daten & Konto ───────────────────────────────────────────────── */}
         <ExportDownloadCard
           years={invoiceYears}
           vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}

@@ -71,7 +71,7 @@ export function BillingCard({ tier, limits, hasStripeCustomer = false }: Props) 
     <Card padding="none">
       <div className="flex items-start justify-between gap-4 p-5">
         <div>
-          <div className="text-sm font-medium text-ink">Abrechnung</div>
+          <div className="text-sm font-medium text-ink">Paket</div>
           <div className="text-xs text-muted">
             {isFree
               ? "Kostenlos — keine Kreditkarte erforderlich."
