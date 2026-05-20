@@ -28,7 +28,10 @@ export type TierLimits = {
   maxOnlineAccounts: number;
   /** Auto-Approval (regelbasiert + lernend) verfügbar. */
   autoApprovalEnabled: boolean;
-  /** Export zu Lexoffice / sevDesk. */
+  /**
+   * API-Direkt-Push zu Lexoffice / sevDesk (auto-transfer.ts).
+   * NICHT für SMTP-Forward — der ist Kern-Feature und tier-unabhängig.
+   */
   exportEnabled: boolean;
   /** Export zu Datev (API, kommt später). */
   datevExportEnabled: boolean;
@@ -195,7 +198,9 @@ export async function canStoreFile(
 }
 
 /**
- * Prüft ob Export (Lexoffice / sevDesk) für eine Organisation erlaubt ist.
+ * Prüft ob API-Direkt-Push (Lexoffice / sevDesk) für eine Organisation
+ * erlaubt ist. SMTP-Forward an einen E-Mail-Empfänger ist tier-unabhängig
+ * erlaubt und läuft NICHT durch diesen Gate (siehe export-pipeline.ts).
  */
 export async function canExport(
   organizationId: string | null | undefined,

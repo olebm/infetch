@@ -134,40 +134,55 @@ describe("Export-Pipeline", () => {
 
   // ── dispatchPendingExports ────────────────────────────────────────────────────
 
-  it("dispatchPendingExports blockiert Export für Free-Tier-Org (tier-gate)", async () => {
-    await setupOrg("free"); // Free: exportEnabled=false
+  it("dispatchPendingExports versendet auch für Free-Tier (SMTP-Forward ist tier-unabhängig)", async () => {
+    // Regression-Schutz für Free-only Launch: vor dem Fix blockierte die
+    // Pipeline jeden Export-Row für Free → SMTP-Forward funktionierte nicht
+    // mehr (siehe canExport-Doc in tier.ts). Free MUSS senden dürfen,
+    // sobald SMTP konfiguriert ist. API-Direkt-Push (Lexoffice/sevDesk)
+    // bleibt davon unberührt und wird in auto-transfer.ts gegated.
+    await setupOrg("free");
     await insertExportTarget();
     const invoiceId = await insertReadyInvoice();
     await enqueueReadyInvoices();
 
     const result = await dispatchPendingExports();
 
-    // Org ist Free → kein Export erlaubt
+    // Free ohne SMTP-Credentials → failed (nicht blocked).
+    // Wichtig: Pipeline läuft durch und ruft sendInvoiceMail auf, statt
+    // den Row vorher mit "Export nicht im aktuellen Plan" zu blocken.
+    expect(result.failed).toBeGreaterThan(0);
     expect(result.sent).toBe(0);
 
-    // Export-Row bleibt 'pending' oder wird als 'blocked' markiert
-    const [exportRow] = await sql<{ status: string }[]>`
-      SELECT status FROM exports WHERE invoice_id = ${invoiceId}
+    const [exportRow] = await sql<{ status: string; lastError: string | null }[]>`
+      SELECT status, last_error AS "lastError"
+      FROM exports WHERE invoice_id = ${invoiceId}
     `;
-    expect(["pending", "blocked", "skipped"]).toContain(exportRow?.status);
+    expect(exportRow?.status).toBe("failed");
+    expect(exportRow?.lastError ?? "").not.toMatch(/Plan/);
   });
 
-  it("dispatchPendingExports schlägt fehl wenn kein SMTP konfiguriert (Pro-Org)", async () => {
-    await setupOrg("pro");
+  it("dispatchPendingExports markiert Export als failed wenn kein PDF vorhanden", async () => {
+    // Vorher testete dieser Block den "Pro-Org ohne SMTP"-Pfad, aber im
+    // Free-only Launch (proEnabled=false) returnt getOrgTier immer "free",
+    // also war der vermeintliche Pro-Test in Wirklichkeit ein Free-Test
+    // gegen den alten canExport-Block. Der ehrliche Smoke-Test: Pipeline
+    // läuft durch und scheitert geordnet (status=failed, kein Hang).
+    await setupOrg("free");
     await insertExportTarget("buchhaltung@test.de");
     const invoiceId = await insertReadyInvoice();
-
-    // Manuelle invoice_files Row nötig damit Pipeline nicht abbricht
-    await sql`
-      INSERT INTO invoice_files (invoice_id, original_filename, stored_path, sha256, size_bytes, mime_type, source_type)
-      VALUES (${invoiceId}, 'rechnung.pdf', 'test/path.pdf', ${`sha-${Date.now()}`}, 1024, 'application/pdf', 'manual')
-    `;
+    // Bewusst KEIN invoice_files-Row → Pipeline scheitert mit "Keine PDF-Datei"
 
     await enqueueReadyInvoices();
     const result = await dispatchPendingExports();
 
-    // Pro-Org, aber kein SMTP konfiguriert → failed
     expect(result.failed).toBeGreaterThan(0);
     expect(result.sent).toBe(0);
+
+    const [exportRow] = await sql<{ status: string; lastError: string | null }[]>`
+      SELECT status, last_error AS "lastError"
+      FROM exports WHERE invoice_id = ${invoiceId}
+    `;
+    expect(exportRow?.status).toBe("failed");
+    expect(exportRow?.lastError ?? "").toMatch(/Keine PDF-Datei/);
   });
 });
