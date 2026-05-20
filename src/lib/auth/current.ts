@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql } from "@/lib/db/unsafe-global";
+import { createScopedSql, type ScopedSql } from "@/lib/db/scoped-query";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { findUserByEmail } from "@/lib/auth/users";
 import type { OrganizationRow, SessionRow, UserRow } from "@/lib/auth/session";
@@ -8,6 +9,14 @@ export type CurrentAuth = {
   session: SessionRow;
   user: UserRow;
   organization: OrganizationRow | null;
+  /**
+   * Org-scoped sql client — present when `organization` is non-null.
+   * Use this in server actions instead of importing `sql` from
+   * `@/lib/db/client` directly (which ESLint blocks). For paths without
+   * an org context, fall back to `unsafeGlobalSql` from
+   * `@/lib/db/unsafe-global` (and document why).
+   */
+  scopedSql: ScopedSql | null;
 };
 
 /**
@@ -29,7 +38,9 @@ export async function getCurrentAuth(): Promise<CurrentAuth | null> {
   const userRow = await findUserByEmail(supabaseUser.email);
   if (!userRow) return null;
 
-  const orgRows = await sql<OrganizationRow[]>`
+  // unsafeGlobalSql here is correct: we are RESOLVING the user's org —
+  // no org context exists yet to scope against.
+  const orgRows = await unsafeGlobalSql<OrganizationRow[]>`
     SELECT o.id, o.name, o.slug, o.tier, o.owner_user_id AS "ownerUserId"
     FROM organizations o
     INNER JOIN org_members m ON m.organization_id = o.id
@@ -52,6 +63,7 @@ export async function getCurrentAuth(): Promise<CurrentAuth | null> {
     session,
     user: userRow,
     organization: orgRow,
+    scopedSql: orgRow ? createScopedSql(orgRow.id) : null,
   };
 }
 

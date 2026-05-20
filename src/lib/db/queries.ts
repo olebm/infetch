@@ -60,9 +60,11 @@ export type PipelineStep = {
   lastRunAt: string | null;
 };
 
-export async function getPipelineSnapshot(): Promise<PipelineStep[]> {
+export async function getPipelineSnapshot(organizationId: string): Promise<PipelineStep[]> {
   const mistralConfigured = await hasConfiguredCredential("mistral");
 
+  // sync_runs has no organization_id column yet — left global until a
+  // follow-up migration adds it. Tracked in MULTITENANCY_HARDENING_PLAN.md.
   const latestRuns = await sql<LatestSyncRunRow[]>`
     SELECT sr.type AS type, sr.status AS status, sr.finished_at AS "finishedAt"
     FROM sync_runs sr
@@ -73,7 +75,16 @@ export async function getPipelineSnapshot(): Promise<PipelineStep[]> {
     ) latest ON latest.type = sr.type AND latest.max_id = sr.id`;
 
   const runByType = new Map(latestRuns.map((row) => [row.type, row]));
-  const needsReviewCount = Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count);
+  const needsReviewCount = Number(
+    (
+      await sql`
+        SELECT COUNT(*) AS count
+        FROM invoices
+        WHERE status = 'needs_review'
+          AND organization_id = ${organizationId}
+      `
+    )[0].count,
+  );
 
   const stepFor = (type: SyncRunType, fallback: string): PipelineStep => {
     const run = runByType.get(type);
