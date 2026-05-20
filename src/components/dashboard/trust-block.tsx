@@ -1,4 +1,4 @@
-import { Shield, Globe2, FileCode, Lock } from "lucide-react";
+import { Shield, Globe2, FileCheck, Lock } from "lucide-react";
 
 type TrustItem = {
   icon: typeof Shield;
@@ -6,11 +6,15 @@ type TrustItem = {
   detail: string;
 };
 
+// SaaS-konsistente Trust-Statements (INFETCH-128). Vorher gab es Local-First-
+// Reste ("Daten bei dir · PDFs bleiben lokal", "Open Source · AGPL"), die der
+// SaaS-Realität (Cloud-Hosting auf Hetzner Frankfurt, kommerzielles Produkt)
+// widersprachen und Vertrauen gekostet haben.
 const ITEMS: TrustItem[] = [
-  { icon: Lock, label: "Daten bei dir", detail: "PDFs bleiben lokal" },
+  { icon: Lock, label: "Verschlüsselt", detail: "AES-256 · at rest & in transit" },
   { icon: Globe2, label: "EU-Hosting", detail: "Frankfurt · DSGVO" },
-  { icon: FileCode, label: "Open Source", detail: "AGPL · überprüfbar" },
-  { icon: Shield, label: "DSGVO per Konstruktion", detail: "kein Tracking, keine Cookies" },
+  { icon: FileCheck, label: "AVV inklusive", detail: "Art. 28 DSGVO" },
+  { icon: Shield, label: "Datensparsam", detail: "cookieloses Tracking, kein Marketing-Profil" },
 ];
 
 export function TrustBlock() {

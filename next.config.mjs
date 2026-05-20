@@ -133,7 +133,18 @@ const nextConfig = {
       // Posteingang wird zu Audit (Phase A Glasbox-UX)
       { source: "/posteingang", destination: "/audit", permanent: true },
       { source: "/posteingang/:invoiceId", destination: "/audit/:invoiceId", permanent: true },
+      // SEO (INFETCH-125): Direkter Zugriff auf /landingpage wäre Duplicate
+      // Content (Canonical zeigt auf https://infetch.de/). Permanenter Redirect
+      // sorgt dafür, dass Suchmaschinen + Direktlinks beide Pfade konsolidieren.
+      { source: "/landingpage", destination: "/", permanent: true },
     ];
+  },
+  async rewrites() {
+    // SEO (INFETCH-125): Die Public-Root rendert intern die Landingpage. Bisher
+    // erledigte ein externer Proxy (Coolify) diese Umschreibung; intern
+    // doppelt verriegeln macht Dev- und alternative Deployments self-contained
+    // (rewrite, NICHT redirect — User bleibt auf /, Canonical bleibt /).
+    return [{ source: "/", destination: "/landingpage" }];
   },
 };
 
