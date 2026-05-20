@@ -72,6 +72,17 @@ async function seedInvoicesAtBoundary(count: number) {
 }
 
 async function cleanup() {
+  // sync_events.invoice_id has no ON DELETE CASCADE in 0001 — delete
+  // dependent rows first. ai_extractions has CASCADE but we cover it too
+  // so the cleanup is robust against minor schema-version differences.
+  await sql`
+    DELETE FROM sync_events
+    WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = ${ORG_ID})
+  `;
+  await sql`
+    DELETE FROM ai_extractions
+    WHERE invoice_id IN (SELECT id FROM invoices WHERE organization_id = ${ORG_ID})
+  `;
   await sql`DELETE FROM invoice_files WHERE organization_id = ${ORG_ID}`;
   await sql`DELETE FROM invoices WHERE organization_id = ${ORG_ID}`;
   await sql`DELETE FROM organizations WHERE id = ${ORG_ID}`;
