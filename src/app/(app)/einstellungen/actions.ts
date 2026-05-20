@@ -337,10 +337,10 @@ export async function saveMailboxCredentialsAction(
 export async function runImapScanAction(_previousState: CredentialFormState): Promise<CredentialFormState> {
   void _previousState;
 
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
 
   try {
-    const result = await runPrimaryImapScan();
+    const result = await runPrimaryImapScan({ limitToOrgId: auth.organization?.id ?? null });
     revalidatePath("/");
     revalidatePath("/audit");
     revalidatePath("/audit");
