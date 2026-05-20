@@ -264,22 +264,34 @@ export type AutomationStats = {
 };
 
 export async function getAutomationStats(): Promise<AutomationStats> {
-  const exportedToday = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND (sent_at::TIMESTAMP)::DATE = CURRENT_DATE`)[0].count);
-  const exportedThisWeek = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '7 days'`)[0].count);
-  const exportedLifetime = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent'`)[0].count);
-  const needsReview = Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count);
+  // PERF: vier separate COUNT-Queries auf `exports WHERE status='sent'` zu einer
+  // aggregierten Query zusammengefasst (FILTER + MIN). needsReview bleibt
+  // separat, da andere Tabelle — parallel ausgeführt.
+  // ANMERKUNG: Diese Funktion ist aktuell NICHT org-gescoped — sie liefert
+  // globale Stats über alle Mandanten. TODO Org-Scope (siehe Wrapper-Migration).
+  const [exportAgg, needsReviewRow] = await Promise.all([
+    sql<{ today: string; thisWeek: string; lifetime: string; days: number | null }[]>`
+      SELECT
+        COUNT(*) FILTER (WHERE (sent_at::TIMESTAMP)::DATE = CURRENT_DATE) AS today,
+        COUNT(*) FILTER (WHERE sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '7 days') AS "thisWeek",
+        COUNT(*) AS lifetime,
+        EXTRACT(EPOCH FROM (NOW() - MIN(sent_at)::TIMESTAMP))::INTEGER / 86400 AS days
+      FROM exports WHERE status = 'sent'
+    `,
+    sql<{ count: string }[]>`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`,
+  ]);
+
+  const agg = exportAgg[0];
+  const exportedLifetime = Number(agg?.lifetime ?? 0);
   const minutesSaved = exportedLifetime * 2;
-  const firstExportRow = (await sql`
-    SELECT EXTRACT(EPOCH FROM (NOW() - MIN(sent_at)::TIMESTAMP))::INTEGER / 86400 AS days
-    FROM exports WHERE status = 'sent'`)[0] as { days: number | null } | undefined;
-  const daysActive = firstExportRow?.days ?? null;
+
   return {
-    exportedToday,
-    exportedThisWeek,
+    exportedToday: Number(agg?.today ?? 0),
+    exportedThisWeek: Number(agg?.thisWeek ?? 0),
     exportedLifetime,
-    needsReview,
+    needsReview: Number(needsReviewRow[0]?.count ?? 0),
     hoursSavedLifetime: Math.round((minutesSaved / 60) * 10) / 10,
-    daysActive,
+    daysActive: agg?.days ?? null,
   };
 }
 
@@ -1416,53 +1428,64 @@ export type SecondaryStats = {
 };
 
 export async function getSecondaryStats(): Promise<SecondaryStats> {
-  const lastReview = (await sql`
-    SELECT EXTRACT(EPOCH FROM (NOW() - MAX(created_at)::TIMESTAMP))::INTEGER / 86400 AS days
-    FROM invoices WHERE status = 'needs_review'`)[0] as { days: number | null } | undefined;
+  // PERF: vorher 5–6 sequenzielle Queries; jetzt drei parallele Aggregate.
+  // Reduktion auf max. 3 DB-Roundtrips bei gleichem Output-Shape.
+  // ANMERKUNG: Funktion ist aktuell NICHT org-gescoped (globale Stats über
+  // alle Mandanten). TODO Org-Scope (siehe Wrapper-Migration).
+  const [invoicesAgg, exportsAgg, latencyRows] = await Promise.all([
+    sql<{ daysSinceReview: number | null; filteredThisMonth: string }[]>`
+      SELECT
+        EXTRACT(EPOCH FROM (NOW() - MAX(created_at::TIMESTAMP) FILTER (WHERE status = 'needs_review')))::INTEGER / 86400 AS "daysSinceReview",
+        COUNT(*) FILTER (
+          WHERE status IN ('ignored', 'duplicate')
+            AND TO_CHAR(created_at::TIMESTAMP, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')
+        ) AS "filteredThisMonth"
+      FROM invoices
+    `,
+    sql<{ lifetime: string; minSent: number | null; last30: string }[]>`
+      SELECT
+        COUNT(*) AS lifetime,
+        EXTRACT(EPOCH FROM (NOW() - MIN(sent_at::TIMESTAMP)))::INTEGER / 86400 AS "minSent",
+        COUNT(*) FILTER (WHERE sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '30 days') AS last30
+      FROM exports WHERE status = 'sent'
+    `,
+    sql<{ avgMin: number | null }[]>`
+      SELECT AVG(EXTRACT(EPOCH FROM (e.sent_at::TIMESTAMP - i.created_at::TIMESTAMP)) / 60) AS "avgMin"
+      FROM exports e
+      JOIN invoices i ON i.id = e.invoice_id
+      WHERE e.status = 'sent' AND e.sent_at IS NOT NULL
+    `,
+  ]);
 
-  const hasExported = Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent'`)[0].count) > 0;
+  const invoices = invoicesAgg[0];
+  const exportsRow = exportsAgg[0];
+  const latency = latencyRows[0];
 
-  let autopilotDays: number | null = null;
-  if (hasExported && lastReview?.days == null) {
-    const since = (await sql`
-      SELECT EXTRACT(EPOCH FROM (NOW() - MIN(sent_at)::TIMESTAMP))::INTEGER / 86400 AS days
-      FROM exports WHERE status = 'sent'`)[0] as { days: number | null } | undefined;
-    autopilotDays = since?.days != null ? Number(since.days) : null;
-  }
+  const lastReviewDays = invoices?.daysSinceReview ?? null;
+  const hasExported = Number(exportsRow?.lifetime ?? 0) > 0;
+  const autopilotDays =
+    hasExported && lastReviewDays == null
+      ? exportsRow?.minSent ?? null
+      : null;
 
-  const latencyRow = (await sql`
-    SELECT AVG(EXTRACT(EPOCH FROM (e.sent_at::TIMESTAMP - i.created_at::TIMESTAMP)) / 60) AS "avgMin"
-    FROM exports e
-    JOIN invoices i ON i.id = e.invoice_id
-    WHERE e.status = 'sent' AND e.sent_at IS NOT NULL`)[0] as { avgMin: number | null } | undefined;
-  const avgLatencyMin =
-    latencyRow?.avgMin != null ? Math.round(Number(latencyRow.avgMin)) : null;
+  const filteredThisMonth = Number(invoices?.filteredThisMonth ?? 0);
 
-  const filteredRow = (await sql`
-    SELECT COUNT(*) AS count FROM invoices
-    WHERE status IN ('ignored', 'duplicate')
-      AND TO_CHAR(created_at::TIMESTAMP, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')`)[0] as { count: string };
-  const filteredThisMonth = Number(filteredRow.count);
-
-  const dailyAvgRow = (await sql`
-    SELECT COUNT(*) * 1.0 / 30 AS rate
-    FROM exports
-    WHERE status = 'sent'
-      AND sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '30 days'`)[0] as { rate: number | null } | undefined;
-
+  const last30 = Number(exportsRow?.last30 ?? 0);
   let forecastRestMonth: number | null = null;
-  if (dailyAvgRow?.rate != null && Number(dailyAvgRow.rate) > 0) {
+  if (last30 > 0) {
+    const rate = last30 / 30;
     const today = new Date();
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     const remaining = lastDay - today.getDate();
-    forecastRestMonth = Math.round(Number(dailyAvgRow.rate) * remaining);
+    forecastRestMonth = Math.round(rate * remaining);
   }
+
+  const avgLatencyMin =
+    latency?.avgMin != null ? Math.round(Number(latency.avgMin)) : null;
 
   return {
     daysSinceLastIntervention:
-      lastReview?.days != null
-        ? Number(lastReview.days)
-        : autopilotDays,
+      lastReviewDays != null ? Number(lastReviewDays) : autopilotDays,
     avgLatencyMin,
     filteredThisMonth,
     forecastRestMonth,
