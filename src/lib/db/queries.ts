@@ -1370,6 +1370,7 @@ export async function getDailyTimeseries(days: number): Promise<Array<{ date: st
 
 export async function getTopVendors(
   limit = 5,
+  organizationId: string | null = null,
 ): Promise<Array<{
   vendorName: string;
   vendorDomain: string | null;
@@ -1406,6 +1407,7 @@ export async function getTopVendors(
     FROM invoices i
     JOIN vendors v ON v.id = i.vendor_id
     WHERE i.status = 'exported'
+      AND (${organizationId}::text IS NULL OR i.organization_id = ${organizationId})
     GROUP BY v.id
     ORDER BY count DESC
     LIMIT ${limit}`;
@@ -1419,7 +1421,7 @@ export async function getTopVendors(
   }));
 }
 
-export async function getOverdueVendors(): Promise<Array<{
+export async function getOverdueVendors(organizationId: string | null = null): Promise<Array<{
   vendorName: string;
   vendorDomain: string | null;
   daysSince: number;
@@ -1433,6 +1435,7 @@ export async function getOverdueVendors(): Promise<Array<{
       EXTRACT(EPOCH FROM (NOW() - MAX(COALESCE(i.invoice_date, i.created_at)::TIMESTAMP)))::INTEGER / 86400 AS "daysSince"
     FROM invoices i
     JOIN vendors v ON v.id = i.vendor_id
+    WHERE (${organizationId}::text IS NULL OR i.organization_id = ${organizationId})
     GROUP BY v.id
     HAVING COUNT(*) >= 2
       AND EXTRACT(EPOCH FROM (NOW() - MAX(COALESCE(i.invoice_date, i.created_at)::TIMESTAMP)))::INTEGER / 86400 > 60
