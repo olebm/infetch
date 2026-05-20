@@ -67,6 +67,13 @@ async function seedSuccessfulInvoicesForOrg(
 }
 
 async function cleanup() {
+  // sync_events (vendor_id, invoice_id) has no ON DELETE CASCADE in 0001 —
+  // delete dependent rows first or vendors / invoices DELETE fails with FK.
+  await sql`
+    DELETE FROM sync_events
+    WHERE vendor_id IN (SELECT id FROM vendors WHERE canonical_key = ${VENDOR_KEY})
+       OR invoice_id IN (SELECT id FROM invoices WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C}))
+  `;
   await sql`DELETE FROM auto_approval_rules WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`;
   await sql`DELETE FROM invoices WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`;
   await sql`DELETE FROM vendors WHERE canonical_key = ${VENDOR_KEY}`;
