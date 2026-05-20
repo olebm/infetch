@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@/lib/db/client";
 import { getCurrentAuth } from "@/lib/auth/current";
+import { createScopedSql } from "@/lib/db/scoped-query";
 import { downloadFromStorage, BUCKETS } from "@/lib/supabase/storage";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +24,11 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ fi
     return NextResponse.json({ error: "no active organization" }, { status: 403 });
   }
 
+  const scopedSql = createScopedSql(orgId);
+
   // SECURITY: strikt nach organization_id filtern.
   // Vorher: "OR i.organization_id IS NULL" leakte Legacy-Daten an jeden authentifizierten User.
-  const rows = await sql<{ storedPath: string; originalFilename: string }[]>`
+  const rows = await scopedSql<{ storedPath: string; originalFilename: string }[]>`
     SELECT f.stored_path AS "storedPath", f.original_filename AS "originalFilename"
     FROM invoice_files f
     INNER JOIN invoices i ON i.id = f.invoice_id
