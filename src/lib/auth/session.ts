@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 Tage
 

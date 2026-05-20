@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { sendInvoiceMail } from "@/mail/smtp-client";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";

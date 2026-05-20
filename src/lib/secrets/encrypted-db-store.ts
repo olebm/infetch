@@ -16,7 +16,7 @@
  *   Delete: DELETE FROM vault.secrets WHERE name = …
  */
 
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 /**
  * Gibt an ob der Vault-Store verfügbar ist.

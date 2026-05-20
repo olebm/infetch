@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import {
   deleteOsSecret,
   isOsKeychainSupported,

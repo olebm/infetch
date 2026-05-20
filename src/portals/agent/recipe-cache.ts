@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import type { Recipe, RecipeRow } from "@/portals/agent/types";
 
 type RawRecipeRow = {

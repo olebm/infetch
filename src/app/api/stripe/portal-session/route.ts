@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { getStripeClient } from "@/lib/stripe";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 export const dynamic = "force-dynamic";
 

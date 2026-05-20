@@ -21,7 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { getStripeClient, isStripeConfigured } from "@/lib/stripe";
 import { appConfig } from "@/lib/config/env";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 export const dynamic = "force-dynamic";
 

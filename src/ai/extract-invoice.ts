@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
 import { hasConfiguredCredential } from "@/lib/secrets/credential-store";

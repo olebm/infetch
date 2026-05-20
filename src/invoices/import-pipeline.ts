@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type postgres from "postgres";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { recordSyncEvent } from "@/lib/db/events";
 import { BUCKETS, uploadToStorage, deleteFromStorage, buildInvoiceStorageKey } from "@/lib/supabase/storage";
 import { runInvoiceAiExtraction } from "@/ai/extract-invoice";

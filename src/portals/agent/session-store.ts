@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { BUCKETS, uploadToStorage, downloadFromStorage, deleteFromStorage } from "@/lib/supabase/storage";
 
 export type BrowserSession = {

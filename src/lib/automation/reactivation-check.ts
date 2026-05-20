@@ -8,7 +8,7 @@
  * Cron: 0 9 * * 0  (sonntags 9 Uhr)
  */
 
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { readJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
 import { sendReactivationEmail } from "@/lib/mail/notify";
 import { appConfig } from "@/lib/config/env";

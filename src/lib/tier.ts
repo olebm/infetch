@@ -10,7 +10,7 @@
  *   Business: kommt später (Portal-Agent, Multi-Org, Datev)
  */
 
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { appConfig } from "@/lib/config/env";
 
 export type Tier = "free" | "pro" | "business";

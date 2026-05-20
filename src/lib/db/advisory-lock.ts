@@ -1,5 +1,5 @@
 import type postgres from "postgres";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 /**
  * Cross-Prozess-Mutex via Postgres Advisory Lock.

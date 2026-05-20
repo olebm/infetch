@@ -7,7 +7,7 @@
  * vom User manuell hinzugefuegt.
  */
 
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { readJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
 import { readCredentialSecret } from "@/lib/secrets/credential-store";
 
