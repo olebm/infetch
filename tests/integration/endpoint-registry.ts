@@ -60,11 +60,14 @@ export const ORG_SCOPED_TABLES: OrgScopedEndpoint[] = [
   },
   {
     table: "export_targets",
-    note: "Per-org export targets (added in 0013).",
+    note: "Per-org export targets (organization_id added in 0013).",
     async seed(orgId, suffix) {
+      // Schema (0001 + 0013): target IN ('kontist','accountable'), label NOT NULL,
+      // UNIQUE(organization_id, target). Use 'kontist' — different orgs can share
+      // the same target string because the unique index is per-org.
       await sql`
-        INSERT INTO export_targets (target, kind, enabled, organization_id)
-        VALUES (${`fuzz-${orgId}-${suffix}@example.test`}, 'email', false, ${orgId})
+        INSERT INTO export_targets (target, label, organization_id)
+        VALUES ('kontist', ${`Fuzz target ${suffix}`}, ${orgId})
       `;
     },
   },
