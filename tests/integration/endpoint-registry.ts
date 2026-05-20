@@ -117,6 +117,8 @@ export const ORG_SCOPED_DEFERRED: readonly string[] = [
   "invoice_files", // 0019, depends on invoices
   "mail_accounts", // 0001
   "mail_inbound_addresses", // 0001
+  "portal_recipes", // 0025+ — Portal-Spuren multi-tenant
+  "portal_run_logs", // 0025+ — Portal-Spuren multi-tenant
   "usage_events", // 0001
   "vendor_month_status", // 0019, depends on vendors
 ];

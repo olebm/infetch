@@ -64,29 +64,38 @@ const ACTIVE_STEP_KEYS: StepKey[] = DISPLAY_STEP_KEYS;
 
 // ─── sessionStorage helpers ───────────────────────────────────────────────────
 
-const STORAGE_KEY = "onboarding-wizard";
+// User-scoped Key. Vorher war "onboarding-wizard" global gespeichert: nach
+// Konto-Löschung und Neu-Anmeldung mit gleicher E-Mail hat der Wizard die
+// Eingaben des Vorgängers wieder eingeblendet (selber Browser-Tab, neue
+// userId in der DB, aber gleicher Storage-Key). Jetzt scoped auf userId
+// — der gelöschte User existiert nicht mehr, neue userId → neuer Slot,
+// kein Restore von "Geistern". Legacy-Key wird beim Mount aufgeräumt.
+const LEGACY_STORAGE_KEY = "onboarding-wizard";
+function storageKeyFor(userId: string): string {
+  return `onboarding-wizard:${userId}`;
+}
 
 type PersistedState = {
   step: number;
   data: Omit<WizardData, "imapPassword" | "smtpPassword" | "senderPassword">;
 };
 
-function loadFromStorage(): PersistedState | null {
+function loadFromStorage(userId: string): PersistedState | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(storageKeyFor(userId));
     return raw ? (JSON.parse(raw) as PersistedState) : null;
   } catch {
     return null;
   }
 }
 
-function saveToStorage(step: number, data: WizardData): void {
+function saveToStorage(userId: string, step: number, data: WizardData): void {
   if (typeof window === "undefined") return;
   try {
     const { imapPassword: _ip, smtpPassword: _sp, senderPassword: _snp, ...rest } = data;
     sessionStorage.setItem(
-      STORAGE_KEY,
+      storageKeyFor(userId),
       // Voller Step persistieren — der Component clampt beim Render auf
       // stepKeys.length - 1, falls die activeKeys-Liste später kürzer ist.
       // Passwörter bewusst nicht persistieren (siehe destructuring oben).
@@ -95,9 +104,15 @@ function saveToStorage(step: number, data: WizardData): void {
   } catch {}
 }
 
-function clearStorage(): void {
+function clearStorage(userId: string): void {
   if (typeof window === "undefined") return;
-  try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+  try { sessionStorage.removeItem(storageKeyFor(userId)); } catch {}
+}
+
+/** Räumt den alten globalen Key aus früheren Wizard-Versionen weg. */
+function clearLegacyStorage(): void {
+  if (typeof window === "undefined") return;
+  try { sessionStorage.removeItem(LEGACY_STORAGE_KEY); } catch {}
 }
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
@@ -145,7 +160,7 @@ function effectiveSmtp(d: WizardData): {
 
 const initialActionState: OnboardingState = { status: "idle", message: "" };
 
-export function OnboardingWizard() {
+export function OnboardingWizard({ userId }: { userId: string }) {
   const router = useRouter();
 
   // SSR-safe: server and first client render must match, so start from
@@ -160,7 +175,11 @@ export function OnboardingWizard() {
   // with a mismatch. setState-in-effect is the correct tool for this one-shot
   // hydration; the rule is disabled deliberately, matching repo convention.
   useEffect(() => {
-    const saved = loadFromStorage();
+    // Legacy-Key (vor User-Scoping) wegräumen — schadet niemandem und
+    // verhindert dass ein altes "Geist"-Restore die neue, scoped-State
+    // überschreibt.
+    clearLegacyStorage();
+    const saved = loadFromStorage(userId);
     if (saved) {
       // Passwörter werden bewusst nicht persistiert — Restore stellt nur
       // Email + Server-Daten wieder her. MailboxConnectContent füllt sich
@@ -178,6 +197,10 @@ export function OnboardingWizard() {
       /* eslint-enable react-hooks/set-state-in-effect */
     }
     setHydrated(true);
+    // userId ist eine stabile Prop für die Lebensdauer dieser Mount-Phase
+    // — wir wollen ausdrücklich KEIN Re-Hydration bei (theoretischem)
+    // userId-Wechsel, deshalb leeres Dependency-Array statt [userId].
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [actionState, formAction, isPending] = useActionState(
@@ -195,8 +218,8 @@ export function OnboardingWizard() {
 
   useEffect(() => {
     if (!hydrated) return;
-    saveToStorage(step, data);
-  }, [hydrated, step, data]);
+    saveToStorage(userId, step, data);
+  }, [hydrated, step, data, userId]);
 
   const set = (key: keyof WizardData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -336,7 +359,7 @@ export function OnboardingWizard() {
   // angelegte (leere) User-Konto bleibt in Auth — ohne mail_account ist es
   // wirkungslos und wird beim nächsten Setup-Versuch übernommen.
   const handleCancel = async () => {
-    clearStorage();
+    clearStorage(userId);
     setValidationError(null);
     setTestPhase("idle");
     setTestErrors({});
@@ -405,10 +428,10 @@ export function OnboardingWizard() {
   const setupSucceeded = actionState.status === "success";
   useEffect(() => {
     if (!setupSucceeded) return;
-    clearStorage();
+    clearStorage(userId);
     const t = setTimeout(() => router.push("/onboarding/erstabruf"), 900);
     return () => clearTimeout(t);
-  }, [setupSucceeded, router]);
+  }, [setupSucceeded, router, userId]);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">

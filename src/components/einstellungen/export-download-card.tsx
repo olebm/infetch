@@ -232,6 +232,17 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
                   <button
                     type="submit"
                     disabled={!confirmMatches || deletePending}
+                    onClick={() => {
+                      // Defense-in-Depth: jegliche client-seitig persistierte
+                      // Wizard-/Setup-State (sessionStorage) sofort wegfegen,
+                      // bevor die Server-Action startet. Sonst könnte der
+                      // User nach Neu-Anmeldung mit derselben E-Mail im
+                      // selben Browser-Tab die "Geist"-Daten seines
+                      // Vorgänger-Kontos sehen.
+                      if (typeof window !== "undefined") {
+                        try { sessionStorage.clear(); } catch {}
+                      }
+                    }}
                     className="inline-flex h-9 items-center gap-2 rounded border border-danger/40 bg-danger px-3 text-sm font-medium text-white hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {deletePending ? "Wird gelöscht…" : "Endgültig löschen"}
