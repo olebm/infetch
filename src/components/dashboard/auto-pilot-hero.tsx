@@ -5,6 +5,8 @@ import { getAutoPilotStatus } from "@/lib/auto-pilot";
 import { getAutomationStats, getSetupSnapshot, getPrimaryMailAccount } from "@/lib/db/queries";
 import { getExportTargets } from "@/exports/export-pipeline";
 import { getCurrentAuth } from "@/lib/auth/current";
+import { HeroFreshLive } from "@/components/dashboard/hero-fresh-live";
+import type { HeroFreshPulse } from "@/lib/actions/scan-pulse";
 
 type Setup = Awaited<ReturnType<typeof getSetupSnapshot>>;
 
@@ -58,7 +60,12 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
   if (isBlocked) return <HeroBlocked setup={setup} />;
 
   if (isFresh) {
-    return <HeroFresh setup={setup} />;
+    const initialPulse: HeroFreshPulse = {
+      mailScanRunning: mailScan?.running ?? false,
+      nextRunSec: mailScan?.nextRunSec ?? null,
+      exportedLifetime: stats.exportedLifetime,
+    };
+    return <HeroFresh setup={setup} initialPulse={initialPulse} />;
   }
 
   return (
@@ -185,7 +192,13 @@ function HeroBlocked({ setup }: { setup: Setup }) {
   );
 }
 
-function HeroFresh({ setup }: { setup: Setup }) {
+function HeroFresh({
+  setup,
+  initialPulse,
+}: {
+  setup: Setup;
+  initialPulse: HeroFreshPulse;
+}) {
   return (
     <div className="grid items-start gap-12 py-2 md:grid-cols-2">
       <div>
@@ -196,6 +209,11 @@ function HeroFresh({ setup }: { setup: Setup }) {
         <p className="mt-5 max-w-md text-muted">
           Infetch scannt dein Postfach automatisch im Hintergrund. Sobald eine Rechnung ankommt, übernehmen wir den Rest.
         </p>
+        {setup.imapConfigured && (
+          <div className="mt-5">
+            <HeroFreshLive initial={initialPulse} />
+          </div>
+        )}
       </div>
       <FreshChecklist setup={setup} />
     </div>
