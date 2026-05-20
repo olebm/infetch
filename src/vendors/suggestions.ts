@@ -15,7 +15,12 @@ type InvoiceContext = {
   rawTextPath: string | null;
 };
 
-async function loadInvoiceContext(invoiceId: number): Promise<InvoiceContext> {
+async function loadInvoiceContext(invoiceId: number, organizationId: string | null): Promise<InvoiceContext> {
+  // Wenn keine Org angegeben ist: kein Context — sonst könnten Suggestions
+  // für Invoices fremder Orgs geladen werden.
+  if (!organizationId) {
+    return { invoiceId, filename: null, fromAddress: null, rawTextPath: null };
+  }
   const rows = await sql<InvoiceContext[]>`
     SELECT i.id AS "invoiceId",
            i.raw_text_path AS "rawTextPath",
@@ -27,6 +32,7 @@ async function loadInvoiceContext(invoiceId: number): Promise<InvoiceContext> {
             ORDER BY inf.created_at DESC LIMIT 1) AS "fromAddress"
     FROM invoices i
     WHERE i.id = ${invoiceId}
+      AND i.organization_id = ${organizationId}
   `;
   return rows[0] ?? { invoiceId, filename: null, fromAddress: null, rawTextPath: null };
 }
@@ -49,8 +55,13 @@ function extractDomain(value: string | null): string | null {
 export async function getVendorSuggestions(
   invoiceId: number,
   limit = 3,
+  organizationId: string | null = null,
 ): Promise<VendorSuggestion[]> {
-  const ctx = await loadInvoiceContext(invoiceId);
+  // Ohne Org-Kontext keine Suggestions liefern — sonst leaken Vendor-Daten
+  // (Namen, canonical_keys, Domain-Aliases) anderer Mandanten.
+  if (!organizationId) return [];
+
+  const ctx = await loadInvoiceContext(invoiceId, organizationId);
   const suggestions = new Map<number, VendorSuggestion>();
 
   function add(suggestion: VendorSuggestion) {
@@ -71,6 +82,8 @@ export async function getVendorSuggestions(
       WHERE LOWER(mm.from_address) = LOWER(${ctx.fromAddress})
         AND i2.id != ${invoiceId}
         AND i2.vendor_id IS NOT NULL
+        AND i2.organization_id = ${organizationId}
+        AND (v.organization_id IS NULL OR v.organization_id = ${organizationId})
       GROUP BY v.id, v.name
       ORDER BY hits DESC
       LIMIT 3
@@ -95,6 +108,7 @@ export async function getVendorSuggestions(
       FROM vendor_aliases va
       JOIN vendors v ON v.id = va.vendor_id
       WHERE va.match_type = 'domain' AND LOWER(va.alias) = ${senderDomain}
+        AND (v.organization_id IS NULL OR v.organization_id = ${organizationId})
       LIMIT 1
     `;
     const row = rows[0];
@@ -114,6 +128,7 @@ export async function getVendorSuggestions(
     const lowerFilename = ctx.filename.toLowerCase();
     const vendorRows = await sql<Array<{ id: number; name: string; canonicalKey: string }>>`
       SELECT id, name, canonical_key AS "canonicalKey" FROM vendors
+      WHERE organization_id IS NULL OR organization_id = ${organizationId}
     `;
     for (const v of vendorRows) {
       const nameLower = v.name.toLowerCase().replace(/\s+/g, "");

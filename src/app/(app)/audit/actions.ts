@@ -64,6 +64,10 @@ export async function updateInvoiceReviewAction(
   const auth = await requireCurrentAuth();
   const orgId = auth.organization?.id ?? null;
 
+  if (!orgId) {
+    return { status: "error", message: "Keine Organisation zugeordnet. Bitte neu anmelden." };
+  }
+
   try {
     const invoiceId = Number(formData.get("invoiceId"));
     if (!Number.isInteger(invoiceId) || invoiceId <= 0) {
@@ -76,11 +80,13 @@ export async function updateInvoiceReviewAction(
 
     const newVendorId = parseOptionalInteger(formData.get("vendorId"));
     const rows = await sql<{ vendorId: number | null }[]>`
-      SELECT vendor_id AS "vendorId" FROM invoices WHERE id = ${invoiceId}
+      SELECT vendor_id AS "vendorId" FROM invoices
+      WHERE id = ${invoiceId} AND organization_id = ${orgId}
     `;
     const previousVendorId = rows[0]?.vendorId ?? null;
 
     await updateInvoiceReview({
+      organizationId: orgId,
       invoiceId,
       vendorId: newVendorId,
       invoiceNumber: parseOptionalString(formData.get("invoiceNumber")),
@@ -180,14 +186,24 @@ function getReviewSuccessMessage(status: ReviewStatus) {
 // ─── Privat markieren ────────────────────────────────────────────────────────
 
 export async function markInvoicePrivateAction(invoiceId: number): Promise<void> {
-  await requireCurrentAuth();
-  await sql`UPDATE invoices SET is_private = TRUE WHERE id = ${invoiceId}`;
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id;
+  if (!orgId) throw new Error("Keine Organisation zugeordnet.");
+  await sql`
+    UPDATE invoices SET is_private = TRUE
+    WHERE id = ${invoiceId} AND organization_id = ${orgId}
+  `;
   revalidatePath("/audit");
 }
 
 export async function restoreInvoiceFromPrivateAction(invoiceId: number): Promise<void> {
-  await requireCurrentAuth();
-  await sql`UPDATE invoices SET is_private = FALSE WHERE id = ${invoiceId}`;
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id;
+  if (!orgId) throw new Error("Keine Organisation zugeordnet.");
+  await sql`
+    UPDATE invoices SET is_private = FALSE
+    WHERE id = ${invoiceId} AND organization_id = ${orgId}
+  `;
   revalidatePath("/audit");
 }
 

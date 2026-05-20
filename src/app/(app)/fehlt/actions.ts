@@ -108,13 +108,18 @@ export async function runVendorRequiredPortalAction(
 }
 
 export async function toggleVendorHiddenAction(formData: FormData): Promise<void> {
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id;
+  if (!orgId) throw new Error("Keine Organisation zugeordnet.");
   const vendorId = Number(formData.get("vendorId"));
   const hidden = Number(formData.get("hidden"));
   if (!Number.isInteger(vendorId) || vendorId <= 0) return;
   if (hidden !== 0 && hidden !== 1) return;
+  // Org-globale Built-in-Vendors (organization_id IS NULL) bleiben unangetastet;
+  // jeder User kann nur Vendors der eigenen Org togglen.
   await sql`
-    UPDATE vendors SET hidden = ${hidden === 1}, updated_at = CURRENT_TIMESTAMP WHERE id = ${vendorId}
+    UPDATE vendors SET hidden = ${hidden === 1}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${vendorId} AND organization_id = ${orgId}
   `;
   revalidatePath("/fehlt");
 }

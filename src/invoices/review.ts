@@ -6,6 +6,7 @@ const reviewStatuses = ["new", "needs_review", "ready", "ignored", "duplicate", 
 export type ReviewStatus = (typeof reviewStatuses)[number];
 
 export type InvoiceReviewInput = {
+  organizationId: string;
   invoiceId: number;
   vendorId: number | null;
   invoiceNumber: string | null;
@@ -24,10 +25,14 @@ export type InvoiceReviewInput = {
 };
 
 export async function updateInvoiceReview(input: InvoiceReviewInput): Promise<void> {
+  if (!input.organizationId) {
+    throw new Error("Keine Organisation zugeordnet.");
+  }
   const currentRows = await sql<{ id: number; vendorId: number | null; invoiceDate: string | null; status: string }[]>`
     SELECT id, vendor_id AS "vendorId", invoice_date AS "invoiceDate", status
     FROM invoices
     WHERE id = ${input.invoiceId}
+      AND organization_id = ${input.organizationId}
   `;
   const current = currentRows[0];
 
@@ -48,7 +53,13 @@ export async function updateInvoiceReview(input: InvoiceReviewInput): Promise<vo
   }
 
   if (input.vendorId !== null) {
-    const vendorRows = await sql`SELECT id FROM vendors WHERE id = ${input.vendorId}`;
+    // Org-globale Built-in-Vendors (organization_id IS NULL) und eigene Org-Vendors
+    // sind erlaubt; Vendors anderer Orgs nicht.
+    const vendorRows = await sql`
+      SELECT id FROM vendors
+      WHERE id = ${input.vendorId}
+        AND (organization_id IS NULL OR organization_id = ${input.organizationId})
+    `;
     if (vendorRows.length === 0) {
       throw new Error("Ausgewählter Vendor existiert nicht.");
     }
@@ -58,7 +69,11 @@ export async function updateInvoiceReview(input: InvoiceReviewInput): Promise<vo
     if (input.duplicateOfInvoiceId === input.invoiceId) {
       throw new Error("Eine Rechnung kann nicht auf sich selbst als Dublette zeigen.");
     }
-    const dupRows = await sql`SELECT id FROM invoices WHERE id = ${input.duplicateOfInvoiceId}`;
+    const dupRows = await sql`
+      SELECT id FROM invoices
+      WHERE id = ${input.duplicateOfInvoiceId}
+        AND organization_id = ${input.organizationId}
+    `;
     if (dupRows.length === 0) {
       throw new Error("Zielrechnung für die Dublette wurde nicht gefunden.");
     }
@@ -92,6 +107,7 @@ export async function updateInvoiceReview(input: InvoiceReviewInput): Promise<vo
         preferred_export_target_id = ${input.preferredExportTargetId},
         updated_at = CURRENT_TIMESTAMP
     WHERE id = ${input.invoiceId}
+      AND organization_id = ${input.organizationId}
   `;
 
   await recordSyncEvent({

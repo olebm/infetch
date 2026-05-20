@@ -101,6 +101,13 @@ export const aiProxyGlobalLimiter = new InMemoryRateLimiter(120, 60_000);
  */
 export const aiProxyIpLimiter = new InMemoryRateLimiter(20, 60_000);
 
+/**
+ * Pro-Org-Limit auf den AI-Proxy: 20 Extraktionen pro Minute pro Organisation.
+ * Verhindert, dass eine einzelne Org das globale Mistral-Budget für andere Orgs
+ * leerräumt — Defense-in-Depth gegen Free-Tier-Missbrauch.
+ */
+export const aiProxyOrgLimiter = new InMemoryRateLimiter(20, 60_000);
+
 // ── Globales API-Limit (Middleware) ───────────────────────────────────────────
 
 /**
