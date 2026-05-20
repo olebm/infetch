@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import "@/app/legal-prose.css";
 
 /**
  * Minimal shell for public (non-authenticated) pages like legal, changelog, etc.

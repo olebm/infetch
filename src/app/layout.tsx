@@ -72,6 +72,29 @@ export default async function RootLayout({
   const locale = await getLocale();
   return (
     <html lang={locale} className={`${geist.variable} ${geistMono.variable}`}>
+      <head>
+        {/* PERFORMANCE: Söhne wird über @font-face in globals.css geladen — der
+            Browser entdeckt das aber erst nach CSS-Parsing, was LCP verzögert.
+            Explizites Preload bringt die kritischen Gewichte (H1=600, body=400)
+            parallel zur CSS-Request ins Netzwerk. */}
+        <link
+          rel="preload"
+          href="/fonts/soehne-halbfett.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/soehne-buch.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        {/* Vendor-Logos kommen vom Brandfetch-CDN — preconnect spart TCP+TLS-
+            Handshake (~100-300 ms RTT). */}
+        <link rel="preconnect" href="https://cdn.brandfetch.io" crossOrigin="anonymous" />
+      </head>
       <body>{children}</body>
       <PlausibleAnalytics />
     </html>

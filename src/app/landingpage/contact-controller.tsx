@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ContactModal } from "@/components/ui/contact-modal";
+import dynamic from "next/dynamic";
+
+// PERFORMANCE: Modal+Formular (~270 LOC) zählen bis zum ersten Kontakt-Klick
+// als "Unused JavaScript". Dynamic-Import lädt das Chunk erst beim Öffnen.
+const ContactModal = dynamic(
+  () => import("@/components/ui/contact-modal").then((m) => m.ContactModal),
+  { ssr: false },
+);
 
 /**
  * Thin client island that handles two responsibilities:
@@ -12,6 +19,7 @@ import { ContactModal } from "@/components/ui/contact-modal";
  */
 export function ContactController() {
   const [open, setOpen] = useState(false);
+  const [primed, setPrimed] = useState(false); // erstes Öffnen triggert Chunk-Load
 
   useEffect(() => {
     // Reveal observer
@@ -26,7 +34,10 @@ export function ContactController() {
 
     // Contact modal — click delegation so the server-rendered buttons work
     function handleClick(e: MouseEvent) {
-      if ((e.target as Element).closest("[data-contact]")) setOpen(true);
+      if ((e.target as Element).closest("[data-contact]")) {
+        setPrimed(true);
+        setOpen(true);
+      }
     }
     document.addEventListener("click", handleClick);
 
@@ -36,5 +47,6 @@ export function ContactController() {
     };
   }, []);
 
+  if (!primed) return null;
   return <ContactModal open={open} onClose={() => setOpen(false)} />;
 }

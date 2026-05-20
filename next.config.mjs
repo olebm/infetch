@@ -74,6 +74,22 @@ const nextConfig = {
   // SECURITY (INFETCH-91): HTTP Security Headers für alle Routen.
   async headers() {
     return [
+      // PERFORMANCE: Statische Marketing-Assets (Fonts, Brand-Logos, Fotos)
+      // dürfen aggressiv im Browser- und Edge-Cache liegen — Dateinamen sind
+      // versioniert (Hash bei Foto-Updates), Korrekturen erzwingen Rename.
+      // Adressiert "Effiziente Cache-Lebensdauer verwenden" in PageSpeed.
+      {
+        source: "/fonts/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/images/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
       {
         source: "/(.*)",
         headers: [

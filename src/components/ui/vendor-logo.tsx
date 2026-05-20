@@ -108,6 +108,11 @@ export function VendorLogo({
         alt=""
         width={256}
         height={256}
+        // PERFORMANCE: Brandfetch-CDN-Logos sind nie LCP — Browser darf sie
+        // verzögert holen und async decoden. Verhindert Konkurrenz um Bandbreite
+        // mit Hero-Bild und Schriften.
+        loading="lazy"
+        decoding="async"
         onError={advance}
         onLoad={(e) => {
           // Catch 0-byte responses that don't trigger onError
