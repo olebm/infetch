@@ -100,6 +100,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Rate-Limit pro Org (INFETCH-165): Free = 20/min, Pro/Business = 100/min.
+  // Liegt bewusst NACH dem Body-Parse, damit organizationId verfügbar ist.
+  // DB-Lookup für Tier ist akzeptabel: simples SELECT auf PK-Index.
+  if (body.organizationId) {
+    const tier = await getOrgTier(body.organizationId);
+    const orgLimiter = tier === "free" ? aiProxyOrgFreeLimiter : aiProxyOrgProLimiter;
+    const orgCheck = orgLimiter.check(body.organizationId);
+    if (!orgCheck.ok) {
+      const retryAfter = Math.max(1, Math.ceil((orgCheck.resetAt - Date.now()) / 1000));
+      return NextResponse.json(
+        { error: "rate_limited" },
+        { status: 429, headers: { "retry-after": String(retryAfter) } },
+      );
+    }
+  }
+
   try {
     const extraction = await callMistralInvoiceExtractor({
       model: body.model || appConfig.mistral.model,
