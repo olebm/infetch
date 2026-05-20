@@ -63,6 +63,17 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState<SenderItem[]>(() => buildItems(senders));
 
+  // Cutoff fuer das Status-Polling: nur Scan-Runs ab (Component-Mount - 60s).
+  // Der vom Onboarding ausgeloeste Scan startet ein paar 100ms VOR dem
+  // Page-Render (waehrend der Server-Action), der Puffer faengt das ab.
+  // Aeltere failed-Runs (z. B. Catch-up-Scan vor dem Onboarding) werden
+  // damit ignoriert und koennen das Polling nicht mehr in den Error-State
+  // kippen. Lazy useState statt useRef wegen react-hooks/purity (Date.now()
+  // im Render verboten, im lazy Initializer erlaubt).
+  const [pollSinceIso] = useState<string>(
+    () => new Date(Date.now() - 60_000).toISOString(),
+  );
+
   // Real first scan: poll until it finishes (we wait — no skipping).
   useEffect(() => {
     if (phase !== "scan") return;
@@ -72,7 +83,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     const poll = async () => {
       let status: OnboardingScanStatus;
       try {
-        status = await getOnboardingScanStatusAction();
+        status = await getOnboardingScanStatusAction(pollSinceIso);
       } catch {
         if (!cancelled) setTimeout(poll, 2500);
         return;
@@ -113,7 +124,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     return () => {
       cancelled = true;
     };
-  }, [phase]);
+  }, [phase, pollSinceIso]);
 
   const stats = useMemo(
     () => ({
