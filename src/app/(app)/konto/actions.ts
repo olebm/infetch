@@ -1,7 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sql } from "@/lib/db/client";
+// INFETCH-174 Wave 4: Diese Datei queryt System-Auth-Tabellen
+// (`org_members`, `users`) — explizit cross-org-legitim. RLS-Policies dieser
+// Tabellen scopen über `auth.uid()` (siehe Migration 0010 `users_self`,
+// `organizations_members`), NICHT über `app_org_match()`. Die Org-Sicherheit
+// dieser Queries hängt am manuellen `WHERE organization_id = ${orgId} AND
+// user_id = ${userId}` — bereits korrekt. Daher unsafeGlobalSql als explizite
+// Audit-Marker (`grep -rn unsafeGlobalSql src/`).
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { updateUserAvatar } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";

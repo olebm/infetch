@@ -18,7 +18,7 @@ const SQL_CLIENT_ALLOWLIST = [
   "src/app/(app)/audit/actions.ts",
   "src/app/(app)/einstellungen/actions.ts",
   "src/app/(app)/fehlt/actions.ts",
-  "src/app/(app)/konto/actions.ts",
+  // src/app/(app)/konto/actions.ts — migrated to unsafeGlobalSql (Wave 4 pilot, INFETCH-174)
   "src/app/(app)/konto/page.tsx",
   "src/app/(app)/online-accounts/actions.ts",
   "src/app/(app)/senders/actions.ts",
