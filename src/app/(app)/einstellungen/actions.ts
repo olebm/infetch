@@ -1103,6 +1103,19 @@ export async function deleteAccountAction(
       // Mitgliedschaften des Nutzers (auch in Fremd-Orgs) + User-Zeile hart.
       await tx`DELETE FROM org_members WHERE user_id = ${userId}`;
       await tx`DELETE FROM users WHERE id = ${userId}`;
+      // DSGVO: magic_links speichern die E-Mail-Adresse im Klartext. Sie
+      // gehören zum User (nicht zur Org) und müssen mit dem User verschwinden,
+      // sonst bleibt die Mail-Adresse als "vergessenes Recht"-Verstoß stehen.
+      // Tabelle ist seit dem Schema "magic_links" da, aber defensiv gegen
+      // Schema-Drift mit einem dynamischen Check.
+      const linksTableExists = await tx<{ t: string }[]>`
+        SELECT table_name t FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'magic_links'
+        LIMIT 1
+      `;
+      if (linksTableExists.length > 0) {
+        await tx`DELETE FROM magic_links WHERE LOWER(email) = ${email}`;
+      }
     });
   } catch (error) {
     console.error("[deleteAccountAction] DB teardown failed:", error);

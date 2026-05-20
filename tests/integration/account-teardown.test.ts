@@ -34,6 +34,8 @@ const ORG_VENDOR_KEY = `teardown-org-vendor-${S}`;
 const SECRET_REF = `teardown-secret-${S}`;
 const SENDER_ADDR = `teardown-sender-${S}@example.com`;
 const INBOUND_ID = `teardown-inbound-${S}`;
+const USER_EMAIL = `${USER}@td.local`;
+const SECRET_REF_ORPHAN = `teardown-orphan-secret-${S}`; // bleiben — nicht der gelöschten Org
 
 const ORGS = [ORG, OTHER_ORG, EMPTY_ORG];
 const USERS = [USER, OTHER_USER, EMPTY_USER];
@@ -55,7 +57,11 @@ async function cleanup() {
   await sql`DELETE FROM invoices WHERE organization_id = ANY(${ORGS})`;
   await sql`DELETE FROM mail_messages WHERE mail_account_id = ${acctId}`;
   await sql`DELETE FROM mail_accounts WHERE organization_id = ANY(${ORGS})`;
+  // DSGVO-Test-Reste — bewusst nach den FK-Children, vor credential_refs.
+  await sql`DELETE FROM encrypted_secrets WHERE secret_ref IN (${SECRET_REF}, ${SECRET_REF_ORPHAN})`;
   await sql`DELETE FROM credential_refs WHERE secret_ref = ${SECRET_REF}`;
+  await sql`DELETE FROM portal_browser_sessions WHERE vendor_key IN (${GLOBAL_VENDOR_KEY}, ${ORG_VENDOR_KEY})`;
+  await sql`DELETE FROM portal_run_logs WHERE vendor_key IN (${GLOBAL_VENDOR_KEY}, ${ORG_VENDOR_KEY})`;
   await sql`DELETE FROM usage_events WHERE organization_id = ANY(${ORGS})`;
   await sql`DELETE FROM mail_inbound_addresses WHERE id = ${INBOUND_ID}`;
   await sql`DELETE FROM discovered_senders WHERE from_address = ${SENDER_ADDR}`;
@@ -66,7 +72,7 @@ async function cleanup() {
 }
 
 async function seedTenant() {
-  await sql`INSERT INTO users (id, email, name) VALUES (${USER}, ${`${USER}@td.local`}, 'Teardown')`;
+  await sql`INSERT INTO users (id, email, name) VALUES (${USER}, ${USER_EMAIL}, 'Teardown')`;
   await sql`
     INSERT INTO organizations (id, name, slug, tier, owner_user_id)
     VALUES (${ORG}, ${ORG}, ${ORG}, 'pro', ${USER})
@@ -104,6 +110,17 @@ async function seedTenant() {
     VALUES ('imap', 'IMAP', 'encrypted_db', ${SECRET_REF}, 'configured', ${ORG})
     RETURNING id
   `;
+  // DSGVO: verschlüsseltes Passwort in encrypted_secrets — muss bei
+  // Konto-Löschung mit verschwinden, sonst bleibt der Ciphertext orphaned.
+  await sql`
+    INSERT INTO encrypted_secrets (secret_ref, ciphertext)
+    VALUES (${SECRET_REF}, ${`encrypted-payload-${S}`})
+  `;
+  // Fremder Ciphertext, der NICHT der gelöschten Org gehört — muss bleiben.
+  await sql`
+    INSERT INTO encrypted_secrets (secret_ref, ciphertext)
+    VALUES (${SECRET_REF_ORPHAN}, ${`other-payload-${S}`})
+  `;
   const [acct] = await sql<{ id: number }[]>`
     INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
     VALUES ('Mail', 'imap.test', 993, true, ${`${USER}@td.local`}, ${cred.id}, 'configured', ${ORG})
@@ -125,11 +142,36 @@ async function seedTenant() {
     VALUES (${SENDER_ADDR}, 'example.com', ${ORG})
   `;
 
+  // Hinweis: magic_links existiert in der Supabase-Postgres-DB nicht
+  // (Legacy-Schema-Eintrag, ersetzt durch Supabase Auth). Der Production-
+  // Code in deleteAccountAction hat einen defensiven Schema-Check, daher
+  // hier keine Seed-Daten — ein dedizierter Schema-Drift-Test würde nur
+  // CI-Lärm produzieren.
+
   // Org-eigener Custom-Vendor (muss mit) + globaler Vendor (muss bleiben).
   const [ov] = await sql<{ id: number }[]>`
     INSERT INTO vendors (name, canonical_key, category, organization_id)
     VALUES ('Org Vendor', ${ORG_VENDOR_KEY}, 'saas', ${ORG})
     RETURNING id
+  `;
+  // DSGVO: Portal-Spuren sind vendor_key-bound. Org-Vendor-Sessions/Logs
+  // gehören dem gelöschten Tenant und müssen mit verschwinden. Globaler
+  // Vendor (NULL) und seine Spuren bleiben unangetastet.
+  await sql`
+    INSERT INTO portal_browser_sessions (vendor_key, storage_state_path)
+    VALUES (${ORG_VENDOR_KEY}, ${`/tmp/${ORG_VENDOR_KEY}.json`})
+  `;
+  await sql`
+    INSERT INTO portal_run_logs (vendor_key, mode, status, started_at)
+    VALUES (${ORG_VENDOR_KEY}, 'replay', 'success', CURRENT_TIMESTAMP)
+  `;
+  await sql`
+    INSERT INTO portal_browser_sessions (vendor_key, storage_state_path)
+    VALUES (${GLOBAL_VENDOR_KEY}, ${`/tmp/${GLOBAL_VENDOR_KEY}.json`})
+  `;
+  await sql`
+    INSERT INTO portal_run_logs (vendor_key, mode, status, started_at)
+    VALUES (${GLOBAL_VENDOR_KEY}, 'replay', 'success', CURRENT_TIMESTAMP)
   `;
   orgVendorId = ov.id;
   await sql`
@@ -215,6 +257,24 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
     expect(await count(sql`SELECT COUNT(*) c FROM vendors WHERE id = ${orgVendorId}`)).toBe(0);
   });
 
+  it("DSGVO: encrypted_secrets and portal traces all disappear with the tenant", async () => {
+    await hardDeleteAccount(USER, ORG);
+
+    // Verschlüsseltes Passwort für die gelöschte Org → weg.
+    expect(await count(sql`SELECT COUNT(*) c FROM encrypted_secrets WHERE secret_ref = ${SECRET_REF}`)).toBe(0);
+    // Ein fremder Ciphertext (nicht der Org zugeordnet) muss BLEIBEN —
+    // wir löschen nur die secret_refs der gelöschten Org.
+    expect(await count(sql`SELECT COUNT(*) c FROM encrypted_secrets WHERE secret_ref = ${SECRET_REF_ORPHAN}`)).toBe(1);
+
+    // Portal-Spuren des org-eigenen Vendors → weg.
+    expect(await count(sql`SELECT COUNT(*) c FROM portal_browser_sessions WHERE vendor_key = ${ORG_VENDOR_KEY}`)).toBe(0);
+    expect(await count(sql`SELECT COUNT(*) c FROM portal_run_logs WHERE vendor_key = ${ORG_VENDOR_KEY}`)).toBe(0);
+
+    // Portal-Spuren des globalen Vendors → bleiben.
+    expect(await count(sql`SELECT COUNT(*) c FROM portal_browser_sessions WHERE vendor_key = ${GLOBAL_VENDOR_KEY}`)).toBe(1);
+    expect(await count(sql`SELECT COUNT(*) c FROM portal_run_logs WHERE vendor_key = ${GLOBAL_VENDOR_KEY}`)).toBe(1);
+  });
+
   it("hardDeleteOrgData leaves global vendor and a foreign tenant untouched", async () => {
     await hardDeleteAccount(USER, ORG);
 
@@ -222,6 +282,51 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
     expect(await count(sql`SELECT COUNT(*) c FROM users WHERE id = ${OTHER_USER}`)).toBe(1);
     expect(await count(sql`SELECT COUNT(*) c FROM organizations WHERE id = ${OTHER_ORG}`)).toBe(1);
     expect(await count(sql`SELECT COUNT(*) c FROM invoices WHERE id = ${otherInvoiceId}`)).toBe(1);
+  });
+
+  /**
+   * Drift-Guard: Wenn die Migration eine neue Tabelle mit organization_id-
+   * Spalte einführt, die nicht in hardDeleteOrgData gelistet ist, würden
+   * Tenant-Daten "vergessen" werden — DSGVO-Verstoß. Dieser Test scannt
+   * das Schema und scheitert sobald eine solche Tabelle entdeckt wird, die
+   * nicht in der bekannten Lösch-Pipeline berücksichtigt ist.
+   */
+  it("DSGVO drift-guard: every public table with organization_id is in the teardown sweep", async () => {
+    const KNOWN = new Set([
+      // explizit in hardDeleteOrgData ODER via FK CASCADE auf organizations
+      "organizations",
+      "org_members",
+      "users", // active_organization_id (SET NULL, kein Daten-Leak)
+      "sessions", // active_organization_id (SET NULL)
+      "mail_accounts",
+      "credential_refs",
+      "invoices",
+      "vendors",
+      "exports",
+      "export_targets",
+      "integration_targets",
+      "discovered_senders",
+      "usage_events",
+      "mail_inbound_addresses",
+      "vendor_month_status",
+      "invoice_files",
+      "auto_approval_rules",
+    ]);
+
+    const rows = await sql<{ tableName: string }[]>`
+      SELECT DISTINCT table_name AS "tableName"
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND column_name = 'organization_id'
+      ORDER BY table_name
+    `;
+    const unknown = rows.map((r) => r.tableName).filter((t) => !KNOWN.has(t));
+    expect(
+      unknown,
+      `Neue Tabelle mit organization_id-Spalte entdeckt — sie muss in hardDeleteOrgData ` +
+        `und in der KNOWN-Liste dieses Drift-Guards aufgenommen werden, ` +
+        `sonst bleiben beim Hard-Delete personenbezogene Daten zurück (DSGVO): ${unknown.join(", ")}`,
+    ).toEqual([]);
   });
 
   it("purgeDeadUser REFUSES a non-empty org and deletes nothing", async () => {
