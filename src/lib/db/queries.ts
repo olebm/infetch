@@ -1454,6 +1454,42 @@ export async function getLastScanAt(): Promise<string | null> {
   return row?.lastAt ?? null;
 }
 
+// Liefert Details der letzten gescheiterten IMAP-Scan-Row, aber nur wenn diese
+// auch tatsaechlich die latest Row ist (also kein erfolgreicher/laufender Scan
+// danach kam). So verschwindet das Dashboard-Warnbanner automatisch, sobald der
+// naechste Scan wieder gruen ist.
+export async function getLastScanFailure(): Promise<
+  { failedAt: string; errorSnippet: string } | null
+> {
+  const rows = await sql<
+    { status: string; finishedAt: string | null; summaryJson: string | null }[]
+  >`
+    SELECT status, finished_at AS "finishedAt", summary_json AS "summaryJson"
+    FROM sync_runs
+    WHERE type = 'imap_scan'
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row || row.status !== "failed") return null;
+
+  let errorSnippet = "Unbekannter Fehler beim Scan.";
+  try {
+    const summary = JSON.parse(row.summaryJson || "{}") as { error?: string };
+    if (typeof summary.error === "string" && summary.error.trim()) {
+      // Nur erste Zeile + max 200 Zeichen, kein Stacktrace.
+      errorSnippet = summary.error.split("\n")[0].slice(0, 200).trim();
+    }
+  } catch {
+    // bei kaputtem JSON Default-Text behalten
+  }
+
+  return {
+    failedAt: row.finishedAt || new Date().toISOString(),
+    errorSnippet,
+  };
+}
+
 export type SecondaryStats = {
   daysSinceLastIntervention: number | null;
   avgLatencyMin: number | null;

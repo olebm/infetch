@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { formatVendorName } from "@/lib/vendor-utils";
 import { PageHeader } from "@/components/ui/page-header";
@@ -12,6 +12,7 @@ import {
   getInvoiceStatusCounts,
   getInvoices,
   getLastScanAt,
+  getLastScanFailure,
   getMonthlyKpis,
   getObservationStartDate,
   getOverdueVendors,
@@ -84,6 +85,7 @@ export async function DashboardView() {
     monthly,
     obsStart,
     lastScanAt,
+    lastScanFailure,
   ] = await Promise.all([
     // orgId hier kritisch: ohne ihn würde der Snapshot globale secret_refs
     // prüfen und für jede User-Org "nicht configured" zurückgeben — was den
@@ -105,6 +107,7 @@ export async function DashboardView() {
     })(),
     getObservationStartDate(),
     getLastScanAt(),
+    getLastScanFailure(),
   ]);
 
   // Mehr holen, dann auf 5 mit Vendor-Name filtern → keine „Unbekannter Anbieter"-Einträge
@@ -160,6 +163,19 @@ export async function DashboardView() {
     return `vor ${Math.round(diffH / 24)} Tagen`;
   })();
 
+  // Relativ-Label fuer Banner (analoge Logik, kein Tier-Fallback noetig).
+  const lastScanFailureRelative = lastScanFailure
+    ? (() => {
+        // eslint-disable-next-line react-hooks/purity -- server component
+        const diffMin = Math.round((Date.now() - new Date(lastScanFailure.failedAt).getTime()) / 60_000);
+        if (diffMin < 2) return "gerade eben";
+        if (diffMin < 60) return `vor ${diffMin} Min`;
+        const diffH = Math.round(diffMin / 60);
+        if (diffH < 24) return `vor ${diffH} Std`;
+        return `vor ${Math.round(diffH / 24)} Tagen`;
+      })()
+    : "";
+
   // Determine dashboard state for subline
   const isBlocked = !setup.smtpConfigured || !setup.imapConfigured;
   const isFresh = !isBlocked && stats.exportedLifetime === 0;
@@ -192,6 +208,29 @@ export async function DashboardView() {
   return (
     <div className="screen-enter screen-enter-active">
       <PageHeader title="Übersicht" subline={subline} />
+
+      {/* SCAN-FEHLER-BANNER — nur wenn der letzte Scan failed war.
+          Verschwindet automatisch, sobald der naechste Scan wieder gruen ist
+          (Query liefert null wenn latest sync_run != 'failed'). */}
+      {lastScanFailure && setup.imapConfigured && (
+        <div className="mt-3 rounded-md border border-warn/30 bg-warn-soft/40 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warn" aria-hidden />
+            <div className="flex-1">
+              <div className="text-sm font-medium text-ink">
+                Letzter Scan fehlgeschlagen ({lastScanFailureRelative})
+              </div>
+              <div className="mt-1 text-xs text-muted">{lastScanFailure.errorSnippet}</div>
+              <Link
+                href="/einstellungen?tab=postfach"
+                className="mt-2 inline-block text-xs text-ink underline underline-offset-4 decoration-line hover:decoration-ink"
+              >
+                Postfach prüfen →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HERO */}
       <AutoPilotHero setup={setup} />
