@@ -99,6 +99,111 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
 
+  migration-drift-gate:
+    name: Migration Drift Gate
+    runs-on: ubuntu-latest
+    # Proves apply-all-migrations.mjs takes a pre-W5 prod snapshot forward
+    # cleanly. This is the gate for the prod-migration PR (#9 in the sequence
+    # tracked in issue #19).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5433/ci
+      # Same UUID as supabase/migrations/0022_RUNBOOK.md / pre-0019-snapshot.sql
+      DESIGNATED_ORG: 185109b5-4a88-44d1-ad22-73d6e8a47f8e
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Load pre-W5 snapshot (auth/vault stubs + 0001-0018 + orphan invoices)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/pre-0019-snapshot.sql
+      - name: Apply W5 migrations (0019→0023) via runner against the snapshot
+        run: |
+          node scripts/apply-all-migrations.mjs "$DATABASE_URL" \
+            --snapshot-mode=prod-replay \
+            --skip=0002 \
+            --set app.designated_org="$DESIGNATED_ORG"
+      - name: Phase-D verification queries (per 0022_RUNBOOK.md)
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X --csv -t <<'SQL' > phase-d.csv
+            -- 1) All 6 tables that 0019/0020/0013 touch should have organization_id
+            SELECT 'has_org_id_columns',
+                   COUNT(*) FILTER (WHERE column_name = 'organization_id')
+              FROM information_schema.columns
+             WHERE table_schema = 'public'
+               AND table_name IN (
+                 'invoice_files','vendor_month_status','auto_approval_rules',
+                 'integration_targets','discovered_senders','export_targets'
+               );
+
+            -- 2) Zero unattributed invoices after 0022 backfill
+            SELECT 'invoices_null_org',
+                   COUNT(*) FROM invoices WHERE organization_id IS NULL;
+
+            -- 3) Zero unattributed auto_approval_rules
+            SELECT 'rules_null_org',
+                   COUNT(*) FROM auto_approval_rules WHERE organization_id IS NULL;
+
+            -- 4) Per-org unique indexes from 0019/0020 created
+            SELECT 'per_org_indexes',
+                   COUNT(*) FROM pg_indexes
+                  WHERE indexname IN (
+                    'uniq_invoice_files_org_sha256',
+                    'uniq_integration_targets_org_provider',
+                    'uniq_discovered_senders_org_addr',
+                    'uniq_vms_org_vendor_month'
+                  );
+
+            -- 5) Old global UNIQUE constraints dropped
+            SELECT 'old_global_constraints',
+                   COUNT(*) FROM pg_constraint WHERE conname IN (
+                     'invoice_files_sha256_key','integration_targets_provider_key',
+                     'vendor_month_status_vendor_id_year_month_key',
+                     'discovered_senders_from_address_key'
+                   );
+          SQL
+
+          echo "--- phase-d.csv ---"
+          cat phase-d.csv
+          echo "-------------------"
+
+          # Expectations:
+          #   has_org_id_columns    = 6
+          #   invoices_null_org     = 0
+          #   rules_null_org        = 0
+          #   per_org_indexes       = 4
+          #   old_global_constraints= 0
+          fail=0
+          while IFS=, read -r key val; do
+            key=${key// /}; val=${val// /}
+            case "$key" in
+              has_org_id_columns)     [ "$val" = "6" ] || { echo "::error::$key=$val (expected 6)"; fail=1; } ;;
+              invoices_null_org)      [ "$val" = "0" ] || { echo "::error::$key=$val (expected 0)"; fail=1; } ;;
+              rules_null_org)         [ "$val" = "0" ] || { echo "::error::$key=$val (expected 0)"; fail=1; } ;;
+              per_org_indexes)        [ "$val" = "4" ] || { echo "::error::$key=$val (expected 4)"; fail=1; } ;;
+              old_global_constraints) [ "$val" = "0" ] || { echo "::error::$key=$val (expected 0)"; fail=1; } ;;
+            esac
+          done < phase-d.csv
+          exit $fail
+
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
