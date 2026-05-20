@@ -77,22 +77,48 @@ Recon gelaufen, Checkpoint 1 aufgelöst (siehe „Recon-Ergebnis" oben):
 
 ---
 
-## Phase C — Staging-Dry-Run (gegen den Restore-Klon)
+## Phase C + D — Pre-flight (gegen den Restore-Klon)
+
+Seit dem Linear-Runner (PR #21 / #28) und dem Drift-Gate-CI-Job (#23)
+ist Phase C + D als ein einziges Shell-Skript verfügbar. Es bündelt:
+
+  - `node scripts/apply-all-migrations.mjs ... --snapshot-mode=prod-replay
+     --skip=0002 --set app.designated_org=<UUID>`
+  - die Phase-D-Invarianten-Checks (siehe nächster Abschnitt)
 
 ```bash
 DB="postgres://…/infetch_restore_test"
-psql "$DB" -v ON_ERROR_STOP=1 \
-  -c "SELECT set_config('app.designated_org','<ORG_ID>',false)" \
-  -f supabase/migrations/0022_prebackfill_org_attribution.sql \
-  -f supabase/migrations/0019_multitenant_isolation.sql \
-  -f supabase/migrations/0020_discovered_senders_per_org.sql \
-  -f supabase/migrations/0021_remaining_boolean_columns.sql
+
+STAGING_URL="$DB" \
+DESIGNATED_ORG="<ORG_ID>" \
+  ./scripts/prod-migration-preflight.sh
 ```
 
-`psql` führt `-c` und `-f` auf **einer** Verbindung aus → die GUC
-`app.designated_org` bleibt für 0022 **und** 0019 gesetzt.
-Erwartung: keine `RAISE EXCEPTION`; `0022`-`NOTICE`s zeigen die attribuierten
-Zähler (invoices / integration_targets / auto_approval_rules).
+Exit-Codes:
+
+  - `0` — alle 5 Invarianten grün, **Phase E darf geplant werden**
+  - `1` — Argv/Env-Fehler (STAGING_URL oder DESIGNATED_ORG fehlt)
+  - `2` — Migration im Pre-flight gescheitert (Chain bricht)
+  - `3` — Phase-D-Invariante verletzt (Output nennt welche)
+
+Erwartung im Erfolgsfall: keine `RAISE EXCEPTION`; `0022`-`NOTICE`s
+zeigen die attribuierten Zähler (invoices / integration_targets /
+auto_approval_rules). `0023_users_avatar_url` ist idempotent
+(`ADD COLUMN IF NOT EXISTS`) — auf Prod ein No-op.
+
+> **Manueller Fallback** (wenn das Runner-Tooling nicht zur Verfügung
+> steht): die ursprüngliche Sequenz funktioniert weiterhin auf einer
+> Verbindung.
+>
+> ```bash
+> psql "$DB" -v ON_ERROR_STOP=1 \
+>   -c "SELECT set_config('app.designated_org','<ORG_ID>',false)" \
+>   -f supabase/migrations/0022_prebackfill_org_attribution.sql \
+>   -f supabase/migrations/0019_multitenant_isolation.sql \
+>   -f supabase/migrations/0020_discovered_senders_per_org.sql \
+>   -f supabase/migrations/0021_remaining_boolean_columns.sql \
+>   -f supabase/migrations/0023_users_avatar_url.sql
+> ```
 
 ---
 
@@ -121,13 +147,23 @@ SELECT conname FROM pg_constraint WHERE conname IN
 
 ---
 
-## Phase E — Prod (nur nach grünem Staging + Checkpoint 1)
+## Phase E — Prod (nur nach grünem Pre-flight, Exit-Code 0)
+
+> Empfohlener Pre-flight: `./scripts/prod-migration-preflight.sh` gegen
+> den Restore-Klon (siehe Phase C + D). Erst nach Exit-Code 0 hier weiter.
 
 1. Kurzes Wartungsfenster ankündigen; Crons (`mail-scanner`, `missing-check`,
    `self-provisioning`) und App-Writes einfrieren (Coolify: Container stoppen
    oder Maintenance-Flag). Keinen laufenden Import abwürgen.
-2. Exakt denselben `psql`-Block wie Phase C, aber gegen `"$PROD_DATABASE_URL"`.
-3. Phase-D-Verifikation gegen Prod.
+2. Pre-flight-Skript gegen Prod fahren — selbe Logik, andere URL:
+   ```bash
+   STAGING_URL="$PROD_DATABASE_URL" \
+   DESIGNATED_ORG="<ORG_ID>" \
+     ./scripts/prod-migration-preflight.sh
+   ```
+   (Manueller Fallback: gleicher `psql -c "SET …" -f …`-Block wie Phase C,
+   gegen `"$PROD_DATABASE_URL"`.)
+3. Phase-D-Verifikation läuft im Skript bereits mit — Exit 0 = grün.
 4. Funktional als eingeloggter User: `https://app.infetch.de/einstellungen`
    (200, kein „konnte nicht geladen werden"), zusätzlich `/senders`,
    `/invoices`, `/audit`.
