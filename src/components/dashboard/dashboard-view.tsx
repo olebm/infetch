@@ -85,7 +85,12 @@ export async function DashboardView() {
     obsStart,
     lastScanAt,
   ] = await Promise.all([
-    getSetupSnapshot(),
+    // orgId hier kritisch: ohne ihn würde der Snapshot globale secret_refs
+    // prüfen und für jede User-Org "nicht configured" zurückgeben — was den
+    // HeroBlocked-Banner ("Postfach und Versand-Adresse fehlen") fälschlich
+    // anzeigt, obwohl der Hard-Gate im (app)/layout.tsx den User korrekt
+    // durchlässt. Bug nach PR #33 entdeckt.
+    getSetupSnapshot(orgId),
     getAutomationStats(),
     getSecondaryStats(),
     getDailyTimeseries(30),

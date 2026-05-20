@@ -31,11 +31,15 @@ function formatCountdown(sec: number | null): string {
  */
 export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
   const auth = await getCurrentAuth();
+  const orgId = auth?.organization?.id ?? null;
   const [setup, stats, imapAccount, exportTargets] = await Promise.all([
-    setupProp ? Promise.resolve(setupProp) : getSetupSnapshot(),
+    // orgId pflicht: ohne ihn prüft getSetupSnapshot globale secret_refs
+    // und meldet fälschlich "nicht configured" → HeroBlocked-Banner trotz
+    // vollständigem User-Setup. Hard-Gate im Layout nutzt orgId korrekt.
+    setupProp ? Promise.resolve(setupProp) : getSetupSnapshot(orgId),
     getAutomationStats(),
     getPrimaryMailAccount(),
-    getExportTargets(auth?.organization?.id ?? null),
+    getExportTargets(orgId),
   ]);
 
   const daysActive = stats.daysActive;
