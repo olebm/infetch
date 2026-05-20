@@ -8,7 +8,7 @@ import { sql } from "@/lib/db/client";
  *   Each `scoped\`…\`` invocation opens a postgres transaction, sets
  *   `app.current_org` via `set_config()` (parameter-safe, no string-concat),
  *   then executes the caller's query within that transaction. RLS policies
- *   added in migration 0025 read `current_setting('app.current_org')` as a
+ *   added in migration 0026 read `current_setting('app.current_org')` as a
  *   second defense layer alongside the manual `WHERE organization_id = …`
  *   filters — so a forgotten manual filter still cannot leak across orgs.
  *

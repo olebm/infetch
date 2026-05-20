@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- 0025 — Defense-in-Depth RLS via app.current_org (INFETCH-175)
+-- 0026 — Defense-in-Depth RLS via app.current_org (INFETCH-175)
 -- ══════════════════════════════════════════════════════════════════════════════
 --
 -- Context: Die App nutzt heute eine postgres-Superuser-Connection (Supavisor)
