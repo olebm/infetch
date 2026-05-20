@@ -363,7 +363,31 @@ export async function getInvoices(options: { limit?: number; status?: string; st
   params.push(limit);
   const limitParam = `$${paramIdx}`;
 
+  // PERF (INFETCH-171): Vorher zwei korrelierte Subqueries pro Invoice-Zeile
+  // (latest ai_extraction + vendor_aliases/discovered_senders COALESCE) — bei
+  // 200 Rechnungen 200+ Lookups. Jetzt drei DISTINCT-ON-CTEs, die ihre Tabelle
+  // jeweils einmal scannen und dann via Hash-Join an die invoice-Liste
+  // anschließen. Mit den vorhandenen Indexen (ai_extractions.invoice_id,
+  // vendor_aliases via vendor_id, discovered_senders via matched_vendor_id)
+  // sortiert Postgres das in einem Schwung — N+1 ist weg.
   const queryText = `
+    WITH latest_ai AS (
+      SELECT DISTINCT ON (invoice_id) invoice_id, status
+      FROM ai_extractions
+      ORDER BY invoice_id, created_at DESC, id DESC
+    ),
+    vendor_alias_best AS (
+      SELECT DISTINCT ON (vendor_id) vendor_id, alias AS domain
+      FROM vendor_aliases
+      WHERE match_type = 'domain'
+      ORDER BY vendor_id, priority ASC, LENGTH(alias) ASC
+    ),
+    sender_best AS (
+      SELECT DISTINCT ON (matched_vendor_id) matched_vendor_id AS vendor_id, from_domain AS domain
+      FROM discovered_senders
+      WHERE matched_vendor_id IS NOT NULL
+      ORDER BY matched_vendor_id, pdf_count DESC
+    )
     SELECT
       invoices.id,
       invoices.status,
@@ -374,22 +398,14 @@ export async function getInvoices(options: { limit?: number; status?: string; st
       invoices.amount_gross AS "amountGross",
       invoices.currency,
       invoices.confidence,
-      (
-        SELECT ai_extractions.status
-        FROM ai_extractions
-        WHERE ai_extractions.invoice_id = invoices.id
-        ORDER BY ai_extractions.created_at DESC, ai_extractions.id DESC
-        LIMIT 1
-      ) AS "aiStatus",
+      latest_ai.status AS "aiStatus",
       vendors.name AS "vendorName",
-      (
-        SELECT COALESCE(
-          (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
-          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
-        )
-      ) AS "vendorDomain"
+      COALESCE(vendor_alias_best.domain, sender_best.domain) AS "vendorDomain"
     FROM invoices
     LEFT JOIN vendors ON vendors.id = invoices.vendor_id
+    LEFT JOIN latest_ai ON latest_ai.invoice_id = invoices.id
+    LEFT JOIN vendor_alias_best ON vendor_alias_best.vendor_id = vendors.id
+    LEFT JOIN sender_best ON sender_best.vendor_id = vendors.id
     ${where}
     ORDER BY COALESCE(invoices.invoice_date, invoices.created_at) DESC
     LIMIT ${limitParam}`;
