@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { sql } from "@/lib/db/client";
 import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
@@ -24,6 +25,11 @@ export async function completeOnboardingAction(
   void _prev;
 
   const auth = await requireCurrentAuth();
+
+  // Setup-Erfolg in einem Sub-Scope einsammeln. redirect() wirft eine
+  // NEXT_REDIRECT-Exception, die wir NICHT vom catch-Block schlucken wollen
+  // — daher hart außerhalb des try.
+  let setupOk = false;
 
   try {
     const email = String(formData.get("email") || "").trim();
@@ -171,15 +177,24 @@ export async function completeOnboardingAction(
     revalidatePath("/");
     revalidatePath("/audit");
     revalidatePath("/einstellungen");
+    revalidatePath("/onboarding/erstabruf");
 
-    return {
-      status: "success",
-      message: "Setup abgeschlossen. Wir holen jetzt deine Rechnungen.",
-    };
+    setupOk = true;
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Setup fehlgeschlagen.";
     return { status: "error", message: msg };
   }
+
+  // Server-side Redirect zum Erstabruf-Screen. Client-Override war fragil
+  // (revalidatePath ↔ router.push Race): nach erfolgreicher Setup-Aktion
+  // wurde der User in seltenen Fällen direkt aufs Dashboard geleitet,
+  // ohne den Scan-Progress-Screen jemals zu sehen. redirect() ist hart und
+  // unmissverständlich — useActionState wechselt einfach den Pfad statt
+  // einen Success-State zu erhalten.
+  if (setupOk) {
+    redirect("/onboarding/erstabruf");
+  }
+  return { status: "error", message: "Setup-Status unklar — bitte erneut versuchen." };
 }
 
 export async function verifyOnboardingConnectionAction(): Promise<{ ok: boolean; error?: string }> {
