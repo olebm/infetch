@@ -88,7 +88,10 @@ export async function attemptAutoTransfer(
   }
 
   try {
-    const apiKey = await readCredentialSecret({ scope: integration.provider });
+    const apiKey = await readCredentialSecret({
+      scope: integration.provider,
+      organizationId: organizationId ?? null,
+    });
     if (!apiKey) {
       await recordSyncEvent({
         level: "warning",

@@ -610,6 +610,7 @@ export async function saveLexofficeApiKeyAction(
 
     const secretRef = await saveCredentialSecret({
       scope: "lexoffice",
+      organizationId: auth?.organization?.id ?? null,
       label: `lexoffice — ${profile.companyName}`,
       secret: apiKey,
     });
@@ -666,6 +667,7 @@ export async function saveSevdeskApiKeyAction(
     const label = userInfo.sevClient?.name ?? userInfo.fullname;
     const secretRef = await saveCredentialSecret({
       scope: "sevdesk",
+      organizationId: auth?.organization?.id ?? null,
       label: `sevDesk — ${label}`,
       secret: apiKey,
     });

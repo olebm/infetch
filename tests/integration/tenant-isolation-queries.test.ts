@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "@/lib/db/client";
-import { getVendors, getMissingItems, getMissingMatrix } from "@/lib/db/queries";
+import {
+  getMissingItems,
+  getMissingMatrix,
+  getPipelineSnapshot,
+  getVendors,
+} from "@/lib/db/queries";
 
 // Regressionstest für Mandanten-Isolation der Lieferanten-/Missing-Queries.
 // Der App-Pfad nutzt den service_role-Client und umgeht RLS — die Trennung
@@ -41,6 +46,7 @@ async function seedOrgWithVendor(orgId: string, userId: string, key: string): Pr
 }
 
 async function cleanup() {
+  await sql`DELETE FROM invoices WHERE organization_id IN (${ORG_A}, ${ORG_B})`;
   await sql`DELETE FROM vendor_month_status WHERE organization_id IN (${ORG_A}, ${ORG_B})`;
   await sql`DELETE FROM vendors WHERE canonical_key IN (${KEY_A}, ${KEY_B})`;
   await sql`DELETE FROM organizations WHERE id IN (${ORG_A}, ${ORG_B})`;
@@ -94,5 +100,24 @@ describe.skipIf(!hasDb)("tenant isolation — vendor & missing queries", () => {
     const matrixIdsB = matrixB.map((r) => r.vendor.id);
     expect(matrixIdsB).toContain(vendorB);
     expect(matrixIdsB).not.toContain(vendorA);
+  });
+
+  it("getPipelineSnapshot: needs_review count is org-scoped (regression for 1.3)", async () => {
+    // Only ORG_B has an invoice in needs_review state. Pre-fix, the count
+    // was global, so ORG_A would also see status="needs_review". Post-fix
+    // it's org-scoped: ORG_A reports "pending", ORG_B reports "needs_review".
+    await sql`
+      INSERT INTO invoices (vendor_id, source, status, invoice_number, organization_id)
+      VALUES (${vendorB}, 'manual', 'needs_review', ${`B-NEEDS-${SUFFIX}`}, ${ORG_B})
+    `;
+
+    const snapshotA = await getPipelineSnapshot(ORG_A);
+    const snapshotB = await getPipelineSnapshot(ORG_B);
+
+    const reviewA = snapshotA.find((s) => s.label === "Review");
+    const reviewB = snapshotB.find((s) => s.label === "Review");
+
+    expect(reviewA?.status).toBe("pending");
+    expect(reviewB?.status).toBe("needs_review");
   });
 });
