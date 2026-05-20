@@ -50,19 +50,17 @@ const STEP_LABELS: Record<StepKey, string> = {
   bestaetigung: "Bestätigung",
 };
 
-// Vollständige Schrittliste — immer 4. Der Stepper-Indikator zeigt diese
-// Reihenfolge konsistent an, damit User die Gesamtlänge des Setups kennen.
+// Wizard ist jetzt strikt 4-stufig (Iteration 2):
+//   1. Postfach   — nur IMAP (Empfangs-Server)
+//   2. Empfänger  — Buchhaltungs-Software / Steuerkanzlei-Adresse
+//   3. Versand    — SMTP (vorausgefüllt aus Step 1, beliebig anpassbar)
+//   4. Bestätigung
+// Step "Versand" ist für alle Recipient-Typen Pflicht. Bei einem
+// Standard-Postfach klickt der User durch die vorausgefüllten Felder; bei
+// Shared-Inbox-Recipients (Kontist/Accountable/sevDesk) trägt er hier
+// die separate Versand-Adresse ein.
 const DISPLAY_STEP_KEYS: StepKey[] = ["postfach", "buchhaltung", "versand", "bestaetigung"];
-
-// Tatsächlich durchlaufene Schritte — der "versand"-Step entfällt für
-// Recipients mit Per-User-Inbox (z. B. Billomat, Papierkram). Im Stepper
-// erscheint er dann als übersprungen (heller Stil), Navigation/Validation
-// kennen ihn aber nicht.
-function activeStepKeysFor(recipientKey: string): StepKey[] {
-  return isSharedInboxRecipient(recipientKey)
-    ? ["postfach", "buchhaltung", "versand", "bestaetigung"]
-    : ["postfach", "buchhaltung", "bestaetigung"];
-}
+const ACTIVE_STEP_KEYS: StepKey[] = DISPLAY_STEP_KEYS;
 
 // ─── sessionStorage helpers ───────────────────────────────────────────────────
 
@@ -127,26 +125,19 @@ const IMAP_SMTP_DEFAULTS = {
   smtpEmail: "", smtpPassword: "",
 };
 
-// Effective SMTP/send settings: separate sending mailbox if enabled, else the
-// receiving (IMAP) account's SMTP. Used for the connection test and submit.
+// Effective SMTP/send settings = der Stand aus Step 3 ("Versand").
+// Step 3 ist immer da und wird beim Übergang Step 1→2 mit den IMAP-Werten
+// vorbelegt, sodass für Standard-Postfächer kein erneutes Tippen nötig ist.
+// Bei Shared-Inbox-Recipients überschreibt der User dort die Sende-Adresse.
 function effectiveSmtp(d: WizardData): {
   host: string; port: number; secure: boolean; user: string; pass: string;
 } {
-  if (isSharedInboxRecipient(d.recipientKey)) {
-    return {
-      host: d.senderSmtpHost,
-      port: d.senderSmtpPort,
-      secure: d.senderSmtpSecure,
-      user: d.senderEmail,
-      pass: d.senderPassword,
-    };
-  }
   return {
-    host: d.smtpHost,
-    port: d.smtpPort,
-    secure: d.smtpSecure,
-    user: d.smtpEmail || d.imapEmail,
-    pass: d.smtpPassword || d.imapPassword,
+    host: d.senderSmtpHost,
+    port: d.senderSmtpPort,
+    secure: d.senderSmtpSecure,
+    user: d.senderEmail,
+    pass: d.senderPassword,
   };
 }
 
@@ -219,18 +210,12 @@ export function OnboardingWizard() {
 
   const submitSmtp = effectiveSmtp(data);
 
-  // Active step sequence depends on the chosen recipient (Versand step only
-  // for shared-inbox recipients). `step` is an index into this list; the
-  // recipient is always picked at "buchhaltung" (index 1) before any later
-  // step, so the conditional tail can't cause index drift.
-  const stepKeys = activeStepKeysFor(data.recipientKey);
+  // 4 fixe Steps. `step` ist Index in ACTIVE_STEP_KEYS == DISPLAY_STEP_KEYS.
+  const stepKeys = ACTIVE_STEP_KEYS;
   const clampedStep = Math.min(step, stepKeys.length - 1);
   const currentKey = stepKeys[clampedStep];
   const isLastStep = clampedStep === stepKeys.length - 1;
-  // Display-Index = Position des aktuellen Active-Steps im Display-Array.
-  // So springt der Highlight bei per-User-Recipients über "versand" hinweg,
-  // ohne dass der Schritt aus dem Stepper verschwindet.
-  const displayCurrentIdx = DISPLAY_STEP_KEYS.indexOf(currentKey);
+  const displayCurrentIdx = clampedStep;
 
   const advance = () => setStep(() => Math.min(stepKeys.length - 1, clampedStep + 1));
 
@@ -292,16 +277,27 @@ export function OnboardingWizard() {
       if (!data.imapEmail)    { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
       if (!data.imapPassword) { setValidationError("Bitte Passwort eingeben."); return; }
       if (!data.imapHost)     { setValidationError("Server-Details fehlen — bitte Provider auswählen oder manuell eingeben."); return; }
-      // Postfach = receiving mailbox: check IMAP (reading) + its SMTP.
+      // Step 1 testet nur IMAP — SMTP kommt in Step 3 (eigener Schritt).
+      // Beim erfolgreichen IMAP-Check werden die SMTP-Felder als Default
+      // für Step 3 vorbelegt: dieselben Credentials, SMTP-Server entweder
+      // vom erkannten Provider oder als Fallback der IMAP-Host.
+      setData((prev) => ({
+        ...prev,
+        senderEmail:      prev.senderEmail      || prev.imapEmail,
+        senderPassword:   prev.senderPassword   || prev.imapPassword,
+        senderSmtpHost:   prev.senderSmtpHost   || prev.smtpHost || prev.imapHost,
+        senderSmtpPort:   prev.senderSmtpPort   || prev.smtpPort,
+        senderSmtpSecure: prev.senderSmtpSecure ?? prev.smtpSecure,
+      }));
       await runTestAndAdvance(
         {
-          host: data.smtpHost,
-          port: data.smtpPort,
-          secure: data.smtpSecure,
-          user: data.smtpEmail || data.imapEmail,
-          pass: data.smtpPassword || data.imapPassword,
+          host: data.imapHost,
+          port: data.imapPort,
+          secure: data.imapSecure,
+          user: data.imapEmail,
+          pass: data.imapPassword,
         },
-        { imap: true, smtp: true },
+        { imap: true, smtp: false },
       );
       return;
     }
@@ -316,10 +312,9 @@ export function OnboardingWizard() {
     }
 
     if (currentKey === "versand") {
-      // Mandatory for shared-inbox recipients — the address registered there.
-      if (!data.senderEmail)    { setValidationError("Bitte die Sende-Adresse eingeben (die bei der Buchhaltungs-Software hinterlegte)."); return; }
-      if (!data.senderPassword) { setValidationError("Bitte das Passwort der Sende-Adresse eingeben."); return; }
-      if (!data.senderSmtpHost) { setValidationError("Sende-Server unbekannt — bitte Server-Details manuell eingeben."); return; }
+      if (!data.senderEmail)    { setValidationError("Bitte Sende-Adresse eingeben."); return; }
+      if (!data.senderPassword) { setValidationError("Bitte Passwort für den Versand eingeben."); return; }
+      if (!data.senderSmtpHost) { setValidationError("Sende-Server fehlt — bitte SMTP-Host eintragen."); return; }
       // Versand = send-only mailbox: only SMTP is relevant.
       await runTestAndAdvance(
         {
@@ -437,7 +432,6 @@ export function OnboardingWizard() {
           {DISPLAY_STEP_KEYS.map((key, i) => {
             const isPast = i < displayCurrentIdx;
             const isCurrent = i === displayCurrentIdx;
-            const isSkipped = !stepKeys.includes(key);
             return (
               <Fragment key={key}>
                 <div className="flex min-w-0 items-center gap-2">
@@ -447,16 +441,14 @@ export function OnboardingWizard() {
                         ? "bg-ok text-white"
                         : isCurrent
                           ? "bg-brand text-paper"
-                          : isSkipped
-                            ? "border border-dashed border-line bg-white text-muted/60"
-                            : "border border-line bg-white text-muted"
+                          : "border border-line bg-white text-muted"
                     }`}
                   >
                     {isPast ? <Check size={12} /> : i + 1}
                   </div>
                   <span
                     className={`hidden xs:block truncate text-xs font-medium ${
-                      isCurrent ? "text-ink" : isSkipped ? "text-muted/60" : "text-muted"
+                      isCurrent ? "text-ink" : "text-muted"
                     }`}
                   >
                     {STEP_LABELS[key]}
@@ -474,18 +466,19 @@ export function OnboardingWizard() {
       {/* ── Step content ──────────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 sm:px-6 py-6 sm:py-8 md:py-12">
 
-        {/* Postfach — receiving mailbox */}
+        {/* Postfach — IMAP-only (Empfangsserver) */}
         {currentKey === "postfach" && (
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-3xl">
-              Mit welchem Postfach sollen wir arbeiten?
+              Aus welchem Postfach holen wir Rechnungen?
             </h1>
             <p className="mt-2 text-sm text-muted">
-              In wenigen Schritten — danach scannt Infetch dein Postfach automatisch und leitet Rechnungen weiter.
+              Trage die E-Mail-Adresse und das Passwort des Postfachs ein, das Infetch scannen soll.
             </p>
             <div className="mt-6 rounded-md border border-line bg-paper p-5">
               <MailboxConnectContent
                 mode="onboarding"
+                purpose="imap-only"
                 initialEmail={data.imapEmail || undefined}
                 initialServers={{
                   imapHost: data.imapHost || undefined,
@@ -501,18 +494,25 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* Versand — only for shared-inbox recipients (mandatory) */}
+        {/* Versand — SMTP, immer da, vorausgefüllt aus Step 1 */}
         {currentKey === "versand" && (
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-3xl">
-              Von welcher Adresse sollen wir senden?
+              Von welchem Konto soll Infetch versenden?
             </h1>
             <p className="mt-2 text-sm text-muted">
-              <span className="font-medium text-ink">{selectedRecipient?.label ?? "Diese Software"}</span>{" "}
-              nutzt eine Sammel-Adresse{selectedRecipient?.email ? <> (<span className="font-mono">{selectedRecipient.email}</span>)</> : null}{" "}
-              und erkennt dich an deiner <span className="font-medium text-ink">Absender-Adresse</span>.
-              Trage die dort hinterlegte E-Mail ein — von diesem Postfach senden wir die Rechnungen.
-              Empfang bleibt dein Postfach aus Schritt 1.
+              {isSharedInboxRecipient(data.recipientKey) && selectedRecipient?.email ? (
+                <>
+                  <span className="font-medium text-ink">{selectedRecipient.label}</span>{" "}
+                  nutzt eine Sammel-Adresse (<span className="font-mono">{selectedRecipient.email}</span>)
+                  und erkennt dich an deiner <span className="font-medium text-ink">Absender-Adresse</span>.
+                  Trage die dort hinterlegte E-Mail ein — von diesem Konto senden wir die Rechnungen.
+                </>
+              ) : (
+                <>
+                  Standardmäßig wird vom Postfach aus Schritt 1 gesendet. Du kannst hier ein anderes SMTP-Konto eintragen, falls Versand und Empfang getrennt sind.
+                </>
+              )}
             </p>
 
             <div className="mt-6 rounded-md border border-line bg-paper p-5">
@@ -734,9 +734,8 @@ export function OnboardingWizard() {
               variant="ghost"
               onClick={handleCancel}
               disabled={testPhase === "testing"}
-              className="gap-1.5"
             >
-              <ArrowLeft size={16} aria-hidden /> Abbrechen
+              Abbrechen
             </Button>
           ) : (
             <Button

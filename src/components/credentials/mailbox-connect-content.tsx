@@ -59,11 +59,11 @@ interface MailboxConnectContentProps {
   onDataChange?: (data: MailboxData | null) => void;
   onSuccess?: () => void;
   /**
-   * "full" (Default) zeigt sowohl IMAP- als auch SMTP-Felder. "smtp-only"
-   * blendet IMAP komplett aus — gedacht für reine Versand-Postfächer
-   * (z. B. Onboarding-Step "Versand" bei Shared-Inbox-Recipients).
+   * "full"      — beide Server (Default)
+   * "imap-only" — nur Empfangs-Server (Onboarding Step 1)
+   * "smtp-only" — nur Versand-Server (Onboarding Step 3)
    */
-  purpose?: "full" | "smtp-only";
+  purpose?: "full" | "imap-only" | "smtp-only";
 }
 
 const initialState: CredentialFormState = { status: "idle", message: "" };
@@ -87,6 +87,7 @@ export function MailboxConnectContent({
   purpose = "full",
 }: MailboxConnectContentProps) {
   const smtpOnly = purpose === "smtp-only";
+  const imapOnly = purpose === "imap-only";
   const initProvider = initialEmail ? detectProvider(initialEmail) : null;
   // Reihenfolge: explizite Initial-Server (vom Parent) → Provider-Preset → harter Fallback.
   const initImapHost   = initialServers?.imapHost   ?? initProvider?.imap.host   ?? "";
@@ -133,9 +134,12 @@ export function MailboxConnectContent({
 
   useEffect(() => {
     if (mode !== "onboarding" || !onDataChange) return;
+    // Minimal-Required je nach Anzeige-Modus.
     const minimallyValid = smtpOnly
       ? Boolean(email && smtpHost)
-      : Boolean(email && imapHost && smtpHost);
+      : imapOnly
+        ? Boolean(email && imapHost)
+        : Boolean(email && imapHost && smtpHost);
     if (!minimallyValid) {
       onDataChange(null);
     } else {
@@ -153,7 +157,7 @@ export function MailboxConnectContent({
     mode, onDataChange, email, password,
     imapHost, imapPort, imapSecure,
     smtpHost, smtpPort, smtpSecure, provider, backend,
-    separateSmtp, smtpEmail, smtpPassword, smtpOnly,
+    separateSmtp, smtpEmail, smtpPassword, smtpOnly, imapOnly,
   ]);
 
   // ── Live provider detection ───────────────────────────────────────────────
@@ -412,62 +416,78 @@ export function MailboxConnectContent({
 
       {showAdv && (
         <div className="rounded border border-line/60 bg-surface p-4 space-y-4">
-          <div className={smtpOnly ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
-            {/* IMAP — versteckt bei reinen Versand-Postfächern */}
-            {!smtpOnly && (
-              <div>
-                <div className="mb-2 text-xs font-medium text-muted">IMAP — Empfangs-Server</div>
-                <div className="space-y-1.5">
-                  <input
-                    value={imapHost}
-                    onChange={(e) => setImapHost(e.target.value)}
-                    placeholder="imap.example.com"
-                    inputMode="url"
-                    className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
-                  />
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={imapPort}
-                      onChange={(e) => setImapPort(Number(e.target.value))}
-                      inputMode="numeric"
-                      className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
-                    />
-                    <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
-                      <input type="checkbox" checked={imapSecure} onChange={(e) => setImapSecure(e.target.checked)} />
-                      SSL/TLS
-                    </label>
+          {/*
+            Port + SSL-Checkbox sind im Onboarding bei Custom-Domain
+            ausgeblendet — IMAP=993/SSL und SMTP=587/STARTTLS sind die
+            gängigen Standards bei jedem ernstzunehmenden Hoster.
+            Power-User können das im Settings-Mode jederzeit anpassen.
+           */}
+          {(() => {
+            const hidePortSsl = mode === "onboarding" && !provider && !backend;
+            const oneCol = smtpOnly || imapOnly;
+            return (
+              <div className={oneCol ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
+                {!smtpOnly && (
+                  <div>
+                    <div className="mb-2 text-xs font-medium text-muted">IMAP — Empfangs-Server</div>
+                    <div className="space-y-1.5">
+                      <input
+                        value={imapHost}
+                        onChange={(e) => setImapHost(e.target.value)}
+                        placeholder="imap.example.com"
+                        inputMode="url"
+                        className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+                      />
+                      {!hidePortSsl && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={imapPort}
+                            onChange={(e) => setImapPort(Number(e.target.value))}
+                            inputMode="numeric"
+                            className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+                          />
+                          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
+                            <input type="checkbox" checked={imapSecure} onChange={(e) => setImapSecure(e.target.checked)} />
+                            SSL/TLS
+                          </label>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
+                {!imapOnly && (
+                  <div>
+                    <div className="mb-2 text-xs font-medium text-muted">SMTP — Versand-Server</div>
+                    <div className="space-y-1.5">
+                      <input
+                        value={smtpHost}
+                        onChange={(e) => setSmtpHost(e.target.value)}
+                        placeholder="smtp.example.com"
+                        inputMode="url"
+                        className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+                      />
+                      {!hidePortSsl && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={smtpPort}
+                            onChange={(e) => setSmtpPort(Number(e.target.value))}
+                            inputMode="numeric"
+                            className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+                          />
+                          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
+                            <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} />
+                            SSL/TLS
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            {/* SMTP */}
-            <div>
-              <div className="mb-2 text-xs font-medium text-muted">SMTP — Versand-Server</div>
-              <div className="space-y-1.5">
-                <input
-                  value={smtpHost}
-                  onChange={(e) => setSmtpHost(e.target.value)}
-                  placeholder="smtp.example.com"
-                  inputMode="url"
-                  className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
-                />
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={smtpPort}
-                    onChange={(e) => setSmtpPort(Number(e.target.value))}
-                    inputMode="numeric"
-                    className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
-                  />
-                  <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
-                    <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} />
-                    SSL/TLS
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Separate SMTP credentials — Advanced-Option, im Onboarding
               ausgeblendet (verwirrt mehr als sie hilft); bleibt im Settings-
