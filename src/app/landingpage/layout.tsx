@@ -31,7 +31,7 @@ const faqSchema = {
       name: "Liest Infetch wirklich alle meine Mails?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Nein. Infetch scannt Mails auf Rechnungsmerkmale — Absender-Muster, PDF-Anhänge, Betreff-Stichwörter. Nur erkannte Belege werden gespeichert. Private Nachrichten werden nicht gespeichert und nicht weiterverarbeitet.",
+        text: "Nein. Infetch scannt Mails auf Rechnungsmerkmale — Absender-Muster, PDF-Anhänge, Betreff-Stichwörter. Nur erkannte Belege werden vollständig gespeichert. Für alle anderen Mails legen wir nur einen technischen UID-Marker zur Deduplikation an — kein Absender, kein Betreff, kein Inhalt. Private Nachrichten werden nicht verarbeitet und nicht weitergeleitet.",
       },
     },
     {

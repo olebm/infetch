@@ -528,7 +528,7 @@ export default function LandingPage() {
                 { label: "Standort",        value: "EU · Frankfurt", detail: "Hetzner · ISO 27001"           },
                 { label: "Verschlüsselung", value: "AES-256",        detail: "at rest · in transit"          },
                 { label: "DSGVO",           value: "AVV inklusive",  detail: "Art. 28 DSGVO"                 },
-                { label: "KI-Training",     value: "keine",          detail: "Deine Daten trainieren nichts" },
+                { label: "KI-Nutzung",      value: "kein Marketing", detail: "Keine Weitergabe an Werbung oder Training durch uns" },
               ].map(({ label, value, detail }) => (
                 <div key={label}>
                   <dt className="text-xs text-muted">{label}</dt>
@@ -728,7 +728,7 @@ export default function LandingPage() {
             {[
               {
                 q: "Liest Infetch wirklich alle meine Mails?",
-                a: "Nein. Wir scannen Mails auf Rechnungsmerkmale — Absender-Muster, PDF-Anhänge, Betreff-Stichwörter. Nur erkannte Belege werden gespeichert. Private Nachrichten werden nicht gespeichert und nicht weiterverarbeitet.",
+                a: "Nein. Wir scannen Mails auf Rechnungsmerkmale — Absender-Muster, PDF-Anhänge, Betreff-Stichwörter. Nur erkannte Belege werden vollständig gespeichert. Für alle anderen Mails legen wir nur einen technischen UID-Marker zur Deduplikation an — kein Absender, kein Betreff, kein Inhalt. Private Nachrichten werden nicht verarbeitet und nicht weitergeleitet.",
               },
               {
                 q: "Was passiert, wenn die KI sich irrt?",
