@@ -8,14 +8,30 @@
 -- Idempotent + guarded so it is also safe (no-op) against the real Supabase
 -- stack in the `e2e` job.
 --
--- Two stubs:
---   1. auth.uid() — referenced by RLS policies in 0010/0011/0013/0019/0020.
+-- Three stubs:
+--   1. Supabase roles (authenticated, anon, service_role) — referenced by
+--      GRANT / CREATE POLICY ... TO statements in 0010 and elsewhere.
+--   2. auth.uid() — referenced by RLS policies in 0010/0011/0013/0019/0020.
 --      Stub returns NULL; under the CI `ci` superuser RLS is bypassed anyway.
---   2. Supabase Vault — schema + table + view + create_secret() so app code
+--   3. Supabase Vault — schema + table + view + create_secret() so app code
 --      can write/read secrets in tests. supabase_vault extension itself
 --      (migration 0002) is skipped because the binary is not installed on
 --      vanilla postgres:16.
 -- ─────────────────────────────────────────────────────────────────────────────
+
+-- ── Supabase role stubs (referenced by GRANT / CREATE POLICY) ────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    CREATE ROLE service_role NOLOGIN BYPASSRLS;
+  END IF;
+END $$;
 
 -- ── auth.uid() stub ──────────────────────────────────────────────────────────
 DO $$
