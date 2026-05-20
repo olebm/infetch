@@ -10,6 +10,12 @@ export type ProvisioningResult = {
     successCount: number;
     maxAmountCents: number;
   }>;
+  errors?: Array<{
+    organizationId: string | null;
+    vendorId: number;
+    vendorName: string;
+    message: string;
+  }>;
 };
 
 type Candidate = {
@@ -62,37 +68,58 @@ export async function provisionAutoApprovalRules(): Promise<ProvisioningResult> 
     scannedVendors: candidates.length,
     provisioned: [],
   };
+  const errors: NonNullable<ProvisioningResult["errors"]> = [];
 
   for (const candidate of candidates) {
     if (candidate.maxAmount === null) continue;
     const successCount = Number(candidate.successCount);
     const maxCents = Math.ceil(candidate.maxAmount * multiplier * 100);
 
-    await sql`
-      INSERT INTO auto_approval_rules (organization_id, vendor_id, vendor_pattern, max_amount_cents, enabled)
-      VALUES (${candidate.organizationId}, ${candidate.vendorId}, NULL, ${maxCents}, TRUE)
-    `;
+    try {
+      await sql`
+        INSERT INTO auto_approval_rules (organization_id, vendor_id, vendor_pattern, max_amount_cents, enabled)
+        VALUES (${candidate.organizationId}, ${candidate.vendorId}, NULL, ${maxCents}, TRUE)
+      `;
 
-    result.provisioned.push({
-      vendorId: candidate.vendorId,
-      vendorName: candidate.vendorName,
-      successCount,
-      maxAmountCents: maxCents,
-    });
-
-    await recordSyncEvent({
-      level: "info",
-      eventType: "auto_approval_rule_provisioned",
-      vendorId: candidate.vendorId,
-      message: `Auto-Approval-Rule für "${candidate.vendorName}" angelegt (max ${(maxCents / 100).toFixed(2)} €, basierend auf ${successCount} erfolgreichen Imports).`,
-      metadata: {
+      result.provisioned.push({
+        vendorId: candidate.vendorId,
+        vendorName: candidate.vendorName,
+        successCount,
         maxAmountCents: maxCents,
-        basisSuccessCount: successCount,
-        multiplier,
-      },
-    });
+      });
+
+      await recordSyncEvent({
+        level: "info",
+        eventType: "auto_approval_rule_provisioned",
+        vendorId: candidate.vendorId,
+        message: `Auto-Approval-Rule für "${candidate.vendorName}" angelegt (max ${(maxCents / 100).toFixed(2)} €, basierend auf ${successCount} erfolgreichen Imports).`,
+        metadata: {
+          maxAmountCents: maxCents,
+          basisSuccessCount: successCount,
+          multiplier,
+        },
+      });
+    } catch (err) {
+      // Per-(org,vendor)-Fehler isolieren: ein FK-Verletzer, eine
+      // ungültige Constraint oder ein temporärer DB-Fehler darf nicht
+      // den gesamten Provisioning-Lauf für die anderen Orgs blockieren.
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[self-provisioning] org ${candidate.organizationId} vendor ${candidate.vendorId} (${candidate.vendorName}) failed:`,
+        message,
+      );
+      errors.push({
+        organizationId: candidate.organizationId,
+        vendorId: candidate.vendorId,
+        vendorName: candidate.vendorName,
+        message,
+      });
+    }
   }
 
+  if (errors.length > 0) {
+    result.errors = errors;
+  }
   return result;
 }
 
