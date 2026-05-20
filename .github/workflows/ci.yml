@@ -169,7 +169,7 @@ jobs:
                     'uniq_invoice_files_org_sha256',
                     'uniq_integration_targets_org_provider',
                     'uniq_discovered_senders_org_addr',
-                    'uniq_vendor_month_status_org'
+                    'uniq_vms_org_vendor_month'
                   );
 
             -- 5) Old global UNIQUE constraints dropped
