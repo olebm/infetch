@@ -85,7 +85,7 @@ export const ORG_SCOPED_TABLES: OrgScopedEndpoint[] = [
 
 /**
  * Tables that exist but are deliberately NOT org-scoped today. Listed here
- * so an automated check (planned follow-up) can fail loudly when a new
+ * so an automated check (the schema-guard test) can fail loudly when a new
  * table appears that is neither in `ORG_SCOPED_TABLES` nor here.
  */
 export const CROSS_ORG_INTENTIONAL: readonly string[] = [
@@ -94,4 +94,27 @@ export const CROSS_ORG_INTENTIONAL: readonly string[] = [
   "org_members", // bridge — has org_id but tested separately
   "sync_runs", // system-wide; org_id migration is a future drift fix
   "schema_migrations", // bookkeeping
+];
+
+/**
+ * Org-scoped tables whose seed function is not in the registry yet. The
+ * schema-guard test counts them as "known" so the harness can land, but
+ * they have a follow-up issue to expand the registry. Move each entry
+ * into `ORG_SCOPED_TABLES` (with a real `seed(orgId, suffix)`) once its
+ * FK dependencies and NOT NULL columns are wired up.
+ *
+ * All entries have an `organization_id` column today (0019/0020 added
+ * most of them). Their seeds need rows in `invoices` / `vendors` etc.
+ * which the simple inline registry pattern doesn't handle yet.
+ */
+export const ORG_SCOPED_DEFERRED: readonly string[] = [
+  "auto_approval_rules", // 0019
+  "discovered_senders", // 0020
+  "exports", // depends on invoices + export_targets
+  "integration_targets", // 0019
+  "invoice_files", // 0019, depends on invoices
+  "mail_accounts", // 0001
+  "mail_inbound_addresses", // 0001
+  "usage_events", // 0001
+  "vendor_month_status", // 0019, depends on vendors
 ];
