@@ -1,4 +1,6 @@
-import { sql } from "@/lib/db/client";
+// Cross-org by design: fuzz seeds rows for both orgA and orgB to prove
+// isolation. unsafeGlobalSql is the canonical opt-out for this case.
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 /**
  * Registry of tables that carry `organization_id` and the minimal seed
