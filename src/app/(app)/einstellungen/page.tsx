@@ -188,19 +188,12 @@ export default async function SetupPage() {
               Sichere Treffer direkt versenden — du wirst nur bei Unsicherheit gefragt.
             </div>
           </div>
-          {/* Toggle — read-only, controlled via env var AUTO_PILOT_ENABLED */}
-          <div className="flex flex-col items-end gap-1">
-            <div
-              className={`relative h-6 w-11 rounded-full ${autoPilotOn ? "bg-brand" : "bg-line"}`}
-              aria-label={autoPilotOn ? "Auto-Pilot aktiv" : "Auto-Pilot inaktiv"}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-soft transition-all ${
-                  autoPilotOn ? "left-[22px]" : "left-0.5"
-                }`}
-              />
-            </div>
-          </div>
+          {/* Read-only Status (gesteuert ueber env var AUTO_PILOT_ENABLED).
+              Echter User-Toggle separat als Folge-Issue. */}
+          <StatusBadge
+            status={autoPilotOn ? "configured" : "disabled"}
+            label={autoPilotOn ? "aktiv" : "inaktiv"}
+          />
         </div>
         <div className="mt-5 border-t border-line pt-4">
           <div className="mb-2 flex items-center justify-between">
