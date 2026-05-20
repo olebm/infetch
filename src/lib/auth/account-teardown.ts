@@ -64,9 +64,10 @@ export async function hardDeleteOrgData(
       await tx<{ t: string }[]>`
         SELECT table_name t FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name IN (
-          'portal_runs','ai_extractions','exports','sync_events',
+          'portal_runs','portal_run_logs','portal_browser_sessions',
+          'ai_extractions','exports','sync_events',
           'vendor_month_status','invoice_files','invoices','mail_messages',
-          'mail_accounts','credential_refs','usage_events',
+          'mail_accounts','credential_refs','encrypted_secrets','usage_events',
           'mail_inbound_addresses','discovered_senders','vendor_aliases',
           'portal_sessions','auto_approval_rules','vendors','organizations'
         )
@@ -130,6 +131,15 @@ export async function hardDeleteOrgData(
     )
   `);
   await run("mail_accounts", () => tx`DELETE FROM mail_accounts WHERE organization_id = ${oid}`);
+  // DSGVO: verschlüsselte IMAP/SMTP-Passwörter aus encrypted_secrets
+  // mitlöschen, BEVOR credential_refs verschwindet — sonst sind die
+  // secret_refs nicht mehr ableitbar und das Ciphertext bleibt orphaned
+  // in der Tabelle liegen ("vergessene Daten").
+  await run("encrypted_secrets", () => tx`
+    DELETE FROM encrypted_secrets WHERE secret_ref IN (
+      SELECT secret_ref FROM credential_refs WHERE organization_id = ${oid}
+    )
+  `);
   await run("credential_refs", () => tx`DELETE FROM credential_refs WHERE organization_id = ${oid}`);
 
   // ── Org-scoped Misc (Basisschema — aber Prod kann driften) ─────────────
@@ -187,6 +197,20 @@ export async function hardDeleteOrgData(
   if (present.has("auto_approval_rules") && hasOrgCol("auto_approval_rules")) {
     await tx`DELETE FROM auto_approval_rules WHERE organization_id = ${oid}`;
   }
+  // DSGVO: Portal-Spuren (Cookie-Pfade, Run-Logs) gehören zu vendor_key
+  // statt organization_id. Da vendors.canonical_key global UNIQUE ist,
+  // entspricht ein vendor_key eines org-eigenen Vendors implizit dieser
+  // Org — mitlöschen, BEVOR vendors verschwinden.
+  await run("portal_browser_sessions", () => tx`
+    DELETE FROM portal_browser_sessions WHERE vendor_key IN (
+      SELECT canonical_key FROM vendors WHERE organization_id = ${oid}
+    )
+  `);
+  await run("portal_run_logs", () => tx`
+    DELETE FROM portal_run_logs WHERE vendor_key IN (
+      SELECT canonical_key FROM vendors WHERE organization_id = ${oid}
+    )
+  `);
   await run("vendors", () => tx`DELETE FROM vendors WHERE organization_id = ${oid}`);
 
   // ── Org selbst ─────────────────────────────────────────────────────────
