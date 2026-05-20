@@ -576,17 +576,13 @@ export default function LandingPage() {
               </ul>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.14em] text-muted">Empfänger · Buchhaltung</div>
+              <div className="text-xs uppercase tracking-[0.14em] text-muted">An deine Buchhaltung — per E-Mail</div>
               <ul className="mt-5 flex flex-wrap gap-3">
                 {[
-                  { domain: "datev.de",       label: "DATEV Belegtransfer" },
-                  { domain: "xero.com",        label: "Xero"                },
-                  { domain: "sevdesk.de",      label: "sevdesk"             },
-                  { domain: "quickbooks.com",  label: "QuickBooks"          },
-                  { domain: "lexoffice.de",    label: "lexoffice"           },
-                  { domain: "sage.com",        label: "Sage"                },
-                  { domain: "candis.io",       label: "Candis"              },
-                  { domain: null,              label: "Beliebige E-Mail"    },
+                  { domain: "lexoffice.de",    label: "lexoffice — belege@lexoffice.de" },
+                  { domain: "sevdesk.de",      label: "sevdesk — belege@sevdesk.de"     },
+                  { domain: "datev.de",        label: "DATEV — an deine Belegadresse"   },
+                  { domain: null,              label: "Eigene Buchhaltungs-Mail"        },
                 ].map(({ domain, label }) => (
                   <li key={label} className="relative group/tip h-12 w-12 logo-tile rounded-full flex items-center justify-center cursor-default overflow-hidden">
                     {domain
@@ -599,7 +595,9 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 text-xs text-muted">Dein Tool fehlt? Per E-Mail funktioniert immer.</p>
+              <p className="mt-4 text-xs text-muted">
+                Funktioniert mit allem, was eine Beleg-Adresse hat — Xero, QuickBooks, Sage, Candis und jede eigene Buchhaltungs-Mail.
+              </p>
             </div>
           </div>
         </div>

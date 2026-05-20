@@ -1,7 +1,6 @@
 import { sql } from "@/lib/db/client";
 import { sendInvoiceMail } from "@/mail/smtp-client";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
-import { canExport } from "@/lib/tier";
 import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";
 import { withAdvisoryLock } from "@/lib/db/advisory-lock";
 import { readJsonSetting } from "@/lib/db/settings-store";
@@ -90,19 +89,6 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
   let failed = 0;
 
   for (const row of rows) {
-    // Tier-Check: Export nur im Pro-Plan verfügbar
-    const exportAllowed = await canExport(row.organizationId);
-    if (!exportAllowed) {
-      await sql`
-        UPDATE exports
-        SET status = 'blocked', last_error = 'Export nicht im aktuellen Plan enthalten.',
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${row.id}
-      `;
-      failed += 1;
-      continue;
-    }
-
     try {
       const fileRows = await sql<PdfRow[]>`
         SELECT stored_path AS "storedPath", original_filename AS "originalFilename"
