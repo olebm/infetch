@@ -45,6 +45,11 @@ describe("apply-all-migrations — parseArgs", () => {
     expect(() => parseArgs(["--made-up-flag"])).toThrow(/Unknown argument/);
   });
 
+  it("accepts --skip in both forms, repeatable", () => {
+    expect(parseArgs(["--skip=0002"]).skip).toEqual(["0002"]);
+    expect(parseArgs(["--skip", "0002", "--skip=0010"]).skip).toEqual(["0002", "0010"]);
+  });
+
   it("combines a URL with options", () => {
     const out = parseArgs([
       "postgresql://ci:ci@localhost:5432/ci",
@@ -111,6 +116,25 @@ describe("apply-all-migrations — selectMigrationFiles", () => {
       "0001_initial_schema.sql",
       "0003_stripe.sql",
       "0010_rls.sql",
+      "0019_multitenant_isolation.sql",
+    ]);
+  });
+
+  it("removes versions listed in skip[]", () => {
+    const out = selectMigrationFiles(fileList, { skip: ["0001", "0019"] });
+    expect(out).toEqual([
+      "0003_stripe.sql",
+      "0010_rls.sql",
+      "0021_remaining_boolean_columns.sql",
+      "0022_prebackfill_org_attribution.sql",
+    ]);
+  });
+
+  it("skip and upTo combine — skip applies, then upTo caps", () => {
+    const out = selectMigrationFiles(fileList, { skip: ["0010"], upTo: "0019" });
+    expect(out).toEqual([
+      "0001_initial_schema.sql",
+      "0003_stripe.sql",
       "0019_multitenant_isolation.sql",
     ]);
   });

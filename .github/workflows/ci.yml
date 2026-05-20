@@ -82,136 +82,18 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      - name: Run database migrations
-        run: |
-          psql "$DATABASE_URL" -f supabase/migrations/0001_initial_schema.sql
-          psql "$DATABASE_URL" -f supabase/migrations/0003_stripe.sql
-          psql "$DATABASE_URL" -f supabase/migrations/0014_business_tier.sql
-          psql "$DATABASE_URL" -f supabase/migrations/0015_perf_indexes.sql
-          psql "$DATABASE_URL" -f supabase/migrations/0016_stripe_idempotency.sql
-          psql "$DATABASE_URL" -f supabase/migrations/0017_integration_targets_bool.sql
-          psql "$DATABASE_URL" -f supabase/migrations/0018_stripe_event_ordering.sql
+      - name: Pre-migration bootstrap (auth.uid + vault stubs for vanilla pg)
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-      - name: Patch schema for CI (boolean columns + vault stub + seed data)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/ci-bootstrap-pre.sql
+      - name: Apply all migrations linearly (skip 0002 — supabase_vault unavailable)
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
-        run: |
-          psql "$DATABASE_URL" <<'SQL'
-          -- 0001_initial_schema.sql uses INTEGER for boolean columns (SQLite compat).
-          -- Vanilla Postgres 16 rejects boolean literals for INTEGER columns.
-          -- Must drop INTEGER defaults first because PostgreSQL cannot auto-cast
-          -- the default expression (e.g. "1") to BOOLEAN during ALTER COLUMN TYPE.
-          ALTER TABLE mail_accounts ALTER COLUMN secure DROP DEFAULT;
-          ALTER TABLE mail_accounts ALTER COLUMN secure TYPE BOOLEAN USING (secure != 0);
-          ALTER TABLE mail_accounts ALTER COLUMN secure SET DEFAULT true;
-
-          ALTER TABLE discovered_senders ALTER COLUMN blocked DROP DEFAULT;
-          ALTER TABLE discovered_senders ALTER COLUMN blocked TYPE BOOLEAN USING (blocked != 0);
-          ALTER TABLE discovered_senders ALTER COLUMN blocked SET DEFAULT false;
-
-          ALTER TABLE auto_approval_rules ALTER COLUMN enabled DROP DEFAULT;
-          ALTER TABLE auto_approval_rules ALTER COLUMN enabled TYPE BOOLEAN USING (enabled != 0);
-          ALTER TABLE auto_approval_rules ALTER COLUMN enabled SET DEFAULT true;
-
-          ALTER TABLE export_targets ALTER COLUMN enabled DROP DEFAULT;
-          ALTER TABLE export_targets ALTER COLUMN enabled TYPE BOOLEAN USING (enabled != 0);
-          ALTER TABLE export_targets ALTER COLUMN enabled SET DEFAULT false;
-
-          -- Schema-Teil aus 0013_export_targets_per_org.sql (Migration wird in CI
-          -- nicht eingespielt, da sie eine auth.uid()-RLS-Policy enthält; Tests
-          -- laufen als Owner-Rolle "ci" und umgehen RLS ohnehin). Ohne diese
-          -- Spalte schlagen die Export-Pipeline-Tests fehl
-          -- (column "organization_id" does not exist).
-          ALTER TABLE export_targets
-            ADD COLUMN IF NOT EXISTS organization_id TEXT
-            REFERENCES organizations(id) ON DELETE CASCADE;
-          CREATE INDEX IF NOT EXISTS idx_export_targets_org
-            ON export_targets(organization_id) WHERE organization_id IS NOT NULL;
-          ALTER TABLE export_targets DROP CONSTRAINT IF EXISTS export_targets_target_key;
-          CREATE UNIQUE INDEX IF NOT EXISTS uniq_export_targets_org_target
-            ON export_targets (organization_id, target);
-
-          -- Schema-Teil aus 0019_multitenant_isolation.sql / 0020_discovered_senders_per_org.sql
-          -- (Migrationen werden in CI nicht eingespielt: Backfill-UPDATEs gegen die
-          -- leere CI-DB sind sinnlos und 0019 RAISEt auf nicht-attribuierbare Rows;
-          -- RLS-Policies nutzen auth.uid(), Tests laufen als Owner "ci" und umgehen
-          -- RLS ohnehin). Ohne diese Spalten: column "organization_id" does not exist.
-          ALTER TABLE invoice_files
-            ADD COLUMN IF NOT EXISTS organization_id TEXT
-            REFERENCES organizations(id) ON DELETE CASCADE;
-          ALTER TABLE invoice_files DROP CONSTRAINT IF EXISTS invoice_files_sha256_key;
-          CREATE UNIQUE INDEX IF NOT EXISTS uniq_invoice_files_org_sha256
-            ON invoice_files (organization_id, sha256);
-          CREATE INDEX IF NOT EXISTS idx_invoice_files_org
-            ON invoice_files (organization_id);
-
-          ALTER TABLE vendor_month_status
-            ADD COLUMN IF NOT EXISTS organization_id TEXT
-            REFERENCES organizations(id) ON DELETE CASCADE;
-          ALTER TABLE vendor_month_status
-            DROP CONSTRAINT IF EXISTS vendor_month_status_vendor_id_year_month_key;
-          CREATE UNIQUE INDEX IF NOT EXISTS uniq_vendor_month_status_org
-            ON vendor_month_status (organization_id, vendor_id, year_month);
-          CREATE INDEX IF NOT EXISTS idx_vendor_month_status_org
-            ON vendor_month_status (organization_id);
-
-          ALTER TABLE discovered_senders
-            ADD COLUMN IF NOT EXISTS organization_id TEXT
-            REFERENCES organizations(id) ON DELETE CASCADE;
-          ALTER TABLE discovered_senders DROP CONSTRAINT IF EXISTS discovered_senders_from_address_key;
-          CREATE UNIQUE INDEX IF NOT EXISTS uniq_discovered_senders_org_addr
-            ON discovered_senders (organization_id, from_address);
-          CREATE INDEX IF NOT EXISTS idx_discovered_senders_org
-            ON discovered_senders (organization_id);
-
-          ALTER TABLE auto_approval_rules
-            ADD COLUMN IF NOT EXISTS organization_id TEXT
-            REFERENCES organizations(id) ON DELETE CASCADE;
-          CREATE INDEX IF NOT EXISTS idx_auto_approval_rules_org
-            ON auto_approval_rules (organization_id);
-
-          ALTER TABLE integration_targets
-            ADD COLUMN IF NOT EXISTS organization_id TEXT
-            REFERENCES organizations(id) ON DELETE CASCADE;
-          ALTER TABLE integration_targets DROP CONSTRAINT IF EXISTS integration_targets_provider_key;
-          CREATE UNIQUE INDEX IF NOT EXISTS uniq_integration_targets_org_provider
-            ON integration_targets (organization_id, provider);
-          CREATE INDEX IF NOT EXISTS idx_integration_targets_org
-            ON integration_targets (organization_id);
-
-          -- Minimal Supabase Vault stub — plain-text storage, no pgsodium required.
-          CREATE SCHEMA IF NOT EXISTS vault;
-          CREATE TABLE IF NOT EXISTS vault.secrets (
-            id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name   TEXT NOT NULL UNIQUE,
-            secret TEXT NOT NULL
-          );
-          CREATE VIEW vault.decrypted_secrets AS
-            SELECT id, name, secret AS decrypted_secret FROM vault.secrets;
-          CREATE OR REPLACE FUNCTION vault.create_secret(p_secret TEXT, p_name TEXT)
-            RETURNS UUID LANGUAGE SQL AS $$
-              INSERT INTO vault.secrets (name, secret) VALUES (p_name, p_secret) RETURNING id;
-            $$;
-
-          -- Vendor seed data required by matcher / self-healing / ai-extraction tests.
-          INSERT INTO vendors (name, canonical_key, category) VALUES
-            ('OpenAI',    'openai',    'software'),
-            ('Anthropic', 'anthropic', 'software')
-          ON CONFLICT (canonical_key) DO NOTHING;
-
-          INSERT INTO vendor_aliases (vendor_id, alias, match_type)
-          SELECT id, 'openai',        'contains' FROM vendors WHERE canonical_key = 'openai'
-          UNION ALL
-          SELECT id, 'openai.com',    'domain'   FROM vendors WHERE canonical_key = 'openai'
-          UNION ALL
-          SELECT id, 'anthropic',     'contains' FROM vendors WHERE canonical_key = 'anthropic'
-          UNION ALL
-          SELECT id, 'claude',        'contains' FROM vendors WHERE canonical_key = 'anthropic'
-          UNION ALL
-          SELECT id, 'anthropic.com', 'domain'   FROM vendors WHERE canonical_key = 'anthropic'
-          ON CONFLICT DO NOTHING;
-          SQL
+        run: node scripts/apply-all-migrations.mjs "$DATABASE_URL" --skip=0002
+      - name: Seed fixture data (vendors + aliases)
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/ci-bootstrap-seed.sql
       - name: Run unit tests
         run: npm run test
         env:
