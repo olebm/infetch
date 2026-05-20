@@ -1,5 +1,5 @@
 import { CircleDot, ShieldCheck } from "lucide-react";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { listOnlineAccounts } from "@/portals/credential-meta";
 import { getVendors } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
