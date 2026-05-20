@@ -1,4 +1,4 @@
-import { VendorLogo } from "@/components/ui/vendor-logo";
+import Image from "next/image";
 
 function Tip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -16,25 +16,38 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-// Sieben handverlesene Logos in stabiler Reihenfolge. Die ursprüngliche
-// Random-Shuffle-Logik lief client-seitig und kostete einen Hydration-Step
-// für ein rein dekoratives Element — entfernt zugunsten des Static-Renders.
-const DISPLAY: ReadonlyArray<{ domain: string; alt: string }> = [
-  { domain: "google.com",    alt: "Google"    },
-  { domain: "microsoft.com", alt: "Microsoft" },
-  { domain: "adobe.com",     alt: "Adobe"     },
-  { domain: "github.com",    alt: "GitHub"    },
-  { domain: "slack.com",     alt: "Slack"     },
-  { domain: "notion.so",     alt: "Notion"    },
-  { domain: "stripe.com",    alt: "Stripe"    },
+// INFETCH-132: Logos lokal gebündelt (public/images/logos/*.svg, Simple Icons CC0)
+// statt Brandfetch-CDN — keine externen Drittanbieter-Requests auf der
+// öffentlichen Landingpage mehr. Logos sind versioniert und im Browser-Cache
+// (Cache-Control: immutable via next.config.mjs).
+const DISPLAY: ReadonlyArray<{ slug: string; alt: string }> = [
+  { slug: "google",   alt: "Google"   },
+  { slug: "figma",    alt: "Figma"    },
+  { slug: "dropbox",  alt: "Dropbox"  },
+  { slug: "github",   alt: "GitHub"   },
+  { slug: "zoom",     alt: "Zoom"     },
+  { slug: "notion",   alt: "Notion"   },
+  { slug: "stripe",   alt: "Stripe"   },
 ];
 
 export function LogoStrip() {
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
-      {DISPLAY.map(({ domain, alt }) => (
-        <Tip key={domain} label={alt}>
-          <VendorLogo domain={domain} name={alt} size={48} />
+      {DISPLAY.map(({ slug, alt }) => (
+        <Tip key={slug} label={alt}>
+          <div
+            className="rounded-full inline-flex shrink-0 items-center justify-center overflow-hidden bg-white"
+            style={{ width: 48, height: 48 }}
+          >
+            <Image
+              src={`/images/logos/${slug}.svg`}
+              alt=""
+              width={32}
+              height={32}
+              unoptimized
+              style={{ objectFit: "contain" }}
+            />
+          </div>
         </Tip>
       ))}
     </div>

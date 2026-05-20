@@ -48,7 +48,9 @@ function buildCsp() {
     // Next.js injiziert Inline-Bootstrap-Skripte; im Dev zusätzlich eval (HMR).
     `script-src ${scriptSrc}${isProd ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
-    // Vendor-Logos auf der Landingpage kommen vom Brandfetch-CDN.
+    // VendorLogo im App-Bereich lädt Icons von Brandfetch-CDN (Token-gated).
+    // Landingpage-LogoStrip nutzt lokale SVGs (INFETCH-132); cdn.brandfetch.io
+    // bleibt für den authentifizierten App-Bereich (Dashboard, Senders-View etc.).
     "img-src 'self' data: blob: https://cdn.brandfetch.io",
     "font-src 'self' data:",
     `connect-src ${connectSrc}`,
