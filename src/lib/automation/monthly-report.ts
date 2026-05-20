@@ -9,7 +9,7 @@
  *   - /api/cron/monthly-report  (HTTP-Trigger für externe Scheduler)
  */
 
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { sendMonthlyReport } from "@/lib/mail/notify";
 import { appConfig } from "@/lib/config/env";
 

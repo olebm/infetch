@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
 import { getProviderFromEmail } from "@/lib/mail-providers";

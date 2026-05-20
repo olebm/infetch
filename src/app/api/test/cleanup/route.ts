@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getCurrentAuth } from "@/lib/auth/current";
 
 /**

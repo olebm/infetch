@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { vendorSeeds } from "@/vendors/registry";
 
 export async function seedDatabase() {

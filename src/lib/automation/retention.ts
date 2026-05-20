@@ -9,7 +9,7 @@
  * Frist via RETENTION_MAIL_METADATA_MONTHS (Default: 12 Monate).
  */
 
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 export function getRetentionMonths(): number {
   const raw = Number(process.env.RETENTION_MAIL_METADATA_MONTHS);

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
 import { saveCredentialSecret } from "@/lib/secrets/credential-store";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 const STUB_EMAIL = "test@infetch.local";
 const STUB_NAME = "Test User";

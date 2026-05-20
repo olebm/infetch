@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 export async function recordSyncEvent(input: {
   level: "info" | "warning" | "error";

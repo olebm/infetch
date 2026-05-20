@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { updateUserAvatar } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";

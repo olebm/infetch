@@ -22,7 +22,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { appConfig } from "@/lib/config/env";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getStripeClient, tierFromPriceId } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";

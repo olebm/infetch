@@ -1,5 +1,5 @@
 import { ImapFlow } from "imapflow";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import {
   readCredentialSecret,
   updateCredentialVerificationStatus,

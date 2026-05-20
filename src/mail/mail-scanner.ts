@@ -1,5 +1,5 @@
 import type { FetchMessageObject, ImapFlow } from "imapflow";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
 import { withAdvisoryLock } from "@/lib/db/advisory-lock";
