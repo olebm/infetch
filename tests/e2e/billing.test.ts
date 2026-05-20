@@ -14,13 +14,14 @@ test.describe("Konto-Seite", () => {
     await expect(page.getByText(/dein profil/i)).toBeVisible();
   });
 
-  test("Abrechnung-Karte zeigt aktuellen Tier", async ({ page }) => {
+  test("Paket-Karte zeigt aktuellen Tier", async ({ page }) => {
     await page.goto("/konto");
     await expect(page.getByTestId("app-main")).toBeVisible();
     await page.waitForLoadState("networkidle");
 
-    // BillingCard zeigt "Abrechnung" als Überschrift
-    await expect(page.getByText("Abrechnung", { exact: true })).toBeVisible();
+    // BillingCard zeigt "Paket" als Überschrift (vorher "Abrechnung",
+    // Free-only Launch — "Abrechnung" suggerierte zu viel).
+    await expect(page.getByText("Paket", { exact: true })).toBeVisible();
 
     // Tier-Badge vorhanden: "Free", "Pro" oder "Business"
     const tierBadge = page
@@ -74,12 +75,7 @@ test.describe("Konto-Seite", () => {
     await expect(checkItems.first()).toBeVisible();
   });
 
-  test("Sicherheit-Bereich zeigt Magic-Link als aktiv", async ({ page }) => {
-    await page.goto("/konto");
-    await expect(page.getByTestId("app-main")).toBeVisible();
-    await page.waitForLoadState("networkidle");
-
-    await expect(page.getByText(/magic-link/i)).toBeVisible();
-    await expect(page.getByText(/aktiv/i).first()).toBeVisible();
-  });
+  // Sicherheit-Sektion wurde entfernt (OTP-Login, kein Passwort → keine
+  // sinnvollen Sicherheits-Items). SessionsSection bleibt im Code für
+  // späteren Re-Use. Test wieder einfügen sobald Sessions wieder im UI sind.
 });
