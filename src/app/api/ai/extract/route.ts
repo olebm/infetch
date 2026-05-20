@@ -5,7 +5,7 @@ import { appConfig } from "@/lib/config/env";
 import { callMistralInvoiceExtractor } from "@/ai/mistral-client";
 import { invoiceAiExtractionSchema } from "@/ai/schemas";
 import { recordUsageEvent, estimateMistralCostCents } from "@/lib/usage/track";
-import { aiProxyGlobalLimiter, aiProxyIpLimiter, clientIpFromHeaders } from "@/lib/rate-limit";
+import { aiProxyGlobalLimiter, aiProxyIpLimiter, aiProxyOrgLimiter, clientIpFromHeaders } from "@/lib/rate-limit";
 
 const requestSchema = z.object({
   pdfText: z.string().min(1).max(200_000),
@@ -51,19 +51,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authz.reason ?? "unauthorized" }, { status });
   }
 
-  // Rate-Limit: schützt das Mistral-Budget, falls das Bearer-Token leakt.
-  const ip = clientIpFromHeaders(request.headers);
-  const ipCheck = aiProxyIpLimiter.check(ip);
-  const globalCheck = aiProxyGlobalLimiter.check("global");
-  const limited = !ipCheck.ok ? ipCheck : !globalCheck.ok ? globalCheck : null;
-  if (limited) {
-    const retryAfter = Math.max(1, Math.ceil((limited.resetAt - Date.now()) / 1000));
-    return NextResponse.json(
-      { error: "rate_limited" },
-      { status: 429, headers: { "retry-after": String(retryAfter) } },
-    );
-  }
-
+  // Body zuerst parsen, damit der Org-Limiter den organizationId-Key nutzen kann.
+  // Body ist per zod auf 200k Zeichen begrenzt — keine DoS-Vergrößerung.
   let body: z.infer<typeof requestSchema>;
   try {
     const raw = await request.json();
@@ -72,6 +61,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "bad_request", message: error instanceof Error ? error.message : "Invalid body" },
       { status: 400 },
+    );
+  }
+
+  // Rate-Limit: schützt das Mistral-Budget, falls das Bearer-Token leakt
+  // oder ein Mandant das Budget anderer Mandanten leerräumt.
+  const ip = clientIpFromHeaders(request.headers);
+  const ipCheck = aiProxyIpLimiter.check(ip);
+  const globalCheck = aiProxyGlobalLimiter.check("global");
+  const orgCheck = body.organizationId ? aiProxyOrgLimiter.check(body.organizationId) : null;
+  const limited = !ipCheck.ok
+    ? ipCheck
+    : !globalCheck.ok
+      ? globalCheck
+      : orgCheck && !orgCheck.ok
+        ? orgCheck
+        : null;
+  if (limited) {
+    const retryAfter = Math.max(1, Math.ceil((limited.resetAt - Date.now()) / 1000));
+    return NextResponse.json(
+      { error: "rate_limited" },
+      { status: 429, headers: { "retry-after": String(retryAfter) } },
     );
   }
 

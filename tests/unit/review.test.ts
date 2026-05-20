@@ -1,23 +1,37 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { sql } from "@/lib/db/client";
 import { updateInvoiceReview } from "@/invoices/review";
 
 // NOTE: updateInvoiceReview now uses the global postgres sql client.
 // This test requires a real Postgres connection with seeded vendor data.
 
+const TEST_ORG_ID = `rev-test-org-${Date.now()}`;
+const TEST_USER_ID = `rev-test-user-${Date.now()}`;
+
+beforeAll(async () => {
+  await sql`INSERT INTO users (id, email, name) VALUES (${TEST_USER_ID}, ${`${TEST_USER_ID}@local`}, 'Rev') ON CONFLICT DO NOTHING`;
+  await sql`
+    INSERT INTO organizations (id, name, slug, tier, owner_user_id)
+    VALUES (${TEST_ORG_ID}, ${TEST_ORG_ID}, ${TEST_ORG_ID}, 'pro', ${TEST_USER_ID})
+    ON CONFLICT DO NOTHING
+  `;
+});
+
 async function getVendorId(canonicalKey: string): Promise<number | undefined> {
+  // Globale Built-in-Vendors (organization_id IS NULL) sind für jede Org sichtbar.
   const rows = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}`;
   return rows[0]?.id;
 }
 
 async function insertInvoice(fields: Record<string, unknown> = {}): Promise<number> {
   const rows = await sql<{ id: number }[]>`
-    INSERT INTO invoices (source, status, confidence, dedupe_key)
+    INSERT INTO invoices (organization_id, source, status, confidence, dedupe_key)
     VALUES (
+      ${TEST_ORG_ID},
       ${"mail"},
       ${"needs_review"},
       ${0.42},
-      ${"rev-test-" + Date.now()}
+      ${"rev-test-" + Date.now() + "-" + Math.random()}
     )
     RETURNING id
   `;
@@ -31,6 +45,7 @@ describe("invoice review", () => {
     const invoiceId = await insertInvoice();
 
     await updateInvoiceReview({
+      organizationId: TEST_ORG_ID,
       invoiceId,
       vendorId: vendorId ?? null,
       invoiceNumber: "INV-2026-05",
@@ -79,6 +94,7 @@ describe("invoice review", () => {
     const invoiceId = await insertInvoice();
 
     await expect(updateInvoiceReview({
+      organizationId: TEST_ORG_ID,
       invoiceId,
       vendorId: null,
       invoiceNumber: null,

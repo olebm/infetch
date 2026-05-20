@@ -248,16 +248,28 @@ export async function syncCommunityRecipesAction(
 }
 
 export async function removeOnlineAccountAction(formData: FormData): Promise<void> {
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id;
+  if (!orgId) throw new Error("Keine Organisation zugeordnet.");
   const vendorKey = String(formData.get("vendorKey") || "").trim();
   if (!vendorKey) return;
+  // credential_refs hat organization_id — nur die eigenen Org-Credentials löschen.
   await sql`
-    DELETE FROM credential_refs WHERE scope IN ('portal','totp') AND secret_ref LIKE ${`%:${vendorKey}:%`}
+    DELETE FROM credential_refs
+    WHERE scope IN ('portal','totp')
+      AND secret_ref LIKE ${`%:${vendorKey}:%`}
+      AND organization_id = ${orgId}
   `;
-  await sql`DELETE FROM portal_recipes WHERE vendor_key = ${vendorKey}`;
-  await sql`DELETE FROM portal_run_logs WHERE vendor_key = ${vendorKey}`;
+  // portal_recipes und portal_run_logs sind aktuell global (kein organization_id).
+  // Cross-Tenant-Sicherheit: NICHT pauschal löschen — sonst können andere Orgs,
+  // die denselben vendor_key nutzen, zerstört werden. Recipes/Logs bleiben stehen;
+  // sie werden ohne Credentials nicht mehr verwendet. Org-Scoping der Tabellen ist
+  // Aufgabe der Wrapper-Migration (Stream D).
+  // vendors: nur die org-eigene Vendor-Zeile zurücksetzen — globale Built-ins (NULL)
+  // dürfen nicht angefasst werden.
   await sql`
-    UPDATE vendors SET portal_login_url = NULL, portal_category = NULL WHERE canonical_key = ${vendorKey}
+    UPDATE vendors SET portal_login_url = NULL, portal_category = NULL
+    WHERE canonical_key = ${vendorKey} AND organization_id = ${orgId}
   `;
   await invalidateBrowserSession(vendorKey);
   await resetPortalCredentialMeta(vendorKey);
