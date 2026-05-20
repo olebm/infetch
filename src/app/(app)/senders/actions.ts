@@ -153,7 +153,7 @@ export async function createVendorFromSenderAction(
     const baseKey = slugify(name) || slugify(sender.fromDomain) || `vendor-${senderId}`;
 
     const existingRows = await sql<{ id: number }[]>`
-      SELECT id FROM vendors WHERE canonical_key = ${baseKey}
+      SELECT id FROM vendors WHERE canonical_key = ${baseKey} AND organization_id = ${orgId}
     `;
     const existingVendor = existingRows[0];
 
