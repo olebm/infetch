@@ -66,6 +66,7 @@ export async function hardDeleteOrgData(
         SELECT table_name t FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name IN (
           'portal_runs','portal_run_logs','portal_browser_sessions',
+          'portal_recipes',
           'ai_extractions','exports','sync_events',
           'vendor_month_status','invoice_files','invoices','mail_messages',
           'mail_accounts','credential_refs','encrypted_secrets','usage_events',
@@ -198,10 +199,13 @@ export async function hardDeleteOrgData(
   if (present.has("auto_approval_rules") && hasOrgCol("auto_approval_rules")) {
     await tx`DELETE FROM auto_approval_rules WHERE organization_id = ${oid}`;
   }
-  // DSGVO: Portal-Spuren (Cookie-Pfade, Run-Logs) gehören zu vendor_key
-  // statt organization_id. Da vendors.canonical_key global UNIQUE ist,
-  // entspricht ein vendor_key eines org-eigenen Vendors implizit dieser
-  // Org — mitlöschen, BEVOR vendors verschwinden.
+  // INFETCH-177: Portal-Spuren (Recipes, Run-Logs, Browser-Sessions) sind
+  // historisch über vendor_key statt organization_id gebunden. Da
+  // vendors.canonical_key historisch global UNIQUE war, entspricht ein
+  // vendor_key eines org-eigenen Vendors implizit dieser Org → mitlöschen,
+  // BEVOR vendors verschwinden. Migration 0026 hat zusätzlich organization_id
+  // direkt auf portal_recipes/portal_run_logs gelegt; der zweite DELETE-
+  // Block deckt Zeilen ab, die ohne vendor-FK direkt zur Org gehören.
   await run("portal_browser_sessions", () => tx`
     DELETE FROM portal_browser_sessions WHERE vendor_key IN (
       SELECT canonical_key FROM vendors WHERE organization_id = ${oid}
@@ -212,13 +216,14 @@ export async function hardDeleteOrgData(
       SELECT canonical_key FROM vendors WHERE organization_id = ${oid}
     )
   `);
-  // Migration 0025+ hat portal_recipes + portal_run_logs zusätzlich um eine
-  // organization_id-Spalte ergänzt (Multi-Tenant-RLS). Auch dort den
-  // org-direkten Cleanup ausführen — der vendor_key-Subquery oben bleibt
-  // als Fallback für Spuren ohne org_id-Eintrag.
   if (hasOrgCol("portal_run_logs")) {
     await tx`DELETE FROM portal_run_logs WHERE organization_id = ${oid}`;
   }
+  await run("portal_recipes", () => tx`
+    DELETE FROM portal_recipes WHERE vendor_key IN (
+      SELECT canonical_key FROM vendors WHERE organization_id = ${oid}
+    )
+  `);
   if (hasOrgCol("portal_recipes")) {
     await tx`DELETE FROM portal_recipes WHERE organization_id = ${oid}`;
   }
