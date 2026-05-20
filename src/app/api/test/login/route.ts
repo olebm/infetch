@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { findUserByEmail, createUserWithDefaultOrg } from "@/lib/auth/users";
+import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { sql } from "@/lib/db/client";
 
 const STUB_EMAIL = "test@infetch.local";
@@ -45,9 +46,10 @@ export async function POST(_req: NextRequest) {
       await createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, userId: supabaseUserId });
     }
 
-    // Onboarding-Gate (layout.tsx): ohne Primary-IMAP-Account leitet die App
-    // auf /onboarding um. Für E2E muss der Test-User vollständig onboardet sein,
-    // sonst rendert keine geschützte Route die App-Shell.
+    // Onboarding-Gate (layout.tsx): seit PR #33 prüft getSetupSnapshot()
+    // imap+smtp credential_refs UND ein aktives export_target. Für E2E muss
+    // der Test-User komplett onboardet wirken, sonst redirected die App
+    // auf /onboarding und die App-Shell rendert nie.
     const userRow = await findUserByEmail(STUB_EMAIL);
     if (userRow) {
       const orgRows = await sql<{ organization_id: string }[]>`
@@ -64,6 +66,29 @@ export async function POST(_req: NextRequest) {
             SELECT 1 FROM mail_accounts
             WHERE organization_id = ${orgId} AND label = 'Primary IMAP'
           )
+        `;
+        await saveCredentialSecret({
+          scope: "imap",
+          ownerId: "primary",
+          organizationId: orgId,
+          label: "Primary IMAP (E2E stub)",
+          secret: "e2e-stub-password",
+        });
+        await saveCredentialSecret({
+          scope: "smtp",
+          ownerId: "primary",
+          organizationId: orgId,
+          label: "Primary SMTP (E2E stub)",
+          secret: "e2e-stub-password",
+        });
+        await sql`
+          INSERT INTO export_targets (organization_id, target, label, recipient_email, smtp_slot, enabled)
+          VALUES (${orgId}, 'kontist', 'E2E Test Recipient', 'recipient@test.local', 'primary', TRUE)
+          ON CONFLICT (organization_id, target) DO UPDATE SET
+            recipient_email = excluded.recipient_email,
+            smtp_slot = 'primary',
+            enabled = TRUE,
+            updated_at = CURRENT_TIMESTAMP
         `;
       }
     }
