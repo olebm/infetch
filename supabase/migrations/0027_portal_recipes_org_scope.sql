@@ -14,7 +14,26 @@
 -- (removeOnlineAccount-Cascade-Restore + record-Pfad-Anpassung).
 --
 -- Dependent on: Migration 0026 (für `app_org_match()`-Helper). Apply muss in
--- Reihenfolge geschehen: 0026 → 0027.
+-- Reihenfolge geschehen: 0026 → 0027. Die Function-Definition unten ist
+-- CREATE OR REPLACE und damit idempotent — wenn 0026 bereits angewendet wurde,
+-- bleibt die Definition unverändert; wenn 0026 noch nicht existiert (z. B.
+-- im CI ohne 0026 oder bei Standalone-Apply), wird sie hier erstellt.
+
+-- ── app_org_match helper (idempotent — gleiche Definition wie in 0026) ────────
+CREATE OR REPLACE FUNCTION app_org_match(target_org TEXT)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+AS $$
+  SELECT target_org IS NOT NULL AND (
+    EXISTS (
+      SELECT 1 FROM org_members
+      WHERE org_members.user_id = (auth.uid())::TEXT
+        AND org_members.organization_id = target_org
+    )
+    OR current_setting('app.current_org', true) = target_org
+  )
+$$;
 
 -- ── Add organization_id columns ───────────────────────────────────────────────
 ALTER TABLE portal_recipes
