@@ -50,17 +50,23 @@ const STEP_LABELS: Record<StepKey, string> = {
   bestaetigung: "Bestätigung",
 };
 
-// Wizard ist jetzt strikt 4-stufig (Iteration 2):
-//   1. Postfach   — nur IMAP (Empfangs-Server)
-//   2. Empfänger  — Buchhaltungs-Software / Steuerkanzlei-Adresse
-//   3. Versand    — SMTP (vorausgefüllt aus Step 1, beliebig anpassbar)
+// Wizard 3- oder 4-stufig (Iteration 3, INFETCH-187):
+//   1. Postfach     — nur IMAP (Empfangs-Server)
+//   2. Empfänger    — Buchhaltungs-Software oder Steuerkanzlei-Adresse
+//   3. Versand      — SMTP, NUR wenn der Empfänger eine Sammel-Adresse
+//                     nutzt (Kontist/Accountable/sevDesk). Dort braucht
+//                     der Anbieter ein explizites Absender-Postfach zur
+//                     Zuordnung. Bei direkt-an-Steuerkanzlei oder Custom
+//                     entfällt der Schritt — gesendet wird vom Postfach
+//                     aus Schritt 1.
 //   4. Bestätigung
-// Step "Versand" ist für alle Recipient-Typen Pflicht. Bei einem
-// Standard-Postfach klickt der User durch die vorausgefüllten Felder; bei
-// Shared-Inbox-Recipients (Kontist/Accountable/sevDesk) trägt er hier
-// die separate Versand-Adresse ein.
-const DISPLAY_STEP_KEYS: StepKey[] = ["postfach", "buchhaltung", "versand", "bestaetigung"];
-const ACTIVE_STEP_KEYS: StepKey[] = DISPLAY_STEP_KEYS;
+const FULL_STEP_KEYS: StepKey[] = ["postfach", "buchhaltung", "versand", "bestaetigung"];
+
+function getActiveStepKeys(recipientKey: string): StepKey[] {
+  return isSharedInboxRecipient(recipientKey)
+    ? FULL_STEP_KEYS
+    : FULL_STEP_KEYS.filter((k) => k !== "versand");
+}
 
 // ─── sessionStorage helpers ───────────────────────────────────────────────────
 
@@ -233,8 +239,11 @@ export function OnboardingWizard({ userId }: { userId: string }) {
 
   const submitSmtp = effectiveSmtp(data);
 
-  // 4 fixe Steps. `step` ist Index in ACTIVE_STEP_KEYS == DISPLAY_STEP_KEYS.
-  const stepKeys = ACTIVE_STEP_KEYS;
+  // Step-Liste dynamisch (3 oder 4) basierend auf Recipient. `step` ist
+  // Index in stepKeys. Wenn der User mitten im Flow den Recipient von
+  // shared zu personal wechselt, schrumpft stepKeys um 1 — clampedStep
+  // unten haelt den Index in den gueltigen Bereich.
+  const stepKeys = getActiveStepKeys(data.recipientKey);
   const clampedStep = Math.min(step, stepKeys.length - 1);
   const currentKey = stepKeys[clampedStep];
   const isLastStep = clampedStep === stepKeys.length - 1;
@@ -452,7 +461,7 @@ export function OnboardingWizard({ userId }: { userId: string }) {
       {/* ── Progress ──────────────────────────────────────────────────────── */}
       <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 mt-6 sm:mt-8 mb-2">
         <div className="flex items-center justify-between gap-2">
-          {DISPLAY_STEP_KEYS.map((key, i) => {
+          {stepKeys.map((key, i) => {
             const isPast = i < displayCurrentIdx;
             const isCurrent = i === displayCurrentIdx;
             return (
@@ -477,7 +486,7 @@ export function OnboardingWizard({ userId }: { userId: string }) {
                     {STEP_LABELS[key]}
                   </span>
                 </div>
-                {i < DISPLAY_STEP_KEYS.length - 1 && (
+                {i < stepKeys.length - 1 && (
                   <div className={`h-px flex-1 ${i < displayCurrentIdx ? "bg-ok" : "bg-line"}`} />
                 )}
               </Fragment>
@@ -558,10 +567,11 @@ export function OnboardingWizard({ userId }: { userId: string }) {
         {currentKey === "buchhaltung" && (
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink md:text-3xl">
-              Wer bekommt die Rechnungen?
+              An wen schicken wir deine Rechnungen?
             </h1>
             <p className="mt-2 text-sm text-muted">
-              Z. B. deine Steuerkanzlei, ein Buchhaltungs-Tool oder ein interner Account. Später weitere hinzufügbar.
+              Deine Steuerkanzlei, ein Buchhaltungs-Tool wie Kontist oder
+              Lexoffice — oder eine eigene Adresse. Spaeter ergaenzbar.
             </p>
 
             <div className="mt-6 rounded-md border border-line bg-paper p-5 space-y-5">
