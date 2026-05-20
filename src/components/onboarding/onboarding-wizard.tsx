@@ -309,10 +309,12 @@ export function OnboardingWizard({ userId }: { userId: string }) {
       if (!data.imapEmail)    { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
       if (!data.imapPassword) { setValidationError("Bitte Passwort eingeben."); return; }
       if (!data.imapHost)     { setValidationError("Server-Details fehlen — bitte Provider auswählen oder manuell eingeben."); return; }
-      // Step 1 testet nur IMAP — SMTP kommt in Step 3 (eigener Schritt).
-      // Beim erfolgreichen IMAP-Check werden die SMTP-Felder als Default
-      // für Step 3 vorbelegt: dieselben Credentials, SMTP-Server entweder
-      // vom erkannten Provider oder als Fallback der IMAP-Host.
+      // Step 1 testet sowohl IMAP als auch SMTP gegen die eingegebenen
+      // Credentials (Standard-Annahme: gleicher Account fuer Empfang +
+      // Versand). Bei Shared-Inbox-Recipients (Kontist/Accountable/...)
+      // kann der SMTP-Versand spaeter in Step 3 mit anderen Credentials
+      // ueberschrieben werden (Step 3 erscheint nur dort, siehe O1).
+      // Senderdefaults fuer Step 3 schon hier vorbelegen.
       setData((prev) => ({
         ...prev,
         senderEmail:      prev.senderEmail      || prev.imapEmail,
@@ -323,13 +325,13 @@ export function OnboardingWizard({ userId }: { userId: string }) {
       }));
       await runTestAndAdvance(
         {
-          host: data.imapHost,
-          port: data.imapPort,
-          secure: data.imapSecure,
+          host: data.smtpHost || data.imapHost,
+          port: data.smtpPort,
+          secure: data.smtpSecure,
           user: data.imapEmail,
           pass: data.imapPassword,
         },
-        { imap: true, smtp: false },
+        { imap: true, smtp: true },
       );
       return;
     }
