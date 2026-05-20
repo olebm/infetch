@@ -13,7 +13,7 @@ import { parseInvoiceFields } from "@/invoices/parser";
 import { isLikelyPdf, maxPdfSizeBytes } from "@/invoices/pdf-validation";
 import { deriveInvoiceProductLabel } from "@/invoices/product-label";
 import { matchVendor } from "@/vendors/matcher";
-import { canImportInvoice, canStoreFile } from "@/lib/tier";
+import { canImportInvoice, canStoreFile, getOrgTier, TIER_LIMITS } from "@/lib/tier";
 import { sendUpgradeNudge } from "@/lib/mail/notify";
 import { readJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
 import { isLocalExtractionSufficient } from "@/invoices/extraction-sufficiency";
@@ -24,6 +24,22 @@ export type ImportInvoiceResult =
   | { ok: true; status: "duplicate"; invoiceId: number | null; fileId: number; message: string }
   | { ok: false; status: "failed"; message: string }
   | { ok: false; status: "quota_exceeded"; message: string; current: number; max: number };
+
+/**
+ * Thrown by the in-transaction quota recheck (TOCTOU prevention).
+ * Caught by the outer try/catch and converted to a `quota_exceeded`
+ * result instead of being re-thrown.
+ */
+class QuotaExceededError extends Error {
+  constructor(
+    public readonly kind: "invoices" | "storage",
+    public readonly current: number,
+    public readonly max: number,
+  ) {
+    super(`Quota exceeded (${kind}): ${current}/${max}`);
+    this.name = "QuotaExceededError";
+  }
+}
 
 type ImportPdfSource = "manual" | "mail" | "portal";
 
@@ -222,6 +238,50 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   let fileId: number;
   try {
     const ids = await sql.begin(async (tx) => {
+      // ── TOCTOU prevention ─────────────────────────────────────────────────
+      // The outer pre-check (canImportInvoice/canStoreFile above) is a
+      // fail-fast: skip PDF extraction + AI for clearly over-limit orgs.
+      // It runs OUTSIDE this transaction, so two concurrent imports for the
+      // same org would both pass it and over-shoot the quota by 1+.
+      //
+      // Inside the transaction we (a) lock the organizations row with
+      // FOR UPDATE to serialize concurrent imports for the same org and
+      // (b) re-count via `tx` so the COUNT sees the row that a concurrent
+      // T1 just inserted (after T1 commits and releases the lock). Different
+      // orgs hold different row locks and never block each other.
+      if (input.organizationId && !input.bypassQuota) {
+        const orgId = input.organizationId;
+        await tx`SELECT 1 FROM organizations WHERE id = ${orgId} FOR UPDATE`;
+
+        const tier = await getOrgTier(orgId);
+        const limits = TIER_LIMITS[tier];
+
+        if (Number.isFinite(limits.maxInvoicesPerMonth)) {
+          const invoiceCountRows = await tx<{ count: string }[]>`
+            SELECT COUNT(*)::text AS count
+            FROM invoices
+            WHERE organization_id = ${orgId}
+              AND created_at >= TO_CHAR(DATE_TRUNC('month', NOW()), 'YYYY-MM-DD')
+          `;
+          const current = Number(invoiceCountRows[0]?.count ?? 0);
+          if (current >= limits.maxInvoicesPerMonth) {
+            throw new QuotaExceededError("invoices", current, limits.maxInvoicesPerMonth);
+          }
+        }
+
+        const storageRows = await tx<{ bytes: string }[]>`
+          SELECT COALESCE(SUM(f.size_bytes), 0)::text AS bytes
+          FROM invoice_files f
+          INNER JOIN invoices i ON i.id = f.invoice_id
+          WHERE i.organization_id = ${orgId}
+        `;
+        const usedBytes = Number(storageRows[0]?.bytes ?? 0);
+        if (usedBytes + buffer.byteLength > limits.maxStorageBytes) {
+          throw new QuotaExceededError("storage", usedBytes, limits.maxStorageBytes);
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       const invoiceRows = await tx<{ id: number }[]>`
         INSERT INTO invoices (
           organization_id, vendor_id, source, status, invoice_number, invoice_date,
@@ -269,6 +329,31 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
       deleteFromStorage(BUCKETS.INVOICES, storageKey),
       deleteFromStorage(BUCKETS.RAW_TEXT, rawTextKey),
     ]);
+    // TOCTOU recheck fired: convert to a normal quota_exceeded result
+    // instead of an exception bubbling up to the caller.
+    if (err instanceof QuotaExceededError) {
+      if (input.organizationId) {
+        void fireUpgradeNudgeIfNeeded(input.organizationId, err.current, err.max);
+      }
+      if (err.kind === "invoices") {
+        return {
+          ok: false,
+          status: "quota_exceeded",
+          message: `Monatslimit erreicht: ${err.current} von ${err.max} Rechnungen importiert. Bitte auf Pro upgraden.`,
+          current: err.current,
+          max: err.max,
+        };
+      }
+      const usedMb = Math.round(err.current / (1024 * 1024));
+      const maxMb = Math.round(err.max / (1024 * 1024));
+      return {
+        ok: false,
+        status: "quota_exceeded",
+        message: `Speicherlimit erreicht: ${usedMb} MB von ${maxMb} MB belegt. Bitte auf Pro upgraden.`,
+        current: err.current,
+        max: err.max,
+      };
+    }
     throw err;
   }
 
