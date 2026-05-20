@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import {
   savePortalCredentialMeta,

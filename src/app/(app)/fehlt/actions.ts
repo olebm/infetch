@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
 import { runMissingInvoiceCheck } from "@/invoices/missing-check";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { runAgentForVendor } from "@/portals/agent/agent-connector";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { requireCurrentAuth } from "@/lib/auth/current";

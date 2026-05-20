@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import archiver from "archiver";
 import { Readable } from "node:stream";
-import { sql } from "@/lib/db/client";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { downloadFromStorage, BUCKETS } from "@/lib/supabase/storage";
 import { canBulkDownload } from "@/lib/tier";
