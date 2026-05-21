@@ -169,7 +169,15 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
           gekündigt. Diese Aktion kann nicht rückgängig gemacht werden.
         </div>
 
-        <form action={deleteAction} className="mt-3 space-y-2">
+        <form
+          action={deleteAction}
+          className="mt-3 space-y-2"
+          onSubmit={(e) => {
+            // Modal-Guard: Enter im Input-Feld darf die Server-Action nicht
+            // direkt auslösen — erst wenn der User im Modal bestätigt hat.
+            if (!showDeleteModal) e.preventDefault();
+          }}
+        >
           <label className="block text-xs text-muted">
             Zur Bestätigung deine E-Mail-Adresse{" "}
             <span className="font-mono text-ink">{email}</span> eingeben:
