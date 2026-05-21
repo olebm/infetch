@@ -52,11 +52,13 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
   const anyJobRunning = status.some((s) => s.running);
 
   const isBlocked = !setup.smtpConfigured || !setup.imapConfigured;
-  // INFETCH-206: Rechnungen sind schon eingegangen und warten auf Freigabe,
-  // aber es wurde noch nie exportiert. Eigener Zustand statt der irreführenden
-  // "warten auf erste Rechnung"-Headline (die nur exportedLifetime betrachtete).
-  const hasReviewWaiting = !isBlocked && stats.exportedLifetime === 0 && stats.needsReview > 0;
-  const isFresh = !isBlocked && stats.exportedLifetime === 0 && stats.needsReview === 0;
+  // Ergebnis-zuerst-Reihenfolge: hasResults greift, sobald Rechnungen erfasst
+  // sind (freigegeben/ready ODER schon versendet) — also direkt nach dem
+  // Onboarding, bevor der Export-Cron etwas verschickt hat. Vorher fiel dieser
+  // Moment fälschlich auf "warten auf erste Rechnung" (nur exportedLifetime).
+  const hasResults = !isBlocked && (stats.capturedCount > 0 || stats.exportedLifetime > 0);
+  // INFETCH-206: eingegangen + warten auf Freigabe, aber noch nichts erfasst/exportiert.
+  const hasReviewWaiting = !isBlocked && !hasResults && stats.needsReview > 0;
 
   // Fetch display emails for the running-state paragraph
   const inboxEmail = imapAccount?.username ?? null;
@@ -64,35 +66,41 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
 
   if (isBlocked) return <HeroBlocked setup={setup} />;
 
-  if (hasReviewWaiting) return <HeroReviewWaiting needsReview={stats.needsReview} />;
-
-  if (isFresh) {
-    const initialPulse: HeroFreshPulse = {
-      mailScanRunning: mailScan?.running ?? false,
-      nextRunSec: mailScan?.nextRunSec ?? null,
-      exportedLifetime: stats.exportedLifetime,
-    };
-    return <HeroFresh setup={setup} initialPulse={initialPulse} />;
+  if (hasResults) {
+    return (
+      <HeroRunning
+        enabled={enabled}
+        anyJobRunning={anyJobRunning}
+        exportedToday={stats.exportedToday}
+        exportedLifetime={stats.exportedLifetime}
+        capturedCount={stats.capturedCount}
+        needsReview={stats.needsReview}
+        nextRunSec={mailScan?.nextRunSec ?? null}
+        inboxEmail={inboxEmail}
+        recipientEmail={recipientEmail}
+        daysActive={daysActive}
+      />
+    );
   }
 
-  return (
-    <HeroRunning
-      enabled={enabled}
-      anyJobRunning={anyJobRunning}
-      exportedToday={stats.exportedToday}
-      needsReview={stats.needsReview}
-      nextRunSec={mailScan?.nextRunSec ?? null}
-      inboxEmail={inboxEmail}
-      recipientEmail={recipientEmail}
-      daysActive={daysActive}
-    />
-  );
+  if (hasReviewWaiting) return <HeroReviewWaiting needsReview={stats.needsReview} />;
+
+  // Echt leer — der Scan hat (noch) nichts gefunden.
+  const initialPulse: HeroFreshPulse = {
+    mailScanRunning: mailScan?.running ?? false,
+    nextRunSec: mailScan?.nextRunSec ?? null,
+    exportedLifetime: stats.exportedLifetime,
+    capturedCount: stats.capturedCount,
+  };
+  return <HeroFresh setup={setup} initialPulse={initialPulse} />;
 }
 
 function HeroRunning({
   enabled,
   anyJobRunning,
   exportedToday,
+  exportedLifetime,
+  capturedCount,
   needsReview,
   nextRunSec,
   inboxEmail,
@@ -102,12 +110,16 @@ function HeroRunning({
   enabled: boolean;
   anyJobRunning: boolean;
   exportedToday: number;
+  exportedLifetime: number;
+  capturedCount: number;
   needsReview: number;
   nextRunSec: number | null;
   inboxEmail: string | null;
   recipientEmail: string | null;
   daysActive: number | null;
 }) {
+  // In-Flight: erfasst, aber noch nichts versendet (direkt nach Onboarding-Freigabe).
+  const inFlight = exportedLifetime === 0 && capturedCount > 0;
   const statusLabel = enabled
     ? anyJobRunning
       ? "Auto-Pilot · arbeitet gerade"
@@ -124,8 +136,17 @@ function HeroRunning({
       </div>
 
       <h2 className="mt-4 max-w-3xl font-display text-3xl leading-[1.05] text-ink sm:text-5xl md:text-6xl">
-        Heute{" "}
-        <em>{exportedToday > 0 ? `${exportedToday} versendet.` : "noch nichts versendet."}</em>
+        {inFlight ? (
+          <>
+            {capturedCount === 1 ? "1 Rechnung" : `${capturedCount} Rechnungen`} geholt —{" "}
+            <em>unterwegs zur Buchhaltung.</em>
+          </>
+        ) : (
+          <>
+            Heute{" "}
+            <em>{exportedToday > 0 ? `${exportedToday} versendet.` : "noch nichts versendet."}</em>
+          </>
+        )}
         {needsReview > 0 && (
           <span className="mt-1 block text-ink">
             {needsReview === 1 ? "1 wartet auf dein OK." : `${needsReview} warten auf dein OK.`}

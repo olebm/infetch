@@ -259,6 +259,10 @@ export type AutomationStats = {
   exportedThisWeek: number;
   exportedLifetime: number;
   needsReview: number;
+  // INFETCH-206/erfolgs-hero: Rechnungen, die der User behalten/freigegeben hat
+  // (status 'ready' oder 'exported') — erfasst & in der Pipeline, auch wenn der
+  // Export-Cron noch nichts versendet hat. Treibt den Dashboard-Erfolgszustand.
+  capturedCount: number;
   hoursSavedLifetime: number;
   daysActive: number | null;
 };
@@ -274,6 +278,7 @@ export async function getAutomationStats(organizationId: string | null = null): 
       exportedThisWeek: 0,
       exportedLifetime: 0,
       needsReview: 0,
+      capturedCount: 0,
       hoursSavedLifetime: 0,
       daysActive: null,
     };
@@ -281,7 +286,7 @@ export async function getAutomationStats(organizationId: string | null = null): 
   // PERF: vier separate COUNT-Queries auf `exports WHERE status='sent'` zu einer
   // aggregierten Query zusammengefasst (FILTER + MIN). needsReview bleibt
   // separat, da andere Tabelle — parallel ausgeführt.
-  const [exportAgg, needsReviewRow] = await Promise.all([
+  const [exportAgg, needsReviewRow, capturedRow] = await Promise.all([
     sql<{ today: string; thisWeek: string; lifetime: string; days: number | null }[]>`
       SELECT
         COUNT(*) FILTER (WHERE (sent_at::TIMESTAMP)::DATE = CURRENT_DATE) AS today,
@@ -294,6 +299,10 @@ export async function getAutomationStats(organizationId: string | null = null): 
       SELECT COUNT(*) AS count FROM invoices
       WHERE status = 'needs_review' AND organization_id = ${organizationId}
     `,
+    sql<{ count: string }[]>`
+      SELECT COUNT(*) AS count FROM invoices
+      WHERE status IN ('ready', 'exported') AND organization_id = ${organizationId}
+    `,
   ]);
 
   const agg = exportAgg[0];
@@ -305,6 +314,7 @@ export async function getAutomationStats(organizationId: string | null = null): 
     exportedThisWeek: Number(agg?.thisWeek ?? 0),
     exportedLifetime,
     needsReview: Number(needsReviewRow[0]?.count ?? 0),
+    capturedCount: Number(capturedRow[0]?.count ?? 0),
     hoursSavedLifetime: Math.round((minutesSaved / 60) * 10) / 10,
     daysActive: agg?.days ?? null,
   };

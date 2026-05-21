@@ -8,6 +8,9 @@ export type HeroFreshPulse = {
   mailScanRunning: boolean;
   nextRunSec: number | null;
   exportedLifetime: number;
+  // erfasste Rechnungen (ready/exported) — triggert den Switch auf den
+  // Erfolgs-Hero auch dann, wenn der Export-Cron noch nichts versendet hat.
+  capturedCount: number;
 };
 
 // Live-Daten fuer den HeroFresh-Pulse: ob der mailScan-Job gerade laeuft,
@@ -24,5 +27,6 @@ export async function getHeroFreshPulseAction(): Promise<HeroFreshPulse> {
     mailScanRunning: mailScan?.running ?? false,
     nextRunSec: mailScan?.nextRunSec ?? null,
     exportedLifetime: stats.exportedLifetime,
+    capturedCount: stats.capturedCount,
   };
 }

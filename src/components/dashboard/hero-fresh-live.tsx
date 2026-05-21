@@ -34,9 +34,10 @@ export function HeroFreshLive({ initial }: { initial: HeroFreshPulse }) {
         const next = await getHeroFreshPulseAction();
         if (cancelled) return;
         setPulse(next);
-        if (next.exportedLifetime > 0) {
-          // Erste Rechnung importiert → Server-Render neu anstossen, damit
-          // HeroFresh durch HeroRunning ersetzt wird. Kein full reload.
+        if (next.exportedLifetime > 0 || next.capturedCount > 0) {
+          // Rechnung erfasst (freigegeben/ready) ODER schon versendet →
+          // Server-Render neu anstossen, damit HeroFresh durch den
+          // Erfolgs-Hero ersetzt wird. Kein full reload.
           router.refresh();
           return;
         }
