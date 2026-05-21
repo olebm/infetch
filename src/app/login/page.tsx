@@ -108,7 +108,7 @@ export default async function LoginPage({
               Einloggen oder Account erstellen
             </h1>
             <p className="mt-1 text-sm text-muted">
-              Wir schicken dir einen Login-Code. Kein Passwort.
+              Egal ob neu oder schon bei Infetch — wir schicken dir einen Login-Code. Kein Passwort nötig.
             </p>
 
             <AuthErrorBanner queryError={queryError} />

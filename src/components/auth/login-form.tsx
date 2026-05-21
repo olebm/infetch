@@ -206,7 +206,13 @@ export function LoginForm({ next }: LoginFormProps) {
       return;
     }
 
-    window.location.assign(next && next !== "/" ? next : "/");
+    // Neue User direkt ins Onboarding — vermeidet den sichtbaren Doppel-
+    // Redirect ueber das Layout-Gate (vorher: → "/" → Gate → "/onboarding").
+    if (result.isNewUser) {
+      window.location.assign("/onboarding");
+    } else {
+      window.location.assign(next && next !== "/" ? next : "/");
+    }
   }
 
   if (status === "sent" || status === "verifying") {
@@ -284,6 +290,9 @@ export function LoginForm({ next }: LoginFormProps) {
             Andere E-Mail verwenden
           </button>
         </div>
+        <p className="mt-2 text-[11px] text-muted">
+          Aus Sicherheitsgründen kann nur alle 60 Sekunden ein neuer Code angefordert werden.
+        </p>
       </div>
     );
   }
