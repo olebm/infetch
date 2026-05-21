@@ -38,7 +38,7 @@ export const RECIPIENTS: Recipient[] = [
     domain: null, // no logo on Brandfetch
     email: "",
     slot: "kontist",
-    hint: "Deine persönliche Adresse (Format: eingang.Name@belege.buchhaltungsbutler.de) findest du in deinen Kontoeinstellungen.",
+    hint: "Deine persönliche Adresse (Format: eingang.Name@belege.buchhaltungsbutler.de) findest du in BuchhaltungsButler unter Konto → Einstellungen.",
   },
   {
     key: "datev",
@@ -62,6 +62,7 @@ export const RECIPIENTS: Recipient[] = [
     domain: "kontist.dev",
     email: "belege@kontist.com",
     slot: "kontist",
+    hint: "Gemeinsame Sammeladresse — Kontist ordnet Rechnungen über deine hinterlegte Absender-E-Mail zu, nicht über die Empfängeradresse.",
   },
   {
     key: "lexoffice",
@@ -85,6 +86,7 @@ export const RECIPIENTS: Recipient[] = [
     domain: "sevdesk.de",
     email: "autobox@sevdesk.email",
     slot: "kontist",
+    hint: "Gemeinsame Sammeladresse — sevDesk verknüpft Belege über die Absender-E-Mail deines Kontos.",
   },
 ];
 
