@@ -52,13 +52,19 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
   const anyJobRunning = status.some((s) => s.running);
 
   const isBlocked = !setup.smtpConfigured || !setup.imapConfigured;
-  const isFresh = !isBlocked && stats.exportedLifetime === 0;
+  // INFETCH-206: Rechnungen sind schon eingegangen und warten auf Freigabe,
+  // aber es wurde noch nie exportiert. Eigener Zustand statt der irreführenden
+  // "warten auf erste Rechnung"-Headline (die nur exportedLifetime betrachtete).
+  const hasReviewWaiting = !isBlocked && stats.exportedLifetime === 0 && stats.needsReview > 0;
+  const isFresh = !isBlocked && stats.exportedLifetime === 0 && stats.needsReview === 0;
 
   // Fetch display emails for the running-state paragraph
   const inboxEmail = imapAccount?.username ?? null;
   const recipientEmail = exportTargets.find((t) => t.enabled)?.recipientEmail ?? null;
 
   if (isBlocked) return <HeroBlocked setup={setup} />;
+
+  if (hasReviewWaiting) return <HeroReviewWaiting needsReview={stats.needsReview} />;
 
   if (isFresh) {
     const initialPulse: HeroFreshPulse = {
@@ -155,6 +161,35 @@ function HeroRunning({
             nächster Scan in {formatCountdown(nextRunSec)}
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+// INFETCH-206: Rechnungen eingegangen, warten auf Freigabe, noch nichts exportiert.
+function HeroReviewWaiting({ needsReview }: { needsReview: number }) {
+  return (
+    <div className="py-2">
+      <div className="inline-flex items-center gap-2 text-xs text-ok">
+        <span className="h-1.5 w-1.5 rounded-full bg-ok ap-pulse" aria-hidden />
+        Auto-Pilot · Rechnungen eingegangen
+      </div>
+      <h2 className="mt-4 max-w-3xl font-display text-3xl leading-[1.05] text-ink sm:text-5xl md:text-6xl">
+        {needsReview === 1 ? "1 Rechnung wartet" : `${needsReview} Rechnungen warten`}{" "}
+        <em>auf dein OK.</em>
+      </h2>
+      <p className="mt-3 max-w-xl text-muted md:mt-6">
+        Wir haben sie aus deinem Postfach geholt und vorbereitet. Prüf sie einmal kurz —
+        danach übernimmt der Auto-Pilot Versand und Ablage automatisch.
+      </p>
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <Link
+          href="/audit?tab=review"
+          className="inline-flex h-10 items-center gap-2 rounded bg-brand px-4 text-sm font-medium text-white shadow-soft transition-all hover:shadow-pop"
+        >
+          {needsReview === 1 ? "1 prüfen" : `${needsReview} prüfen`}
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
       </div>
     </div>
   );
