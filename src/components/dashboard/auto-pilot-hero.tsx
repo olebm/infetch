@@ -15,16 +15,6 @@ interface AutoPilotHeroProps {
   setup?: Setup;
 }
 
-function formatCountdown(sec: number | null): string {
-  if (sec === null || sec === undefined) return "—";
-  if (sec < 60) return `${sec} Sek`;
-  const min = Math.floor(sec / 60);
-  const remSec = sec % 60;
-  if (min < 60) return `${min}:${String(remSec).padStart(2, "0")}`;
-  const h = Math.round(min / 60);
-  return `${h} Std`;
-}
-
 /**
  * Hero section — pixel-matches Claude Design.
  *
@@ -178,8 +168,8 @@ function HeroRunning({
         )}
         <ScanButton />
         {enabled && nextRunSec !== null && (
-          <span className="hidden md:inline text-xs text-muted stat-num">
-            nächster Scan in {formatCountdown(nextRunSec)}
+          <span className="hidden md:inline text-xs text-muted">
+            Abruf läuft stündlich automatisch
           </span>
         )}
       </div>
