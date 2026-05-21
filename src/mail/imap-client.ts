@@ -26,6 +26,20 @@ export type ConfiguredImapAccount = PrimaryImapAccount & {
   organizationId?: string | null;
 };
 
+/**
+ * Configured IMAP accounts, collapsed to one row per slot (Primary/Secondary).
+ *
+ * - `limitToOrgId` set → only that org's accounts (DB-level filter). This is
+ *   the org-scoped scan path (onboarding, manual re-scan, backfill).
+ * - `limitToOrgId` omitted → all configured accounts (cron catch-up check).
+ *
+ * Row selection per slot prefers a non-null `organization_id` over a legacy
+ * null-org row (`organization_id IS NULL` sorts last), so a Pre-Multi-Tenant
+ * leftover never shadows the real org-scoped row — the exact failure mode that
+ * made onboarding scans report "Kein konfiguriertes IMAP-Postfach vorhanden".
+ * Migration 0029 disables those leftovers; this ordering is the belt to that
+ * suspenders.
+ */
 export async function listConfiguredImapAccounts(
   limitToOrgId?: string | null,
 ): Promise<ConfiguredImapAccount[]> {
@@ -37,7 +51,7 @@ export async function listConfiguredImapAccounts(
     FROM mail_accounts
     WHERE label = ANY(${labels}::text[]) AND status = 'configured'
     ${limitToOrgId != null ? sql`AND organization_id = ${limitToOrgId}` : sql``}
-    ORDER BY id ASC
+    ORDER BY (organization_id IS NULL), id ASC
   `;
 
   const ordered: ConfiguredImapAccount[] = [];
