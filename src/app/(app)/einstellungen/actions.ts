@@ -33,6 +33,7 @@ import {
 } from "@/lib/supabase/server";
 import { cancelSubscriptionImmediately } from "@/lib/stripe";
 import { BUCKETS, deleteFromStorage } from "@/lib/supabase/storage";
+import { unsafeGlobalSql } from "@/lib/db/unsafe-global";
 
 export type CredentialFormState = {
   status: "idle" | "success" | "error";
@@ -1124,7 +1125,7 @@ export async function deleteAccountAction(
   //    in Storage ist noch nichts gelöscht und der Nutzer kann sich
   //    weiterhin einloggen → sauberer Fehler-Rückgabe.
   try {
-    await scopedSql.begin(async (tx) => {
+    await unsafeGlobalSql.begin(async (tx) => {
       for (const org of soloOrgs) {
         await hardDeleteOrgData(tx, org.orgId, optOrgCols);
       }
