@@ -21,6 +21,8 @@ import {
   getTopVendors,
 } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
+import { getOrgTier, getScanSinceDate } from "@/lib/tier";
+import { appConfig } from "@/lib/config/env";
 
 const MONTHS_DE = [
   "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -86,6 +88,7 @@ export async function DashboardView() {
     obsStart,
     lastScanAt,
     lastScanFailure,
+    tier,
   ] = await Promise.all([
     // orgId hier kritisch: ohne ihn würde der Snapshot globale secret_refs
     // prüfen und für jede User-Org "nicht configured" zurückgeben — was den
@@ -108,6 +111,7 @@ export async function DashboardView() {
     getObservationStartDate(),
     getLastScanAt(),
     getLastScanFailure(),
+    getOrgTier(orgId),
   ]);
 
   // Mehr holen, dann auf 5 mit Vendor-Name filtern → keine „Unbekannter Anbieter"-Einträge
@@ -162,6 +166,14 @@ export async function DashboardView() {
     if (diffH < 24) return `vor ${diffH} Std`;
     return `vor ${Math.round(diffH / 24)} Tagen`;
   })();
+
+  // Scan-Reichweite (Trust-Band-Subline). Datum kommt aus exakt der Funktion,
+  // die der Scanner selbst verwendet — Anzeige und Realitaet matchen damit
+  // garantiert. Free = aktueller Monatsbeginn, Pro/Business = syncMonthsBack
+  // (Default 6).
+  const scanSinceDate = getScanSinceDate(tier, appConfig.syncMonthsBack);
+  const scanSinceLabel = `${String(scanSinceDate.getDate()).padStart(2, "0")}.${String(scanSinceDate.getMonth() + 1).padStart(2, "0")}.${scanSinceDate.getFullYear()}`;
+  const tierLabel = tier === "free" ? "Free-Plan" : tier === "pro" ? "Pro-Plan" : "Business-Plan";
 
   // Relativ-Label fuer Banner (analoge Logik, kein Tier-Fallback noetig).
   const lastScanFailureRelative = lastScanFailure
@@ -486,6 +498,13 @@ export async function DashboardView() {
               </dd>
             </div>
           </dl>
+          {setup.imapConfigured && (
+            <div className="mt-4 text-[11px] text-muted">
+              Scan-Reichweite: ab <span className="stat-num text-ink">{scanSinceLabel}</span>{" "}
+              ({tierLabel}
+              {tier === "free" && " — Pro holt 6 Monate, Retroaktiv-Scan 12 Monate"}).
+            </div>
+          )}
         </section>
       )}
     </div>
