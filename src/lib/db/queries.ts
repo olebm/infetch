@@ -391,6 +391,16 @@ export async function getInvoices(options: { limit?: number; status?: string; st
       FROM ai_extractions
       ORDER BY invoice_id, created_at DESC, id DESC
     ),
+    -- INFETCH-207: KI-erkannter Anbietername als Fallback, wenn keine
+    -- Katalog-Zuordnung (vendor_id NULL) existiert. Nur erfolgreiche Extraktion.
+    latest_ai_vendor AS (
+      SELECT DISTINCT ON (invoice_id) invoice_id,
+             output_json::jsonb->>'normalized_vendor' AS normalized_vendor,
+             output_json::jsonb->>'vendor' AS vendor
+      FROM ai_extractions
+      WHERE status = 'succeeded'
+      ORDER BY invoice_id, created_at DESC, id DESC
+    ),
     vendor_alias_best AS (
       SELECT DISTINCT ON (vendor_id) vendor_id, alias AS domain
       FROM vendor_aliases
@@ -402,6 +412,22 @@ export async function getInvoices(options: { limit?: number; status?: string; st
       FROM discovered_senders
       WHERE matched_vendor_id IS NOT NULL
       ORDER BY matched_vendor_id, pdf_count DESC
+    ),
+    -- INFETCH-207: Absender-Domain der Mail-Quelle als Logo-Fallback.
+    -- CASE-Guard: source_ref_id ist bei Portal-Quellen NICHT numerisch
+    -- (vendorKey) → nur numerische (= mail_messages.id) casten.
+    mail_sender AS (
+      SELECT DISTINCT ON (mf.invoice_id) mf.invoice_id,
+             lower(substring(mm.from_address from '@([A-Za-z0-9.-]+)')) AS domain
+      FROM (
+        SELECT invoice_id,
+               CASE WHEN source_ref_id ~ '^[0-9]+$' THEN source_ref_id::bigint END AS mm_id
+        FROM invoice_files
+        WHERE source_type = 'mail'
+      ) mf
+      JOIN mail_messages mm ON mm.id = mf.mm_id
+      WHERE mm.from_address IS NOT NULL AND mm.from_address <> ''
+      ORDER BY mf.invoice_id, mf.mm_id DESC
     )
     SELECT
       invoices.id,
@@ -414,13 +440,15 @@ export async function getInvoices(options: { limit?: number; status?: string; st
       invoices.currency,
       invoices.confidence,
       latest_ai.status AS "aiStatus",
-      vendors.name AS "vendorName",
-      COALESCE(vendor_alias_best.domain, sender_best.domain) AS "vendorDomain"
+      COALESCE(vendors.name, latest_ai_vendor.normalized_vendor, latest_ai_vendor.vendor) AS "vendorName",
+      COALESCE(vendor_alias_best.domain, sender_best.domain, mail_sender.domain) AS "vendorDomain"
     FROM invoices
     LEFT JOIN vendors ON vendors.id = invoices.vendor_id
     LEFT JOIN latest_ai ON latest_ai.invoice_id = invoices.id
+    LEFT JOIN latest_ai_vendor ON latest_ai_vendor.invoice_id = invoices.id
     LEFT JOIN vendor_alias_best ON vendor_alias_best.vendor_id = vendors.id
     LEFT JOIN sender_best ON sender_best.vendor_id = vendors.id
+    LEFT JOIN mail_sender ON mail_sender.invoice_id = invoices.id
     ${where}
     ORDER BY COALESCE(invoices.invoice_date, invoices.created_at) DESC
     LIMIT ${limitParam}`;
@@ -502,11 +530,23 @@ export async function getPrivateInvoices(options: { year?: string; search?: stri
       invoices.currency,
       invoices.confidence,
       NULL AS "aiStatus",
-      vendors.name AS "vendorName",
+      -- INFETCH-207: Fallback auf KI-erkannten Namen, wenn vendor_id NULL.
+      COALESCE(
+        vendors.name,
+        (SELECT output_json::jsonb->>'normalized_vendor' FROM ai_extractions WHERE invoice_id = invoices.id AND status = 'succeeded' AND output_json::jsonb->>'normalized_vendor' IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 1),
+        (SELECT output_json::jsonb->>'vendor' FROM ai_extractions WHERE invoice_id = invoices.id AND status = 'succeeded' ORDER BY created_at DESC, id DESC LIMIT 1)
+      ) AS "vendorName",
       (
         SELECT COALESCE(
           (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
-          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
+          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1),
+          -- Absender-Domain der Mail-Quelle (Logo-Fallback). CASE-Guard, da
+          -- source_ref_id bei Portal-Quellen nicht numerisch ist.
+          (SELECT lower(substring(mm.from_address from '@([A-Za-z0-9.-]+)'))
+             FROM invoice_files if2
+             JOIN mail_messages mm ON mm.id = (CASE WHEN if2.source_ref_id ~ '^[0-9]+$' THEN if2.source_ref_id::bigint END)
+             WHERE if2.invoice_id = invoices.id AND if2.source_type = 'mail' AND mm.from_address IS NOT NULL
+             ORDER BY if2.id DESC LIMIT 1)
         )
       ) AS "vendorDomain"
     FROM invoices
@@ -566,11 +606,20 @@ export async function getInvoiceDetail(invoiceId: number, organizationId: string
       invoices.preferred_export_target_id AS "preferredExportTargetId",
       invoices.created_at AS "createdAt",
       invoices.updated_at AS "updatedAt",
-      vendors.name AS "vendorName",
+      COALESCE(
+        vendors.name,
+        (SELECT output_json::jsonb->>'normalized_vendor' FROM ai_extractions WHERE invoice_id = invoices.id AND status = 'succeeded' AND output_json::jsonb->>'normalized_vendor' IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 1),
+        (SELECT output_json::jsonb->>'vendor' FROM ai_extractions WHERE invoice_id = invoices.id AND status = 'succeeded' ORDER BY created_at DESC, id DESC LIMIT 1)
+      ) AS "vendorName",
       (
         SELECT COALESCE(
           (SELECT alias FROM vendor_aliases WHERE vendor_id = vendors.id AND match_type = 'domain' ORDER BY priority ASC, LENGTH(alias) ASC LIMIT 1),
-          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1)
+          (SELECT from_domain FROM discovered_senders WHERE matched_vendor_id = vendors.id ORDER BY pdf_count DESC LIMIT 1),
+          (SELECT lower(substring(mm.from_address from '@([A-Za-z0-9.-]+)'))
+             FROM invoice_files if2
+             JOIN mail_messages mm ON mm.id = (CASE WHEN if2.source_ref_id ~ '^[0-9]+$' THEN if2.source_ref_id::bigint END)
+             WHERE if2.invoice_id = invoices.id AND if2.source_type = 'mail' AND mm.from_address IS NOT NULL
+             ORDER BY if2.id DESC LIMIT 1)
         )
       ) AS "vendorDomain",
       duplicate_vendors.name AS "duplicateVendorName",
