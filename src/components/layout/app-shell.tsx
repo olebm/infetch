@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
 import { SupportFooterLink } from "@/components/support/support-fab";
 import { getCurrentAuth } from "@/lib/auth/current";
@@ -77,7 +76,6 @@ function AppFooter() {
           <span>© 2026 Infetch</span>
         </div>
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-1 md:ml-auto" aria-label="Footer-Navigation">
-          <Link href="/einstellungen" className="hover:text-ink">Status</Link>
           <a href="#" className="hover:text-ink">Datenschutz</a>
           <a href="#" className="hover:text-ink">AGB</a>
           <a href="#" className="hover:text-ink">Impressum</a>

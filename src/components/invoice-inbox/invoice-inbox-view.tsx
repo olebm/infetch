@@ -209,7 +209,10 @@ export async function InvoiceInboxView({
         {/* Fade-Gradient am rechten Rand signalisiert weiteren Scroll-Inhalt auf Phones */}
         <div className="relative -mb-px border-b border-line md:border-none">
         <nav className="no-scrollbar flex gap-0 overflow-x-auto" aria-label="Filter">
-          {TABS.map((tabItem) => {
+          {TABS.filter((tabItem) =>
+            // Fehlt-Tab nur sichtbar, wenn es was zu prüfen gibt (oder gerade aktiv).
+            tabItem.key !== "fehlt" || stats.missing + stats.actionRequired > 0 || activeTab === "fehlt",
+          ).map((tabItem) => {
             const isActive = activeTab === tabItem.key;
             const fehltCount = stats.missing + stats.actionRequired;
             const count =
@@ -353,10 +356,10 @@ export async function InvoiceInboxView({
                               {formatDate(invoice.invoiceDate)}
                             </div>
                           </div>
-                          <div className="hidden whitespace-nowrap text-right stat-num text-sm tabular-nums text-ink sm:block">
+                          <div className="hidden whitespace-nowrap text-right stat-num text-sm tabular-nums text-ink sm:flex sm:items-center sm:justify-end">
                             {formatAmount(invoice.amountGross, invoice.currency)}
                           </div>
-                          <div className="hidden w-24 md:block">
+                          <div className="hidden w-24 md:flex md:items-center">
                             {activeTab === "privat"
                               ? <StatusBadge status="ignored" label="privat" />
                               : <StatusBadge status={invoice.status} />}

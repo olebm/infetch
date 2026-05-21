@@ -2,6 +2,10 @@ import { Check, X } from "lucide-react";
 import { getOrgTier, getLimits, getMonthlyImportCount, getStorageUsageBytes } from "@/lib/tier";
 import { Card } from "@/components/ui/card";
 
+// Pro-Upsell (Paketvergleich + Upgrade-CTA) vorerst ausgeblendet — Code bleibt
+// erhalten; auf `true` setzen, um Vergleich + Upgrade-Button wieder zu zeigen.
+const SHOW_PLAN_COMPARISON = false;
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -117,7 +121,7 @@ export async function UsageCard({ organizationId }: Props) {
       </div>
 
       {/* Plan comparison table */}
-      {tier === "free" && (
+      {SHOW_PLAN_COMPARISON && tier === "free" && (
         <div className="mt-6 border-t border-line pt-5">
           <div className="mb-3 text-xs font-medium text-ink">Paketvergleich</div>
           <table className="w-full text-xs">
