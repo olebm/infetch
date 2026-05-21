@@ -337,7 +337,7 @@ export function OnboardingWizard({
           user: data.imapEmail,
           pass: data.imapPassword,
         },
-        { imap: true, smtp: true },
+        { imap: true, smtp: false },
       );
       return;
     }
