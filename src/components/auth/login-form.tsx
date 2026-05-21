@@ -206,7 +206,15 @@ export function LoginForm({ next }: LoginFormProps) {
       return;
     }
 
-    window.location.assign(next && next !== "/" ? next : "/");
+    // Neue User direkt nach /onboarding schicken statt über das Layout-Gate
+    // (/  →  Layout erkennt fehlende Org  →  redirect /onboarding) — verhindert
+    // den sichtbaren Doppel-Flash bei der ersten Anmeldung.
+    const dest = result.isNewUser
+      ? "/onboarding"
+      : next && next !== "/"
+        ? next
+        : "/";
+    window.location.assign(dest);
   }
 
   if (status === "sent" || status === "verifying") {
