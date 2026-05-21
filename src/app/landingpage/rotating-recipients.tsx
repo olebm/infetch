@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { VendorLogo } from "@/components/ui/vendor-logo";
 
 const POOL = [
   { domain: "datev.de",              label: "DATEV Belegtransfer" },
@@ -22,6 +21,34 @@ const POOL = [
 ];
 
 const DISPLAY = 7;
+
+// INFETCH-182: Keine Brandfetch-CDN-Requests auf der öffentlichen Landingpage.
+// Monogramm-Fallback: erste 2 Zeichen des Labels, statische Farbe aus Domain-Hash.
+const MONOGRAM_COLORS = [
+  "bg-slate-200 text-slate-700",
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700",
+  "bg-violet-100 text-violet-700",
+];
+
+function domainColor(domain: string): string {
+  let h = 0;
+  for (let i = 0; i < domain.length; i++) h = (h * 31 + domain.charCodeAt(i)) & 0xffff;
+  return MONOGRAM_COLORS[h % MONOGRAM_COLORS.length];
+}
+
+function Monogram({ domain, label }: { domain: string; label: string }) {
+  const initials = label.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
+  return (
+    <span
+      className={`flex h-full w-full items-center justify-center rounded-full text-[13px] font-semibold select-none ${domainColor(domain)}`}
+      aria-hidden
+    >
+      {initials}
+    </span>
+  );
+}
 
 function LogoTip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -77,7 +104,7 @@ export function RotatingRecipients() {
           }`}
         >
           <LogoTip label={item.label}>
-            <VendorLogo domain={item.domain} name={item.label} size={40} />
+            <Monogram domain={item.domain} label={item.label} />
           </LogoTip>
         </li>
       ))}
