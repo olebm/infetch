@@ -143,7 +143,7 @@ export function TopBar({
               aria-haspopup="menu"
               aria-controls="profile-menu"
               aria-label="Profil"
-              className="inline-flex h-9 items-center gap-1 rounded pl-1 pr-1.5 hover:bg-paper"
+              className="inline-flex h-9 items-center gap-1 rounded pl-1 pr-1.5 hover:bg-[#f5f2ec]"
             >
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-ink text-[11px] font-medium text-white overflow-hidden">
                 {avatarUrl ? (

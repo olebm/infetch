@@ -128,8 +128,15 @@ export async function InvoiceInboxView({
   const counts = new Map(statusCountsRaw.map((c) => [c.status, Number(c.count)]));
   const activeYear = year ?? null;
 
-  // Resolve active tab (with legacy ?status= support)
-  let activeTab: TabKey = "review";
+  const reviewCount = ["needs_review", "new", "failed"].reduce(
+    (acc, s) => acc + (counts.get(s) ?? 0), 0,
+  );
+  const sentCount = counts.get("exported") ?? 0;
+  const allCount = Array.from(counts.values()).reduce((a, b) => a + b, 0);
+
+  // Resolve active tab (with legacy ?status= support). Default "review" — aber
+  // wenn nichts zu prüfen ist, direkt "all" (der Review-Tab wird dann ausgeblendet).
+  let activeTab: TabKey = reviewCount > 0 ? "review" : "all";
   if (tab && TABS.some((t) => t.key === tab)) {
     activeTab = tab as TabKey;
   } else if (legacyStatus) {
@@ -137,12 +144,6 @@ export async function InvoiceInboxView({
     else if (legacyStatus === "exported") activeTab = "sent";
     else activeTab = "all";
   }
-
-  const reviewCount = ["needs_review", "new", "failed"].reduce(
-    (acc, s) => acc + (counts.get(s) ?? 0), 0,
-  );
-  const sentCount = counts.get("exported") ?? 0;
-  const allCount = Array.from(counts.values()).reduce((a, b) => a + b, 0);
 
   function tabHref(tabKey: string): string {
     const params = new URLSearchParams();
@@ -209,10 +210,12 @@ export async function InvoiceInboxView({
         {/* Fade-Gradient am rechten Rand signalisiert weiteren Scroll-Inhalt auf Phones */}
         <div className="relative -mb-px border-b border-line md:border-none">
         <nav className="no-scrollbar flex gap-0 overflow-x-auto" aria-label="Filter">
-          {TABS.filter((tabItem) =>
-            // Fehlt-Tab nur sichtbar, wenn es was zu prüfen gibt (oder gerade aktiv).
-            tabItem.key !== "fehlt" || stats.missing + stats.actionRequired > 0 || activeTab === "fehlt",
-          ).map((tabItem) => {
+          {TABS.filter((tabItem) => {
+            // Leere Tabs ausblenden — der gerade aktive Tab bleibt immer sichtbar.
+            if (tabItem.key === "fehlt") return stats.missing + stats.actionRequired > 0 || activeTab === "fehlt";
+            if (tabItem.key === "review") return reviewCount > 0 || activeTab === "review";
+            return true;
+          }).map((tabItem) => {
             const isActive = activeTab === tabItem.key;
             const fehltCount = stats.missing + stats.actionRequired;
             const count =

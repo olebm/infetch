@@ -199,7 +199,11 @@ export async function DashboardView() {
 
   // Determine dashboard state for subline
   const isBlocked = !setup.smtpConfigured || !setup.imapConfigured;
-  const isFresh = !isBlocked && stats.exportedLifetime === 0;
+  // "Fresh" = wirklich noch nichts da. Schon ERFASSTE Rechnungen (ready/exported,
+  // capturedCount) zählen als Inhalt — sonst bleibt das volle Dashboard (KPIs,
+  // Diagramm, Top-Anbieter) direkt nach dem Onboarding verborgen, bis der
+  // Export-Cron versendet hat (exportedLifetime). Konsistent mit dem Erfolgs-Hero.
+  const isFresh = !isBlocked && stats.exportedLifetime === 0 && stats.capturedCount === 0;
   const subline = isFresh
     ? "Gleich geht's los — wir warten auf deine erste Rechnung."
     : isBlocked
