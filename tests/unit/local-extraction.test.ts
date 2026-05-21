@@ -3,9 +3,11 @@ import { isLocalExtractionSufficient } from "@/invoices/extraction-sufficiency";
 
 const clean = { error: null };
 const errored = { error: "Could not parse PDF" };
-const fullParsed = { invoiceDate: "2025-04-01", amountGross: 99.0 };
-const missingDate = { invoiceDate: null, amountGross: 99.0 };
-const missingAmount = { invoiceDate: "2025-04-01", amountGross: null };
+// Vergangene Datums-Fixtures (clock-robust) + Währung — sonst greift der
+// Plausibilitäts-Check (fehlende Währung / Zukunfts-Datum) und macht "sufficient" false.
+const fullParsed = { invoiceDate: "2023-04-01", amountGross: 99.0, currency: "EUR" };
+const missingDate = { invoiceDate: null, amountGross: 99.0, currency: "EUR" };
+const missingAmount = { invoiceDate: "2023-04-01", amountGross: null, currency: "EUR" };
 
 describe("isLocalExtractionSufficient", () => {
   it("returns true when vendor, date, amount and confidence are all solid", () => {
@@ -43,5 +45,24 @@ describe("isLocalExtractionSufficient", () => {
 
   it("returns true at the boundary (exactly 0.72 vendor + 0.8 overall)", () => {
     expect(isLocalExtractionSufficient(0.72, fullParsed, clean, 0.8)).toBe(true);
+  });
+
+  // Plausibilität: implausibel Erfasstes nie lokal durchwinken (KI muss greifen).
+  it("returns false when currency is missing", () => {
+    expect(
+      isLocalExtractionSufficient(0.9, { ...fullParsed, currency: null }, clean, 0.96),
+    ).toBe(false);
+  });
+
+  it("returns false when the amount is implausibly large (> 1 Mio)", () => {
+    expect(
+      isLocalExtractionSufficient(0.9, { ...fullParsed, amountGross: 350_167_000 }, clean, 0.96),
+    ).toBe(false);
+  });
+
+  it("returns false when the invoice date is in the future", () => {
+    expect(
+      isLocalExtractionSufficient(0.9, { ...fullParsed, invoiceDate: "2099-01-01" }, clean, 0.96),
+    ).toBe(false);
   });
 });

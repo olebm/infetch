@@ -325,7 +325,7 @@ describe("isLocalExtractionSufficient (relaxed threshold)", () => {
   it("accepts a contains-match (0.72) when amount and date are present", () => {
     const result = isLocalExtractionSufficient(
       0.72,
-      { invoiceDate: "2026-05-01", amountGross: 29 },
+      { invoiceDate: "2023-05-01", amountGross: 29, currency: "EUR" },
       { error: null },
       0.85,
     );
@@ -335,7 +335,7 @@ describe("isLocalExtractionSufficient (relaxed threshold)", () => {
   it("rejects when vendor confidence too low", () => {
     const result = isLocalExtractionSufficient(
       0.5,
-      { invoiceDate: "2026-05-01", amountGross: 29 },
+      { invoiceDate: "2023-05-01", amountGross: 29, currency: "EUR" },
       { error: null },
       0.85,
     );
@@ -345,7 +345,7 @@ describe("isLocalExtractionSufficient (relaxed threshold)", () => {
   it("rejects when core field missing", () => {
     const result = isLocalExtractionSufficient(
       0.9,
-      { invoiceDate: null, amountGross: 29 },
+      { invoiceDate: null, amountGross: 29, currency: "EUR" },
       { error: null },
       0.85,
     );

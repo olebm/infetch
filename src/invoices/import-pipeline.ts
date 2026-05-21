@@ -483,7 +483,7 @@ function buildImportMessage(invoiceStatus: string, aiStatus: string) {
 
 function calculateConfidence(
   vendorConfidence: number,
-  parsed: { invoiceDate: string | null; amountGross: number | null; invoiceNumber: string | null },
+  parsed: { invoiceDate: string | null; amountGross: number | null; invoiceNumber: string | null; currency: string | null },
   text: string,
   extractionError: string | null,
 ) {
@@ -491,8 +491,21 @@ function calculateConfidence(
   if (parsed.invoiceDate) score += 0.03;
   if (parsed.amountGross) score += 0.03;
   if (parsed.invoiceNumber) score += 0.02;
+  if (parsed.currency) score += 0.02;
   if (text.length > 50) score += 0.02;
   if (extractionError) score -= 0.2;
+  // Unplausible Extraktion (fehlende Währung / Zukunfts-Datum / absurder Betrag)
+  // → Konfidenz hart dämpfen. Senkt overallConfidence unter die Sufficiency-
+  // Schwelle, sodass die KI greift, statt Müll lokal als "fertig" zu werten.
+  if (
+    describeImplausibility({
+      amountGross: parsed.amountGross,
+      currency: parsed.currency,
+      invoiceDate: parsed.invoiceDate,
+    }) !== null
+  ) {
+    score -= 0.3;
+  }
   return Math.max(0, Math.min(0.98, Number(score.toFixed(2))));
 }
 

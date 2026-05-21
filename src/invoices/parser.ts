@@ -46,14 +46,30 @@ function buildValidDate(year: string, month: string, day: string): string | null
   return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 
+// Kleine Toleranz gegen Zeitzonen-/Vordatierungs-Rauschen — alles darüber
+// hinaus ist fast immer ein fehlinterpretiertes Fälligkeits-/Reminder-Datum.
+const MAX_FUTURE_GRACE_DAYS = 2;
+
+/** Ein Rechnungsdatum darf nicht (nennenswert) in der Zukunft liegen. */
+function isNotFuture(iso: string, now: Date = new Date()): boolean {
+  const parsed = Date.parse(`${iso}T00:00:00.000Z`);
+  if (Number.isNaN(parsed)) return false;
+  const cutoff =
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) +
+    MAX_FUTURE_GRACE_DAYS * 86_400_000;
+  return parsed <= cutoff;
+}
+
 function normalizeIsoDate(match: RegExpMatchArray): string | null {
   const [, year, month, day] = match;
-  return buildValidDate(year, month, day);
+  const iso = buildValidDate(year, month, day);
+  return iso && isNotFuture(iso) ? iso : null;
 }
 
 function normalizeGermanDate(match: RegExpMatchArray): string | null {
   const [, day, month, year] = match;
-  return buildValidDate(year, month, day);
+  const iso = buildValidDate(year, month, day);
+  return iso && isNotFuture(iso) ? iso : null;
 }
 
 /**
@@ -80,23 +96,45 @@ function parseAmount(raw: string): number | null {
 
   const lastSep = Math.max(s.lastIndexOf("."), s.lastIndexOf(","));
   let value: number;
+  let integerGroupingPart: string; // Ganzzahlteil inkl. seiner Trenner — zur Gruppen-Prüfung
 
   if (lastSep === -1) {
     value = Number.parseFloat(s);
+    integerGroupingPart = s;
   } else {
     const decimals = s.length - lastSep - 1;
     if (decimals === 1 || decimals === 2) {
-      const intPart = s.slice(0, lastSep).replace(/[.,]/g, "");
+      integerGroupingPart = s.slice(0, lastSep);
+      const intPart = integerGroupingPart.replace(/[.,]/g, "");
       const fracPart = s.slice(lastSep + 1);
       value = Number.parseFloat(`${intPart || "0"}.${fracPart}`);
     } else {
       // Kein Dezimalteil → alle Trenner sind Tausendertrenner.
+      integerGroupingPart = s;
       value = Number.parseFloat(s.replace(/[.,]/g, ""));
     }
   }
 
   if (!Number.isFinite(value)) return null;
+  // Inkonsistente Tausender-Gruppierung (z. B. "12.34.567,89" aus verklebter
+  // OCR) → unzuverlässig, lieber null und in Prüfung/KI statt Müll speichern.
+  if (!hasConsistentThousandGrouping(integerGroupingPart)) return null;
+  // Syntaktischer Wahnsinns-Cap: ≥ 1 Billion ist nie ein Rechnungsbetrag.
+  // (Fachliche Plausibilität — z. B. > 1 Mio → Review — lebt in plausibility.ts.)
+  if (Math.abs(value) >= 1e12) return null;
   return negative ? -value : value;
+}
+
+/**
+ * Prüft, ob der Ganzzahlteil eines Betrags konsistent in Tausender-Gruppen
+ * formatiert ist: führende Gruppe 1–3 Stellen, alle weiteren genau 3. Ohne
+ * Trenner immer ok. Fängt verklebte/zerrissene Zahlen aus der PDF-Extraktion.
+ */
+function hasConsistentThousandGrouping(intPart: string): boolean {
+  if (!/[.,]/.test(intPart)) return true;
+  const groups = intPart.split(/[.,]/);
+  if (groups[0].length < 1 || groups[0].length > 3) return false;
+  return groups.slice(1).every((g) => g.length === 3);
 }
 
 function normalizeCurrency(raw: string | null) {
