@@ -156,14 +156,26 @@ async function runPrimaryImapScanImpl(
           }
         }
 
-        // Phase 2: Volltext nur für Mails mit PDF-Anhang.
+        // Phase 2: Volltext nur für Mails mit PDF-Anhang — NEUESTE ZUERST.
+        // imapflow liefert pro fetch aufsteigend (älteste zuerst), unabhängig von
+        // der UID-Array-Reihenfolge. Daher in absteigenden UID-Batches holen und
+        // stoppen, sobald das Monatslimit greift — so landen beim Erstscan die
+        // JÜNGSTEN Rechnungen im 30er-Kontingent statt der ältesten. Nicht geholte
+        // (ältere) Mails bleiben unmarkiert → später nachholbar (Dedupe idempotent).
         if (pdfUids.length > 0) {
-          for await (const message of client.fetch(
-            pdfUids,
-            { uid: true, envelope: true, source: true },
-            { uid: true },
-          )) {
-            await processMessage(account.id, account.organizationId ?? null, uidValidity, message, summary, bypassQuota);
+          const descendingUids = [...pdfUids].sort((a, b) => b - a);
+          const FETCH_BATCH = 10;
+          const quotaSignal = { hit: false };
+          for (let i = 0; i < descendingUids.length && !quotaSignal.hit; i += FETCH_BATCH) {
+            const batch = descendingUids.slice(i, i + FETCH_BATCH);
+            for await (const message of client.fetch(
+              batch,
+              { uid: true, envelope: true, source: true },
+              { uid: true },
+            )) {
+              await processMessage(account.id, account.organizationId ?? null, uidValidity, message, summary, bypassQuota, quotaSignal);
+              if (quotaSignal.hit) break;
+            }
           }
         }
       } finally {
@@ -245,6 +257,7 @@ async function processMessage(
   message: FetchMessageObject,
   summary: Omit<ImapScanResult, "syncRunId">,
   bypassQuota = false,
+  quotaSignal?: { hit: boolean },
 ) {
   if (!message.source) return;
 
@@ -324,6 +337,7 @@ async function processMessage(
       summary.failed += 1;
       if (!result.ok && result.status === "quota_exceeded") {
         quotaBlocked = true;
+        if (quotaSignal) quotaSignal.hit = true;
       }
     }
   }
