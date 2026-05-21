@@ -290,4 +290,29 @@ export async function uploadAvatarAction(
   return { status: "success", message: "Profilbild gespeichert." };
 }
 
+// ── Wöchentliche Zusammenfassung ─────────────────────────────────────────────
+
+export async function updateNotifyWeeklyAction(
+  _prev: MemberActionState,
+  formData: FormData,
+): Promise<MemberActionState> {
+  const auth = await getCurrentAuth();
+  if (!auth?.user) return { status: "error", message: "Nicht angemeldet." };
+
+  const enabled = formData.get("notifyWeekly") === "true";
+
+  await sql`
+    UPDATE users SET notify_weekly = ${enabled}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ${auth.user.id}
+  `;
+
+  revalidatePath("/konto");
+  return {
+    status: "success",
+    message: enabled
+      ? "Wöchentliche Zusammenfassung aktiviert."
+      : "Wöchentliche Zusammenfassung deaktiviert.",
+  };
+}
+
 // idle is intentionally not exported — "use server" files may only export async functions.

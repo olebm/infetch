@@ -23,10 +23,12 @@ export async function runWeeklyDigest(): Promise<WeeklyDigestResult> {
     return { results: [], skipped: "no BREVO_API_KEY" };
   }
 
+  // Only send to owners who have opted in via the notify_weekly toggle.
   const owners = await sql<{ email: string; orgId: string }[]>`
     SELECT u.email, o.id AS "orgId"
     FROM users u
     INNER JOIN organizations o ON o.owner_user_id = u.id
+    WHERE u.notify_weekly = TRUE
   `;
 
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -37,21 +39,23 @@ export async function runWeeklyDigest(): Promise<WeeklyDigestResult> {
 
   for (const { email, orgId } of owners) {
     try {
-      const statsRows = await sql<{ sent: string; reviewed: string; pending: string }[]>`
+      const statsRows = await sql<{ sent: string; reviewed: string; pending: string; sumGross: string }[]>`
         SELECT
           COUNT(CASE WHEN status = 'exported' AND updated_at >= ${oneWeekAgo}::timestamp THEN 1 END)::text AS sent,
           COUNT(CASE WHEN status IN ('ready','exported') AND updated_at >= ${oneWeekAgo}::timestamp AND source != 'auto' THEN 1 END)::text AS reviewed,
-          COUNT(CASE WHEN status = 'needs_review' THEN 1 END)::text AS pending
+          COUNT(CASE WHEN status = 'needs_review' THEN 1 END)::text AS pending,
+          COALESCE(SUM(CASE WHEN status = 'exported' AND updated_at >= ${oneWeekAgo}::timestamp THEN amount_gross ELSE 0 END), 0)::text AS "sumGross"
         FROM invoices
-        WHERE organization_id = ${orgId} OR organization_id IS NULL
+        WHERE organization_id = ${orgId}
       `;
-      const stats = statsRows[0] ?? { sent: "0", reviewed: "0", pending: "0" };
+      const stats = statsRows[0] ?? { sent: "0", reviewed: "0", pending: "0", sumGross: "0" };
 
       const ok = await sendWeeklyDigest({
         to: email,
         sent: Number(stats.sent),
         reviewed: Number(stats.reviewed),
         pending: Number(stats.pending),
+        sumGross: Number(stats.sumGross),
       });
       results.push({ email, sent: ok });
     } catch (err) {
