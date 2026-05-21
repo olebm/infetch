@@ -37,8 +37,11 @@ export type ConfiguredImapAccount = PrimaryImapAccount & {
  * null-org row (`organization_id IS NULL` sorts last), so a Pre-Multi-Tenant
  * leftover never shadows the real org-scoped row — the exact failure mode that
  * made onboarding scans report "Kein konfiguriertes IMAP-Postfach vorhanden".
- * Migration 0029 disables those leftovers; this ordering is the belt to that
- * suspenders.
+ *
+ * Mailboxes belonging to a soft-deleted organization are excluded: a deleted
+ * org's mailbox lingers (soft-delete only sets organizations.deleted_at, it
+ * does not remove mail_accounts) and would otherwise be scanned by the
+ * no-filter cron path, shadowing the live org's mailbox.
  */
 export async function listConfiguredImapAccounts(
   limitToOrgId?: string | null,
@@ -50,6 +53,10 @@ export async function listConfiguredImapAccounts(
     SELECT id, label, host, port, secure, username, organization_id
     FROM mail_accounts
     WHERE label = ANY(${labels}::text[]) AND status = 'configured'
+      AND NOT EXISTS (
+        SELECT 1 FROM organizations o
+        WHERE o.id = mail_accounts.organization_id AND o.deleted_at IS NOT NULL
+      )
     ${limitToOrgId != null ? sql`AND organization_id = ${limitToOrgId}` : sql``}
     ORDER BY (organization_id IS NULL), id ASC
   `;
