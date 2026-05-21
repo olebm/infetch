@@ -247,7 +247,7 @@ export async function getOnboardingScanStatusAction(
     SELECT status, summary_json AS "summaryJson"
     FROM sync_runs
     WHERE type = 'imap_scan'
-      AND (${since}::timestamptz IS NULL OR started_at >= ${since}::timestamptz)
+      AND (${since}::timestamptz IS NULL OR started_at::timestamptz >= ${since}::timestamptz)
     ORDER BY id DESC
     LIMIT 1
   `;
