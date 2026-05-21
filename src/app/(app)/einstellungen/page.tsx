@@ -163,11 +163,19 @@ export default async function SetupPage() {
     <div className="space-y-4">
       <Card padding="none">
         <div className="p-5">
-          <div className="mb-4">
-            <div className="text-sm font-medium text-ink">Postfächer (IMAP)</div>
-            <div className="text-xs text-muted">
-              Wähle deinen Anbieter — wir konfigurieren IMAP und SMTP automatisch.
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium text-ink">Postfächer (IMAP)</div>
+              <div className="text-xs text-muted">
+                Wähle deinen Anbieter — wir konfigurieren IMAP und SMTP automatisch.
+              </div>
             </div>
+            <a
+              href="/onboarding?mode=edit"
+              className="shrink-0 text-xs text-ink underline decoration-line underline-offset-4 hover:decoration-ink"
+            >
+              im Wizard bearbeiten →
+            </a>
           </div>
           <MailboxConnectCard slots={mailboxSlots} isPro={isPro} />
         </div>
