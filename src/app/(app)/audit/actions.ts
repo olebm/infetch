@@ -10,6 +10,8 @@ import { updateInvoiceReview, type ReviewStatus } from "@/invoices/review";
 import { learnFromManualMatch } from "@/vendors/auto-alias";
 import { recordSyncEvent } from "@/lib/db/events";
 import { blockSender } from "@/senders/discovered-senders";
+import { dispatchPendingExports } from "@/exports/export-pipeline";
+import { MAX_PLAUSIBLE_AMOUNT_GROSS } from "@/invoices/plausibility";
 import { appConfig } from "@/lib/config/env";
 
 export type ManualImportState = {
@@ -129,6 +131,14 @@ export async function updateInvoiceReviewAction(
     revalidatePath(`/audit/${invoiceId}`);
     revalidatePath("/fehlt");
 
+    // Bei Freigabe sofort an die Buchhaltung schicken statt bis zum nächsten
+    // Cron-Tick zu warten. Hintergrund-Fire (langlebiger Node-Prozess); der
+    // stündliche exportDispatch-Cron bleibt das Sicherheitsnetz. Lock-guarded
+    // → kein Doppelversand bei parallelem Cron-Lauf.
+    if (status === "ready") {
+      void dispatchPendingExports().catch(() => {});
+    }
+
     return {
       status: "success",
       message: getReviewSuccessMessage(status),
@@ -225,6 +235,8 @@ export async function approveInvoicesAction(invoiceIds: number[]): Promise<void>
   `;
   revalidatePath("/audit");
   revalidatePath("/");
+  // Sofort losschicken (Hintergrund-Fire; Cron ist das Sicherheitsnetz).
+  void dispatchPendingExports().catch(() => {});
 }
 
 // Gegenstück zu approveInvoicesAction: privat/ignorieren im selben Schritt.
@@ -270,13 +282,30 @@ export async function finishOnboardingTriageAction(privateDomains: string[]): Pr
         )
     `;
   }
-  // Alles Übrige freigeben — nach dem Onboarding bleibt nichts in needs_review.
+  // Alles Übrige freigeben — aber nur PLAUSIBEL Erfasstes geht ungeprüft an die
+  // Buchhaltung. Unplausibles (fehlende Währung, Betrag ≤ 0 / > 1 Mio,
+  // Zukunfts-Datum) bleibt in needs_review und ist danach als "X warten auf
+  // dein OK" sichtbar — statt eine Fehl-Extraktion ungesehen weiterzureichen.
+  // invoice_date ist TEXT (ISO yyyy-mm-dd → lexikografisch = chronologisch),
+  // daher Vergleich gegen TO_CHAR(CURRENT_DATE,...) ohne riskanten Cast.
   await sql`
     UPDATE invoices SET status = 'ready'
     WHERE organization_id = ${orgId} AND status = 'needs_review'
+      AND currency IS NOT NULL
+      AND amount_gross IS NOT NULL
+      AND amount_gross > 0
+      AND amount_gross <= ${MAX_PLAUSIBLE_AMOUNT_GROSS}
+      AND invoice_date IS NOT NULL
+      AND invoice_date <= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
   `;
   revalidatePath("/audit");
   revalidatePath("/");
+  // Direkt nach dem Onboarding losschicken — der User soll sehen, dass die
+  // Rechnungen unterwegs sind, statt bis zum nächsten Cron-Tick zu warten.
+  // Hintergrund-Fire (langlebiger Node-Prozess); der stündliche
+  // exportDispatch-Cron ist das Sicherheitsnetz. Lock-guarded → kein
+  // Doppelversand bei parallelem Lauf.
+  void dispatchPendingExports().catch(() => {});
 }
 
 export async function markSenderDomainPrivateAction(domain: string): Promise<void> {

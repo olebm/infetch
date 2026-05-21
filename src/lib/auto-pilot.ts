@@ -48,7 +48,10 @@ type JobState = {
 const jobs: Record<JobName, JobState> = {
   mailScan: { cron: "0 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
   missingCheck: { cron: "0 6 * * *", task: null, lastRunAt: null, lastError: null, running: false },
-  exportDispatch: { cron: "*/15 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  // Stündlich zur Minute :30 — zeitversetzt zum mailScan (:00), damit Abruf und
+  // Versand nicht kollidieren und die Last über die Stunde verteilt ist. Bei
+  // Freigabe (Onboarding-Abschluss / Review) wird zusätzlich sofort gedispatcht.
+  exportDispatch: { cron: "30 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
   portalFetch: { cron: "0 */4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
   communitySync: { cron: "0 4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
   // Selbstheilungs-Jobs — laufen in dieser Reihenfolge nachts:
@@ -268,6 +271,15 @@ function nextCronTickSeconds(_cronExpr: string, _lastRunAt: Date | null): number
     const remainder = n - (minutesNow % n);
     const next = new Date(now);
     next.setMinutes(minutesNow + remainder, 0, 0);
+    return Math.max(0, Math.round((next.getTime() - now.getTime()) / 1000));
+  }
+  const minuteHourly = /^(\d+) \* \* \* \*$/.exec(_cronExpr);
+  if (minuteHourly) {
+    const minute = parseInt(minuteHourly[1], 10);
+    const now = new Date();
+    const next = new Date(now);
+    next.setMinutes(minute, 0, 0);
+    if (next <= now) next.setHours(now.getHours() + 1, minute, 0, 0);
     return Math.max(0, Math.round((next.getTime() - now.getTime()) / 1000));
   }
   const daily = /^0 (\d+) \* \* \*$/.exec(_cronExpr);

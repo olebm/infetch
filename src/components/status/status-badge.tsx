@@ -13,7 +13,7 @@ const DOT_MAP: Record<string, DotConfig> = {
   mail:           { dot: "bg-ok",     label: "mail" },
   portal:         { dot: "bg-ok",     label: "portal" },
   imported:       { dot: "bg-ok",     label: "importiert" },
-  ready:          { dot: "bg-ok",     label: "bereit" },
+  ready:          { dot: "bg-ok",     label: "wird verschickt" },
   exported:       { dot: "bg-ok",     label: "verschickt" },
   sent:           { dot: "bg-ok",     label: "verschickt" },
   configured:     { dot: "bg-ok",     label: "aktiv" },

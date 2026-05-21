@@ -10,6 +10,7 @@ import { syncStoredInvoiceFileNamesForInvoice } from "@/invoices/file-names";
 import { extractPdfText } from "@/invoices/local-extractor";
 import { classifyFilenameAsJunk } from "@/invoices/filename-junk-filter";
 import { parseInvoiceFields } from "@/invoices/parser";
+import { describeImplausibility } from "@/invoices/plausibility";
 import { isLikelyPdf, maxPdfSizeBytes } from "@/invoices/pdf-validation";
 import { deriveInvoiceProductLabel } from "@/invoices/product-label";
 import { matchVendor } from "@/vendors/matcher";
@@ -205,9 +206,18 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   const extraction = await extractPdfText(buffer);
   const parsed = parseInvoiceFields(extraction.text, input.originalFilename);
   const vendor = await matchVendor([input.originalFilename, extraction.text]);
+  // Plausibilitäts-Check: nur zuverlässig erfasste Rechnungen dürfen ungeprüft
+  // freigegeben werden. Fehlende Währung, Zukunfts-Datum oder ein absurder
+  // Betrag (z. B. gieriger Regex → 350.167.000,00 €) → manuelle Prüfung statt
+  // Auto-Export. Den Grund halten wir im Import-Event fest (auditierbar).
+  const implausibilityReason = describeImplausibility({
+    amountGross: parsed.amountGross,
+    currency: parsed.currency,
+    invoiceDate: parsed.invoiceDate,
+  });
   const status = junkCheck.isJunk
     ? "ignored"
-    : vendor.vendorId && parsed.invoiceDate && parsed.amountGross
+    : vendor.vendorId && parsed.invoiceDate && parsed.amountGross && implausibilityReason === null
       ? "ready"
       : "needs_review";
   const confidence = calculateConfidence(vendor.confidence, parsed, extraction.text, extraction.error);
@@ -364,7 +374,7 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     invoiceId,
     yearMonth: parsed.invoiceDate?.slice(0, 7),
     message: `${input.originalFilename} wurde importiert.`,
-    metadata: { sha256, extractionError: extraction.error, storedPath },
+    metadata: { sha256, extractionError: extraction.error, storedPath, implausibilityReason },
   });
 
   let aiStatus: string;
