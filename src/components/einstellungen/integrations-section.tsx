@@ -23,9 +23,11 @@ export type IntegrationStatus = {
 export function IntegrationsSection({
   integrations,
   isPro,
+  isBusiness = false,
 }: {
   integrations: IntegrationStatus[];
   isPro: boolean;
+  isBusiness?: boolean;
 }) {
   const lexoffice = integrations.find((i) => i.provider === "lexoffice");
   const sevdesk = integrations.find((i) => i.provider === "sevdesk");
@@ -37,7 +39,9 @@ export function IntegrationsSection({
       <ComingSoonCard
         provider="datev"
         title="DATEV Belegtransfer"
-        description="DATEV Unternehmen online. Recherche-Phase. Kommt in Phase E."
+        description="DATEV Unternehmen online. Direkt-Push zur Belegerfassung — in Entwicklung."
+        requiredTier="business"
+        hasAccess={isBusiness}
       />
     </div>
   );
@@ -252,22 +256,40 @@ function ProOnlyHint({ feature }: { feature: string }) {
   );
 }
 
+function BusinessOnlyHint() {
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <span className="inline-flex items-center rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">
+        Business
+      </span>
+      <span className="text-xs text-muted">Nur im Business-Plan verfügbar</span>
+    </div>
+  );
+}
+
 function ComingSoonCard({
   provider,
   title,
   description,
+  requiredTier,
+  hasAccess = false,
 }: {
   provider: string;
   title: string;
   description: string;
+  requiredTier?: "pro" | "business";
+  hasAccess?: boolean;
 }) {
   void provider;
+  void hasAccess; // Zugriff relevant wenn Feature live geht (INFETCH-108)
   return (
     <div className="rounded border border-dashed border-line bg-surface px-4 py-3">
       <div className="flex items-center justify-between gap-2">
         <div>
           <div className="text-sm font-medium text-muted">{title}</div>
           <div className="mt-0.5 text-xs text-muted">{description}</div>
+          {requiredTier === "business" && <BusinessOnlyHint />}
+          {requiredTier === "pro" && !hasAccess && <ProOnlyHint feature={title} />}
         </div>
         <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-700">geplant</span>
       </div>
