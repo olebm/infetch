@@ -84,8 +84,12 @@ export async function updateInvoiceReview(input: InvoiceReviewInput): Promise<vo
   }
 
   if (input.status === "ready") {
-    if (!input.vendorId || !input.invoiceDate || input.amountGross === null || !input.currency) {
-      throw new Error("Für Exportbereit werden Lieferant, Rechnungsdatum, Betrag und Währung benötigt.");
+    // Bewusst KEIN Vendor-Zwang: vendor_id NULL ist der Normalfall — der Export
+    // braucht ihn nicht (die Mail zeigt den KI-Anbieternamen via 207-Fallback).
+    // Konsistent mit der Bulk-Freigabe (approveInvoicesAction /
+    // finishOnboardingTriageAction), die Vendor-NULL ebenfalls zulässt.
+    if (!input.invoiceDate || input.amountGross === null || !input.currency) {
+      throw new Error("Für Exportbereit werden Rechnungsdatum, Betrag und Währung benötigt.");
     }
   }
 

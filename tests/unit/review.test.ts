@@ -90,6 +90,34 @@ describe("invoice review", () => {
     });
   });
 
+  it("marks an invoice ready without a catalog vendor (vendor_id NULL is normal)", async () => {
+    const invoiceId = await insertInvoice();
+
+    await updateInvoiceReview({
+      organizationId: TEST_ORG_ID,
+      invoiceId,
+      vendorId: null,
+      invoiceNumber: "INV-NOVENDOR-1",
+      invoiceDate: "2026-05-01",
+      servicePeriodStart: null,
+      servicePeriodEnd: null,
+      amountGross: 42,
+      amountNet: null,
+      vatAmount: null,
+      currency: "EUR",
+      status: "ready",
+      duplicateOfInvoiceId: null,
+      vatRate: null,
+      docType: "invoice",
+      preferredExportTargetId: null,
+    });
+
+    const rows = await sql<{ status: string; vendorId: number | null }[]>`
+      SELECT status, vendor_id AS "vendorId" FROM invoices WHERE id = ${invoiceId}
+    `;
+    expect(rows[0]).toMatchObject({ status: "ready", vendorId: null });
+  });
+
   it("requires a target invoice when marking an invoice as duplicate", async () => {
     const invoiceId = await insertInvoice();
 
