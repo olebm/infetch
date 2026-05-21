@@ -245,6 +245,40 @@ export async function ignoreInvoicesAction(invoiceIds: number[]): Promise<void> 
   revalidatePath("/");
 }
 
+// Onboarding-Triage abschließen — arbeitet auf den LIVE needs_review-Rechnungen
+// der Org, NICHT auf einem Client-Snapshot. (Der Scan importiert asynchron über
+// mehrere Sekunden; ein beim Seitenaufbau geladener Snapshot ließ später
+// importierte Rechnungen in needs_review zurück → "X warten auf dein OK" trotz
+// Onboarding.) Privat-Domains → ignored+is_private; ALLE übrigen → ready.
+export async function finishOnboardingTriageAction(privateDomains: string[]): Promise<void> {
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id;
+  if (!orgId) throw new Error("Keine Organisation zugeordnet.");
+  if (privateDomains.length > 0) {
+    await sql`
+      UPDATE invoices SET status = 'ignored', is_private = TRUE
+      WHERE organization_id = ${orgId} AND status = 'needs_review'
+        AND id IN (
+          SELECT mf.invoice_id
+          FROM (
+            SELECT invoice_id,
+                   CASE WHEN source_ref_id ~ '^[0-9]+$' THEN source_ref_id::bigint END AS mm_id
+            FROM invoice_files WHERE source_type = 'mail'
+          ) mf
+          JOIN mail_messages mm ON mm.id = mf.mm_id
+          WHERE lower(substring(mm.from_address from '@([A-Za-z0-9.-]+)')) = ANY(${privateDomains}::text[])
+        )
+    `;
+  }
+  // Alles Übrige freigeben — nach dem Onboarding bleibt nichts in needs_review.
+  await sql`
+    UPDATE invoices SET status = 'ready'
+    WHERE organization_id = ${orgId} AND status = 'needs_review'
+  `;
+  revalidatePath("/audit");
+  revalidatePath("/");
+}
+
 export async function markSenderDomainPrivateAction(domain: string): Promise<void> {
   const auth = await requireCurrentAuth();
   const orgId = auth.organization?.id ?? null;

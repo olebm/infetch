@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Loader2, Search, WifiOff } from "lucide-react";
 import type { DiscoveredSender } from "@/senders/discovered-senders";
 import { blockSenderAction, unblockSenderAction } from "@/app/(app)/senders/actions";
-import { approveInvoicesAction, ignoreInvoicesAction } from "@/app/(app)/audit/actions";
+import { finishOnboardingTriageAction } from "@/app/(app)/audit/actions";
 import {
   getOnboardingScanStatusAction,
   getDiscoveredSendersAction,
@@ -52,13 +52,7 @@ function buildItems(senders: DiscoveredSender[]): SenderItem[] {
   });
 }
 
-export function ErstabrufClient({
-  senders,
-  reviewInvoices = [],
-}: {
-  senders: DiscoveredSender[];
-  reviewInvoices?: Array<{ id: number; vendorDomain: string | null }>;
-}) {
+export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
   const router = useRouter();
   const [phase, setPhase] = useState<"scan" | "result" | "review" | "error">(
     senders.length === 0 ? "scan" : "review",
@@ -169,23 +163,14 @@ export function ErstabrufClient({
           promises.push(unblockSenderAction({ status: "idle", message: "" }, fd));
         }
       }
-      // 2) Im SELBEN Schritt die Rechnungen freigeben/ignorieren — die
-      //    Anbieter-Klassifizierung IST die Freigabe (kein separater Review).
-      //    Default geschäftlich → freigeben; privat-Absender → ignorieren.
-      const privateDomains = new Set(
-        items.filter((i) => i.kind === "private").map((i) => i.domain),
-      );
-      const approveIds: number[] = [];
-      const ignoreIds: number[] = [];
-      for (const inv of reviewInvoices) {
-        if (inv.vendorDomain != null && privateDomains.has(inv.vendorDomain)) {
-          ignoreIds.push(inv.id);
-        } else {
-          approveIds.push(inv.id);
-        }
-      }
-      if (approveIds.length > 0) promises.push(approveInvoicesAction(approveIds));
-      if (ignoreIds.length > 0) promises.push(ignoreInvoicesAction(ignoreIds));
+      // 2) Rechnungen im SELBEN Schritt freigeben/ignorieren — server-seitig auf
+      //    den LIVE needs_review-Rechnungen (NICHT auf einem Seitenaufbau-Snapshot;
+      //    der Scan importiert asynchron, sonst blieben spät importierte Rechnungen
+      //    in needs_review hängen). Privat-Absender → ignorieren, Rest → freigeben.
+      const privateDomains = items
+        .filter((i) => i.kind === "private")
+        .map((i) => i.domain);
+      promises.push(finishOnboardingTriageAction(privateDomains));
       await Promise.all(promises);
     } finally {
       setSaving(false);
@@ -364,9 +349,9 @@ export function ErstabrufClient({
           Was ist <em className="italic text-muted">privat</em>?
         </h1>
         <p className="mt-5 max-w-xl leading-relaxed text-muted">
-          Was du jetzt als privat markierst, wird nie an deine Buchhaltung
-          weitergeleitet — auch nicht in zwei Jahren. Du kannst alles später
-          ändern.
+          Du wählst pro <strong className="font-medium text-ink">Anbieter</strong> —
+          nicht pro einzelner Rechnung. Privates geht nie an deine Buchhaltung,
+          alles später änderbar.
         </p>
 
         <dl className="mt-10 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
