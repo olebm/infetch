@@ -5,7 +5,7 @@ export async function seedDatabase() {
   for (const vendor of vendorSeeds) {
     await sql`
       INSERT INTO vendors (name, canonical_key, category, portal_enabled, mail_enabled, manual_enabled)
-      VALUES (${vendor.name}, ${vendor.canonicalKey}, ${vendor.category}, TRUE, TRUE, TRUE)
+      VALUES (${vendor.name}, ${vendor.canonicalKey}, ${vendor.category}, 1, 1, 1)
       ON CONFLICT(canonical_key) DO UPDATE SET
         name = excluded.name,
         category = excluded.category,
