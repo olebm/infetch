@@ -98,7 +98,9 @@ export async function completeOnboardingAction(
     }
     const organizationId = auth.organization.id;
 
-    // 1) IMAP Credential + mail_account
+    // 1) IMAP Credential (Keychain + credential_refs - NICHT in der TX unten,
+    //    weil saveCredentialSecret teils OS-Keychain schreibt und das nicht
+    //    transaktional rollbar ist).
     const imapSecretRef = await saveCredentialSecret({
       scope: "imap",
       ownerId: "primary",
@@ -111,34 +113,7 @@ export async function completeOnboardingAction(
     `;
     const imapCredentialId = imapCredRows[0]?.id ?? null;
 
-    // SECURITY: Lookup scoped auf Organisation — sonst überschreibt
-    // ein neuer Onboarding-Lauf den Datensatz einer anderen Org.
-    const existingImapRows = await sql<{ id: number }[]>`
-      SELECT id FROM mail_accounts
-      WHERE label = 'Primary IMAP'
-        AND (organization_id = ${organizationId}
-             OR (${organizationId}::text IS NULL AND organization_id IS NULL))
-      LIMIT 1
-    `;
-    const existingImap = existingImapRows[0];
-
-    if (existingImap) {
-      await sql`
-        UPDATE mail_accounts
-        SET host = ${imapHost}, port = ${imapPort}, secure = ${imapSecure},
-            username = ${email}, credential_ref_id = ${imapCredentialId},
-            status = 'configured', organization_id = ${organizationId},
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${existingImap.id}
-      `;
-    } else {
-      await sql`
-        INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
-        VALUES ('Primary IMAP', ${imapHost}, ${imapPort}, ${imapSecure}, ${email}, ${imapCredentialId}, 'configured', ${organizationId})
-      `;
-    }
-
-    // 2) SMTP Credential + smtp_account JSON (may use separate account from IMAP)
+    // 2) SMTP Credential + smtp_account (gleiches Argument wie 1 - outside TX).
     await saveCredentialSecret({
       scope: "smtp",
       ownerId: "primary",
@@ -154,20 +129,52 @@ export async function completeOnboardingAction(
       fromAddress: smtpEmail,
     });
 
-    // 3) Export Target (Kontist or Accountable) — per Org gescoped (Migration 0013).
-    //    Default-Row wird beim Anlegen der Org geseeded (createUserWithDefaultOrg);
-    //    Onboarding setzt nur die Konfigurationsfelder.
+    // 3) mail_accounts + export_targets atomar in einer Postgres-Transaktion.
+    //    So gibt es entweder beide Rows in konsistentem Zustand oder keine -
+    //    kein "halb angelegtes Postfach ohne Empfaenger" mehr.
+    //    SECURITY: Lookup scoped auf Organisation - sonst ueberschreibt
+    //    ein neuer Onboarding-Lauf den Datensatz einer anderen Org.
     const exportTargetKey = exportTarget === "accountable" ? "accountable" : "kontist";
     const exportLabel = exportTargetKey === "accountable" ? "Accountable" : "Kontist";
-    await sql`
-      INSERT INTO export_targets (organization_id, target, label, recipient_email, smtp_slot, enabled)
-      VALUES (${organizationId}, ${exportTargetKey}, ${exportLabel}, ${recipientEmail}, 'primary', TRUE)
-      ON CONFLICT (organization_id, target) DO UPDATE SET
-        recipient_email = excluded.recipient_email,
-        smtp_slot = 'primary',
-        enabled = TRUE,
-        updated_at = CURRENT_TIMESTAMP
-    `;
+    await sql.begin(async (txSql) => {
+      const existingImapRows = await txSql<{ id: number }[]>`
+        SELECT id FROM mail_accounts
+        WHERE label = 'Primary IMAP'
+          AND (organization_id = ${organizationId}
+               OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+        LIMIT 1
+      `;
+      const existingImap = existingImapRows[0];
+
+      if (existingImap) {
+        await txSql`
+          UPDATE mail_accounts
+          SET host = ${imapHost}, port = ${imapPort}, secure = ${imapSecure},
+              username = ${email}, credential_ref_id = ${imapCredentialId},
+              status = 'configured', organization_id = ${organizationId},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${existingImap.id}
+        `;
+      } else {
+        await txSql`
+          INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
+          VALUES ('Primary IMAP', ${imapHost}, ${imapPort}, ${imapSecure}, ${email}, ${imapCredentialId}, 'configured', ${organizationId})
+        `;
+      }
+
+      // Export Target (Kontist or Accountable) - per Org gescoped (Migration 0013).
+      // Default-Row wird beim Anlegen der Org geseeded (createUserWithDefaultOrg);
+      // Onboarding setzt nur die Konfigurationsfelder.
+      await txSql`
+        INSERT INTO export_targets (organization_id, target, label, recipient_email, smtp_slot, enabled)
+        VALUES (${organizationId}, ${exportTargetKey}, ${exportLabel}, ${recipientEmail}, 'primary', TRUE)
+        ON CONFLICT (organization_id, target) DO UPDATE SET
+          recipient_email = excluded.recipient_email,
+          smtp_slot = 'primary',
+          enabled = TRUE,
+          updated_at = CURRENT_TIMESTAMP
+      `;
+    });
 
     // 4) Trigger first scan
     runPrimaryImapScan({ limitToOrgId: organizationId }).catch(() => {
