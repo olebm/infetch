@@ -7,6 +7,7 @@ import { saveCredentialSecret } from "@/lib/secrets/credential-store";
 import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
 import { getProviderFromEmail } from "@/lib/mail-providers";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
+import { getOrgTier } from "@/lib/tier";
 import { verifyImapAccountConnection } from "@/mail/imap-client";
 import { verifySmtpAccountConnection } from "@/mail/smtp-client";
 import { requireCurrentAuth } from "@/lib/auth/current";
@@ -184,8 +185,18 @@ export async function completeOnboardingAction(
       `;
     });
 
-    // 4) Trigger first scan
-    runPrimaryImapScan({ limitToOrgId: organizationId }).catch(() => {
+    // 4) Trigger first scan. Free: bewusst KEIN "nur aktueller Monat", sondern
+    //    90 Tage zurück — der User soll beim Erststart seine jüngsten Rechnungen
+    //    bekommen, egal an welchem Tag des Monats er sich anmeldet. Das 30er-
+    //    Monatslimit ist der natürliche Deckel (neueste zuerst + Backlog folgen
+    //    als Schritt 2). Pro/Business behalten ihr reguläres Fenster
+    //    (sinceOverride = undefined → getScanSinceDate).
+    const firstScanTier = await getOrgTier(organizationId);
+    const firstScanSince =
+      firstScanTier === "free"
+        ? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+        : undefined;
+    runPrimaryImapScan({ limitToOrgId: organizationId, sinceOverride: firstScanSince }).catch(() => {
       // Ignore — first-scan errors are visible in the activity log
     });
 
