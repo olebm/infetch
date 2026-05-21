@@ -11,6 +11,7 @@ import { verifyImapAccountConnection } from "@/mail/imap-client";
 import { verifySmtpAccountConnection } from "@/mail/smtp-client";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
 import { saveExportTarget } from "@/exports/export-pipeline";
+import { isValidEmail } from "@/lib/validation/email";
 import {
   deleteAutoApprovalRule,
   upsertAutoApprovalRule,
@@ -478,6 +479,12 @@ export async function saveExportTargetAction(
       return { status: "error", message: "Ungültiges SMTP-Postfach ausgewählt." };
     }
     const enabled = formData.get("enabled") === "on";
+
+    // Format pruefen wenn eine Adresse angegeben ist (null = Empfaenger leeren,
+    // bleibt erlaubt). Faengt Tippfehler ab bevor Rechnungen ins Leere gehen.
+    if (recipientEmail && !isValidEmail(recipientEmail)) {
+      return { status: "error", message: "Die Empfänger-E-Mail-Adresse ist unvollständig oder ungültig." };
+    }
 
     await saveExportTarget(auth.organization.id, target, recipientEmail, smtpSlot.ownerId, enabled);
 
