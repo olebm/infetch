@@ -308,12 +308,20 @@ export async function sendWeeklyDigest(opts: {
   sent: number;
   reviewed: number;
   pending: number;
+  sumGross?: number;
   appUrl?: string;
 }): Promise<boolean> {
   const base_url = opts.appUrl ?? "https://app.infetch.de";
-  const { sent, reviewed, pending } = opts;
+  const { sent, reviewed, pending, sumGross } = opts;
 
   if (sent === 0 && reviewed === 0 && pending === 0) return false; // nichts zu berichten
+
+  const totalRow = (sumGross && sumGross > 0)
+    ? `<tr>
+          <td style="padding:12px 0;border-bottom:1px solid #e5e2db;color:#6b6b67;font-size:13px">Gesamtbetrag</td>
+          <td style="padding:12px 0;border-bottom:1px solid #e5e2db;text-align:right;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums">${formatEur(sumGross)}</td>
+        </tr>`
+    : "";
 
   return sendEmail({
     to: opts.to,
@@ -327,9 +335,10 @@ export async function sendWeeklyDigest(opts: {
           <td style="padding:12px 0;border-bottom:1px solid #e5e2db;text-align:right;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums">${sent}</td>
         </tr>
         <tr>
-          <td style="padding:12px 0;border-bottom:1px solid #e5e2db;color:#6b6b67;font-size:13px">Manuell bestätigt</td>
-          <td style="padding:12px 0;border-bottom:1px solid #e5e2db;text-align:right;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums">${reviewed}</td>
+          <td style="padding:12px 0;border-bottom:${totalRow || pending > 0 ? "1px solid #e5e2db" : "none"};color:#6b6b67;font-size:13px">Manuell bestätigt</td>
+          <td style="padding:12px 0;border-bottom:${totalRow || pending > 0 ? "1px solid #e5e2db" : "none"};text-align:right;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums">${reviewed}</td>
         </tr>
+        ${totalRow}
         ${pending > 0 ? `<tr>
           <td style="padding:12px 0;color:#6b6b67;font-size:13px">Noch offen</td>
           <td style="padding:12px 0;text-align:right;font-weight:700;font-size:18px;color:#e07000;font-variant-numeric:tabular-nums">${pending}</td>
@@ -339,6 +348,7 @@ export async function sendWeeklyDigest(opts: {
         ? `<a href="${base_url}/posteingang" class="btn">${pending} offene Rechnung${pending !== 1 ? "en" : ""} prüfen →</a>`
         : `<a href="${base_url}" class="btn">Zur Übersicht →</a>`
       }
+      <p style="font-size:11px;color:#a0a09a;margin-top:20px">Du erhältst diese Mail, weil du die Wochenzusammenfassung in deinem Konto aktiviert hast. Du kannst sie jederzeit unter <a href="${base_url}/konto" style="color:#a0a09a">infetch.de/konto</a> deaktivieren.</p>
     `),
   });
 }

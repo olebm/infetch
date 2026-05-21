@@ -173,15 +173,16 @@ export async function updateUserProfile(
 
 export async function getUserProfileFields(
   userId: string,
-): Promise<{ companyName: string | null; vatId: string | null; avatarUrl: string | null }> {
-  const rows = await sql<{ company_name: string | null; vat_id: string | null; avatar_url: string | null }[]>`
-    SELECT company_name, vat_id, avatar_url FROM users WHERE id = ${userId}
+): Promise<{ companyName: string | null; vatId: string | null; avatarUrl: string | null; notifyWeekly: boolean }> {
+  const rows = await sql<{ company_name: string | null; vat_id: string | null; avatar_url: string | null; notify_weekly: boolean }[]>`
+    SELECT company_name, vat_id, avatar_url, notify_weekly FROM users WHERE id = ${userId}
   `;
   const row = rows[0];
   return {
     companyName: row?.company_name ?? null,
     vatId: row?.vat_id ?? null,
     avatarUrl: row?.avatar_url ?? null,
+    notifyWeekly: row?.notify_weekly ?? false,
   };
 }
 
