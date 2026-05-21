@@ -211,7 +211,7 @@ export default function LandingPage() {
             {[
               "Verschlüsselt (AES-256)",
               "EU-Server · Frankfurt",
-              "Keine KI-Trainingsnutzung",
+              "KI-Verarbeitung: EU-Server",
               "Jederzeit löschbar",
               "AVV inklusive",
             ].map((t, i) => (
@@ -528,7 +528,7 @@ export default function LandingPage() {
                 { label: "Standort",        value: "EU · Frankfurt", detail: "Hetzner · ISO 27001"           },
                 { label: "Verschlüsselung", value: "AES-256",        detail: "at rest · in transit"          },
                 { label: "DSGVO",           value: "AVV inklusive",  detail: "Art. 28 DSGVO"                 },
-                { label: "KI-Nutzung",      value: "kein Marketing", detail: "Keine Weitergabe an Werbung oder Training durch uns" },
+                { label: "KI-Nutzung",      value: "EU-Server",      detail: "Mistral AI, Frankreich — keine Weitergabe an Werbung durch uns" },
               ].map(({ label, value, detail }) => (
                 <div key={label}>
                   <dt className="text-xs text-muted">{label}</dt>
