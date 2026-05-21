@@ -19,6 +19,9 @@ export function LoginForm({ next }: LoginFormProps) {
   const [errorMsg, setErrorMsg] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+  // Mutex: verhindert doppeltes Navigieren wenn OTP-Pfad und onAuthStateChange
+  // (Magic-Link im anderen Tab) gleichzeitig fertig werden (INFETCH-197).
+  const navigatingRef = useRef(false);
 
   const code = digits.join("");
 
@@ -29,6 +32,31 @@ export function LoginForm({ next }: LoginFormProps) {
     }, 1000);
     return () => clearInterval(id);
   }, [cooldown]);
+
+  // Cross-Tab-Race: User klickt Magic-Link in anderem Tab → /auth/callback loggt
+  // dort ein → Supabase-Session landet via localStorage-Event hier an →
+  // onAuthStateChange feuert → wir navigieren, statt auf die Code-Eingabe zu
+  // warten. Funktioniert in allen Browsern (Supabase nutzt StorageEvent intern).
+  useEffect(() => {
+    if (status !== "sent" && status !== "verifying") return;
+    const supabase = createSupabaseBrowserClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event !== "SIGNED_IN") return;
+      if (navigatingRef.current) return; // OTP-Formular handhabt die Navigation bereits
+      navigatingRef.current = true;
+      // Provisioning ist idempotent — /auth/callback hat es ggf. schon erledigt.
+      const result = await provisionAfterOtp();
+      const dest = result.isNewUser
+        ? "/onboarding"
+        : next && next !== "/"
+          ? next
+          : "/";
+      window.location.assign(dest);
+    });
+    return () => subscription.unsubscribe();
+  }, [status, next]);
 
   function focusInput(index: number) {
     const el = inputsRef.current[index];
@@ -198,6 +226,9 @@ export function LoginForm({ next }: LoginFormProps) {
       return;
     }
 
+    // Mutex setzen bevor await, damit ein gleichzeitig feuerndes onAuthStateChange
+    // (z. B. Magic-Link genau im selben Moment geklickt) nicht doppelt navigiert.
+    navigatingRef.current = true;
     // Postgres-Profil sicherstellen (OTP-Code läuft nicht über /auth/callback)
     const result = await provisionAfterOtp();
     if (!result.ok) {
