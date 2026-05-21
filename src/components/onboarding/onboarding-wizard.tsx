@@ -684,10 +684,13 @@ export function OnboardingWizard({
                     value={data.recipientEmail}
                     onChange={set("recipientEmail")}
                     placeholder="buchhaltung@beispiel.de"
+                    aria-describedby={selectedRecipientHint ? "recipient-email-hint" : undefined}
                     className="h-9 w-full rounded border border-line bg-surface px-3 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                   />
                   {selectedRecipientHint && (
-                    <p className="mt-1.5 text-xs text-muted">{selectedRecipientHint}</p>
+                    <p id="recipient-email-hint" role="note" className="mt-1.5 text-xs text-muted">
+                      {selectedRecipientHint}
+                    </p>
                   )}
                 </div>
               </div>
