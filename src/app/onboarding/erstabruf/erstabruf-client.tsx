@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Loader2, Search, WifiOff } from "lucide-react";
 import type { DiscoveredSender } from "@/senders/discovered-senders";
 import { blockSenderAction, unblockSenderAction } from "@/app/(app)/senders/actions";
+import { approveInvoicesAction, ignoreInvoicesAction } from "@/app/(app)/audit/actions";
 import {
   getOnboardingScanStatusAction,
   getDiscoveredSendersAction,
@@ -51,7 +52,13 @@ function buildItems(senders: DiscoveredSender[]): SenderItem[] {
   });
 }
 
-export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
+export function ErstabrufClient({
+  senders,
+  reviewInvoices = [],
+}: {
+  senders: DiscoveredSender[];
+  reviewInvoices?: Array<{ id: number; vendorDomain: string | null }>;
+}) {
   const router = useRouter();
   const [phase, setPhase] = useState<"scan" | "result" | "review" | "error">(
     senders.length === 0 ? "scan" : "review",
@@ -148,6 +155,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     setSaving(true);
     try {
       const promises: Promise<unknown>[] = [];
+      // 1) Absender-Block-Status setzen (privat → blocken, zurück → entsperren).
       for (const item of items) {
         const wantsBlocked = item.kind === "private";
         if (wantsBlocked && !item.originallyBlocked) {
@@ -161,6 +169,23 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           promises.push(unblockSenderAction({ status: "idle", message: "" }, fd));
         }
       }
+      // 2) Im SELBEN Schritt die Rechnungen freigeben/ignorieren — die
+      //    Anbieter-Klassifizierung IST die Freigabe (kein separater Review).
+      //    Default geschäftlich → freigeben; privat-Absender → ignorieren.
+      const privateDomains = new Set(
+        items.filter((i) => i.kind === "private").map((i) => i.domain),
+      );
+      const approveIds: number[] = [];
+      const ignoreIds: number[] = [];
+      for (const inv of reviewInvoices) {
+        if (inv.vendorDomain != null && privateDomains.has(inv.vendorDomain)) {
+          ignoreIds.push(inv.id);
+        } else {
+          approveIds.push(inv.id);
+        }
+      }
+      if (approveIds.length > 0) promises.push(approveInvoicesAction(approveIds));
+      if (ignoreIds.length > 0) promises.push(ignoreInvoicesAction(ignoreIds));
       await Promise.all(promises);
     } finally {
       setSaving(false);

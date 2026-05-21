@@ -207,6 +207,44 @@ export async function restoreInvoiceFromPrivateAction(invoiceId: number): Promis
   revalidatePath("/audit");
 }
 
+// ─── Bulk-Freigabe (vereinter Onboarding-Schritt, INFETCH) ───────────────────
+// Setzt mehrere needs_review-Rechnungen auf 'ready' (→ Export). Bewusst OHNE
+// die vendor/date/amount-Pflicht von updateInvoiceReview: der Export braucht nur
+// status='ready' (enqueueReadyInvoices) + das PDF; der Anbietername kommt notfalls
+// aus der KI-Extraktion (207-Fallback). Org-scoped, nur aus dem Review-Zustand.
+export async function approveInvoicesAction(invoiceIds: number[]): Promise<void> {
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id;
+  if (!orgId) throw new Error("Keine Organisation zugeordnet.");
+  if (invoiceIds.length === 0) return;
+  await sql`
+    UPDATE invoices SET status = 'ready'
+    WHERE id = ANY(${invoiceIds}::bigint[])
+      AND organization_id = ${orgId}
+      AND status = 'needs_review'
+  `;
+  revalidatePath("/audit");
+  revalidatePath("/");
+}
+
+// Gegenstück zu approveInvoicesAction: privat/ignorieren im selben Schritt.
+// Setzt is_private + status='ignored' (verlässt needs_review, geht NICHT an die
+// Buchhaltung, taucht im "privat"-Tab auf). Org-scoped, nur aus dem Review-Zustand.
+export async function ignoreInvoicesAction(invoiceIds: number[]): Promise<void> {
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id;
+  if (!orgId) throw new Error("Keine Organisation zugeordnet.");
+  if (invoiceIds.length === 0) return;
+  await sql`
+    UPDATE invoices SET status = 'ignored', is_private = TRUE
+    WHERE id = ANY(${invoiceIds}::bigint[])
+      AND organization_id = ${orgId}
+      AND status = 'needs_review'
+  `;
+  revalidatePath("/audit");
+  revalidatePath("/");
+}
+
 export async function markSenderDomainPrivateAction(domain: string): Promise<void> {
   const auth = await requireCurrentAuth();
   const orgId = auth.organization?.id ?? null;
