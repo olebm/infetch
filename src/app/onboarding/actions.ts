@@ -11,6 +11,7 @@ import { verifyImapAccountConnection } from "@/mail/imap-client";
 import { verifySmtpAccountConnection } from "@/mail/smtp-client";
 import { requireCurrentAuth } from "@/lib/auth/current";
 import { listDiscoveredSenders, type DiscoveredSender } from "@/senders/discovered-senders";
+import { isValidEmail } from "@/lib/utils";
 
 export type OnboardingState = {
   status: "idle" | "success" | "error";
@@ -45,6 +46,9 @@ export async function completeOnboardingAction(
     }
     if (!recipientEmail) {
       return { status: "error", message: "Bitte gib die E-Mail-Adresse für deinen Buchhalter ein." };
+    }
+    if (!isValidEmail(recipientEmail)) {
+      return { status: "error", message: "E-Mail-Adresse unvollständig (z. B. buchhalter@kanzlei.de)." };
     }
 
     // Manual override from MailboxConnectContent (server fields pre-filled by provider picker)

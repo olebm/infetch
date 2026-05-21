@@ -32,6 +32,7 @@ import {
 } from "@/lib/supabase/server";
 import { cancelSubscriptionImmediately } from "@/lib/stripe";
 import { BUCKETS, deleteFromStorage } from "@/lib/supabase/storage";
+import { isValidEmail } from "@/lib/utils";
 
 export type CredentialFormState = {
   status: "idle" | "success" | "error";
@@ -472,6 +473,9 @@ export async function saveExportTargetAction(
     }
 
     const recipientEmail = String(formData.get("recipientEmail") || "").trim() || null;
+    if (recipientEmail && !isValidEmail(recipientEmail)) {
+      return { status: "error", message: "E-Mail-Adresse unvollständig (z. B. buchhalter@kanzlei.de)." };
+    }
     const smtpSlotRaw = String(formData.get("smtpSlot") || "primary").trim();
     const smtpSlot = SMTP_ACCOUNT_SLOTS.find((s) => s.ownerId === smtpSlotRaw);
     if (!smtpSlot) {
