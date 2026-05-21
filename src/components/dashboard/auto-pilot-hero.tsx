@@ -5,6 +5,7 @@ import { getAutoPilotStatus } from "@/lib/auto-pilot";
 import { getAutomationStats, getSetupSnapshot, getPrimaryMailAccount } from "@/lib/db/queries";
 import { getExportTargets } from "@/exports/export-pipeline";
 import { getCurrentAuth } from "@/lib/auth/current";
+import { ScanButton } from "@/components/invoice-inbox/scan-button";
 
 type Setup = Awaited<ReturnType<typeof getSetupSnapshot>>;
 
@@ -131,8 +132,7 @@ function HeroRunning({
         </p>
       )}
 
-      {/* Auf Mobile leer (beide Kinder hidden) → komplett ausblenden */}
-      <div className="hidden md:flex flex-wrap items-center gap-3 mt-6">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
         {needsReview > 0 && (
           <Link
             href="/audit?tab=review"
@@ -142,6 +142,7 @@ function HeroRunning({
             <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         )}
+        <ScanButton />
         {enabled && nextRunSec !== null && (
           <span className="hidden md:inline text-xs text-muted stat-num">
             nächster Scan in {formatCountdown(nextRunSec)}
@@ -196,6 +197,11 @@ function HeroFresh({ setup }: { setup: Setup }) {
         <p className="mt-5 max-w-md text-muted">
           Infetch scannt dein Postfach automatisch im Hintergrund. Sobald eine Rechnung ankommt, übernehmen wir den Rest.
         </p>
+        {setup.imapConfigured && (
+          <div className="mt-5">
+            <ScanButton />
+          </div>
+        )}
       </div>
       <FreshChecklist setup={setup} />
     </div>
