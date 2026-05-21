@@ -141,11 +141,15 @@ export async function completeOnboardingAction(
     const exportTargetKey = exportTarget === "accountable" ? "accountable" : "kontist";
     const exportLabel = exportTargetKey === "accountable" ? "Accountable" : "Kontist";
     await sql.begin(async (txSql) => {
+      // Prefer org-specific row; fall back to null-org legacy row (pre-multi-tenant).
+      // ORDER BY: org-specific first (NULLS LAST), so we claim legacy rows
+      // instead of inserting a duplicate that would confuse the org-filter
+      // in listConfiguredImapAccounts.
       const existingImapRows = await txSql<{ id: number }[]>`
         SELECT id FROM mail_accounts
         WHERE label = 'Primary IMAP'
-          AND (organization_id = ${organizationId}
-               OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+          AND (organization_id = ${organizationId} OR organization_id IS NULL)
+        ORDER BY organization_id NULLS LAST
         LIMIT 1
       `;
       const existingImap = existingImapRows[0];

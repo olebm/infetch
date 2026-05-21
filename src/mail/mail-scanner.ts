@@ -103,9 +103,10 @@ async function runPrimaryImapScanImpl(
       ? input!.accountClients!.map(({ account }) => asConfiguredAccount(account))
       : useInjectedClient
       ? [asConfiguredAccount(input!.account!)]
-      : await listConfiguredImapAccounts();
+      : await listConfiguredImapAccounts(input?.limitToOrgId);
 
-    // Wenn auf eine Org begrenzt, nur deren Accounts scannen.
+    // Safety-net: secondary JS filter in case any row slipped through
+    // (e.g. the DB-level filter was skipped due to null limitToOrgId).
     if (input?.limitToOrgId) {
       accounts = accounts.filter((a) => a.organizationId === input.limitToOrgId);
     }

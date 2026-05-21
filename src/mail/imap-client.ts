@@ -26,7 +26,9 @@ export type ConfiguredImapAccount = PrimaryImapAccount & {
   organizationId?: string | null;
 };
 
-export async function listConfiguredImapAccounts(): Promise<ConfiguredImapAccount[]> {
+export async function listConfiguredImapAccounts(
+  limitToOrgId?: string | null,
+): Promise<ConfiguredImapAccount[]> {
   const labels = IMAP_MAIL_ACCOUNT_SLOTS.map((s) => s.label);
   const rows = await sql<Array<
     Omit<PrimaryImapAccount, "label"> & { label: string; organization_id: string | null }
@@ -34,6 +36,7 @@ export async function listConfiguredImapAccounts(): Promise<ConfiguredImapAccoun
     SELECT id, label, host, port, secure, username, organization_id
     FROM mail_accounts
     WHERE label = ANY(${labels}::text[]) AND status = 'configured'
+    ${limitToOrgId != null ? sql`AND organization_id = ${limitToOrgId}` : sql``}
     ORDER BY id ASC
   `;
 
