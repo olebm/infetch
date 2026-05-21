@@ -1,5 +1,6 @@
 import cron, { type ScheduledTask } from "node-cron";
 import fs from "node:fs/promises";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
 import { listConfiguredImapAccounts } from "@/mail/imap-client";
 import { runMissingInvoiceCheck } from "@/invoices/missing-check";
@@ -158,6 +159,24 @@ function isJobEnabled(name: JobName): boolean {
 export function startAutoPilot() {
   if (started) return;
   started = true;
+
+  // Stale 'running' sync_runs aufraeumen: stirbt der Prozess waehrend eines
+  // Scans (Deploy mid-flight, OOM, kill), bleibt status='running' fuer immer
+  // haengen — die UI zeigt dann einen ewig laufenden Scan. Beim Start alles
+  // aelter als 15 Min als 'failed' markieren. Best-effort, darf den Start
+  // nicht blockieren. (started_at ist TEXT → fuer den Vergleich casten.)
+  sql`
+    UPDATE sync_runs
+    SET status = 'failed',
+        finished_at = NOW()::TEXT,
+        summary_json = '{"error":"process_died_before_completion"}'
+    WHERE type = 'imap_scan'
+      AND status = 'running'
+      AND started_at IS NOT NULL
+      AND started_at::timestamptz < NOW() - INTERVAL '15 minutes'
+  `.catch(() => {
+    /* best-effort: Cleanup darf den Auto-Pilot-Start nicht verhindern */
+  });
 
   if (!appConfig.features.autoPilotEnabled) {
     return;
