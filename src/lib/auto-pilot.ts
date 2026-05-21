@@ -18,6 +18,7 @@ import { backfillDomainAliases } from "@/lib/automation/alias-backfill";
 import { runMonthlyReport } from "@/lib/automation/monthly-report";
 import { runWeeklyDigest } from "@/lib/automation/weekly-digest";
 import { runReactivationCheck } from "@/lib/automation/reactivation-check";
+import { runWelcomeNudge } from "@/lib/automation/welcome-nudge";
 import { appConfig } from "@/lib/config/env";
 
 type JobName =
@@ -33,7 +34,8 @@ type JobName =
   | "backfillAliases"
   | "monthlyReport"
   | "weeklyDigest"
-  | "reactivationCheck";
+  | "reactivationCheck"
+  | "welcomeNudge";
 
 type JobState = {
   cron: string;
@@ -66,6 +68,8 @@ const jobs: Record<JobName, JobState> = {
   weeklyDigest: { cron: "0 8 * * 1", task: null, lastRunAt: null, lastError: null, running: false },
   // Reaktivierungs-Check: sonntags um 9 Uhr — Nudge bei > 30 Tage Inaktivität.
   reactivationCheck: { cron: "0 9 * * 0", task: null, lastRunAt: null, lastError: null, running: false },
+  // Welcome-Nudge: alle 6h — Drop-outs ~24h nach Sign-Up einmalig erinnern.
+  welcomeNudge: { cron: "0 */6 * * *", task: null, lastRunAt: null, lastError: null, running: false },
 };
 
 let started = false;
@@ -138,6 +142,7 @@ async function runJob(name: JobName) {
     else if (name === "monthlyReport") await runMonthlyReport();
     else if (name === "weeklyDigest") await runWeeklyDigest();
     else if (name === "reactivationCheck") await runReactivationCheck();
+    else if (name === "welcomeNudge") await runWelcomeNudge();
     job.lastRunAt = new Date();
     job.lastError = null;
   } catch (error) {
@@ -234,6 +239,7 @@ const JOB_LABELS: Record<JobName, string> = {
   monthlyReport: "Monatsbericht versenden",
   weeklyDigest: "Wöchentlichen Digest versenden",
   reactivationCheck: "Reaktivierungs-Check",
+  welcomeNudge: "Onboarding-Erinnerung senden",
 };
 
 function nextCronTickSeconds(_cronExpr: string, _lastRunAt: Date | null): number | null {

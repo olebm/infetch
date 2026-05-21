@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
-import { sendOnboardingEmail } from "@/lib/mail/notify";
 import { purgeDeadUser } from "@/lib/auth/account-teardown";
 import type { OrganizationRow, UserRow } from "@/lib/auth/session";
 
@@ -160,9 +159,9 @@ export async function ensureUserProvisioned(supabaseUser: {
         name,
         userId: supabaseUser.id,
       });
-      void sendOnboardingEmail({ to: supabaseUser.email, name }).catch((err) =>
-        console.error("[auth] onboarding email failed:", err),
-      );
+      // Keine Sofort-Willkommensmail mehr (INFETCH-201): wer direkt durchs
+      // Onboarding laeuft, braucht sie nicht. Echte Drop-outs (24h+ ohne
+      // aktives Export-Ziel) erinnert der welcomeNudge-Cron einmalig.
     }
   }
 
