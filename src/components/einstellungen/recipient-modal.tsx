@@ -5,7 +5,7 @@ import { saveExportTargetAction, type CredentialFormState } from "@/app/(app)/ei
 import { Modal } from "@/components/ui/modal";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { cn } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Info, Plus } from "lucide-react";
 import { RECIPIENTS, type Recipient, type TargetSlot } from "@/lib/recipients";
 
 const idle: CredentialFormState = { status: "idle", message: "" };
@@ -142,7 +142,10 @@ export function RecipientModal({ open, onClose }: RecipientModalProps) {
                 className="w-full rounded border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
               />
               {selected?.hint && (
-                <p className="mt-1.5 text-xs text-muted">{selected.hint}</p>
+                <div className="mt-2 flex items-start gap-2 rounded border border-line bg-surface px-3 py-2 text-xs text-muted">
+                  <Info size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+                  <span>{selected.hint}</span>
+                </div>
               )}
             </div>
           </div>

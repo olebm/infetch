@@ -687,7 +687,10 @@ export function OnboardingWizard({
                     className="h-9 w-full rounded border border-line bg-surface px-3 font-mono text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                   />
                   {selectedRecipientHint && (
-                    <p className="mt-1.5 text-xs text-muted">{selectedRecipientHint}</p>
+                    <div className="mt-2 flex items-start gap-2 rounded border border-line bg-surface px-3 py-2 text-xs text-muted">
+                      <Info size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+                      <span>{selectedRecipientHint}</span>
+                    </div>
                   )}
                 </div>
               </div>
