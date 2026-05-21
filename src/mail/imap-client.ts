@@ -75,6 +75,28 @@ export async function listConfiguredImapAccounts(
   return ordered;
 }
 
+/**
+ * Distinct organization IDs that have at least one configured, non-soft-deleted
+ * mailbox. The auto-pilot cron iterates this and runs one per-org scan each, so
+ * every tenant gets auto-scanned (not just whichever org wins the slot collapse).
+ * Legacy null-org mailboxes are intentionally excluded — they are not a tenant.
+ */
+export async function listOrgsWithConfiguredMailbox(): Promise<string[]> {
+  const labels = IMAP_MAIL_ACCOUNT_SLOTS.map((s) => s.label);
+  const rows = await sql<{ organizationId: string }[]>`
+    SELECT DISTINCT ma.organization_id AS "organizationId"
+    FROM mail_accounts ma
+    WHERE ma.label = ANY(${labels}::text[])
+      AND ma.status = 'configured'
+      AND ma.organization_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM organizations o
+        WHERE o.id = ma.organization_id AND o.deleted_at IS NOT NULL
+      )
+  `;
+  return rows.map((r) => r.organizationId);
+}
+
 export async function createImapClientForAccount(
   account: ConfiguredImapAccount,
 ) {

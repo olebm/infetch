@@ -2,7 +2,7 @@ import cron, { type ScheduledTask } from "node-cron";
 import fs from "node:fs/promises";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
-import { listConfiguredImapAccounts } from "@/mail/imap-client";
+import { listOrgsWithConfiguredMailbox } from "@/mail/imap-client";
 import { runMissingInvoiceCheck } from "@/invoices/missing-check";
 import { dispatchPendingExports } from "@/exports/export-pipeline";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
@@ -124,12 +124,28 @@ async function runPortalFetch() {
   }
 }
 
+// Multi-tenant Mail-Scan: pro Org mit konfiguriertem Postfach EIN eigener
+// Scan (eigene sync_runs-Row + per-Org-Lock). Früher lief ein einziger
+// globaler Scan, der via slot-collapse nur das Postfach EINER Org erwischte —
+// alle anderen Tenants bekamen nie einen Auto-Abruf. Ein Fehler einer Org
+// darf die anderen nicht stoppen (wird in deren sync_runs-Row festgehalten).
+async function runMailScanAllOrgs() {
+  const orgIds = await listOrgsWithConfiguredMailbox();
+  for (const orgId of orgIds) {
+    try {
+      await runPrimaryImapScan({ limitToOrgId: orgId });
+    } catch {
+      // pro-Org-Fehler isoliert; sichtbar in der org-eigenen sync_runs-Row
+    }
+  }
+}
+
 async function runJob(name: JobName) {
   const job = jobs[name];
   if (job.running) return;
   job.running = true;
   try {
-    if (name === "mailScan") await runPrimaryImapScan();
+    if (name === "mailScan") await runMailScanAllOrgs();
     else if (name === "missingCheck") await runMissingInvoiceCheck();
     else if (name === "exportDispatch") await dispatchPendingExports();
     else if (name === "portalFetch") await runPortalFetch();
@@ -204,8 +220,8 @@ export function startAutoPilot() {
   // fehlinterpretiert (latest-row-Race).
   setTimeout(async () => {
     try {
-      const accounts = await listConfiguredImapAccounts();
-      if (accounts.length > 0) {
+      const orgIds = await listOrgsWithConfiguredMailbox();
+      if (orgIds.length > 0) {
         runJob("mailScan").catch(() => {});
       }
     } catch {

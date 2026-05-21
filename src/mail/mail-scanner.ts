@@ -52,10 +52,13 @@ type RunPrimaryImapScanInput = {
 export async function runPrimaryImapScan(
   input?: RunPrimaryImapScanInput,
 ): Promise<ImapScanResult> {
-  // Cross-Prozess-Single-Runner: verhindert Doppelverarbeitung bei
-  // gleichzeitigem Cron-Tick + manuellem Trigger / mehreren Replicas.
+  // Cross-Prozess-Single-Runner, jetzt PER ORG: verschiedene Orgs scannen
+  // parallel (eigener Lock-Key), ein zweiter Trigger DERSELBEN Org skippt.
+  // So blockiert ein langsamer Scan einer Org nicht das Onboarding einer
+  // anderen. Ohne Org (Tests / injizierte Clients) globaler Key.
+  const lockKey = input?.limitToOrgId ? `imap_scan:${input.limitToOrgId}` : "imap_scan";
   return withAdvisoryLock(
-    "imap_scan",
+    lockKey,
     () => runPrimaryImapScanImpl(input),
     () => ({
       syncRunId: 0,
@@ -76,8 +79,8 @@ async function runPrimaryImapScanImpl(
 ): Promise<ImapScanResult> {
   const triggeredBy = input?.bypassQuota ? "retroactive_scan" : "user";
   const syncRunRows = await sql<{ id: number }[]>`
-    INSERT INTO sync_runs (type, status, triggered_by, started_at)
-    VALUES ('imap_scan', 'running', ${triggeredBy}, CURRENT_TIMESTAMP)
+    INSERT INTO sync_runs (type, status, triggered_by, started_at, organization_id)
+    VALUES ('imap_scan', 'running', ${triggeredBy}, CURRENT_TIMESTAMP, ${input?.limitToOrgId ?? null})
     RETURNING id
   `;
   const syncRunId = Number(syncRunRows[0].id);

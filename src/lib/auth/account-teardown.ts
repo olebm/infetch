@@ -71,7 +71,8 @@ export async function hardDeleteOrgData(
           'vendor_month_status','invoice_files','invoices','mail_messages',
           'mail_accounts','credential_refs','encrypted_secrets','usage_events',
           'mail_inbound_addresses','discovered_senders','vendor_aliases',
-          'portal_sessions','auto_approval_rules','vendors','organizations'
+          'portal_sessions','auto_approval_rules','vendors','organizations',
+          'sync_runs'
         )
       `
     ).map((r) => r.t),
@@ -146,6 +147,9 @@ export async function hardDeleteOrgData(
 
   // ── Org-scoped Misc (Basisschema — aber Prod kann driften) ─────────────
   await run("usage_events", () => tx`DELETE FROM usage_events WHERE organization_id = ${oid}`);
+  // sync_runs hat seit 0030 organization_id (FK auf organizations) → vor dem
+  // organizations-DELETE mitlöschen, sonst FK-Verletzung + DSGVO-Rest.
+  await run("sync_runs", () => tx`DELETE FROM sync_runs WHERE organization_id = ${oid}`);
   await run("mail_inbound_addresses", () => tx`DELETE FROM mail_inbound_addresses WHERE organization_id = ${oid}`);
 
   // ── Org-scoped Misc (migrations-spät: nur falls Spalte existiert) ───────

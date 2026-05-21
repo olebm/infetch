@@ -237,21 +237,19 @@ export type OnboardingScanStatus = {
 
 // Live status of the first IMAP scan triggered at the end of onboarding.
 // The scan runs detached in completeOnboardingAction; the Erstabruf screen
-// polls this until it succeeds/fails. sync_runs ist global, deshalb optional
-// per `sinceIso` auf Runs ab einem Zeitpunkt filterbar — verhindert dass das
-// Polling eine alte gescheiterte Scan-Row (z. B. Auto-Pilot-Catch-up vor dem
-// Onboarding) faelschlich als User-Scan-Ergebnis liest.
-export async function getOnboardingScanStatusAction(
-  sinceIso?: string,
-): Promise<OnboardingScanStatus> {
-  await requireCurrentAuth();
+// polls this until it succeeds/fails. sync_runs ist seit Migration 0030
+// org-scoped — wir lesen direkt die letzte imap_scan-Row DIESER Org. Der
+// frühere `sinceIso`-Zeitfenster-Hack (nötig solange sync_runs global war,
+// und Quelle des 500 aus PR #97) entfällt damit.
+export async function getOnboardingScanStatusAction(): Promise<OnboardingScanStatus> {
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
 
-  const since = sinceIso ?? null;
   const rows = await sql<{ status: string; summaryJson: string }[]>`
     SELECT status, summary_json AS "summaryJson"
     FROM sync_runs
     WHERE type = 'imap_scan'
-      AND (${since}::timestamptz IS NULL OR started_at::timestamptz >= ${since}::timestamptz)
+      AND organization_id = ${orgId}
     ORDER BY id DESC
     LIMIT 1
   `;

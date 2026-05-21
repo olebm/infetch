@@ -313,6 +313,7 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
       "auto_approval_rules",
       "portal_recipes",   // org_id seit 0025+ — org-direkter Cleanup
       "portal_run_logs",  // org_id seit 0025+ — zusätzlich zum vendor_key-Pfad
+      "sync_runs",        // org_id seit 0030 — Scan-Runs pro Org
     ]);
 
     const rows = await sql<{ tableName: string }[]>`
