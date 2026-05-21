@@ -8,6 +8,7 @@ import { callAiExtract } from "@/ai/proxy-client";
 import { invoiceExtractionPromptVersion, maxInvoiceExtractionTextChars } from "@/ai/prompt-versions";
 import { invoiceAiExtractionSchema, type InvoiceAiExtraction } from "@/ai/schemas";
 import { evaluateAutoApproval } from "@/lib/automation/auto-approval";
+import { isExtractionPlausible } from "@/invoices/plausibility";
 
 type LocalParsedInvoice = {
   invoiceNumber: string | null;
@@ -282,6 +283,20 @@ async function applyAiExtractionToInvoice(
   const current = currentRows[0];
   if (!current) return;
 
+  // Observability: wo weicht der lokale Parser von der KI ab? Hilft, die lokale
+  // Extraktion gezielt zu härten (statt blind zu raten). `current` hält hier
+  // noch die LOKALEN Werte (vor dem AI-UPDATE) → echter Lokal-vs-KI-Vergleich.
+  const mismatches = collectLocalVsAiMismatches(current, extraction);
+  if (mismatches.length > 0) {
+    await recordSyncEvent({
+      level: "info",
+      eventType: "local_vs_ai_mismatch",
+      invoiceId,
+      message: `Lokale Extraktion weicht von der KI ab: ${mismatches.map((m) => m.field).join(", ")}.`,
+      metadata: { mismatches },
+    });
+  }
+
   const vendorId = (await resolveAiVendorId(extraction)) ?? current.vendorId;
   const invoiceNumber = extraction.invoice_number || current.invoiceNumber;
   const invoiceDate = extraction.invoice_date || current.invoiceDate;
@@ -294,6 +309,7 @@ async function applyAiExtractionToInvoice(
     vendorId,
     invoiceDate,
     amountGross,
+    currency,
   });
 
   if (status !== "ready") {
@@ -373,13 +389,51 @@ function normalizeCanonicalKey(value: string | null) {
     .replace(/^_+|_+$/g, "");
 }
 
+/**
+ * Vergleicht die lokal geparsten Felder mit der KI-Extraktion und liefert die
+ * materiellen Abweichungen (Betrag > 1 % bzw. > 0,01 absolut, Datum/Währung
+ * verschieden). Nur Felder, die BEIDE Seiten gefüllt haben, zählen — fehlt es
+ * lokal, ist das kein "Mismatch", sondern eine reine KI-Ergänzung.
+ */
+function collectLocalVsAiMismatches(
+  local: { invoiceDate: string | null; amountGross: number | null; currency: string | null },
+  ai: InvoiceAiExtraction,
+): Array<{ field: string; local: string | number | null; ai: string | number | null }> {
+  const out: Array<{ field: string; local: string | number | null; ai: string | number | null }> = [];
+  if (
+    local.amountGross != null &&
+    ai.amount_gross != null &&
+    Math.abs(local.amountGross - ai.amount_gross) > Math.max(0.01, Math.abs(ai.amount_gross) * 0.01)
+  ) {
+    out.push({ field: "amount_gross", local: local.amountGross, ai: ai.amount_gross });
+  }
+  if (local.invoiceDate && ai.invoice_date && local.invoiceDate !== ai.invoice_date) {
+    out.push({ field: "invoice_date", local: local.invoiceDate, ai: ai.invoice_date });
+  }
+  if (local.currency && ai.currency && local.currency.toUpperCase() !== ai.currency.toUpperCase()) {
+    out.push({ field: "currency", local: local.currency, ai: ai.currency });
+  }
+  return out;
+}
+
 export function resolveInvoiceStatusFromAi(
   extraction: InvoiceAiExtraction,
-  input: { vendorId: number | null; invoiceDate: string | null; amountGross: number | null },
+  input: { vendorId: number | null; invoiceDate: string | null; amountGross: number | null; currency: string | null },
 ) {
   const isInvoiceLike = ["invoice", "receipt", "payment_confirmation", "credit_note"].includes(extraction.document_type);
   if (!isInvoiceLike) return "ignored";
   if (extraction.needs_review || extraction.confidence < 0.75) return "needs_review";
   if (!input.vendorId || !input.invoiceDate || input.amountGross === null) return "needs_review";
+  // Auch nach der KI: Unplausibles (fehlende Währung / Zukunfts-Datum / absurder
+  // Betrag) nie ungeprüft freigeben — die KI kann ebenso danebenliegen.
+  if (
+    !isExtractionPlausible({
+      amountGross: input.amountGross,
+      currency: input.currency,
+      invoiceDate: input.invoiceDate,
+    })
+  ) {
+    return "needs_review";
+  }
   return "ready";
 }

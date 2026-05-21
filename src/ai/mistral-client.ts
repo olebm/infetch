@@ -58,6 +58,8 @@ export async function callMistralInvoiceExtractor(request: MistralInvoiceExtract
             "Extract invoice data from the provided PDF text and metadata.",
             "Return JSON only, matching the response schema exactly.",
             "Use null for missing fields. Do not invent invoice numbers, amounts, dates, vendors, or countries.",
+            "invoice_date is the issue/document date of the invoice — NOT the due date, payment-due date, or reminder date. If only a due/reminder date is present, set invoice_date null.",
+            "amount_gross is the final total payable. Never guess: if the amount is ambiguous, looks like concatenated digits, or is implausibly large for a single invoice, set amount_gross null and amount_confidence 0 rather than emitting a wrong number.",
             "Classify non-invoices as document_type other and set needs_review true.",
             "For amount_confidence, date_confidence, vendor_confidence, vat_rate_confidence, doc_type_confidence return a per-field score 0..1 reflecting how certain you are about amount_gross, invoice_date, vendor, vat_rate, document_type respectively.",
             "Use null for a confidence score when the field itself is null. Be conservative: only score >=0.95 when the value is unambiguous in the source.",

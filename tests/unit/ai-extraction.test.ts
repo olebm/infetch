@@ -11,7 +11,9 @@ const validExtraction: InvoiceAiExtraction = {
   vendor: "OpenAI Ireland Ltd.",
   normalized_vendor: "openai",
   invoice_number: "INV-2026-001",
-  invoice_date: "2026-05-01",
+  // Vergangenheits-Datum (clock-robust): sonst könnte der neue Plausibilitäts-
+  // Guard (Zukunfts-Datum → needs_review) die status='ready'-Assertion kippen.
+  invoice_date: "2023-05-01",
   service_period_start: null,
   service_period_end: null,
   amount_gross: 23,

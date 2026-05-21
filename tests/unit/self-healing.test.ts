@@ -230,7 +230,7 @@ describe("resolveInvoiceStatusFromAi (non-invoice routing)", () => {
         needs_review: true,
         review_reason: null,
       },
-      { vendorId: 1, invoiceDate: null, amountGross: null },
+      { vendorId: 1, invoiceDate: null, amountGross: null, currency: null },
     );
 
     expect(status).toBe("ignored");
@@ -259,7 +259,7 @@ describe("resolveInvoiceStatusFromAi (non-invoice routing)", () => {
         needs_review: false,
         review_reason: null,
       },
-      { vendorId: 1, invoiceDate: "2026-05-01", amountGross: 29 },
+      { vendorId: 1, invoiceDate: "2026-05-01", amountGross: 29, currency: "EUR" },
     );
 
     expect(status).toBe("needs_review");
