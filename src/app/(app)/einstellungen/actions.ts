@@ -28,7 +28,7 @@ import {
   markIntegrationVerified,
   type IntegrationProvider,
 } from "@/lib/db/queries";
-import { writeOrgJsonSetting } from "@/lib/db/settings-store";
+import { writeOrgJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
 import { verifyLexofficeConnection, LexofficeApiError } from "@/lib/integrations/lexoffice-client";
 import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sevdesk-client";
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
@@ -945,6 +945,30 @@ export async function updateInvoiceSubjectTemplateAction(
     await writeOrgJsonSetting("invoice_subject_template", auth.organization?.id ?? null, raw);
     revalidatePath("/einstellungen");
     return { status: "success", message: "Betreff-Schema gespeichert.", value: raw };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Konnte nicht speichern.",
+    };
+  }
+}
+
+export async function updatePdfFilenameTemplateAction(
+  _previousState: SubjectTemplateState,
+  formData: FormData,
+): Promise<SubjectTemplateState> {
+  void _previousState;
+  await requireCurrentAuth();
+  try {
+    const raw = String(formData.get("pdfFilenameTemplate") || "")
+      .replace(/[\r\n]+/g, " ")
+      .trim();
+    if (raw.length > 200) {
+      return { status: "error", message: "Dateiname-Schema ist zu lang (max. 200 Zeichen)." };
+    }
+    await writeJsonSetting("pdf_filename_template", raw);
+    revalidatePath("/einstellungen");
+    return { status: "success", message: "Dateiname-Schema gespeichert.", value: raw };
   } catch (error) {
     return {
       status: "error",

@@ -27,6 +27,12 @@ export type SendInvoiceMailOptions = {
   /** PDF-Inhalt als Buffer (aus Supabase Storage geladen) — kein Dateisystempfad. */
   pdfContent: Buffer;
   originalFilename: string;
+  /**
+   * Optionaler überschriebener Dateiname für den E-Mail-Anhang.
+   * Wenn nicht gesetzt, wird originalFilename verwendet.
+   * Wird aus dem konfigurierten pdf_filename_template berechnet.
+   */
+  attachmentFilename?: string;
 };
 
 export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<void> {
@@ -91,7 +97,7 @@ export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<
       text: body,
       attachments: [
         {
-          filename: options.originalFilename,
+          filename: options.attachmentFilename ?? options.originalFilename,
           content: options.pdfContent,
           contentType: "application/pdf",
         },
