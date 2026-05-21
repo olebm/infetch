@@ -21,7 +21,7 @@ import {
   getTopVendors,
 } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { getOrgTier, getScanSinceDate } from "@/lib/tier";
+import { getOrgTier, getScanSinceDate, canImportInvoice } from "@/lib/tier";
 import { appConfig } from "@/lib/config/env";
 
 const MONTHS_DE = [
@@ -89,6 +89,7 @@ export async function DashboardView() {
     lastScanAt,
     lastScanFailure,
     tier,
+    quota,
   ] = await Promise.all([
     // orgId hier kritisch: ohne ihn würde der Snapshot globale secret_refs
     // prüfen und für jede User-Org "nicht configured" zurückgeben — was den
@@ -112,7 +113,15 @@ export async function DashboardView() {
     getLastScanAt(),
     getLastScanFailure(),
     getOrgTier(orgId),
+    canImportInvoice(orgId),
   ]);
+
+  // Quota-Banner-State: nur fuer Tiers mit endlichem Monatslimit (Free).
+  // Pro/Business haben Infinity → kein Banner.
+  const quotaMaxFinite = Number.isFinite(quota.max);
+  const quotaAtLimit = quotaMaxFinite && quota.current >= quota.max;
+  const quotaNearLimit =
+    quotaMaxFinite && !quotaAtLimit && quota.current >= Math.floor(quota.max * 0.8);
 
   // Mehr holen, dann auf 5 mit Vendor-Name filtern → keine „Unbekannter Anbieter"-Einträge
   const recentInvoices = recentInvoicesRaw.filter((inv) => !!inv.vendorName).slice(0, 5);
@@ -241,6 +250,29 @@ export async function DashboardView() {
               </Link>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* QUOTA-BANNER — nur Free (endliches Limit). Bei 100% bzw. >=80%. */}
+      {quotaAtLimit && (
+        <div className="mt-3 rounded-md border border-warn/30 bg-warn-soft/40 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warn" aria-hidden />
+            <div className="flex-1">
+              <div className="text-sm font-medium text-ink">
+                Monatslimit erreicht (<span className="stat-num">{quota.current}/{quota.max}</span> Rechnungen)
+              </div>
+              <div className="mt-1 text-xs text-muted">
+                Weitere Rechnungen dieses Monats werden im nächsten Monat automatisch nachgeholt — es geht nichts verloren.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {quotaNearLimit && (
+        <div className="mt-3 rounded-md border border-line bg-surface px-4 py-3 text-xs text-muted">
+          Du näherst dich dem Monatslimit (
+          <span className="stat-num text-ink">{quota.current}/{quota.max}</span> Rechnungen).
         </div>
       )}
 
