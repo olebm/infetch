@@ -58,6 +58,7 @@ export default async function SetupPage() {
   ]);
 
   const isPro = tier !== "free";
+  const isBusiness = tier === "business";
 
   const integrations: IntegrationStatus[] = integrationTargets.map((t) => ({
     provider: t.provider as IntegrationStatus["provider"],
@@ -260,7 +261,7 @@ export default async function SetupPage() {
   // ─── Tab assembly ────────────────────────────────────────────────────────────
 
   const integrationsTab = (
-    <IntegrationsSection integrations={integrations} isPro={isPro} />
+    <IntegrationsSection integrations={integrations} isPro={isPro} isBusiness={isBusiness} />
   );
 
   const tabs: TabItem[] = [

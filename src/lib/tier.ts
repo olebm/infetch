@@ -210,6 +210,18 @@ export async function canExport(
 }
 
 /**
+ * Prüft ob DATEV Belegtransfer API-Push für eine Organisation erlaubt ist.
+ * Nur Business-Tier (Free = false, Pro = false, Business = true).
+ * Wird akut sobald DATEV-API-Client implementiert ist (INFETCH-108).
+ */
+export async function canDatevExport(
+  organizationId: string | null | undefined,
+): Promise<boolean> {
+  const tier = await getOrgTier(organizationId);
+  return TIER_LIMITS[tier].datevExportEnabled;
+}
+
+/**
  * Prüft ob Bulk-Download (alle Rechnungen ohne Vendor-Filter) erlaubt ist.
  * Free = nur Download mit vendorId-Filter erlaubt.
  * Pro/Business = ungefilterter ZIP-Download erlaubt.

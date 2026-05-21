@@ -14,7 +14,7 @@ vi.mock("@/lib/config/env", async (importOriginal) => {
   };
 });
 
-import { getEnvTier, getLimits, getScanSinceDate, TIER_LIMITS } from "@/lib/tier";
+import { canDatevExport, getEnvTier, getLimits, getScanSinceDate, TIER_LIMITS } from "@/lib/tier";
 
 // ── Pure Funktionen (kein DB nötig) ──────────────────────────────────────────
 
@@ -64,11 +64,12 @@ describe("getLimits / TIER_LIMITS", () => {
     expect(limits.priceMonthlyEur).toBe(0);
   });
 
-  it("Pro-Tier: 150 Rechnungen/Monat, 2 GB, Export aktiv", () => {
+  it("Pro-Tier: 150 Rechnungen/Monat, 2 GB, Export aktiv, kein DATEV-Export", () => {
     const limits = getLimits("pro");
     expect(limits.maxInvoicesPerMonth).toBe(150);
     expect(limits.maxStorageBytes).toBe(2 * 1024 * 1024 * 1024);
     expect(limits.exportEnabled).toBe(true);
+    expect(limits.datevExportEnabled).toBe(false); // Business-only
     expect(limits.bulkDownloadEnabled).toBe(true);
     expect(limits.retroactiveScanEnabled).toBe(true);
     expect(limits.maxMailAccounts).toBe(3);
@@ -121,5 +122,33 @@ describe("getScanSinceDate", () => {
     const business = getScanSinceDate("business", 3);
     expect(business.getFullYear()).toBe(pro.getFullYear());
     expect(business.getMonth()).toBe(pro.getMonth());
+  });
+});
+
+// ── canDatevExport ────────────────────────────────────────────────────────────
+// getOrgTier(null) fällt auf getEnvTier() zurück → INVOICE_AGENT_TIER
+// steuert den Tier ohne DB-Verbindung (INFETCH-159).
+
+describe("canDatevExport", () => {
+  const original = process.env.INVOICE_AGENT_TIER;
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.INVOICE_AGENT_TIER;
+    else process.env.INVOICE_AGENT_TIER = original;
+  });
+
+  it("Free-Org: canDatevExport gibt false zurück", async () => {
+    process.env.INVOICE_AGENT_TIER = "free";
+    expect(await canDatevExport(null)).toBe(false);
+  });
+
+  it("Pro-Org: canDatevExport gibt false zurück (Business-only)", async () => {
+    process.env.INVOICE_AGENT_TIER = "pro";
+    expect(await canDatevExport(null)).toBe(false);
+  });
+
+  it("Business-Org: canDatevExport gibt true zurück", async () => {
+    process.env.INVOICE_AGENT_TIER = "business";
+    expect(await canDatevExport(null)).toBe(true);
   });
 });
