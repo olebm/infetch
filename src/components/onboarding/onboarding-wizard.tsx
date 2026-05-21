@@ -166,7 +166,13 @@ function effectiveSmtp(d: WizardData): {
 
 const initialActionState: OnboardingState = { status: "idle", message: "" };
 
-export function OnboardingWizard({ userId }: { userId: string }) {
+export function OnboardingWizard({
+  userId,
+  editMode = false,
+}: {
+  userId: string;
+  editMode?: boolean;
+}) {
   const router = useRouter();
 
   // SSR-safe: server and first client render must match, so start from
@@ -459,6 +465,17 @@ export function OnboardingWizard({ userId }: { userId: string }) {
           draggable={false}
         />
       </header>
+
+      {/* ── Edit-Mode-Banner ──────────────────────────────────────────────── */}
+      {editMode && (
+        <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 mt-4">
+          <div className="rounded-md border border-brand/30 bg-brand-soft/40 px-4 py-3 text-xs text-ink">
+            Du bearbeitest dein bestehendes Setup. Passwörter musst du aus
+            Sicherheitsgründen erneut eingeben — bestehende Empfänger und
+            Server-Daten bleiben unverändert, bis du sie überschreibst.
+          </div>
+        </div>
+      )}
 
       {/* ── Progress ──────────────────────────────────────────────────────── */}
       <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 mt-6 sm:mt-8 mb-2">

@@ -303,9 +303,11 @@ export function MailboxConnectContent({
       {/* Unknown domain — backend picker, then manual fallback */}
       {!provider && !backend && emailHasDomain && !showAdv && (
         <div className="rounded-md border border-line bg-surface px-4 py-3">
-          <p className="text-sm font-medium text-ink">Domain nicht erkannt — welchen Dienst nutzt du?</p>
+          <p className="text-sm font-medium text-ink">Wer verwaltet dein E-Mail-Postfach?</p>
           <p className="mt-0.5 text-xs text-muted">
-            Wähle deinen E-Mail-Dienst und die Server-Daten werden automatisch eingetragen.
+            Wir richten die Server-Daten automatisch ein. Faustregel: Google Workspace
+            wenn du dich mit deinem gmail-Konto einloggst, Microsoft 365 bei
+            outlook.com-/Exchange-Login, IONOS oder Strato beim deutschen Hoster.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {MAIL_BACKENDS.map((b) => (
@@ -320,10 +322,14 @@ export function MailboxConnectContent({
               </button>
             ))}
           </div>
+          <p className="mt-3 text-[11px] text-muted">
+            Nicht sicher? Schau im Web-Login deiner E-Mail oben/unten in der Ecke —
+            dort steht meist der Anbieter.
+          </p>
           <button
             type="button"
             onClick={() => setShowAdv(true)}
-            className="mt-3 text-xs text-muted hover:text-ink"
+            className="mt-2 text-xs text-muted hover:text-ink"
           >
             Server-Details manuell eingeben →
           </button>

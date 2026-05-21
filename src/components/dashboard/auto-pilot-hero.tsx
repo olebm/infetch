@@ -7,6 +7,7 @@ import { getExportTargets } from "@/exports/export-pipeline";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { HeroFreshLive } from "@/components/dashboard/hero-fresh-live";
 import type { HeroFreshPulse } from "@/lib/actions/scan-pulse";
+import { ScanButton } from "@/components/invoice-inbox/scan-button";
 
 type Setup = Awaited<ReturnType<typeof getSetupSnapshot>>;
 
@@ -138,8 +139,7 @@ function HeroRunning({
         </p>
       )}
 
-      {/* Auf Mobile leer (beide Kinder hidden) → komplett ausblenden */}
-      <div className="hidden md:flex flex-wrap items-center gap-3 mt-6">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
         {needsReview > 0 && (
           <Link
             href="/audit?tab=review"
@@ -149,6 +149,7 @@ function HeroRunning({
             <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         )}
+        <ScanButton />
         {enabled && nextRunSec !== null && (
           <span className="hidden md:inline text-xs text-muted stat-num">
             nächster Scan in {formatCountdown(nextRunSec)}
@@ -210,8 +211,9 @@ function HeroFresh({
           Infetch scannt dein Postfach automatisch im Hintergrund. Sobald eine Rechnung ankommt, übernehmen wir den Rest.
         </p>
         {setup.imapConfigured && (
-          <div className="mt-5">
+          <div className="mt-5 space-y-3">
             <HeroFreshLive initial={initialPulse} />
+            <ScanButton />
           </div>
         )}
       </div>
