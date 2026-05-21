@@ -91,7 +91,7 @@ export async function loginAsTestUser(formData: FormData) {
  * NICHT über /auth/callback — daher muss der Bridge-User hier angelegt
  * werden, sonst fehlt die Org und der User landet zurück auf /login.
  */
-export async function provisionAfterOtp(): Promise<{ ok: boolean }> {
+export async function provisionAfterOtp(): Promise<{ ok: boolean; isNewUser?: boolean }> {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -100,16 +100,19 @@ export async function provisionAfterOtp(): Promise<{ ok: boolean }> {
   if (!user?.email) return { ok: false };
 
   try {
-    await ensureUserProvisioned({
+    // ensureUserProvisioned gibt true zurueck, wenn der User neu angelegt
+    // wurde — der OTP-Code-Pfad nutzt das fuer einen direkten Onboarding-
+    // Redirect (kein Doppel-Hop ueber das Layout-Gate, INFETCH-195).
+    const isNewUser = await ensureUserProvisioned({
       id: user.id,
       email: user.email,
       user_metadata: user.user_metadata ?? null,
     });
+    return { ok: true, isNewUser };
   } catch (err) {
     console.error("[login] OTP user provisioning failed:", err);
     return { ok: false };
   }
-  return { ok: true };
 }
 
 /**
