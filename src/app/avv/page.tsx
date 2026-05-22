@@ -90,7 +90,7 @@ export default function AvvPage() {
             <tr><td>Supabase Inc.</td><td>Datenbank, Authentifizierung</td><td>US-Unternehmen; Datenhaltung EU (Frankfurt/AWS)</td><td>SOC 2 · EU-U.S. DPF / SCCs Art. 46 DSGVO</td></tr>
             <tr><td>Brevo SAS</td><td>Transaktionale E-Mails</td><td>Frankreich (EU)</td><td>ISO 27001</td></tr>
             <tr><td>Mistral AI SAS</td><td>KI-Textextraktion aus Rechnungen</td><td>Frankreich (EU)</td><td>Kein Training mit Kundendaten</td></tr>
-            <tr><td>Sentry Inc.</td><td>Fehler-Monitoring (anonymisiert)</td><td>USA (SCCs gem. Art. 46 DSGVO)</td><td>SCCs</td></tr>
+            <tr><td>Self-hosted GlitchTip</td><td>Fehler-Monitoring (anonymisiert)</td><td>Deutschland (Hetzner, Frankfurt)</td><td>Kein Drittlandtransfer</td></tr>
             <tr><td>Brandfetch</td><td>Anbieter-Logos (CDN; nur IP-Adresse beim Logo-Abruf)</td><td>Schweiz (Angemessenheitsbeschluss gem. Art. 45 DSGVO)</td><td>Angemessenheitsbeschluss</td></tr>
             <tr><td>Stripe Payments Europe Ltd.</td><td>Zahlungsabwicklung</td><td>Irland (EU)</td><td>PCI DSS</td></tr>
           </tbody>

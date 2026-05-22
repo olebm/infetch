@@ -294,35 +294,3 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  sentry-release:
-    name: Sentry Release
-    runs-on: ubuntu-latest
-    # Nur auf main-Push auslösen — nicht auf PRs
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, typecheck, test]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Check Sentry config
-        id: cfg
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: |
-          if [ -n "$SENTRY_AUTH_TOKEN" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::SENTRY_AUTH_TOKEN not set — skipping Sentry release (non-fatal)"
-          fi
-      - name: Create Sentry release
-        if: steps.cfg.outputs.enabled == 'true'
-        uses: getsentry/action-release@v1
-        with:
-          environment: production
-          # Alle Commits seit letztem Release werden verknüpft (suspect commits)
-          set_commits: auto
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}

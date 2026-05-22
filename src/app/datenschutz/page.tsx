@@ -80,11 +80,11 @@ export default function DatenschutzPage() {
         <table>
           <thead><tr><th>Daten</th><th>Zweck</th><th>Dienstleister</th><th>Rechtsgrundlage</th></tr></thead>
           <tbody>
-            <tr><td>Anonymisierte Stack Traces, Browser-Typ, anonymisierte IP-Adresse</td><td>Technische Fehler erkennen und beheben</td><td>Sentry (USA) — Drittlandtransfer gem. Art. 46 DSGVO (SCCs)</td><td>Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an Systemstabilität)</td></tr>
+            <tr><td>Anonymisierte Stack Traces, Browser-Typ, anonymisierte IP-Adresse</td><td>Technische Fehler erkennen und beheben</td><td>Self-hosted GlitchTip auf Hetzner-Server (Deutschland) — kein Drittlandtransfer</td><td>Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an Systemstabilität)</td></tr>
           </tbody>
         </table>
       </div>
-      <p>Hinweis: Keine personenbezogenen Nutzerinhalte in Fehlerberichten. Der DPA mit Sentry (inkl. SCCs) ist einsehbar unter <a href="https://sentry.io/legal/dpa" target="_blank" rel="noopener noreferrer">sentry.io/legal/dpa</a>.</p>
+      <p>Hinweis: Keine personenbezogenen Nutzerinhalte in Fehlerberichten. Das Fehler-Monitoring wird auf eigener Infrastruktur in Deutschland betrieben.</p>
 
       <h3>2.7 Hosting &amp; Infrastruktur</h3>
       <div className="overflow-x-auto">
@@ -126,7 +126,7 @@ export default function DatenschutzPage() {
 
       <h2>5. Weitergabe an Dritte</h2>
       <p>Nutzerdaten werden nicht verkauft. Weitergabe erfolgt ausschließlich an die oben genannten Auftragsverarbeiter, die vertraglich zur Einhaltung der DSGVO verpflichtet sind (<a href="/avv">→ AVV</a>).</p>
-      <p>Mit den Auftragsverarbeitern Supabase, Brevo, Stripe, Sentry und Hetzner bestehen Auftragsverarbeitungsverträge nach Art. 28 DSGVO bzw. — bei Drittlandbezug — Standardvertragsklauseln nach Art. 46 DSGVO. Die jeweiligen Verträge sind über die Rechtsseiten der Anbieter abrufbar oder können bei uns angefordert werden (<a href="mailto:hallo@infetch.de">hallo@infetch.de</a>).</p>
+      <p>Mit den Auftragsverarbeitern Supabase, Brevo, Stripe und Hetzner bestehen Auftragsverarbeitungsverträge nach Art. 28 DSGVO bzw. — bei Drittlandbezug — Standardvertragsklauseln nach Art. 46 DSGVO. Die jeweiligen Verträge sind über die Rechtsseiten der Anbieter abrufbar oder können bei uns angefordert werden (<a href="mailto:hallo@infetch.de">hallo@infetch.de</a>).</p>
       <p>Hinweis zu Mistral AI: Ein formeller Auftragsverarbeitungsvertrag (AVV/DPA) nach Art. 28 DSGVO ist bei Mistral AI ausschließlich im Rahmen kostenpflichtiger La Plateforme-Pläne verfügbar. Die KI-Verarbeitung erfolgt auf EU-Servern (Frankreich). Fragen zu Mistral-Verträgen richten Sie bitte direkt an <a href="https://mistral.ai/privacy" target="_blank" rel="noopener noreferrer">mistral.ai/privacy</a>.</p>
 
       <h2>6. Keine automatisierte Entscheidung im Einzelfall</h2>
