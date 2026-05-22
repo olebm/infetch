@@ -6,13 +6,13 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Einstellungen-Seite", () => {
-  test("Seite lädt mit allen 4 Tabs", async ({ page }) => {
+  test("Seite lädt mit Kern-Tabs", async ({ page }) => {
     await page.goto("/einstellungen");
     await expect(page.getByTestId("app-main")).toBeVisible();
 
     await expect(page.getByRole("tab", { name: /buchhaltung/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /postfächer/i })).toBeVisible();
-    await expect(page.getByRole("tab", { name: /integrationen/i })).toBeVisible();
+    // Integrationen-Tab ist Pro-only und in CI nicht aktiv
     await expect(page.getByRole("tab", { name: /ki.*auto|auto.*pilot/i })).toBeVisible();
   });
 
@@ -23,8 +23,8 @@ test.describe("Einstellungen-Seite", () => {
     // Auf KI & Auto-Pilot Tab wechseln
     await page.getByRole("tab", { name: /ki.*auto|auto.*pilot/i }).click();
 
-    // Konfidenz-Slider sichtbar
-    await expect(page.getByText(/konfidenz-schwelle/i)).toBeVisible();
+    // Empfindlichkeits-Label und Slider sichtbar
+    await expect(page.getByText(/empfindlichkeit/i)).toBeVisible();
     const slider = page.getByRole("slider").or(page.locator('input[type="range"]')).first();
     await expect(slider).toBeVisible();
   });
@@ -53,7 +53,7 @@ test.describe("Einstellungen-Seite", () => {
 
   test("Buchhaltung-Tab zeigt Empfänger-Bereich", async ({ page }) => {
     await page.goto("/einstellungen");
-    // Buchhaltung ist der Standard-Tab
+    await page.getByRole("tab", { name: /buchhaltung/i }).click();
     await expect(page.getByText("Empfänger für deine Buchhaltung", { exact: true })).toBeVisible();
   });
 });
