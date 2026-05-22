@@ -65,6 +65,7 @@ export function UpgradeModal() {
         </p>
       )}
 
+      <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr>
@@ -83,6 +84,7 @@ export function UpgradeModal() {
           ))}
         </tbody>
       </table>
+      </div>
 
       {error && (
         <p className="mt-3 rounded border border-danger/20 bg-danger-soft px-3 py-2 text-xs text-danger">

@@ -177,13 +177,13 @@ function RecipientForm({ onClose, smtpOptions }: { onClose: () => void; smtpOpti
         )}
 
         <div className="flex items-center justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="rounded px-4 py-2 text-sm text-muted hover:bg-surface">
+          <button type="button" onClick={onClose} className="rounded px-4 py-2.5 text-sm text-muted hover:bg-surface">
             Abbrechen
           </button>
           <button
             type="submit"
             disabled={isPending || !selected}
-            className={cn("rounded bg-brand px-4 py-2 text-sm font-medium text-white", "disabled:cursor-not-allowed disabled:opacity-60")}
+            className={cn("rounded bg-brand px-4 py-2.5 text-sm font-medium text-white", "disabled:cursor-not-allowed disabled:opacity-60")}
           >
             {isPending ? "Speichere…" : "Empfänger speichern"}
           </button>
@@ -299,13 +299,13 @@ function EditRecipientForm({
         {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
 
         <div className="flex items-center justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="rounded px-4 py-2 text-sm text-muted hover:bg-surface">
+          <button type="button" onClick={onClose} className="rounded px-4 py-2.5 text-sm text-muted hover:bg-surface">
             Abbrechen
           </button>
           <button
             type="submit"
             disabled={isPending}
-            className={cn("rounded bg-brand px-4 py-2 text-sm font-medium text-white", "disabled:cursor-not-allowed disabled:opacity-60")}
+            className={cn("rounded bg-brand px-4 py-2.5 text-sm font-medium text-white", "disabled:cursor-not-allowed disabled:opacity-60")}
           >
             {isPending ? "Speichere…" : "Speichern"}
           </button>

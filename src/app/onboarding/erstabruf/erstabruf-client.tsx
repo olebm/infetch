@@ -201,7 +201,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
               <span>Postfach wird durchsucht…</span>
             </div>
 
-            <dl className="mt-8 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
+            <dl className="mt-8 grid grid-cols-3 gap-x-4 gap-y-2 border-y border-line py-5 md:gap-x-8">
               <div>
                 <dt className="text-xs text-muted">Mails durchsucht</dt>
                 <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesSeen ?? 0}</dd>
@@ -255,7 +255,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
               </>
             )}
 
-            <dl className="mt-10 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
+            <dl className="mt-10 grid grid-cols-3 gap-x-4 gap-y-2 border-y border-line py-5 md:gap-x-8">
               <div>
                 <dt className="text-xs text-muted">Mails durchsucht</dt>
                 <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesSeen ?? 0}</dd>
@@ -354,7 +354,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           alles später änderbar.
         </p>
 
-        <dl className="mt-10 grid grid-cols-3 gap-x-8 gap-y-2 border-y border-line py-5">
+        <dl className="mt-10 grid grid-cols-3 gap-x-4 gap-y-2 border-y border-line py-5 md:gap-x-8">
           <div>
             <dt className="text-xs text-muted">geschäftlich</dt>
             <dd className="stat-num font-display text-2xl text-ink">{stats.business}</dd>

@@ -202,7 +202,7 @@ export default async function SetupPage() {
                   <input type="hidden" name="targetId" value={t.id} />
                   <button
                     type="submit"
-                    className="text-xs text-muted underline underline-offset-4 decoration-line hover:text-danger"
+                    className="inline-flex items-center px-1 py-2 -mx-1 text-xs text-muted underline underline-offset-4 decoration-line hover:text-danger"
                   >
                     entfernen
                   </button>

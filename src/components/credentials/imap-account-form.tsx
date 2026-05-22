@@ -127,14 +127,14 @@ export function ImapAccountForm({
             formAction={testAction}
             formNoValidate
             disabled={isTesting || !secretOnFile}
-            className="rounded border border-line px-4 py-2 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded border border-line px-4 py-2.5 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isTesting ? "Teste..." : "Verbindung testen"}
           </button>
           <button
             type="submit"
             disabled={isPending}
-            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded bg-brand px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? "Speichere..." : "IMAP sicher speichern"}
           </button>
