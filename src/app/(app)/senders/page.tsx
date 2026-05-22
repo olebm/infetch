@@ -3,6 +3,7 @@ import { getCurrentAuth } from "@/lib/auth/current";
 import {
   listSendersWithStats,
   getVendorInvoices,
+  getSenderInvoices,
   type VendorInvoiceRow,
 } from "@/lib/db/queries";
 
@@ -25,8 +26,9 @@ export default async function SendersPage({
     if (sender?.matchedVendorId) {
       vendorInvoices = await getVendorInvoices(sender.matchedVendorId);
     } else if (sender) {
-      // Sender exists but has no matched vendor → empty invoice list
-      vendorInvoices = [];
+      // Kein Katalog-Vendor (vendor_id NULL ist Normalfall) → Rechnungen über
+      // die Mail-Quelle (Absender-Domain) laden statt leere Liste (INFETCH-218).
+      vendorInvoices = await getSenderInvoices(sender.fromDomain, auth?.organization?.id ?? null);
     }
   }
 

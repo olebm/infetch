@@ -1778,3 +1778,43 @@ export async function getVendorInvoices(vendorId: number): Promise<VendorInvoice
     ORDER BY COALESCE(invoice_date, created_at) DESC
     LIMIT 200`;
 }
+
+/**
+ * Rechnungen eines Absenders über die MAIL-Quelle statt über matched_vendor_id.
+ * Nötig für Absender OHNE Katalog-Vendor (vendor_id NULL ist der Normalfall):
+ * sonst zeigt die Detail-Ansicht „keine Rechnungen", obwohl welche verarbeitet
+ * wurden (INFETCH-218). Verknüpfung: invoices → invoice_files(source_type='mail')
+ * → mail_messages, Domain der from_address == Absender-Domain. Das CASE-Cast-
+ * Muster (source_ref_id ist bei Portal-Quellen nicht numerisch) spiegelt den
+ * 207-mail_sender-CTE; EXISTS dedupt Rechnungen mit mehreren Mail-Dateien.
+ */
+export async function getSenderInvoices(
+  fromDomain: string,
+  organizationId: string | null,
+): Promise<VendorInvoiceRow[]> {
+  return await sql<VendorInvoiceRow[]>`
+    SELECT
+      i.id,
+      i.status,
+      i.invoice_date   AS "invoiceDate",
+      i.created_at     AS "createdAt",
+      i.amount_gross   AS "amountGross",
+      i.currency,
+      i.invoice_number AS "invoiceNumber"
+    FROM invoices i
+    WHERE i.organization_id IS NOT DISTINCT FROM ${organizationId}
+      AND EXISTS (
+        SELECT 1
+        FROM (
+          SELECT invoice_id,
+                 CASE WHEN source_ref_id ~ '^[0-9]+$' THEN source_ref_id::bigint END AS mm_id
+          FROM invoice_files
+          WHERE source_type = 'mail'
+        ) mf
+        JOIN mail_messages mm ON mm.id = mf.mm_id
+        WHERE mf.invoice_id = i.id
+          AND lower(substring(mm.from_address from '@([A-Za-z0-9.-]+)')) = lower(${fromDomain})
+      )
+    ORDER BY COALESCE(i.invoice_date, i.created_at) DESC
+    LIMIT 200`;
+}

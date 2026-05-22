@@ -325,7 +325,7 @@ function SenderDetail({
       </div>
 
       {/* Header */}
-      <div className="flex flex-col gap-6 border-b border-line pb-8 md:flex-row md:items-start md:justify-between md:gap-10">
+      <div className="flex flex-col gap-6 border-b border-line pb-8 md:flex-row md:items-end md:justify-between md:gap-10">
         <div className="flex items-center gap-5">
           <VendorLogo domain={sender.fromDomain} name={name} size={72} />
           <div>
