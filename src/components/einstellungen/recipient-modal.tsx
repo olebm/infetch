@@ -13,13 +13,15 @@ const idle: CredentialFormState = { status: "idle", message: "" };
 interface RecipientModalProps {
   open: boolean;
   onClose: () => void;
+  hasSecondarySmtp?: boolean;
 }
 
-export function RecipientModal({ open, onClose }: RecipientModalProps) {
+export function RecipientModal({ open, onClose, hasSecondarySmtp = false }: RecipientModalProps) {
   const [state, formAction, isPending] = useActionState(saveExportTargetAction, idle);
   const [selected, setSelected] = useState<Recipient | null>(null);
   const [email, setEmail] = useState("");
   const [slot, setSlot] = useState<TargetSlot>("kontist");
+  const [smtpSlot, setSmtpSlot] = useState<"primary" | "secondary">("primary");
 
   const needsManualEmail = selected !== null && !selected.email;
 
@@ -37,6 +39,7 @@ export function RecipientModal({ open, onClose }: RecipientModalProps) {
       setSelected(null);
       setEmail("");
       setSlot("kontist");
+      setSmtpSlot("primary");
     }
   }
 
@@ -50,7 +53,7 @@ export function RecipientModal({ open, onClose }: RecipientModalProps) {
     <Modal open={open} onClose={onClose} title="Empfänger konfigurieren" size="md">
       <form action={formAction} className="space-y-5">
         <input type="hidden" name="exportTarget" value={slot} />
-        <input type="hidden" name="smtpSlot" value="primary" />
+        <input type="hidden" name="smtpSlot" value={smtpSlot} />
         <input type="hidden" name="enabled" value="on" />
         {/* recipientEmail for fixed-address providers */}
         {selected && !needsManualEmail && (
@@ -151,6 +154,20 @@ export function RecipientModal({ open, onClose }: RecipientModalProps) {
           </div>
         )}
 
+        {hasSecondarySmtp && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Absende-Konto</label>
+            <select
+              value={smtpSlot}
+              onChange={(e) => setSmtpSlot(e.target.value as "primary" | "secondary")}
+              className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+            >
+              <option value="primary">Absende-Konto 1 (Standard)</option>
+              <option value="secondary">Absende-Konto 2</option>
+            </select>
+          </div>
+        )}
+
         {state.status === "error" && (
           <p className="text-xs text-danger">{state.message}</p>
         )}
@@ -172,7 +189,7 @@ export function RecipientModal({ open, onClose }: RecipientModalProps) {
   );
 }
 
-export function AddRecipientButton() {
+export function AddRecipientButton({ hasSecondarySmtp = false }: { hasSecondarySmtp?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -184,7 +201,7 @@ export function AddRecipientButton() {
         <Plus className="h-3.5 w-3.5" aria-hidden />
         Empfänger konfigurieren
       </button>
-      <RecipientModal open={open} onClose={() => setOpen(false)} />
+      <RecipientModal open={open} onClose={() => setOpen(false)} hasSecondarySmtp={hasSecondarySmtp} />
     </>
   );
 }

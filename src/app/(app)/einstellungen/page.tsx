@@ -9,6 +9,7 @@ import { getProviderFromEmail } from "@/lib/mail-providers";
 import { getExportTargets } from "@/exports/export-pipeline";
 import { readJsonSetting } from "@/lib/db/settings-store";
 import { MailboxConnectCard, type MailboxSlot } from "@/components/credentials/mailbox-connect-card";
+import { SmtpAccountForm } from "@/components/credentials/smtp-account-form";
 import { StatusBadge } from "@/components/status/status-badge";
 import { AddRecipientButton } from "@/components/einstellungen/recipient-modal";
 import { clearExportTargetAction } from "@/app/(app)/einstellungen/actions";
@@ -43,6 +44,8 @@ export default async function SetupPage() {
     tier,
     smtpPrimary,
     smtpSecondary,
+    smtpSecondaryHasCredential,
+    smtpSecondaryHasRef,
   ] = await Promise.all([
     getExportTargets(auth?.organization?.id ?? null),
     readJsonSetting<number>("auto_approve_confidence", appConfig.features.autoApprovalConfidenceThreshold),
@@ -57,6 +60,8 @@ export default async function SetupPage() {
     getOrgTier(auth?.organization?.id ?? null),
     getPrimarySmtpAccount(),
     getSecondarySmtpAccount(),
+    hasConfiguredCredential("smtp", "secondary", auth?.organization?.id),
+    hasStoredCredentialRef("smtp", "secondary", auth?.organization?.id),
   ]);
 
   const isPro = tier !== "free";
@@ -128,7 +133,7 @@ export default async function SetupPage() {
               Wohin wir Rechnungen senden — Standard wird automatisch gewählt.
             </div>
           </div>
-          <AddRecipientButton />
+          <AddRecipientButton hasSecondarySmtp={!!(smtpSecondary && (smtpSecondaryHasCredential || smtpSecondaryHasRef))} />
         </div>
         {exportTargets.filter((t) => t.recipientEmail).length > 0 ? (
           <div className="divide-y divide-line border-t border-line">
@@ -189,6 +194,24 @@ export default async function SetupPage() {
             </div>
           </div>
           <MailboxConnectCard slots={mailboxSlots} isPro={isPro} />
+        </div>
+      </Card>
+
+      <Card padding="none">
+        <div className="p-5">
+          <div className="mb-4">
+            <div className="text-sm font-medium text-ink">Weiteres Absende-Konto (SMTP)</div>
+            <div className="text-xs text-muted">
+              Optionale zweite Absenderadresse — z.B. wenn zwei Buchhaltungs-Apps dich
+              anhand der Absenderadresse identifizieren.
+            </div>
+          </div>
+          <SmtpAccountForm
+            slot="secondary"
+            account={smtpSecondary}
+            credentialStored={smtpSecondaryHasRef}
+            secretPresent={smtpSecondaryHasCredential}
+          />
         </div>
       </Card>
 
