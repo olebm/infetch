@@ -497,7 +497,7 @@ export async function DashboardView() {
         <section className="hidden md:block mt-8 border-t border-line pt-6 md:mt-16">
           <dl className="grid grid-cols-2 gap-y-4 text-xs md:grid-cols-5">
             <div>
-              <dt className="text-muted">Klassifikation korrekt</dt>
+              <dt className="text-muted">Ohne Rückfrage versendet</dt>
               <dd className="mt-0.5 stat-num text-ink">
                 {stats.exportedLifetime > 0
                   ? `${(((stats.exportedLifetime - stats.needsReview) / stats.exportedLifetime) * 100).toFixed(1)} %`
@@ -505,16 +505,16 @@ export async function DashboardView() {
               </dd>
             </div>
             <div>
-              <dt className="text-muted">Manuell korrigiert</dt>
+              <dt className="text-muted">Wartet auf Prüfung</dt>
               <dd className="mt-0.5 stat-num text-ink">
                 {stats.needsReview} / {stats.exportedLifetime + stats.needsReview}
               </dd>
             </div>
             <div>
-              <dt className="text-muted">Postfach verbunden seit</dt>
+              <dt className="text-muted">Automatisiert seit</dt>
               <dd className="mt-0.5 stat-num text-ink">
                 {stats.daysActive !== null
-                  ? `${stats.daysActive} ${stats.daysActive === 1 ? "Tag" : "Tagen"} ohne Fehler`
+                  ? `${stats.daysActive} ${stats.daysActive === 1 ? "Tag" : "Tagen"}`
                   : setup.imapConfigured ? "aktiv" : "—"}
               </dd>
             </div>
