@@ -383,7 +383,7 @@ export default function LandingPage() {
           <div className="max-w-2xl">
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted">Funktionen</div>
             <h2 className="mt-3 font-display text-4xl md:text-5xl text-ink leading-[1.05]">
-              Sortiert. Sortiert wirklich.
+              Sortiert wirklich.
             </h2>
             <p className="mt-5 text-muted text-lg leading-relaxed max-w-xl">
               Kein Sammelordner, keine Excel-Liste, kein Suchen.
