@@ -78,6 +78,21 @@ const eslintConfig = [
     files: ["src/lib/db/scoped-query.ts", "src/lib/db/unsafe-global.ts"],
     rules: { "no-restricted-imports": "off" },
   },
+  // Accessibility rules — enforced at lint time so violations surface before CI.
+  // Note: eslint-plugin-jsx-a11y is already loaded by eslint-config-next;
+  // we only add rules here, no plugin re-declaration.
+  {
+    rules: {
+      // Upgrade from warn (eslint-config-next default) to error — all known
+      // violations are fixed; Image components are covered via the img alias.
+      "jsx-a11y/alt-text": ["error", { elements: ["img"], img: ["Image"] }],
+      // Additional rules not included in eslint-config-next:
+      "jsx-a11y/img-redundant-alt": "error",
+      "jsx-a11y/no-redundant-roles": "warn",
+      "jsx-a11y/anchor-has-content": "warn",
+      "jsx-a11y/anchor-is-valid": "warn",
+    },
+  },
 ];
 
 export default eslintConfig;
