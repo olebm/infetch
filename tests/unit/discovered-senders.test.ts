@@ -153,16 +153,23 @@ describe("block and link helpers", () => {
 });
 
 describe("backfillFromMailMessages", () => {
-  afterEach(async () => {
+  // Test-Isolation (vorher flaky): zuerst die Kind-mail_messages der Test-Konten
+  // löschen (FK mail_messages_mail_account_id_fkey), dann das Konto selbst — und
+  // zwar nach Constraint-Scope (uniq_mail_accounts_label_no_org = label, org NULL),
+  // nicht nach host. Sonst überlebt eine Alt-Zeile mit gleichem Label/Orphan-Kindern
+  // und der nächste Lauf bricht ab.
+  async function cleanupBackfillFixtures() {
+    await sql`DELETE FROM mail_messages WHERE mail_account_id IN (SELECT id FROM mail_accounts WHERE label = 'Primary IMAP Test')`;
     await sql`DELETE FROM mail_messages WHERE from_address LIKE '%@test-backfill.com'`;
     await sql`DELETE FROM discovered_senders WHERE from_address LIKE '%@test-backfill.com'`;
-    await sql`DELETE FROM mail_accounts WHERE label = 'Primary IMAP Test' AND host = 'imap.example-test.com'`;
-  });
+    await sql`DELETE FROM mail_accounts WHERE label = 'Primary IMAP Test'`;
+  }
+
+  afterEach(cleanupBackfillFixtures);
 
   it("aggregates mail_messages into discovered_senders", async () => {
     // Cleanup leftover from prior runs before inserting
-    await sql`DELETE FROM mail_messages WHERE from_address LIKE '%@test-backfill.com'`;
-    await sql`DELETE FROM mail_accounts WHERE label = 'Primary IMAP Test' AND host = 'imap.example-test.com'`;
+    await cleanupBackfillFixtures();
 
     const accountRows = await sql<{ id: number }[]>`
       INSERT INTO mail_accounts (label, host, port, secure, username, status)
