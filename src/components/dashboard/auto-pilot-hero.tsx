@@ -31,7 +31,7 @@ export async function AutoPilotHero({ setup: setupProp }: AutoPilotHeroProps) {
     // vollständigem User-Setup. Hard-Gate im Layout nutzt orgId korrekt.
     setupProp ? Promise.resolve(setupProp) : getSetupSnapshot(orgId),
     getAutomationStats(orgId),
-    getPrimaryMailAccount(),
+    getPrimaryMailAccount(orgId),
     getExportTargets(orgId),
   ]);
 
