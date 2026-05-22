@@ -93,7 +93,7 @@ async function testImap(
     lock.release();
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: normalizeError(e, "IMAP") };
+    return { ok: false, error: normalizeError(e) };
   } finally {
     try { await client.logout(); } catch { /* teardown */ }
   }
@@ -115,22 +115,24 @@ async function testSmtp(
     await transporter.verify();
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: normalizeError(e, "SMTP") };
+    return { ok: false, error: normalizeError(e) };
   } finally {
     transporter.close();
   }
 }
 
-function normalizeError(e: unknown, proto: string): string {
+function normalizeError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   const m = msg.toLowerCase();
+  if (m.includes("enotfound") || m.includes("getaddrinfo"))
+    return "Server-Adresse nicht gefunden — Adresse prüfen";
   if (m.includes("auth") || m.includes("invalid credentials") || m.includes("login failed") || m.includes("password"))
     return "Falsches Passwort oder App-Passwort";
   if (m.includes("econnrefused"))
-    return `${proto}-Port nicht erreichbar (Firewall?)`;
+    return "Verbindung abgelehnt — Port prüfen";
   if (m.includes("etimedout") || m.includes("timeout"))
-    return `${proto}-Server antwortet nicht`;
+    return "Server antwortet nicht — Adresse oder Port prüfen";
   if (m.includes("cert") || m.includes("ssl") || m.includes("tls"))
-    return "SSL/TLS-Zertifikatsfehler";
-  return msg;
+    return "Zertifikatsfehler — Verschlüsselungs-Einstellung prüfen";
+  return "Verbindung fehlgeschlagen";
 }

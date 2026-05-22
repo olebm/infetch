@@ -145,7 +145,7 @@ export function ImapAccountForm({
             disabled={isPending}
             className="rounded bg-brand px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isPending ? "Speichere..." : "IMAP sicher speichern"}
+            {isPending ? "Speichere..." : "Zugangsdaten speichern"}
           </button>
         </div>
       </div>
