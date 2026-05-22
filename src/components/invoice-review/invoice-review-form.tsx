@@ -156,7 +156,6 @@ type Invoice = {
 function ConfirmPanel({
   invoice,
   exportTargets,
-  extraction,
   isPending,
   onEdit,
 }: {
@@ -172,7 +171,6 @@ function ConfirmPanel({
     status: string;
     vendorName: string | null;
   }> : never;
-  extraction: ExtractionOutput;
   isPending: boolean;
   onEdit: () => void;
 }) {
@@ -205,7 +203,6 @@ function ConfirmPanel({
               {invoice.vendorName || "Unbekannter Anbieter"}
             </span>
           </div>
-          <ConfidenceDot value={extraction.vendor_confidence} />
         </div>
 
         {/* Date */}
@@ -213,7 +210,6 @@ function ConfirmPanel({
           <span className="text-sm text-muted">Datum</span>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-ink tabular-nums">{formatDate(invoice.invoiceDate)}</span>
-            <ConfidenceDot value={extraction.date_confidence} />
           </div>
         </div>
 
@@ -224,7 +220,6 @@ function ConfirmPanel({
             <span className="text-sm font-semibold text-ink tabular-nums">
               {formatAmount(invoice.amountGross, invoice.currency)}
             </span>
-            <ConfidenceDot value={extraction.amount_confidence} />
           </div>
         </div>
 
@@ -817,7 +812,6 @@ export function InvoiceReviewForm({
                   vendors={vendors}
                   exportTargets={exportTargets}
                   duplicateCandidates={duplicateCandidates}
-                  extraction={extraction}
                   isPending={isPending}
                   onEdit={() => setMode("edit")}
                 />

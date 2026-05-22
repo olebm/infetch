@@ -18,7 +18,6 @@ import { Tabs, type TabItem } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { UsageCard } from "@/components/einstellungen/usage-card";
 import { IntegrationsSection, type IntegrationStatus } from "@/components/einstellungen/integrations-section";
 import { RetroactiveScanCard } from "@/components/einstellungen/retroactive-scan-card";
 import { ScanHistoryCard } from "@/components/einstellungen/scan-history-card";
@@ -278,9 +277,6 @@ export default async function SetupPage() {
         subline="Postfächer, Empfänger und Auto-Pilot."
       />
       <Tabs tabs={tabs} defaultKey="buchhaltung" />
-      <div className="mt-4">
-        <UsageCard organizationId={auth?.organization?.id} />
-      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { getInvoiceYears, getVendors } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { loadOrgMembers, loadUserOrganizations, getUserProfileFields, loadPendingInvitations } from "@/lib/auth/session";
 import { ExportDownloadCard } from "@/components/einstellungen/export-download-card";
+import { UsageCard } from "@/components/einstellungen/usage-card";
 import { getOrgTier, getLimits } from "@/lib/tier";
 import { ProfilForm } from "@/components/einstellungen/profil-form";
 import { SwitchOrgButton } from "@/components/einstellungen/sessions-section";
@@ -69,6 +70,9 @@ export default async function KontoPage() {
             <NotifyWeeklyCard initialValue={profileFields?.notifyWeekly ?? true} />
           </div>
         </Card>
+
+        {/* 1b ── Nutzung diesen Monat (unter „Dein Profil") ─────────────────── */}
+        <UsageCard organizationId={orgId} />
 
         {/* 2 ── Arbeitsbereich — nur bei Business (Multi-Org) oder tatsächlich mehreren Orgs */}
         {(tier === "business" || userOrgs.length > 1) && (
