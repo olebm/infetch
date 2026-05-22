@@ -34,8 +34,8 @@ export async function enqueueReadyInvoices(): Promise<number> {
   // SECURITY: Cross-Join nur noch innerhalb derselben Organisation.
   // Vorher hätten Cross-Tenant-Targets eine Invoice an die falsche Org versendet.
   const result = await sql`
-    INSERT INTO exports (invoice_id, export_target_id, status)
-    SELECT invoices.id, export_targets.id, 'pending'
+    INSERT INTO exports (invoice_id, export_target_id, status, organization_id)
+    SELECT invoices.id, export_targets.id, 'pending', invoices.organization_id
     FROM invoices
     JOIN export_targets ON export_targets.organization_id = invoices.organization_id
     WHERE invoices.status IN ('ready', 'exported')
