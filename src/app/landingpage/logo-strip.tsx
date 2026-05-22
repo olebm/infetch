@@ -33,7 +33,7 @@ async function getTopLandingVendors(): Promise<{ name: string; domain: string | 
       AND v.hidden IS NOT TRUE
     GROUP BY v.id, v.name
     ORDER BY COUNT(i.id) DESC, v.name ASC
-    LIMIT 12
+    LIMIT 6
   `;
 }
 
