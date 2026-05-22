@@ -460,7 +460,7 @@ export function MailboxConnectContent({
               <div className={oneCol ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
                 {!smtpOnly && (
                   <div>
-                    <div className="mb-2 text-xs font-medium text-muted">IMAP — Empfangs-Server</div>
+                    <div className="mb-2 text-xs font-medium text-muted">Empfangs-Server</div>
                     <div className="space-y-1.5">
                       <input
                         value={imapHost}
@@ -479,7 +479,7 @@ export function MailboxConnectContent({
                             className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                           />
                           <span className="text-xs text-muted">
-                            {imapSecure ? "SSL/TLS" : "STARTTLS"}
+                            {imapSecure ? "verschlüsselt" : "unverschlüsselt"}
                           </span>
                         </div>
                       )}
@@ -488,7 +488,7 @@ export function MailboxConnectContent({
                 )}
                 {!imapOnly && (
                   <div>
-                    <div className="mb-2 text-xs font-medium text-muted">SMTP — Versand-Server</div>
+                    <div className="mb-2 text-xs font-medium text-muted">Versand-Server</div>
                     <div className="space-y-1.5">
                       <input
                         value={smtpHost}
@@ -507,7 +507,7 @@ export function MailboxConnectContent({
                             className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                           />
                           <span className="text-xs text-muted">
-                            {smtpSecure ? "SSL/TLS" : "STARTTLS"}
+                            {smtpSecure ? "verschlüsselt" : "unverschlüsselt"}
                           </span>
                         </div>
                       )}
@@ -581,13 +581,13 @@ export function MailboxConnectContent({
       {settingsTestPhase === "testing" && (
         <div className="mt-4 flex items-center gap-2 text-sm text-muted">
           <Loader2 size={14} className="animate-spin shrink-0" aria-hidden />
-          <span>{smtpOnly ? "Prüfe SMTP…" : imapOnly ? "Prüfe IMAP…" : "Prüfe IMAP und SMTP…"}</span>
+          <span>{smtpOnly ? "Prüfe Versand-Server…" : imapOnly ? "Prüfe Empfangs-Server…" : "Prüfe Verbindung…"}</span>
         </div>
       )}
       {settingsTestPhase === "success" && (
         <div className="mt-4 flex items-center gap-3 text-sm text-ok">
-          {!smtpOnly && <span className="flex items-center gap-1"><Check size={14} aria-hidden /> IMAP verbunden</span>}
-          {!imapOnly && <span className="flex items-center gap-1"><Check size={14} aria-hidden /> SMTP verbunden</span>}
+          {!smtpOnly && <span className="flex items-center gap-1"><Check size={14} aria-hidden /> Empfang verbunden</span>}
+          {!imapOnly && <span className="flex items-center gap-1"><Check size={14} aria-hidden /> Versand verbunden</span>}
         </div>
       )}
       {settingsTestPhase === "error" && (
@@ -595,8 +595,8 @@ export function MailboxConnectContent({
           <p className="flex items-center gap-1.5 font-medium text-danger">
             <WifiOff size={14} aria-hidden /> Verbindung fehlgeschlagen
           </p>
-          {settingsTestErrors.imap && <p className="mt-1 text-xs text-danger"><strong>IMAP:</strong> {settingsTestErrors.imap}</p>}
-          {settingsTestErrors.smtp && <p className="mt-1 text-xs text-danger"><strong>SMTP:</strong> {settingsTestErrors.smtp}</p>}
+          {settingsTestErrors.imap && <p className="mt-1 text-xs text-danger"><strong>Empfang:</strong> {settingsTestErrors.imap}</p>}
+          {settingsTestErrors.smtp && <p className="mt-1 text-xs text-danger"><strong>Versand:</strong> {settingsTestErrors.smtp}</p>}
         </div>
       )}
 

@@ -12,7 +12,7 @@ export function SiteFooter() {
         <div className="flex items-center gap-2">
           <Image
             src="/images/brand/infetch-logo.svg"
-            alt=""
+            alt="Infetch"
             width={64}
             height={20}
             className="h-5 w-auto opacity-80"

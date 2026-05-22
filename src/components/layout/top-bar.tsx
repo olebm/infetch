@@ -148,7 +148,7 @@ export function TopBar({
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-ink text-[11px] font-medium text-white overflow-hidden">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                  <img src={avatarUrl} alt={userName || "Profilbild"} className="h-full w-full object-cover" />
                 ) : (
                   initials || "·"
                 )}

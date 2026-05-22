@@ -117,7 +117,7 @@ function RecipientForm({ onClose, smtpOptions }: { onClose: () => void; smtpOpti
           <div className="space-y-4">
             <div>
               {/* A11Y (INFETCH-104): htmlFor verknüpft Label mit Select */}
-              <label htmlFor="recipient-slot" className="mb-1 block text-xs font-medium text-muted">Empfänger-Slot</label>
+              <label htmlFor="recipient-slot" className="mb-1 block text-xs font-medium text-muted">Empfänger-Platz</label>
               <select
                 id="recipient-slot"
                 value={slot}

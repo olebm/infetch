@@ -105,7 +105,7 @@ export function VendorLogo({
       <img
         ref={imgRef}
         src={sources[srcIndex]}
-        alt=""
+        alt={displayName}
         width={256}
         height={256}
         // PERFORMANCE: Brandfetch-CDN-Logos sind nie LCP — Browser darf sie

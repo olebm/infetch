@@ -56,7 +56,7 @@ function AvatarUpload({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={preview}
-              alt=""
+              alt="Aktuelles Profilbild"
               className="h-full w-full object-cover"
             />
           ) : (
