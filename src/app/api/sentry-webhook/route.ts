@@ -1,50 +1,39 @@
 /**
- * Sentry Webhook Endpoint — empfängt neue Fehler-Events und schreibt sie
+ * Glitchtip Webhook Endpoint — empfängt Alert-Events und schreibt sie
  * in data/sentry-errors.jsonl (max. 50 Einträge, rollierende Liste).
  *
- * Sentry konfigurieren:
- *   Settings → Integrations → Webhooks → Add Webhook
- *   URL: https://deine-domain.de/api/sentry-webhook
- *   Secret: SENTRY_WEBHOOK_SECRET (identisch in .env setzen)
- *   Events: issue (created + resolved)
+ * Glitchtip konfigurieren:
+ *   Project → Alerts → Add Recipient → Webhook
+ *   URL: https://app.infetch.de/api/sentry-webhook
+ *
+ * Kein Signature-Secret erforderlich (Glitchtip signiert Webhooks nicht).
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
-import { appConfig } from "@/lib/config/env";
 
 const ERROR_LOG = join(process.cwd(), "data", "sentry-errors.jsonl");
 const MAX_ENTRIES = 50;
 
-// ── Signatur-Verifikation ─────────────────────────────────────────────────────
-
-function verifySignature(body: string, signature: string, secret: string): boolean {
-  const expected = createHmac("sha256", secret).update(body).digest("hex");
-  try {
-    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  } catch {
-    return false;
-  }
-}
-
 // ── Rollierende JSONL-Datei ───────────────────────────────────────────────────
 
-function appendError(entry: SentryErrorEntry) {
+type ErrorEntry = {
+  receivedAt: string;
+  raw: unknown;
+};
+
+function appendEntry(entry: ErrorEntry) {
   try {
     mkdirSync(join(process.cwd(), "data"), { recursive: true });
 
-    // Tolerantes Parsen: eine einzelne korrupte/teilgeschriebene Zeile
-    // (z. B. durch parallelen Schreibzugriff) darf NICHT die gesamte
-    // Historie verwerfen — defekte Zeilen werden übersprungen.
-    const existing: SentryErrorEntry[] = existsSync(ERROR_LOG)
+    const existing: ErrorEntry[] = existsSync(ERROR_LOG)
       ? readFileSync(ERROR_LOG, "utf8")
           .split("\n")
           .filter(Boolean)
           .flatMap((line) => {
             try {
-              return [JSON.parse(line) as SentryErrorEntry];
+              return [JSON.parse(line) as ErrorEntry];
             } catch {
               return [];
             }
@@ -52,78 +41,29 @@ function appendError(entry: SentryErrorEntry) {
       : [];
 
     const updated = [...existing, entry].slice(-MAX_ENTRIES);
-    // Atomar schreiben: erst in Temp-Datei, dann rename() (atomic auf
-    // demselben Dateisystem) — verhindert teilgeschriebene Datei bei
-    // gleichzeitigen Events.
     const tmp = `${ERROR_LOG}.${process.pid}.tmp`;
     writeFileSync(tmp, updated.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
     renameSync(tmp, ERROR_LOG);
   } catch (err) {
-    console.error("[sentry-webhook] Fehler beim Schreiben der Error-Log:", err);
+    console.error("[glitchtip-webhook] Fehler beim Schreiben:", err);
   }
 }
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type SentryErrorEntry = {
-  receivedAt: string;
-  action: string;
-  level: string;
-  title: string;
-  culprit: string;
-  permalink: string;
-  firstSeen: string;
-  lastSeen: string;
-  count: number;
-  issueId: string;
-};
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
-  const signature = request.headers.get("sentry-hook-signature") ?? "";
-  const secret = appConfig.sentry.webhookSecret;
 
-  // Signatur prüfen (in production Pflicht, in dev optional)
-  if (secret) {
-    if (!signature || !verifySignature(rawBody, signature, secret)) {
-      return NextResponse.json({ error: "Ungültige Signatur." }, { status: 401 });
-    }
-  } else if (process.env.NODE_ENV === "production") {
-    // In production ohne Secret ablehnen
-    return NextResponse.json({ error: "Webhook-Secret nicht konfiguriert." }, { status: 500 });
-  }
-
-  let payload: Record<string, unknown>;
+  let payload: unknown;
   try {
-    payload = JSON.parse(rawBody) as Record<string, unknown>;
+    payload = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ error: "Ungültiges JSON." }, { status: 400 });
+    payload = rawBody;
   }
 
-  const action = String(payload.action ?? "unknown");
-  const issue = (payload.data as Record<string, unknown>)?.issue as Record<string, unknown> | undefined;
+  appendEntry({ receivedAt: new Date().toISOString(), raw: payload });
 
-  if (!issue) {
-    // Kein Issue-Event (z. B. ping) — einfach bestätigen
-    return NextResponse.json({ ok: true });
-  }
-
-  const entry: SentryErrorEntry = {
-    receivedAt: new Date().toISOString(),
-    action,
-    level: String(issue.level ?? "error"),
-    title: String(issue.title ?? "Unbekannter Fehler"),
-    culprit: String(issue.culprit ?? ""),
-    permalink: String(issue.permalink ?? ""),
-    firstSeen: String(issue.firstSeen ?? ""),
-    lastSeen: String(issue.lastSeen ?? ""),
-    count: Number(issue.count ?? 1),
-    issueId: String(issue.id ?? ""),
-  };
-
-  appendError(entry);
+  console.log("[glitchtip-webhook] Event empfangen:", JSON.stringify(payload, null, 2));
 
   return NextResponse.json({ ok: true });
 }
