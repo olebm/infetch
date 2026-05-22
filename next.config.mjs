@@ -33,8 +33,11 @@ function buildCsp() {
   // NEXT_PUBLIC_PLAUSIBLE_DOMAIN gegated; war SRC (Script lädt) ohne DOMAIN
   // gesetzt, blieb der Origin leer → CSP-Verstoß (INFETCH-217).
   const plausibleOrigin = safeOrigin(process.env.NEXT_PUBLIC_PLAUSIBLE_SRC);
+  // app.infetch.de — needed when pages are served from infetch.de and RSC fetches
+  // cross-origin to app.infetch.de after Coolify's redirect.
+  const appOrigin = safeOrigin(process.env.NEXT_PUBLIC_APP_URL);
 
-  const connectSrc = ["'self'", supabaseOrigin, supabaseWs, sentryOrigin, plausibleOrigin]
+  const connectSrc = ["'self'", supabaseOrigin, supabaseWs, sentryOrigin, plausibleOrigin, appOrigin]
     .filter(Boolean)
     .join(" ");
   const scriptSrc = ["'self'", "'unsafe-inline'", plausibleOrigin]
