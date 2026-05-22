@@ -447,13 +447,14 @@ export function MailboxConnectContent({
       {showAdv && (
         <div className="rounded border border-line/60 bg-surface p-4 space-y-4">
           {/*
-            Port + SSL-Checkbox sind im Onboarding bei Custom-Domain
-            ausgeblendet — IMAP=993/SSL und SMTP=587/STARTTLS sind die
-            gängigen Standards bei jedem ernstzunehmenden Hoster.
-            Power-User können das im Settings-Mode jederzeit anpassen.
+            Port + TLS-Modus bei Custom-Domain ausgeblendet (Onboarding UND
+            Settings) — IMAP=993/SSL und SMTP=587/STARTTLS sind die gängigen
+            Standards bei jedem ernstzunehmenden Hoster. Bei erkanntem Provider
+            liefert das Preset die Werte; gespeicherte Custom-Ports bleiben über
+            die Hidden-Felder erhalten, auch wenn das Feld nicht angezeigt wird.
            */}
           {(() => {
-            const hidePortSsl = mode === "onboarding" && !provider && !backend;
+            const hidePortSsl = !provider && !backend;
             const oneCol = smtpOnly || imapOnly;
             return (
               <div className={oneCol ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
