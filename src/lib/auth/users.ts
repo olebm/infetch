@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
-import { purgeDeadUser } from "@/lib/auth/account-teardown";
+import { purgeDeadUser, NonEmptyOrgPurgeRefused } from "@/lib/auth/account-teardown";
 import type { OrganizationRow, UserRow } from "@/lib/auth/session";
 
 function slugify(input: string): string {
@@ -119,6 +119,43 @@ export async function createUserAndJoinOrg(input: {
 }
 
 /**
+ * Räumt eine soft-gelöschte Leiche aus dem Weg, damit die E-Mail für ein
+ * frisches Konto frei wird. Leere Org → harter Purge (Daten restlos weg).
+ * Nicht-leere Org → purgeDeadUser verweigert (NonEmptyOrgPurgeRefused, Schutz
+ * gegen versehentliche Produktivdaten-Löschung im Login-Pfad); dann wird nur
+ * die E-Mail der Leiche per Tombstone suffixt — Org/Daten bleiben unangetastet
+ * & recoverable. So landet ein frisch authentifizierter User nicht mehr still
+ * im /login-Loop (INFETCH-220).
+ */
+async function clearDeadLeiche(deadUserId: string): Promise<void> {
+  try {
+    await purgeDeadUser(deadUserId);
+  } catch (err) {
+    if (err instanceof NonEmptyOrgPurgeRefused) {
+      await tombstoneUserEmail(deadUserId);
+    } else {
+      throw err;
+    }
+  }
+}
+
+/**
+ * Suffixt die E-Mail einer soft-gelöschten Leiche, um die users_email_key-
+ * UNIQUE (deckt auch Leichen ab) für einen frischen INSERT freizugeben. Ändert
+ * NUR die E-Mail der toten Zeile; Org, Mitgliedschaften und Daten bleiben.
+ */
+async function tombstoneUserEmail(deadUserId: string): Promise<void> {
+  const rows = await sql<{ email: string }[]>`SELECT email FROM users WHERE id = ${deadUserId}`;
+  const current = rows[0]?.email;
+  if (!current) return;
+  const at = current.lastIndexOf("@");
+  const local = at >= 0 ? current.slice(0, at) : current;
+  const domain = at >= 0 ? current.slice(at + 1) : "tombstone.local";
+  const freed = `${local}+deleted-${deadUserId}@${domain}`.slice(0, 320);
+  await sql`UPDATE users SET email = ${freed} WHERE id = ${deadUserId} AND deleted_at IS NOT NULL`;
+}
+
+/**
  * Stellt sicher, dass ein Postgres-Profil für den authentifizierten
  * Supabase-User existiert. Wird vom Magic-Link-Callback UND vom
  * OTP-Code-Login aufgerufen — beide Pfade müssen den Bridge-User anlegen,
@@ -181,8 +218,9 @@ export async function ensureUserProvisioned(supabaseUser: {
     // Lebende Zeile → bereits provisioniert.
     if (existing.deletedAt === null) return false;
     // Soft-gelöschte Alt-Leiche (alter Löschpfad). Policy: gelöscht = weg,
-    // danach frisches Konto. Tote Daten restlos hart wegräumen.
-    await purgeDeadUser(existing.id);
+    // danach frisches Konto. Leere Org → hart wegräumen; nicht-leere Org →
+    // E-Mail-Tombstone statt stillem Loop (INFETCH-220, s. clearDeadLeiche).
+    await clearDeadLeiche(existing.id);
   }
 
   // Self-healing: selbst wenn lookup eine Leiche verfehlt (Race, Edge) darf
@@ -194,7 +232,7 @@ export async function ensureUserProvisioned(supabaseUser: {
     if ((err as { code?: string }).code !== "23505") throw err;
     const again = await lookup();
     if (again?.deletedAt != null) {
-      await purgeDeadUser(again.id);
+      await clearDeadLeiche(again.id);
       await provisionFresh();
     } else if (again) {
       return false; // zwischenzeitlich lebend angelegt → bereits provisioniert
