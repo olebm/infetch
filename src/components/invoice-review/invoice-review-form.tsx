@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { FormField, Input, Select } from "@/components/ui/form-field";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { VendorSuggestions } from "@/components/invoice-review/vendor-suggestions";
+import { IgnoreOptionsDialog } from "@/components/invoice-review/ignore-options-dialog";
 // PERFORMANCE (INFETCH-97): pdfjs-dist (~2–3 MB) nur laden wenn PDF-Tab aktiv.
 import dynamic from "next/dynamic";
 const PdfViewer = dynamic(
@@ -123,6 +124,7 @@ type Invoice = {
   updatedAt: string;
   vendorName: string | null;
   vendorDomain: string | null;
+  senderAddress: string | null;
   duplicateVendorName: string | null;
   duplicateInvoiceNumber: string | null;
   files: Array<{
@@ -158,6 +160,8 @@ function ConfirmPanel({
   exportTargets,
   isPending,
   onEdit,
+  onIgnoreClick,
+  ignoreSubmitRef,
 }: {
   invoice: Invoice;
   vendors: Array<{ id: number; name: string }>;
@@ -173,6 +177,8 @@ function ConfirmPanel({
   }> : never;
   isPending: boolean;
   onEdit: () => void;
+  onIgnoreClick: () => void;
+  ignoreSubmitRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <>
@@ -276,16 +282,23 @@ function ConfirmPanel({
             Schon vorhanden
           </Button>
           <Button
-            type="submit"
-            name="intent"
-            value="mark_ignored"
+            type="button"
             disabled={isPending}
             variant="ghost"
             className="flex-1 text-xs text-muted"
             title="Brauch ich nicht weiter"
+            onClick={onIgnoreClick}
           >
             Ignorieren
           </Button>
+          <button
+            ref={ignoreSubmitRef}
+            type="submit"
+            name="intent"
+            value="mark_ignored"
+            style={{ display: "none" }}
+            aria-hidden
+          />
         </div>
       </div>
 
@@ -327,6 +340,8 @@ function EditPanel({
   extraction,
   isPending,
   onClose,
+  onIgnoreClick,
+  ignoreSubmitRef,
 }: {
   invoice: Invoice;
   vendors: Array<{ id: number; name: string }>;
@@ -344,6 +359,8 @@ function EditPanel({
   extraction: ExtractionOutput;
   isPending: boolean;
   onClose: () => void;
+  onIgnoreClick: () => void;
+  ignoreSubmitRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   const [vendorId, setVendorId] = useState<string>(invoice.vendorId ? String(invoice.vendorId) : "");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -582,15 +599,22 @@ function EditPanel({
             Schließen
           </button>
           <Button
-            type="submit"
-            name="intent"
-            value="mark_ignored"
+            type="button"
             disabled={isPending}
             variant="ghost"
             className="flex-1 text-muted text-xs"
+            onClick={onIgnoreClick}
           >
             Ignorieren
           </Button>
+          <button
+            ref={ignoreSubmitRef}
+            type="submit"
+            name="intent"
+            value="mark_ignored"
+            style={{ display: "none" }}
+            aria-hidden
+          />
         </div>
       </div>
 
@@ -650,6 +674,8 @@ export function InvoiceReviewForm({
   const router = useRouter();
   const hasRefreshed = useRef(false);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const ignoreSubmitRef = useRef<HTMLButtonElement | null>(null);
+  const [ignoreDialogOpen, setIgnoreDialogOpen] = useState(false);
 
   // Start in confirm mode; switch to edit if AI confidence is low or extraction failed
   const lowConfidence = invoice.confidence !== null && invoice.confidence < 0.8;
@@ -814,6 +840,8 @@ export function InvoiceReviewForm({
                   duplicateCandidates={duplicateCandidates}
                   isPending={isPending}
                   onEdit={() => setMode("edit")}
+                  onIgnoreClick={() => setIgnoreDialogOpen(true)}
+                  ignoreSubmitRef={ignoreSubmitRef}
                 />
               ) : (
                 <EditPanel
@@ -825,12 +853,23 @@ export function InvoiceReviewForm({
                   extraction={extraction}
                   isPending={isPending}
                   onClose={() => setMode("confirm")}
+                  onIgnoreClick={() => setIgnoreDialogOpen(true)}
+                  ignoreSubmitRef={ignoreSubmitRef}
                 />
               )}
             </form>
           </Card>
         </div>
       </div>
+
+      <IgnoreOptionsDialog
+        open={ignoreDialogOpen}
+        onClose={() => setIgnoreDialogOpen(false)}
+        onConfirmOnce={() => ignoreSubmitRef.current?.click()}
+        senderAddress={invoice.senderAddress}
+        vendorDomain={invoice.vendorDomain}
+        vendorName={invoice.vendorName}
+      />
     </div>
   );
 }

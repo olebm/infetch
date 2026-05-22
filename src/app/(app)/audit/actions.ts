@@ -332,3 +332,31 @@ export async function markSenderDomainPrivateAction(domain: string): Promise<voi
   revalidatePath("/audit");
   revalidatePath("/senders");
 }
+
+export async function blockInvoiceSenderAction(fromAddress: string): Promise<void> {
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
+  const normalized = fromAddress.toLowerCase().trim();
+  const senders = await sql<Array<{ id: number }>>`
+    SELECT id FROM discovered_senders
+    WHERE lower(from_address) = ${normalized}
+      AND organization_id IS NOT DISTINCT FROM ${orgId}
+  `;
+  for (const s of senders) {
+    await blockSender(s.id, "Privat", orgId);
+  }
+  await sql`
+    UPDATE invoices SET is_private = TRUE
+    WHERE organization_id IS NOT DISTINCT FROM ${orgId}
+      AND status NOT IN ('exported', 'ignored')
+      AND id IN (
+        SELECT i.id FROM invoices i
+        JOIN invoice_files if2 ON if2.invoice_id = i.id AND if2.source_type = 'mail'
+        JOIN mail_messages mm ON mm.id = (CASE WHEN if2.source_ref_id ~ '^[0-9]+$' THEN if2.source_ref_id::bigint END)
+        WHERE lower(mm.from_address) = ${normalized}
+          AND i.organization_id IS NOT DISTINCT FROM ${orgId}
+      )
+  `;
+  revalidatePath("/audit");
+  revalidatePath("/senders");
+}

@@ -594,6 +594,7 @@ export async function getInvoiceDetail(invoiceId: number, organizationId: string
     updatedAt: string;
     vendorName: string | null;
     vendorDomain: string | null;
+    senderAddress: string | null;
     duplicateVendorName: string | null;
     duplicateInvoiceNumber: string | null;
   }>>`
@@ -635,6 +636,13 @@ export async function getInvoiceDetail(invoiceId: number, organizationId: string
              ORDER BY if2.id DESC LIMIT 1)
         )
       ) AS "vendorDomain",
+      (
+        SELECT mm.from_address
+        FROM invoice_files if2
+        JOIN mail_messages mm ON mm.id = (CASE WHEN if2.source_ref_id ~ '^[0-9]+$' THEN if2.source_ref_id::bigint END)
+        WHERE if2.invoice_id = invoices.id AND if2.source_type = 'mail' AND mm.from_address IS NOT NULL
+        ORDER BY if2.id DESC LIMIT 1
+      ) AS "senderAddress",
       duplicate_vendors.name AS "duplicateVendorName",
       duplicate_invoices.invoice_number AS "duplicateInvoiceNumber"
     FROM invoices
