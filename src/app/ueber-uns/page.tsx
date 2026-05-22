@@ -3,6 +3,18 @@ import { PublicShell } from "@/components/layout/public-shell";
 
 export const metadata: Metadata = {
   title: "Über uns — Infetch",
+  description:
+    "Infetch wurde von Ole Beekmann in Hamburg gegründet — eine Webanwendung, die Eingangsrechnungen automatisch aus E-Mail-Postfächern erkennt und weiterleitet.",
+  alternates: { canonical: "https://infetch.de/ueber-uns" },
+};
+
+const personSchema = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: "Ole Beekmann",
+  jobTitle: "Gründer",
+  worksFor: { "@type": "Organization", name: "Infetch", url: "https://infetch.de" },
+  address: { "@type": "PostalAddress", addressLocality: "Hamburg", addressCountry: "DE" },
 };
 
 // BreadcrumbList (INFETCH-134): Hilft Google & KI-Suchsystemen, die
@@ -29,6 +41,10 @@ const breadcrumbSchema = {
 export default function UeberUnsPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}

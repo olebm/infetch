@@ -6,7 +6,7 @@ import { POSTS } from "@/app/blog/posts";
 // Crawl-Budget, entwertete Änderungssignale). Datum nur erhöhen, wenn sich
 // der jeweilige Seiteninhalt tatsächlich ändert.
 const LEGAL_LAST_MODIFIED = new Date("2026-05-15");
-const HOME_LAST_MODIFIED = new Date("2026-05-15");
+const HOME_LAST_MODIFIED = new Date("2026-05-22");
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://infetch.de";

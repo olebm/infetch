@@ -82,6 +82,7 @@ const appSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: "Infetch",
+  url: "https://infetch.de",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   offers: [
@@ -110,6 +111,13 @@ const organizationSchema = {
   url: "https://infetch.de",
   logo: "https://infetch.de/images/brand/infetch-logo.png",
   email: "hallo@infetch.de",
+  description:
+    "Infetch ist eine Webanwendung, die Eingangsrechnungen automatisch aus E-Mail-Postfächern erkennt und an Buchhaltungstools oder Steuerberater weiterleitet. DSGVO-konform, EU-Server, KI-basierte Belegerkennung.",
+  founder: {
+    "@type": "Person",
+    name: "Ole Beekmann",
+    jobTitle: "Gründer",
+  },
   address: {
     "@type": "PostalAddress",
     addressLocality: "Hamburg",
@@ -124,6 +132,8 @@ const websiteSchema = {
   name: "Infetch",
   url: "https://infetch.de",
   inLanguage: "de-DE",
+  description:
+    "Rechnungen automatisch aus dem Postfach erkennen und an die Buchhaltung weiterleiten — DSGVO-konform, EU-Server, Setup in 4 Minuten.",
 };
 
 export default function LandingLayout({ children }: { children: React.ReactNode }) {

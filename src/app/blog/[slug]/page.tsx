@@ -24,6 +24,9 @@ export async function generateMetadata({
       description: post.description,
       type: "article",
       url: `https://infetch.de/blog/${post.slug}`,
+      publishedTime: post.date,
+      modifiedTime: post.date,
+      authors: ["Infetch"],
     },
   };
 }
@@ -36,6 +39,16 @@ export default async function BlogPostPage({
   const { slug } = await params;
   const post = getPost(slug);
   if (!post) notFound();
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Startseite", item: "https://infetch.de" },
+      { "@type": "ListItem", position: 2, name: "Blog", item: "https://infetch.de/blog" },
+      { "@type": "ListItem", position: 3, name: post.title, item: `https://infetch.de/blog/${post.slug}` },
+    ],
+  };
 
   const articleSchema = {
     "@context": "https://schema.org",
@@ -59,6 +72,10 @@ export default async function BlogPostPage({
 
   return (
     <PublicShell title={post.title}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
