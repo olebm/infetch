@@ -54,6 +54,7 @@ const APP_PUBLIC_PREFIXES = [
   "/api/test", // Test-Endpunkte (nur aktiv wenn ENABLE_TEST_LOGIN=true in der Route)
   "/api/csp-report", // CSP-Telemetrie (Browser sendet ohne Auth/Cookies)
   "/api/health", // Liveness für Coolify/Traefik — kein Auth, sonst 307 statt 200
+  "/api/sentry-webhook", // Glitchtip Webhook — externer Dienst, kein Auth möglich
 ];
 
 function isPublicAppPath(pathname: string): boolean {
