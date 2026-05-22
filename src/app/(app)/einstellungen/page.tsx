@@ -1,5 +1,5 @@
 import { appConfig } from "@/lib/config/env";
-import { getPrimaryMailAccount, getSecondaryMailAccount, listIntegrationTargets } from "@/lib/db/queries";
+import { getPrimaryMailAccount, getSecondaryMailAccount, getPrimarySmtpAccount, getSecondarySmtpAccount, listIntegrationTargets } from "@/lib/db/queries";
 import {
   hasConfiguredCredential,
   hasStoredCredentialRef,
@@ -19,7 +19,6 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { IntegrationsSection, type IntegrationStatus } from "@/components/einstellungen/integrations-section";
-import { RetroactiveScanCard } from "@/components/einstellungen/retroactive-scan-card";
 import { ScanHistoryCard } from "@/components/einstellungen/scan-history-card";
 import { getOrgTier } from "@/lib/tier";
 
@@ -42,6 +41,8 @@ export default async function SetupPage() {
     secondaryHasRef,
     integrationTargets,
     tier,
+    smtpPrimary,
+    smtpSecondary,
   ] = await Promise.all([
     getExportTargets(auth?.organization?.id ?? null),
     readJsonSetting<number>("auto_approve_confidence", appConfig.features.autoApprovalConfidenceThreshold),
@@ -54,6 +55,8 @@ export default async function SetupPage() {
     hasStoredCredentialRef("imap", "secondary", auth?.organization?.id),
     listIntegrationTargets(auth?.organization?.id ?? null),
     getOrgTier(auth?.organization?.id ?? null),
+    getPrimarySmtpAccount(),
+    getSecondarySmtpAccount(),
   ]);
 
   const isPro = tier !== "free";
@@ -73,12 +76,28 @@ export default async function SetupPage() {
       isConnected: primaryHasCredential || primaryHasRef,
       email: imapPrimary?.username ?? null,
       providerDomain: imapPrimary?.username ? (getProviderFromEmail(imapPrimary.username)?.domain ?? null) : null,
+      servers: imapPrimary || smtpPrimary ? {
+        imapHost: imapPrimary?.host,
+        imapPort: imapPrimary?.port,
+        imapSecure: imapPrimary ? Boolean(imapPrimary.secure) : undefined,
+        smtpHost: smtpPrimary?.host,
+        smtpPort: smtpPrimary?.port,
+        smtpSecure: smtpPrimary?.secure,
+      } : undefined,
     },
     {
       key: "secondary",
       isConnected: secondaryHasCredential || secondaryHasRef,
       email: imapSecondary?.username ?? null,
       providerDomain: imapSecondary?.username ? (getProviderFromEmail(imapSecondary.username)?.domain ?? null) : null,
+      servers: imapSecondary || smtpSecondary ? {
+        imapHost: imapSecondary?.host,
+        imapPort: imapSecondary?.port,
+        imapSecure: imapSecondary ? Boolean(imapSecondary.secure) : undefined,
+        smtpHost: smtpSecondary?.host,
+        smtpPort: smtpSecondary?.port,
+        smtpSecure: smtpSecondary?.secure,
+      } : undefined,
     },
   ];
 
@@ -163,19 +182,11 @@ export default async function SetupPage() {
     <div className="space-y-4">
       <Card padding="none">
         <div className="p-5">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium text-ink">Postfächer (IMAP)</div>
-              <div className="text-xs text-muted">
-                Wähle deinen Anbieter — wir konfigurieren IMAP und SMTP automatisch.
-              </div>
+          <div className="mb-4">
+            <div className="text-sm font-medium text-ink">Postfächer (IMAP)</div>
+            <div className="text-xs text-muted">
+              Wähle deinen Anbieter — wir konfigurieren IMAP und SMTP automatisch.
             </div>
-            <a
-              href="/onboarding?mode=edit"
-              className="shrink-0 text-xs text-ink underline decoration-line underline-offset-4 hover:decoration-ink"
-            >
-              im Wizard bearbeiten →
-            </a>
           </div>
           <MailboxConnectCard slots={mailboxSlots} isPro={isPro} />
         </div>
@@ -217,13 +228,6 @@ export default async function SetupPage() {
       </Card>
 
       <Card padding="lg">
-        <div className="text-sm font-medium text-ink">Scan-Intervall</div>
-        <div className="mt-0.5 text-xs text-muted">
-          Infetch holt automatisch jede Stunde neue Mails ab.
-        </div>
-      </Card>
-
-      <Card padding="lg">
         <div className="text-sm font-medium text-ink">KI-Backend</div>
         <div className="mb-4 mt-0.5 text-xs text-muted">
           Inklusive. Kein eigener Key nötig.
@@ -247,10 +251,6 @@ export default async function SetupPage() {
             </div>
           </div>
         </div>
-      </Card>
-
-      <Card padding="lg">
-        <RetroactiveScanCard isPro={isPro} />
       </Card>
 
       <ScanHistoryCard />

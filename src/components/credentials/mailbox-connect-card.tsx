@@ -20,12 +20,25 @@ export interface MailboxSlot {
   isConnected: boolean;
   email: string | null;
   providerDomain: string | null;
+  /** Gespeicherte Server-Konfig zum Vorausfüllen beim „Ändern" (v. a. Custom-Domains). */
+  servers?: {
+    imapHost?: string;
+    imapPort?: number;
+    imapSecure?: boolean;
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpSecure?: boolean;
+  };
 }
 
 interface MailboxConnectCardProps {
   slots: MailboxSlot[];
   isPro: boolean;
 }
+
+// "Weiteres Postfach verbinden" (sekundäres Postfach) ist ein Pro-Feature und
+// vorerst ausgeblendet — Code bleibt erhalten; auf true setzen zum Reaktivieren.
+const SHOW_SECONDARY_MAILBOX = false;
 
 export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
   const [openSlot, setOpenSlot] = useState<"primary" | "secondary" | null>(null);
@@ -112,8 +125,8 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
             </button>
           </div>
         ) : (
-          /* Show "add secondary" only once primary is connected */
-          primary.isConnected && (
+          /* Show "add secondary" only once primary is connected (vorerst ausgeblendet) */
+          SHOW_SECONDARY_MAILBOX && primary.isConnected && (
             isPro ? (
               <button
                 type="button"
@@ -158,6 +171,7 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
             mode="settings"
             slot={openSlot}
             initialEmail={slots.find((s) => s.key === openSlot)?.email ?? undefined}
+            initialServers={slots.find((s) => s.key === openSlot)?.servers}
             onSuccess={() => setOpenSlot(null)}
           />
         )}

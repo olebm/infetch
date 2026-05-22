@@ -112,9 +112,9 @@ export type SubjectVars = {
 };
 
 export const SUBJECT_VARIABLES: { token: string; label: string; sample: string }[] = [
-  { token: "{{vendor}}", label: "Absender", sample: "Telekom" },
-  { token: "{{date}}", label: "Rechnungsdatum", sample: "2026-05-12" },
-  { token: "{{amount}}", label: "Betrag", sample: "149,00 EUR" },
+  { token: "{{vendor}}", label: "Absender", sample: "Anbieter" },
+  { token: "{{date}}", label: "Rechnungsdatum", sample: "2026-02-01" },
+  { token: "{{amount}}", label: "Betrag", sample: "99,00 EUR" },
 ];
 
 export const DEFAULT_SUBJECT_TEMPLATE = "Rechnung · {{vendor}} · {{date}} · {{amount}}";

@@ -401,6 +401,11 @@ export function MailboxConnectContent({
           enterKeyHint="done"
           className="h-9 w-full rounded border border-line bg-surface px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
+        {mode === "settings" && initialEmail && (
+          <p className="mt-1 text-[11px] text-muted">
+            Dein gespeichertes Passwort wird aus Sicherheitsgründen nicht angezeigt — zum Speichern bitte erneut eingeben.
+          </p>
+        )}
       </div>
 
       {/* Server-Details accordion */}
