@@ -8,7 +8,6 @@ import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
 import { saveCredentialSecret, hasStoredCredentialRef } from "@/lib/secrets/credential-store";
 import { verifyMistralConnection } from "@/ai/mistral-client";
 import { verifyImapAccountConnection } from "@/mail/imap-client";
-import { verifySmtpAccountConnection } from "@/mail/smtp-client";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
 import { saveExportTarget } from "@/exports/export-pipeline";
 import { isValidEmail } from "@/lib/validation/email";
@@ -34,6 +33,7 @@ import {
 import { cancelSubscriptionImmediately } from "@/lib/stripe";
 import { BUCKETS, deleteFromStorage } from "@/lib/supabase/storage";
 import { unsafeGlobalSql } from "@/lib/db/unsafe-global";
+import type { ScopedSql } from "@/lib/db/scoped-query";
 
 export type CredentialFormState = {
   status: "idle" | "success" | "error";
@@ -165,57 +165,128 @@ export async function saveImapCredentialAction(
   }
 }
 
-export async function saveSmtpCredentialAction(
-  _previousState: CredentialFormState,
-  formData: FormData,
-): Promise<CredentialFormState> {
-  void _previousState;
 
-  const auth = await requireCurrentAuth();
+type PersistOutcome = { ok: true } | { ok: false; message: string };
 
-  try {
-    const slotParam = String(formData.get("smtpSlot") || "primary").trim();
-    const slot = SMTP_ACCOUNT_SLOTS.find((s) => s.ownerId === slotParam);
-    if (!slot) {
-      return { status: "error", message: "Ungültiges SMTP-Konto." };
-    }
+/**
+ * Persistiert ein IMAP-Konto (credential_refs + mail_accounts) für einen Slot.
+ * Tier-Gate (INFETCH-156) greift nur beim NEUEN Postfach-INSERT.
+ */
+async function persistImapAccount(
+  scopedSql: ScopedSql,
+  organizationId: string | null,
+  mailSlot: "primary" | "secondary",
+  args: { email: string; password: string; imapHost: string; imapPort: number; imapSecure: boolean },
+): Promise<PersistOutcome> {
+  const slotLabel = mailSlot === "secondary" ? "Secondary IMAP" : "Primary IMAP";
+  const slotPwd   = mailSlot === "secondary" ? "Secondary IMAP Password" : "Primary IMAP Password";
+  const { email, password, imapHost, imapPort, imapSecure } = args;
 
-    const host = String(formData.get("smtpHost") || "").trim();
-    const username = String(formData.get("smtpUser") || "").trim();
-    const fromAddress = String(formData.get("smtpFromAddress") || "").trim();
-    const password = String(formData.get("smtpPassword") || "");
-    const port = Number(formData.get("smtpPort") || 587);
-    const secure = formData.get("smtpSecure") === "on";
-
-    if (!host || !username || !fromAddress || !Number.isInteger(port) || port <= 0 || port > 65535) {
-      return { status: "error", message: "Bitte Host, Port, User und Absenderadresse vollständig ausfüllen." };
-    }
-
-    const organizationId = auth.organization?.id ?? null;
-
-    if (password.trim()) {
-      await saveCredentialSecret({
-        scope: "smtp",
-        ownerId: slot.ownerId,
-        organizationId,
-        label: `${slot.label} Password`,
-        secret: password,
-      });
-    } else if (!(await hasStoredCredentialRef("smtp", slot.ownerId, organizationId))) {
-      return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
-    }
-
-    await saveStoredSmtpAccount(slot.ownerId, { host, port, secure, username, fromAddress });
-
-    revalidatePath("/");
-    revalidatePath("/einstellungen");
-    return {
-      status: "success",
-      message: `${slot.label}: Zugang gespeichert. Das Passwort liegt im Secret Store.`,
-    };
-  } catch (error) {
-    return { status: "error", message: sanitizeCredentialError(error) };
+  let imapCredRefId: number | null = null;
+  if (password.trim()) {
+    const secretRef = await saveCredentialSecret({
+      scope: "imap",
+      ownerId: mailSlot,
+      organizationId,
+      label: slotPwd,
+      secret: password,
+    });
+    const credRows = await scopedSql<{ id: number }[]>`
+      SELECT id FROM credential_refs WHERE secret_ref = ${secretRef}
+    `;
+    imapCredRefId = credRows[0]?.id ?? null;
+  } else if (!(await hasStoredCredentialRef("imap", mailSlot, organizationId))) {
+    return { ok: false, message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
+  } else {
+    // SECURITY: Lookup scoped auf Organisation
+    const existingRows = await scopedSql<{ credential_ref_id: number | null }[]>`
+      SELECT credential_ref_id FROM mail_accounts
+      WHERE label = ${slotLabel}
+        AND (organization_id = ${organizationId}
+             OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+      LIMIT 1
+    `;
+    imapCredRefId = existingRows[0]?.credential_ref_id ?? null;
   }
+
+  // SECURITY: Lookup scoped auf Organisation
+  const existingImapRows = await scopedSql<{ id: number }[]>`
+    SELECT id FROM mail_accounts
+    WHERE label = ${slotLabel}
+      AND (organization_id = ${organizationId}
+           OR (${organizationId}::text IS NULL AND organization_id IS NULL))
+    LIMIT 1
+  `;
+  const existingImap = existingImapRows[0];
+
+  if (existingImap) {
+    await scopedSql`
+      UPDATE mail_accounts
+      SET host = ${imapHost}, port = ${imapPort}, secure = ${imapSecure}, username = ${email},
+          credential_ref_id = ${imapCredRefId},
+          status = 'configured', organization_id = ${organizationId},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${existingImap.id}
+    `;
+  } else {
+    // Tier-Gate (INFETCH-156): maxMailAccounts vor neuem INSERT prüfen.
+    // Updates bestehender Slots sind unbegrenzt erlaubt — nur neue Einträge
+    // zählen gegen das Kontingent.
+    const tier = await getOrgTier(organizationId);
+    const { maxMailAccounts } = getLimits(tier);
+    if (Number.isFinite(maxMailAccounts)) {
+      const countRows = await scopedSql<{ count: string }[]>`
+        SELECT COUNT(*) AS count FROM mail_accounts WHERE organization_id = ${organizationId}
+      `;
+      const currentCount = Number(countRows[0]?.count ?? 0);
+      if (currentCount >= maxMailAccounts) {
+        return {
+          ok: false,
+          message: `Dein Plan erlaubt maximal ${maxMailAccounts} Postfach${maxMailAccounts !== 1 ? "fächer" : ""}. Bitte auf Pro upgraden für mehr Postfächer.`,
+        };
+      }
+    }
+    await scopedSql`
+      INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
+      VALUES (${slotLabel}, ${imapHost}, ${imapPort}, ${imapSecure}, ${email}, ${imapCredRefId}, 'configured', ${organizationId})
+    `;
+  }
+  return { ok: true };
+}
+
+/**
+ * Persistiert ein SMTP-Absende-Konto (credential + smtp_accounts-Setting) für
+ * einen Slot. KEIN Tier-Gate — Senden ist Kern-Feature für alle Tarife.
+ */
+async function persistSmtpAccount(
+  organizationId: string | null,
+  mailSlot: "primary" | "secondary",
+  args: { smtpEmail: string; smtpPassword: string; smtpHost: string; smtpPort: number; smtpSecure: boolean },
+): Promise<PersistOutcome> {
+  const slotSmtpPwd = mailSlot === "secondary" ? "Secondary SMTP Password" : "Primary SMTP Password";
+  const { smtpEmail, smtpPassword, smtpHost, smtpPort, smtpSecure } = args;
+
+  if (smtpPassword.trim()) {
+    await saveCredentialSecret({
+      scope: "smtp",
+      ownerId: mailSlot,
+      organizationId,
+      label: slotSmtpPwd,
+      secret: smtpPassword,
+    });
+  } else if (!(await hasStoredCredentialRef("smtp", mailSlot, organizationId))) {
+    return { ok: false, message: "Bitte ein Passwort eingeben (noch kein SMTP-Passwort gespeichert)." };
+  }
+
+  await saveStoredSmtpAccount(
+    mailSlot,
+    { host: smtpHost, port: smtpPort, secure: smtpSecure, username: smtpEmail, fromAddress: smtpEmail },
+  );
+  return { ok: true };
+}
+
+function parseMailSlot(formData: FormData): "primary" | "secondary" {
+  return String(formData.get("mailSlot") || "primary") === "secondary" ? "secondary" : "primary";
 }
 
 /**
@@ -232,11 +303,7 @@ export async function saveMailboxCredentialsAction(
   const scopedSql = auth.scopedSql!;
 
   try {
-    const mailSlot   = (String(formData.get("mailSlot") || "primary") === "secondary" ? "secondary" : "primary") as "primary" | "secondary";
-    const slotLabel  = mailSlot === "secondary" ? "Secondary IMAP" : "Primary IMAP";
-    const slotPwd    = mailSlot === "secondary" ? "Secondary IMAP Password" : "Primary IMAP Password";
-    const slotSmtpPwd = mailSlot === "secondary" ? "Secondary SMTP Password" : "Primary SMTP Password";
-
+    const mailSlot = parseMailSlot(formData);
     const email    = String(formData.get("mailEmail")    || "").trim();
     const password = String(formData.get("mailPassword") || "");
     // Separate SMTP credentials (optional — fall back to IMAP credentials)
@@ -256,98 +323,86 @@ export async function saveMailboxCredentialsAction(
 
     const organizationId = auth.organization?.id ?? null;
 
-    // ── 1) IMAP credential + mail_account ─────────────────────────────────────
-    let imapCredRefId: number | null = null;
-    if (password.trim()) {
-      const secretRef = await saveCredentialSecret({
-        scope: "imap",
-        ownerId: mailSlot,
-        organizationId,
-        label: slotPwd,
-        secret: password,
-      });
-      const credRows = await scopedSql<{ id: number }[]>`
-        SELECT id FROM credential_refs WHERE secret_ref = ${secretRef}
-      `;
-      imapCredRefId = credRows[0]?.id ?? null;
-    } else if (!(await hasStoredCredentialRef("imap", mailSlot, organizationId))) {
-      return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
-    } else {
-      // SECURITY: Lookup scoped auf Organisation
-      const existingRows = await scopedSql<{ credential_ref_id: number | null }[]>`
-        SELECT credential_ref_id FROM mail_accounts
-        WHERE label = ${slotLabel}
-          AND (organization_id = ${organizationId}
-               OR (${organizationId}::text IS NULL AND organization_id IS NULL))
-        LIMIT 1
-      `;
-      imapCredRefId = existingRows[0]?.credential_ref_id ?? null;
-    }
+    const imapResult = await persistImapAccount(scopedSql, organizationId, mailSlot, { email, password, imapHost, imapPort, imapSecure });
+    if (!imapResult.ok) return { status: "error", message: imapResult.message };
 
-    // SECURITY: Lookup scoped auf Organisation
-    const existingImapRows = await scopedSql<{ id: number }[]>`
-      SELECT id FROM mail_accounts
-      WHERE label = ${slotLabel}
-        AND (organization_id = ${organizationId}
-             OR (${organizationId}::text IS NULL AND organization_id IS NULL))
-      LIMIT 1
-    `;
-    const existingImap = existingImapRows[0];
-
-    if (existingImap) {
-      await scopedSql`
-        UPDATE mail_accounts
-        SET host = ${imapHost}, port = ${imapPort}, secure = ${imapSecure}, username = ${email},
-            credential_ref_id = ${imapCredRefId},
-            status = 'configured', organization_id = ${organizationId},
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${existingImap.id}
-      `;
-    } else {
-      // Tier-Gate (INFETCH-156): maxMailAccounts vor neuem INSERT prüfen.
-      // Updates bestehender Slots sind unbegrenzt erlaubt — nur neue Einträge
-      // zählen gegen das Kontingent.
-      const tier = await getOrgTier(organizationId);
-      const { maxMailAccounts } = getLimits(tier);
-      if (Number.isFinite(maxMailAccounts)) {
-        const countRows = await scopedSql<{ count: string }[]>`
-          SELECT COUNT(*) AS count FROM mail_accounts WHERE organization_id = ${organizationId}
-        `;
-        const currentCount = Number(countRows[0]?.count ?? 0);
-        if (currentCount >= maxMailAccounts) {
-          return {
-            status: "error",
-            message: `Dein Plan erlaubt maximal ${maxMailAccounts} Postfach${maxMailAccounts !== 1 ? "fächer" : ""}. Bitte auf Pro upgraden für mehr Postfächer.`,
-          };
-        }
-      }
-      await scopedSql`
-        INSERT INTO mail_accounts (label, host, port, secure, username, credential_ref_id, status, organization_id)
-        VALUES (${slotLabel}, ${imapHost}, ${imapPort}, ${imapSecure}, ${email}, ${imapCredRefId}, 'configured', ${organizationId})
-      `;
-    }
-
-    // ── 2) SMTP credential + smtp_account (may use separate account from IMAP) ─
-    if (smtpPassword.trim()) {
-      await saveCredentialSecret({
-        scope: "smtp",
-        ownerId: mailSlot,
-        organizationId,
-        label: slotSmtpPwd,
-        secret: smtpPassword,
-      });
-    } else if (!(await hasStoredCredentialRef("smtp", mailSlot, organizationId))) {
-      return { status: "error", message: "Bitte ein Passwort eingeben (noch kein SMTP-Passwort gespeichert)." };
-    }
-
-    await saveStoredSmtpAccount(
-      mailSlot,
-      { host: smtpHost, port: smtpPort, secure: smtpSecure, username: smtpEmail, fromAddress: smtpEmail },
-    );
+    const smtpResult = await persistSmtpAccount(organizationId, mailSlot, { smtpEmail, smtpPassword, smtpHost, smtpPort, smtpSecure });
+    if (!smtpResult.ok) return { status: "error", message: smtpResult.message };
 
     revalidatePath("/");
     revalidatePath("/einstellungen");
     return { status: "success", message: "Postfach verbunden." };
+  } catch (error) {
+    return { status: "error", message: sanitizeCredentialError(error) };
+  }
+}
+
+/**
+ * IMAP-only: speichert nur das Empfangs-Postfach (Postfächer-Tab).
+ */
+export async function saveImapMailboxAction(
+  _previousState: CredentialFormState,
+  formData: FormData,
+): Promise<CredentialFormState> {
+  void _previousState;
+
+  const auth = await requireCurrentAuth();
+  const scopedSql = auth.scopedSql!;
+
+  try {
+    const mailSlot   = parseMailSlot(formData);
+    const email      = String(formData.get("mailEmail")    || "").trim();
+    const password   = String(formData.get("mailPassword") || "");
+    const imapHost   = String(formData.get("imapHost")  || "").trim();
+    const imapPort   = Number(formData.get("imapPort")  || 993);
+    const imapSecure = String(formData.get("imapSecure") || "true") !== "false";
+
+    if (!email) return { status: "error", message: "Bitte eine E-Mail-Adresse eingeben." };
+    if (!imapHost) return { status: "error", message: "Server-Daten fehlen — bitte einen Anbieter wählen." };
+    if (!Number.isInteger(imapPort) || imapPort <= 0) return { status: "error", message: "Ungültiger IMAP-Port." };
+
+    const organizationId = auth.organization?.id ?? null;
+    const result = await persistImapAccount(scopedSql, organizationId, mailSlot, { email, password, imapHost, imapPort, imapSecure });
+    if (!result.ok) return { status: "error", message: result.message };
+
+    revalidatePath("/");
+    revalidatePath("/einstellungen");
+    return { status: "success", message: "Postfach verbunden." };
+  } catch (error) {
+    return { status: "error", message: sanitizeCredentialError(error) };
+  }
+}
+
+/**
+ * SMTP-only: speichert nur ein Absende-Konto (Buchhaltung-Tab). KEIN Tier-Gate.
+ */
+export async function saveSmtpMailboxAction(
+  _previousState: CredentialFormState,
+  formData: FormData,
+): Promise<CredentialFormState> {
+  void _previousState;
+
+  const auth = await requireCurrentAuth();
+
+  try {
+    const mailSlot     = parseMailSlot(formData);
+    const smtpEmail    = String(formData.get("smtpEmail") || formData.get("mailEmail") || "").trim();
+    const smtpPassword = String(formData.get("smtpPassword") || formData.get("mailPassword") || "");
+    const smtpHost     = String(formData.get("smtpHost")  || "").trim();
+    const smtpPort     = Number(formData.get("smtpPort")  || 587);
+    const smtpSecure   = String(formData.get("smtpSecure") || "false") !== "false";
+
+    if (!smtpEmail) return { status: "error", message: "Bitte eine E-Mail-Adresse eingeben." };
+    if (!smtpHost) return { status: "error", message: "Server-Daten fehlen — bitte einen Anbieter wählen." };
+    if (!Number.isInteger(smtpPort) || smtpPort <= 0) return { status: "error", message: "Ungültiger SMTP-Port." };
+
+    const organizationId = auth.organization?.id ?? null;
+    const result = await persistSmtpAccount(organizationId, mailSlot, { smtpEmail, smtpPassword, smtpHost, smtpPort, smtpSecure });
+    if (!result.ok) return { status: "error", message: result.message };
+
+    revalidatePath("/");
+    revalidatePath("/einstellungen");
+    return { status: "success", message: "Absende-Konto gespeichert." };
   } catch (error) {
     return { status: "error", message: sanitizeCredentialError(error) };
   }
@@ -420,33 +475,6 @@ export async function testImapConnectionAction(
     return {
       status: "success",
       message: `${result.label}: Verbindung erfolgreich (${result.username} @ ${result.host}).`,
-    };
-  } catch (error) {
-    const raw = error instanceof Error ? error.message : String(error);
-    const brief = raw.split("\n")[0].slice(0, 200);
-    return { status: "error", message: brief };
-  }
-}
-
-export async function testSmtpConnectionAction(
-  _previousState: CredentialFormState,
-  formData: FormData,
-): Promise<CredentialFormState> {
-  void _previousState;
-
-  await requireCurrentAuth();
-
-  try {
-    const slotParam = String(formData.get("smtpSlot") || "primary").trim();
-    if (slotParam !== "primary" && slotParam !== "secondary") {
-      return { status: "error", message: "Ungültiges SMTP-Konto." };
-    }
-
-    const result = await verifySmtpAccountConnection(slotParam);
-    revalidatePath("/einstellungen");
-    return {
-      status: "success",
-      message: `${result.label}: Verbindung erfolgreich (${result.username} @ ${result.host}:${result.port}).`,
     };
   } catch (error) {
     const raw = error instanceof Error ? error.message : String(error);

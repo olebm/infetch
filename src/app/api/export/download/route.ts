@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
-import archiver from "archiver";
+import type { Archiver, ArchiverOptions, Format } from "archiver";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const archiver = require("archiver") as (format: Format, options?: ArchiverOptions) => Archiver;
 import { Readable } from "node:stream";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getCurrentAuth } from "@/lib/auth/current";

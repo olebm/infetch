@@ -67,7 +67,7 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
               </div>
               <div className="mt-0.5 flex items-center gap-1 text-xs text-ok">
                 <Check size={11} aria-hidden />
-                Empfang + Versand aktiv · Primäres Postfach
+                Empfang aktiv · Primäres Postfach
               </div>
             </div>
             <button
@@ -113,7 +113,7 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
               </div>
               <div className="mt-0.5 flex items-center gap-1 text-xs text-ok">
                 <Check size={11} aria-hidden />
-                Empfang + Versand aktiv · Sekundäres Postfach
+                Empfang aktiv · Sekundäres Postfach
               </div>
             </div>
             <button
@@ -169,6 +169,7 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
         {openSlot !== null && (
           <MailboxConnectContent
             mode="settings"
+            purpose="imap-only"
             slot={openSlot}
             initialEmail={slots.find((s) => s.key === openSlot)?.email ?? undefined}
             initialServers={slots.find((s) => s.key === openSlot)?.servers}

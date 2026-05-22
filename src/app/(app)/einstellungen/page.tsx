@@ -9,9 +9,9 @@ import { getProviderFromEmail } from "@/lib/mail-providers";
 import { getExportTargets } from "@/exports/export-pipeline";
 import { readJsonSetting } from "@/lib/db/settings-store";
 import { MailboxConnectCard, type MailboxSlot } from "@/components/credentials/mailbox-connect-card";
-import { SmtpAccountForm } from "@/components/credentials/smtp-account-form";
+import { SmtpAccountsSection, type SmtpAccountSlot } from "@/components/einstellungen/smtp-accounts-section";
 import { StatusBadge } from "@/components/status/status-badge";
-import { AddRecipientButton } from "@/components/einstellungen/recipient-modal";
+import { AddRecipientButton, EditRecipientButton } from "@/components/einstellungen/recipient-modal";
 import { clearExportTargetAction } from "@/app/(app)/einstellungen/actions";
 import { ConfidenceSlider } from "@/components/einstellungen/confidence-slider";
 import { SubjectTemplateCard } from "@/components/einstellungen/subject-template-card";
@@ -106,6 +106,30 @@ export default async function SetupPage() {
     },
   ];
 
+  // Absende-Konten (SMTP) — getrennt von IMAP. Primary existiert nach Onboarding
+  // immer (Fallback auf IMAP-Credentials), secondary ist optional.
+  const smtpAccountSlots: SmtpAccountSlot[] = [
+    {
+      slot: "primary",
+      fromAddress: smtpPrimary?.fromAddress ?? null,
+      configured: Boolean(smtpPrimary),
+      providerDomain: smtpPrimary?.fromAddress ? (getProviderFromEmail(smtpPrimary.fromAddress)?.domain ?? null) : null,
+      servers: smtpPrimary ? { smtpHost: smtpPrimary.host, smtpPort: smtpPrimary.port, smtpSecure: smtpPrimary.secure } : undefined,
+    },
+    {
+      slot: "secondary",
+      fromAddress: smtpSecondary?.fromAddress ?? null,
+      configured: Boolean(smtpSecondary) && (smtpSecondaryHasCredential || smtpSecondaryHasRef),
+      providerDomain: smtpSecondary?.fromAddress ? (getProviderFromEmail(smtpSecondary.fromAddress)?.domain ?? null) : null,
+      servers: smtpSecondary ? { smtpHost: smtpSecondary.host, smtpPort: smtpSecondary.port, smtpSecure: smtpSecondary.secure } : undefined,
+    },
+  ];
+
+  // Nur konfigurierte Konten als Zuweisungs-Optionen für Empfänger.
+  const smtpOptions = smtpAccountSlots
+    .filter((s) => s.configured && s.fromAddress)
+    .map((s) => ({ slot: s.slot, fromAddress: s.fromAddress as string }));
+
   if (!keychainAvailable) {
     return (
       <div className="screen-enter screen-enter-active">
@@ -126,6 +150,20 @@ export default async function SetupPage() {
   const buchhaltungTab = (
     <div className="space-y-4">
       <Card padding="none">
+        <div className="p-5">
+          <div className="mb-4">
+            <div className="text-sm font-medium text-ink">Absende-Konten (SMTP)</div>
+            <div className="text-xs text-muted">
+              Von welcher Adresse wir Rechnungen senden. Manche Buchhaltungs-Apps
+              ordnen Belege über die Absenderadresse zu — für zwei Empfänger kannst
+              du zwei Absende-Konten anlegen.
+            </div>
+          </div>
+          <SmtpAccountsSection slots={smtpAccountSlots} />
+        </div>
+      </Card>
+
+      <Card padding="none">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-5">
           <div>
             <div className="text-sm font-medium text-ink">Empfänger für deine Buchhaltung</div>
@@ -133,21 +171,32 @@ export default async function SetupPage() {
               Wohin wir Rechnungen senden — Standard wird automatisch gewählt.
             </div>
           </div>
-          <AddRecipientButton hasSecondarySmtp={!!(smtpSecondary && (smtpSecondaryHasCredential || smtpSecondaryHasRef))} />
+          <AddRecipientButton smtpOptions={smtpOptions} />
         </div>
         {exportTargets.filter((t) => t.recipientEmail).length > 0 ? (
           <div className="divide-y divide-line border-t border-line">
-            {exportTargets.filter((t) => t.recipientEmail).map((t, idx) => (
+            {exportTargets.filter((t) => t.recipientEmail).map((t, idx) => {
+              const sendFrom = smtpAccountSlots.find((s) => s.slot === t.smtpSlot && s.configured)?.fromAddress ?? null;
+              return (
               <div key={t.id} className="flex items-center gap-3 px-5 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-ink truncate">{t.label}</div>
                   <div className="text-xs text-muted font-mono truncate">
                     {t.recipientEmail}
                   </div>
+                  {sendFrom && (
+                    <div className="text-[11px] text-muted truncate">
+                      sendet von: <span className="font-mono">{sendFrom}</span>
+                    </div>
+                  )}
                 </div>
                 <StatusBadge
                   status={t.enabled ? "configured" : "disabled"}
                   label={idx === 0 ? "Standard" : "Sekundär"}
+                />
+                <EditRecipientButton
+                  target={{ target: t.target, label: t.label, recipientEmail: t.recipientEmail, smtpSlot: t.smtpSlot, enabled: t.enabled }}
+                  smtpOptions={smtpOptions}
                 />
                 <form action={clearExportTargetAction}>
                   <input type="hidden" name="targetId" value={t.id} />
@@ -159,7 +208,8 @@ export default async function SetupPage() {
                   </button>
                 </form>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="border-t border-line px-5 py-4 text-sm text-muted">
@@ -190,31 +240,12 @@ export default async function SetupPage() {
           <div className="mb-4">
             <div className="text-sm font-medium text-ink">Postfächer (IMAP)</div>
             <div className="text-xs text-muted">
-              Wähle deinen Anbieter — wir konfigurieren IMAP und SMTP automatisch.
+              Wähle deinen Anbieter — wir konfigurieren den Empfang automatisch.
             </div>
           </div>
           <MailboxConnectCard slots={mailboxSlots} isPro={isPro} />
         </div>
       </Card>
-
-      <Card padding="none">
-        <div className="p-5">
-          <div className="mb-4">
-            <div className="text-sm font-medium text-ink">Weiteres Absende-Konto (SMTP)</div>
-            <div className="text-xs text-muted">
-              Optionale zweite Absenderadresse — z.B. wenn zwei Buchhaltungs-Apps dich
-              anhand der Absenderadresse identifizieren.
-            </div>
-          </div>
-          <SmtpAccountForm
-            slot="secondary"
-            account={smtpSecondary}
-            credentialStored={smtpSecondaryHasRef}
-            secretPresent={smtpSecondaryHasCredential}
-          />
-        </div>
-      </Card>
-
     </div>
   );
 

@@ -39,6 +39,42 @@ export async function testMailConnectionAction(
   return { imap, smtp };
 }
 
+export async function testImapOnlyConnectionAction(
+  _prev: ProtoResult | null,
+  formData: FormData,
+): Promise<ProtoResult> {
+  await requireCurrentAuth();
+
+  const host   = String(formData.get("tcImapHost")   || "");
+  const port   = Number(formData.get("tcImapPort")   || 993);
+  const secure = String(formData.get("tcImapSecure") || "true") !== "false";
+  const user   = String(formData.get("tcImapUser")   || "");
+  const pass   = String(formData.get("tcImapPass")   || "");
+
+  if (!host || !user || !pass) {
+    return { ok: false, error: "Fehlende Pflichtfelder." };
+  }
+  return testImap(host, port, secure, user, pass);
+}
+
+export async function testSmtpOnlyConnectionAction(
+  _prev: ProtoResult | null,
+  formData: FormData,
+): Promise<ProtoResult> {
+  await requireCurrentAuth();
+
+  const host   = String(formData.get("tcSmtpHost")   || "");
+  const port   = Number(formData.get("tcSmtpPort")   || 587);
+  const secure = String(formData.get("tcSmtpSecure") || "false") !== "false";
+  const user   = String(formData.get("tcSmtpUser")   || "");
+  const pass   = String(formData.get("tcSmtpPass")   || "");
+
+  if (!host || !user || !pass) {
+    return { ok: false, error: "Fehlende Pflichtfelder." };
+  }
+  return testSmtp(host, port, secure, user, pass);
+}
+
 async function testImap(
   host: string, port: number, secure: boolean,
   user: string, pass: string,

@@ -6,17 +6,17 @@ import { Modal } from "@/components/ui/modal";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { cn } from "@/lib/utils";
 import { Info, Plus } from "lucide-react";
-import { RECIPIENTS, type Recipient, type TargetSlot } from "@/lib/recipients";
+import { RECIPIENTS, type Recipient, type TargetSlot, type SmtpAccountOption } from "@/lib/recipients";
 
 const idle: CredentialFormState = { status: "idle", message: "" };
 
 interface RecipientModalProps {
   open: boolean;
   onClose: () => void;
-  hasSecondarySmtp?: boolean;
+  smtpOptions?: SmtpAccountOption[];
 }
 
-export function RecipientModal({ open, onClose, hasSecondarySmtp = false }: RecipientModalProps) {
+export function RecipientModal({ open, onClose, smtpOptions = [] }: RecipientModalProps) {
   const [state, formAction, isPending] = useActionState(saveExportTargetAction, idle);
   const [selected, setSelected] = useState<Recipient | null>(null);
   const [email, setEmail] = useState("");
@@ -154,17 +154,24 @@ export function RecipientModal({ open, onClose, hasSecondarySmtp = false }: Reci
           </div>
         )}
 
-        {hasSecondarySmtp && (
+        {smtpOptions.length > 1 && (
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Absende-Konto</label>
+            <label htmlFor="recipient-smtp" className="mb-1 block text-xs font-medium text-muted">Absende-Konto</label>
             <select
+              id="recipient-smtp"
               value={smtpSlot}
               onChange={(e) => setSmtpSlot(e.target.value as "primary" | "secondary")}
               className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
             >
-              <option value="primary">Absende-Konto 1 (Standard)</option>
-              <option value="secondary">Absende-Konto 2</option>
+              {smtpOptions.map((o, i) => (
+                <option key={o.slot} value={o.slot}>
+                  {o.fromAddress}{i === 0 ? " (Standard)" : ""}
+                </option>
+              ))}
             </select>
+            <p className="mt-1 text-[11px] text-muted">
+              Von dieser Adresse wird an diesen Empfänger gesendet.
+            </p>
           </div>
         )}
 
@@ -189,7 +196,7 @@ export function RecipientModal({ open, onClose, hasSecondarySmtp = false }: Reci
   );
 }
 
-export function AddRecipientButton({ hasSecondarySmtp = false }: { hasSecondarySmtp?: boolean }) {
+export function AddRecipientButton({ smtpOptions = [] }: { smtpOptions?: SmtpAccountOption[] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -201,7 +208,127 @@ export function AddRecipientButton({ hasSecondarySmtp = false }: { hasSecondaryS
         <Plus className="h-3.5 w-3.5" aria-hidden />
         Empfänger konfigurieren
       </button>
-      <RecipientModal open={open} onClose={() => setOpen(false)} hasSecondarySmtp={hasSecondarySmtp} />
+      <RecipientModal open={open} onClose={() => setOpen(false)} smtpOptions={smtpOptions} />
+    </>
+  );
+}
+
+// ── Edit existing recipient ─────────────────────────────────────────────────
+
+export interface EditRecipientTarget {
+  target: string;
+  label: string;
+  recipientEmail: string | null;
+  smtpSlot: "primary" | "secondary";
+  enabled: boolean;
+}
+
+function EditRecipientModal({
+  open,
+  onClose,
+  target,
+  smtpOptions,
+}: {
+  open: boolean;
+  onClose: () => void;
+  target: EditRecipientTarget;
+  smtpOptions: SmtpAccountOption[];
+}) {
+  const [state, formAction, isPending] = useActionState(saveExportTargetAction, idle);
+  const [email, setEmail] = useState(target.recipientEmail ?? "");
+  const [smtpSlot, setSmtpSlot] = useState<"primary" | "secondary">(target.smtpSlot);
+
+  // Re-sync fields whenever the modal (re-)opens for a target.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) {
+      setEmail(target.recipientEmail ?? "");
+      setSmtpSlot(target.smtpSlot);
+    }
+  }
+
+  useEffect(() => {
+    if (state.status === "success") onClose();
+  }, [state.status, onClose]);
+
+  return (
+    <Modal open={open} onClose={onClose} title={`${target.label} bearbeiten`} size="md">
+      <form action={formAction} className="space-y-5">
+        <input type="hidden" name="exportTarget" value={target.target} />
+        <input type="hidden" name="smtpSlot" value={smtpSlot} />
+        <input type="hidden" name="enabled" value="on" />
+
+        <div>
+          <label htmlFor="edit-recipient-email" className="mb-1 block text-xs font-medium text-muted">E-Mail-Adresse</label>
+          <input
+            id="edit-recipient-email"
+            name="recipientEmail"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="buchhaltung@beispiel.de"
+            required
+            className="w-full rounded border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+          />
+        </div>
+
+        {smtpOptions.length > 1 && (
+          <div>
+            <label htmlFor="edit-recipient-smtp" className="mb-1 block text-xs font-medium text-muted">Absende-Konto</label>
+            <select
+              id="edit-recipient-smtp"
+              value={smtpSlot}
+              onChange={(e) => setSmtpSlot(e.target.value as "primary" | "secondary")}
+              className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+            >
+              {smtpOptions.map((o, i) => (
+                <option key={o.slot} value={o.slot}>
+                  {o.fromAddress}{i === 0 ? " (Standard)" : ""}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted">Von dieser Adresse wird an diesen Empfänger gesendet.</p>
+          </div>
+        )}
+
+        {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onClick={onClose} className="rounded px-4 py-2 text-sm text-muted hover:bg-surface">
+            Abbrechen
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className={cn("rounded bg-brand px-4 py-2 text-sm font-medium text-white", "disabled:cursor-not-allowed disabled:opacity-60")}
+          >
+            {isPending ? "Speichere…" : "Speichern"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export function EditRecipientButton({
+  target,
+  smtpOptions = [],
+}: {
+  target: EditRecipientTarget;
+  smtpOptions?: SmtpAccountOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs text-muted underline underline-offset-4 decoration-line hover:text-ink"
+      >
+        bearbeiten
+      </button>
+      <EditRecipientModal open={open} onClose={() => setOpen(false)} target={target} smtpOptions={smtpOptions} />
     </>
   );
 }

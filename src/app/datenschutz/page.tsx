@@ -97,7 +97,7 @@ export default function DatenschutzPage() {
       </div>
 
       <h3>2.8 Logos (Brandfetch CDN)</h3>
-      <p>Beim Laden von Anbieterlogos werden Anfragen an cdn.brandfetch.io gestellt. Dabei kann die IP-Adresse des Nutzers an Brandfetch Inc. (USA) übertragen werden.</p>
+      <p>Beim Laden von Anbieterlogos werden Anfragen an cdn.brandfetch.io gestellt. Dabei kann die IP-Adresse des Nutzers an Brandfetch (Schweiz) übertragen werden. Die Schweiz verfügt über einen EU-Angemessenheitsbeschluss gem. Art. 45 DSGVO.</p>
       <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an der Darstellungsfunktionalität).</p>
 
       <h2>3. Cookies und Speicher</h2>

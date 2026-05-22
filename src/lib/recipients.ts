@@ -6,6 +6,9 @@
 
 export type TargetSlot = "kontist" | "accountable";
 
+/** Ein konfiguriertes SMTP-Absende-Konto als Zuweisungs-Option für Empfänger. */
+export type SmtpAccountOption = { slot: "primary" | "secondary"; fromAddress: string };
+
 export interface Recipient {
   key: string;
   label: string;

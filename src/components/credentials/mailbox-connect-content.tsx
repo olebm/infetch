@@ -8,7 +8,7 @@
  * eingeblendet. Bei unbekannten Domains öffnet sich das Server-Accordion
  * automatisch für manuelle Eingabe.
  *
- * mode="settings"   → eigenes <form> mit saveMailboxCredentialsAction
+ * mode="settings"   → eigenes <form>; Action je nach purpose (imap-/smtp-only/full)
  * mode="onboarding" → kein Submit, gibt Daten via onDataChange() nach oben
  */
 
@@ -18,9 +18,11 @@ import { MAIL_PROVIDERS, MAIL_BACKENDS, type MailProvider, type MailBackend } fr
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import {
   saveMailboxCredentialsAction,
+  saveImapMailboxAction,
+  saveSmtpMailboxAction,
   type CredentialFormState,
 } from "@/app/(app)/einstellungen/actions";
-import { testMailConnectionAction } from "@/mail/connection-test";
+import { testImapOnlyConnectionAction, testSmtpOnlyConnectionAction } from "@/mail/connection-test";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -121,8 +123,16 @@ export function MailboxConnectContent({
   const [settingsTestPhase, setSettingsTestPhase] = useState<SettingsTestPhase>("idle");
   const [settingsTestErrors, setSettingsTestErrors] = useState<{ imap?: string; smtp?: string }>({});
 
+  // Settings-Mode: Action nach purpose. smtp-only speichert nur ein Absende-Konto,
+  // imap-only nur das Empfangs-Postfach, full beides.
+  const settingsAction = smtpOnly
+    ? saveSmtpMailboxAction
+    : imapOnly
+      ? saveImapMailboxAction
+      : saveMailboxCredentialsAction;
+
   const [state, formAction, isPending] = useActionState(
-    saveMailboxCredentialsAction,
+    settingsAction,
     initialState,
   );
 
@@ -201,40 +211,47 @@ export function MailboxConnectContent({
     setSettingsTestPhase("testing");
     setSettingsTestErrors({});
 
-    const fd = new FormData();
-    fd.set("tcImapHost",   imapHost);
-    fd.set("tcImapPort",   String(imapPort));
-    fd.set("tcImapSecure", String(imapSecure));
-    fd.set("tcImapUser",   email);
-    fd.set("tcImapPass",   password);
-    fd.set("tcSmtpHost",   smtpHost);
-    fd.set("tcSmtpPort",   String(smtpPort));
-    fd.set("tcSmtpSecure", String(smtpSecure));
-    fd.set("tcSmtpUser",   separateSmtp ? smtpEmail : email);
-    fd.set("tcSmtpPass",   separateSmtp ? smtpPassword : password);
-
-    let result: Awaited<ReturnType<typeof testMailConnectionAction>>;
     try {
-      result = await testMailConnectionAction(null, fd);
-    } catch (e) {
-      setSettingsTestPhase("error");
-      setSettingsTestErrors({
-        imap: e instanceof Error ? e.message : "Verbindungstest konnte nicht ausgeführt werden.",
-      });
-      return;
-    }
+      // Nur das je nach purpose relevante Protokoll testen. Übersprungene
+      // Protokolle zählen als "ok".
+      let imapOk = true, smtpOk = true;
+      let imapErr: string | undefined, smtpErr: string | undefined;
 
-    if (result.imap.ok && result.smtp.ok) {
-      setSettingsTestPhase("success");
-      setTimeout(() => {
-        setSettingsTestPhase("idle");
-        formAction(formData);
-      }, 700);
-    } else {
+      if (!smtpOnly) {
+        const fd = new FormData();
+        fd.set("tcImapHost",   imapHost);
+        fd.set("tcImapPort",   String(imapPort));
+        fd.set("tcImapSecure", String(imapSecure));
+        fd.set("tcImapUser",   email);
+        fd.set("tcImapPass",   password);
+        const r = await testImapOnlyConnectionAction(null, fd);
+        imapOk = r.ok; imapErr = r.error;
+      }
+      if (!imapOnly) {
+        const fd = new FormData();
+        fd.set("tcSmtpHost",   smtpHost);
+        fd.set("tcSmtpPort",   String(smtpPort));
+        fd.set("tcSmtpSecure", String(smtpSecure));
+        fd.set("tcSmtpUser",   separateSmtp ? smtpEmail : email);
+        fd.set("tcSmtpPass",   separateSmtp ? smtpPassword : password);
+        const r = await testSmtpOnlyConnectionAction(null, fd);
+        smtpOk = r.ok; smtpErr = r.error;
+      }
+
+      if (imapOk && smtpOk) {
+        setSettingsTestPhase("success");
+        setTimeout(() => {
+          setSettingsTestPhase("idle");
+          formAction(formData);
+        }, 700);
+      } else {
+        setSettingsTestPhase("error");
+        setSettingsTestErrors({ imap: imapErr, smtp: smtpErr });
+      }
+    } catch (err) {
       setSettingsTestPhase("error");
       setSettingsTestErrors({
-        imap: result.imap.ok ? undefined : result.imap.error,
-        smtp: result.smtp.ok ? undefined : result.smtp.error,
+        imap: err instanceof Error ? err.message : "Verbindungstest konnte nicht ausgeführt werden.",
       });
     }
   }
@@ -249,7 +266,7 @@ export function MailboxConnectContent({
       {/* Email */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">
-          E-Mail-Adresse (Posteingang)
+          {smtpOnly ? "Absende-Adresse (E-Mail)" : "E-Mail-Adresse (Posteingang)"}
         </label>
         <input
           type="email"
@@ -563,13 +580,13 @@ export function MailboxConnectContent({
       {settingsTestPhase === "testing" && (
         <div className="mt-4 flex items-center gap-2 text-sm text-muted">
           <Loader2 size={14} className="animate-spin shrink-0" aria-hidden />
-          <span>Prüfe IMAP und SMTP…</span>
+          <span>{smtpOnly ? "Prüfe SMTP…" : imapOnly ? "Prüfe IMAP…" : "Prüfe IMAP und SMTP…"}</span>
         </div>
       )}
       {settingsTestPhase === "success" && (
         <div className="mt-4 flex items-center gap-3 text-sm text-ok">
-          <span className="flex items-center gap-1"><Check size={14} aria-hidden /> IMAP verbunden</span>
-          <span className="flex items-center gap-1"><Check size={14} aria-hidden /> SMTP verbunden</span>
+          {!smtpOnly && <span className="flex items-center gap-1"><Check size={14} aria-hidden /> IMAP verbunden</span>}
+          {!imapOnly && <span className="flex items-center gap-1"><Check size={14} aria-hidden /> SMTP verbunden</span>}
         </div>
       )}
       {settingsTestPhase === "error" && (
@@ -593,7 +610,7 @@ export function MailboxConnectContent({
       <div className="mt-5 flex justify-end">
         <button
           type="submit"
-          disabled={settingsTestPhase === "testing" || settingsTestPhase === "success" || isPending || !email || !imapHost || !smtpHost}
+          disabled={settingsTestPhase === "testing" || settingsTestPhase === "success" || isPending || !email || (!smtpOnly && !imapHost) || (!imapOnly && !smtpHost)}
           className="inline-flex h-9 items-center gap-2 rounded bg-brand px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {settingsTestPhase === "testing"
@@ -602,7 +619,7 @@ export function MailboxConnectContent({
               ? <><Check size={14} aria-hidden /> Verbunden</>
               : isPending
                 ? "Speichert…"
-                : "Postfach verbinden"}
+                : smtpOnly ? "Absende-Konto speichern" : "Postfach verbinden"}
         </button>
       </div>
     </form>
