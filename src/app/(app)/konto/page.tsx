@@ -8,7 +8,6 @@ import { ProfilForm } from "@/components/einstellungen/profil-form";
 import { SwitchOrgButton } from "@/components/einstellungen/sessions-section";
 import { MembersCard } from "@/components/konto/members-card";
 import { BillingCard } from "@/components/konto/billing-card";
-import { NotifyWeeklyCard } from "@/components/konto/notify-weekly-card";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/status/status-badge";
@@ -66,9 +65,6 @@ export default async function KontoPage() {
             initialVatId={profileFields?.vatId ?? ""}
             initialAvatarUrl={profileFields?.avatarUrl ?? null}
           />
-          <div className="mt-5 border-t border-line pt-5">
-            <NotifyWeeklyCard initialValue={profileFields?.notifyWeekly ?? true} />
-          </div>
         </Card>
 
         {/* 1b ── Nutzung diesen Monat (unter „Dein Profil") ─────────────────── */}
