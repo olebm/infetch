@@ -14,6 +14,7 @@ import {
   getSecondaryMailAccount,
   getRecentScans,
   getVendorInvoices,
+  getTopVendors,
 } from "@/lib/db/queries";
 
 // Regressionstest für Mandanten-Isolation der Lieferanten-/Missing-Queries.
@@ -285,5 +286,28 @@ describe.skipIf(!hasDb)("dashboard date basis — updated_at, not invoice_date",
   it("getDailyTimeseries: Alt-Rechnung erscheint im 30-Tage-Fenster (updated_at heute)", async () => {
     const sum = (await getDailyTimeseries(30, DB_ORG)).reduce((s, r) => s + r.count, 0);
     expect(sum).toBe(1); // unter invoice_date-Basis wäre 2020 außerhalb des Fensters → 0
+  });
+
+  it("getTopVendors: deltaPrevMonth nach Verarbeitungszeit (updated_at), nicht Rechnungsdatum", async () => {
+    const vKey = `dbasis-vendor-${SUFFIX}`;
+    const [v] = await sql<{ id: number }[]>`
+      INSERT INTO vendors (name, canonical_key, category, organization_id)
+      VALUES ('DBasis Vendor', ${vKey}, 'saas', ${DB_ORG}) RETURNING id
+    `;
+    try {
+      await sql`
+        INSERT INTO invoices (organization_id, source, status, confidence, dedupe_key, invoice_date, amount_gross, created_at, vendor_id)
+        VALUES (${DB_ORG}, 'manual', 'exported', 0.9, ${`dbasis-tv-${SUFFIX}`}, '2020-02-15', 42, NOW(), ${v.id})
+      `;
+      const row = (await getTopVendors(5, DB_ORG)).find((r) => r.vendorName === "DBasis Vendor");
+      expect(row).toBeDefined();
+      expect(row!.count).toBe(1);
+      // updated_at = jetzt → curCount=1, prevCount=0 → delta=1.
+      // Unter invoice_date-Basis (2020-02) wäre curCount=0 → delta=0.
+      expect(row!.deltaPrevMonth).toBe(1);
+    } finally {
+      await sql`DELETE FROM invoices WHERE vendor_id = ${v.id}`;
+      await sql`DELETE FROM vendors WHERE id = ${v.id}`;
+    }
   });
 });

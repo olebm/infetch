@@ -3,7 +3,7 @@ import { sendInvoiceMail } from "@/mail/smtp-client";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";
 import { withAdvisoryLock } from "@/lib/db/advisory-lock";
-import { readJsonSetting } from "@/lib/db/settings-store";
+import { readOrgJsonSetting } from "@/lib/db/settings-store";
 
 export type DispatchResult = {
   enqueued: number;
@@ -82,8 +82,18 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
     ORDER BY exports.created_at ASC
   `;
 
-  // Org-wide subject template (one default for all recipients); empty → built-in default.
-  const subjectTemplate = await readJsonSetting<string>("invoice_subject_template", "");
+  // Betreffvorlage pro Org (org-gescopt, memoisiert): vorher EINE globale Vorlage
+  // für ALLE Mandanten — ein Mandant überschrieb damit den Betreff aller anderen.
+  // Lazy-Cache, da ein Dispatch-Batch i.d.R. nur eine Org enthält → kein N+1.
+  const subjectTemplateCache = new Map<string, string>();
+  const subjectTemplateFor = async (orgId: string | null): Promise<string> => {
+    const cacheKey = orgId ?? "";
+    const cached = subjectTemplateCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+    const tpl = await readOrgJsonSetting<string>("invoice_subject_template", orgId, "");
+    subjectTemplateCache.set(cacheKey, tpl);
+    return tpl;
+  };
 
   let sent = 0;
   let failed = 0;
@@ -113,7 +123,7 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
         invoiceDate: row.invoiceDate,
         amountGross: row.amountGross,
         currency: row.currency,
-        subjectTemplate,
+        subjectTemplate: await subjectTemplateFor(row.organizationId),
         pdfContent,
         originalFilename: file.originalFilename,
       });

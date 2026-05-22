@@ -1488,12 +1488,16 @@ export async function getTopVendors(
       ) AS "vendorDomain",
       COUNT(*) AS count,
       SUM(i.amount_gross) AS "sumGross",
-      SUM(CASE WHEN i.invoice_date LIKE ${curMonth + '%'} THEN 1 ELSE 0 END) AS "curCount",
-      SUM(CASE WHEN i.invoice_date LIKE ${prevMonth + '%'} THEN 1 ELSE 0 END) AS "prevCount"
+      -- DATUMS-BASIS (Trust): Delta nach updated_at (Verarbeitungs-/Versandmonat),
+      -- NICHT invoice_date — konsistent mit getMonthlyKpis/getDailyTimeseries. Sonst
+      -- spiegelt der Trend die Dokumentdaten alt importierter Rechnungen wider und
+      -- zeigt „Veränderung" in Monaten, in denen der Account noch nicht existierte.
+      SUM(CASE WHEN TO_CHAR(i.updated_at::TIMESTAMP, 'YYYY-MM') = ${curMonth} THEN 1 ELSE 0 END) AS "curCount",
+      SUM(CASE WHEN TO_CHAR(i.updated_at::TIMESTAMP, 'YYYY-MM') = ${prevMonth} THEN 1 ELSE 0 END) AS "prevCount"
     FROM invoices i
     JOIN vendors v ON v.id = i.vendor_id
     WHERE i.status = 'exported'
-      AND (${organizationId}::text IS NULL OR i.organization_id = ${organizationId})
+      AND i.organization_id IS NOT DISTINCT FROM ${organizationId}
     GROUP BY v.id
     ORDER BY count DESC
     LIMIT ${limit}`;
@@ -1521,7 +1525,7 @@ export async function getOverdueVendors(organizationId: string | null = null): P
       EXTRACT(EPOCH FROM (NOW() - MAX(COALESCE(i.invoice_date, i.created_at)::TIMESTAMP)))::INTEGER / 86400 AS "daysSince"
     FROM invoices i
     JOIN vendors v ON v.id = i.vendor_id
-    WHERE (${organizationId}::text IS NULL OR i.organization_id = ${organizationId})
+    WHERE i.organization_id IS NOT DISTINCT FROM ${organizationId}
     GROUP BY v.id
     HAVING COUNT(*) >= 2
       AND EXTRACT(EPOCH FROM (NOW() - MAX(COALESCE(i.invoice_date, i.created_at)::TIMESTAMP)))::INTEGER / 86400 > 60

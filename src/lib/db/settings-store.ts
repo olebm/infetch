@@ -24,3 +24,38 @@ export async function writeJsonSetting(key: string, value: unknown): Promise<voi
       updated_at = CURRENT_TIMESTAMP
   `;
 }
+
+// `settings` ist eine globale key→value-Tabelle ohne organization_id-Spalte.
+// Mandanten-Trennung für user-editierbare Settings läuft daher über einen
+// Key-Suffix `${key}:${orgId}`.
+const MISSING_SETTING = Symbol("missing-setting");
+
+/**
+ * Per-Org-Lesen: liest `${key}:${orgId}`. Fehlt der Wert, fällt es auf den
+ * Legacy-Globalkey `key` zurück — migrations-sicher: vor Einführung der
+ * Org-Trennung gespeicherte Werte (z.B. ole's bestehende Betreffvorlage)
+ * bleiben sichtbar, bis der Mandant das Setting neu speichert (dann landet es
+ * org-gescopt). Ohne `orgId` wird direkt der Globalkey gelesen.
+ */
+export async function readOrgJsonSetting<T>(
+  key: string,
+  orgId: string | null | undefined,
+  fallback: T,
+): Promise<T> {
+  if (!orgId) return readJsonSetting(key, fallback);
+  const scoped = await readJsonSetting<T | typeof MISSING_SETTING>(`${key}:${orgId}`, MISSING_SETTING);
+  return scoped === MISSING_SETTING ? readJsonSetting(key, fallback) : scoped;
+}
+
+/**
+ * Per-Org-Schreiben: schreibt ausschließlich `${key}:${orgId}` — nie den
+ * Globalkey, damit Mandanten sich nicht gegenseitig überschreiben. Ohne `orgId`
+ * (Defensive; sollte nicht vorkommen) fällt es auf den Globalkey zurück.
+ */
+export async function writeOrgJsonSetting(
+  key: string,
+  orgId: string | null | undefined,
+  value: unknown,
+): Promise<void> {
+  await writeJsonSetting(orgId ? `${key}:${orgId}` : key, value);
+}
