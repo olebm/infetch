@@ -34,8 +34,9 @@ export default function ImpressumPage() {
       <p>Gemäß § 27a Umsatzsteuergesetz:<br />
       DE318609562</p>
 
-      <h2>Verbraucherstreitbeilegung</h2>
-      <p>Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen (§ 36 VSBG).</p>
+      <h2>Verbraucherstreitbeilegung / Online-Streitbeilegung</h2>
+      <p>Gemäß § 36 VSBG und EU-Verordnung Nr. 524/2013 weisen wir auf die Plattform der Europäischen Kommission zur Online-Streitbeilegung (OS) hin: <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener noreferrer">https://ec.europa.eu/consumers/odr</a></p>
+      <p>Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
     </PublicShell>
   );
 }

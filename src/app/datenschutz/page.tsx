@@ -97,7 +97,7 @@ export default function DatenschutzPage() {
       </div>
 
       <h3>2.8 Logos (Brandfetch CDN)</h3>
-      <p>Beim Laden von Anbieterlogos werden Anfragen an cdn.brandfetch.io gestellt. Dabei kann deine IP-Adresse an Brandfetch Inc. (USA) übertragen werden.</p>
+      <p>Beim Laden von Anbieterlogos werden Anfragen an cdn.brandfetch.io gestellt. Dabei kann die IP-Adresse des Nutzers an Brandfetch Inc. (USA) übertragen werden.</p>
       <p>Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an der Darstellungsfunktionalität).</p>
 
       <h2>3. Cookies und Speicher</h2>
@@ -125,17 +125,17 @@ export default function DatenschutzPage() {
       </div>
 
       <h2>5. Weitergabe an Dritte</h2>
-      <p>Deine Daten werden nicht verkauft. Weitergabe erfolgt ausschließlich an die oben genannten Auftragsverarbeiter, die vertraglich zur Einhaltung der DSGVO verpflichtet sind (<a href="/avv">→ AVV</a>).</p>
+      <p>Nutzerdaten werden nicht verkauft. Weitergabe erfolgt ausschließlich an die oben genannten Auftragsverarbeiter, die vertraglich zur Einhaltung der DSGVO verpflichtet sind (<a href="/avv">→ AVV</a>).</p>
       <p>Mit den Auftragsverarbeitern Supabase, Brevo, Stripe, Sentry und Hetzner bestehen Auftragsverarbeitungsverträge nach Art. 28 DSGVO bzw. — bei Drittlandbezug — Standardvertragsklauseln nach Art. 46 DSGVO. Die jeweiligen Verträge sind über die Rechtsseiten der Anbieter abrufbar oder können bei uns angefordert werden (<a href="mailto:hallo@infetch.de">hallo@infetch.de</a>).</p>
       <p>Hinweis zu Mistral AI: Ein formeller Auftragsverarbeitungsvertrag (AVV/DPA) nach Art. 28 DSGVO ist bei Mistral AI ausschließlich im Rahmen kostenpflichtiger La Plateforme-Pläne verfügbar. Die KI-Verarbeitung erfolgt auf EU-Servern (Frankreich). Fragen zu Mistral-Verträgen richten Sie bitte direkt an <a href="https://mistral.ai/privacy" target="_blank" rel="noopener noreferrer">mistral.ai/privacy</a>.</p>
 
       <h2>6. Keine automatisierte Entscheidung im Einzelfall</h2>
       <p>Die KI-gestützte Erkennung und Vorklassifikation von Rechnungen ist eine reine Vorverarbeitung. Es findet <strong>keine automatisierte Entscheidung mit rechtlicher Wirkung oder vergleichbarer erheblicher Beeinträchtigung</strong> im Sinne des Art. 22 DSGVO statt; erkannte Rechnungen werden vor einer Weiterleitung nutzerseitig kontrolliert.</p>
 
-      <h2>7. Deine Rechte</h2>
-      <p>Du hast gegenüber uns folgende Rechte:</p>
+      <h2>7. Betroffenenrechte</h2>
+      <p>Betroffene Personen haben gegenüber uns folgende Rechte:</p>
       <ul>
-        <li><strong>Auskunft</strong> (Art. 15 DSGVO): Welche Daten wir über dich haben</li>
+        <li><strong>Auskunft</strong> (Art. 15 DSGVO): Welche Daten verarbeitet werden</li>
         <li><strong>Berichtigung</strong> (Art. 16 DSGVO): Korrektur unrichtiger Daten</li>
         <li><strong>Löschung</strong> (Art. 17 DSGVO): Recht auf Vergessenwerden</li>
         <li><strong>Einschränkung</strong> (Art. 18 DSGVO): Verarbeitung einschränken lassen</li>
