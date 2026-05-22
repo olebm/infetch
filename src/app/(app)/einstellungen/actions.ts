@@ -19,7 +19,7 @@ import {
   markIntegrationVerified,
   type IntegrationProvider,
 } from "@/lib/db/queries";
-import { writeJsonSetting } from "@/lib/db/settings-store";
+import { writeOrgJsonSetting } from "@/lib/db/settings-store";
 import { verifyLexofficeConnection, LexofficeApiError } from "@/lib/integrations/lexoffice-client";
 import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sevdesk-client";
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
@@ -759,13 +759,13 @@ export async function updateConfidenceThresholdAction(
   formData: FormData,
 ): Promise<ConfidenceThresholdState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
   try {
     const raw = Number(formData.get("confidence"));
     if (isNaN(raw) || raw < 0.5 || raw > 0.99) {
       return { status: "error", message: "Ungültiger Wert (50–99%)." };
     }
-    await writeJsonSetting("auto_approve_confidence", raw);
+    await writeOrgJsonSetting("auto_approve_confidence", auth.organization?.id ?? null, raw);
     revalidatePath("/einstellungen");
     return { status: "success", message: "Konfidenz-Schwelle gespeichert.", value: raw };
   } catch (error) {
@@ -787,13 +787,13 @@ export async function updateInvoiceSubjectTemplateAction(
   formData: FormData,
 ): Promise<SubjectTemplateState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
   try {
     const raw = String(formData.get("subjectTemplate") || "").replace(/[\r\n]+/g, " ").trim();
     if (raw.length > 200) {
       return { status: "error", message: "Betreff-Schema ist zu lang (max. 200 Zeichen)." };
     }
-    await writeJsonSetting("invoice_subject_template", raw);
+    await writeOrgJsonSetting("invoice_subject_template", auth.organization?.id ?? null, raw);
     revalidatePath("/einstellungen");
     return { status: "success", message: "Betreff-Schema gespeichert.", value: raw };
   } catch (error) {

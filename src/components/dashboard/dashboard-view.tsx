@@ -206,14 +206,25 @@ export async function DashboardView() {
 
   // Build anomaly list
   const anomalies: Array<{ vendor: string; domain: string | null; reason: string; href: string }> = [];
-  for (const v of overdueVendors.slice(0, 2)) {
-    const label = formatVendorName(v.vendorName, v.vendorDomain);
-    anomalies.push({
-      vendor: label,
-      domain: v.vendorDomain ?? null,
-      reason: `Letzte Rechnung ${v.daysSince} Tage alt — sonst regelmäßig.`,
-      href: "/audit?tab=fehlt",
-    });
+  // Falsch-„überfällig"-Guard: „seit N Tagen keine Rechnung" ist erst aussagekräftig,
+  // wenn wir den Account lange genug beobachten. Direkt nach dem Onboarding-Backscan
+  // ist obsStart (= MIN(created_at)) ≈ heute, obwohl alt-datierte Dokumente importiert
+  // wurden — sonst meldete das Dashboard sofort „überfällig" auf einem frischen Account.
+  // Schwelle an die 60-Tage-Grenze der getOverdueVendors-Query gekoppelt.
+  const OVERDUE_MIN_OBSERVED_DAYS = 60;
+  // eslint-disable-next-line react-hooks/purity -- server component, single render per request
+  const nowMs = Date.now();
+  const daysObserved = obsStart ? (nowMs - new Date(obsStart).getTime()) / 86_400_000 : 0;
+  if (daysObserved >= OVERDUE_MIN_OBSERVED_DAYS) {
+    for (const v of overdueVendors.slice(0, 2)) {
+      const label = formatVendorName(v.vendorName, v.vendorDomain);
+      anomalies.push({
+        vendor: label,
+        domain: v.vendorDomain ?? null,
+        reason: `Letzte Rechnung ${v.daysSince} Tage alt — sonst regelmäßig.`,
+        href: "/audit?tab=fehlt",
+      });
+    }
   }
   for (const d of duplicates.slice(0, 1)) {
     anomalies.push({

@@ -7,7 +7,7 @@ import {
 } from "@/lib/secrets/credential-store";
 import { getProviderFromEmail } from "@/lib/mail-providers";
 import { getExportTargets } from "@/exports/export-pipeline";
-import { readJsonSetting } from "@/lib/db/settings-store";
+import { readOrgJsonSetting } from "@/lib/db/settings-store";
 import { MailboxConnectCard, type MailboxSlot } from "@/components/credentials/mailbox-connect-card";
 import { SmtpAccountsSection, type SmtpAccountSlot } from "@/components/einstellungen/smtp-accounts-section";
 import { StatusBadge } from "@/components/status/status-badge";
@@ -48,8 +48,8 @@ export default async function SetupPage() {
     smtpSecondaryHasRef,
   ] = await Promise.all([
     getExportTargets(auth?.organization?.id ?? null),
-    readJsonSetting<number>("auto_approve_confidence", appConfig.features.autoApprovalConfidenceThreshold),
-    readJsonSetting<string>("invoice_subject_template", ""),
+    readOrgJsonSetting<number>("auto_approve_confidence", auth?.organization?.id ?? null, appConfig.features.autoApprovalConfidenceThreshold),
+    readOrgJsonSetting<string>("invoice_subject_template", auth?.organization?.id ?? null, ""),
     getPrimaryMailAccount(auth?.organization?.id ?? null),
     getSecondaryMailAccount(auth?.organization?.id ?? null),
     hasConfiguredCredential("imap", "primary", auth?.organization?.id),
@@ -154,9 +154,9 @@ export default async function SetupPage() {
           <div className="mb-4">
             <div className="text-sm font-medium text-ink">Absende-Konten (SMTP)</div>
             <div className="text-xs text-muted">
-              Von welcher Adresse wir Rechnungen senden. Manche Buchhaltungs-Apps
-              ordnen Belege über die Absenderadresse zu — für zwei Empfänger kannst
-              du zwei Absende-Konten anlegen.
+              Von dieser Adresse leiten wir deine Rechnungen weiter. Manche
+              Buchhaltungs-Apps erkennen dich am Absender — für zwei Empfänger
+              kannst du zwei Absende-Konten hinterlegen.
             </div>
           </div>
           <SmtpAccountsSection slots={smtpAccountSlots} />
