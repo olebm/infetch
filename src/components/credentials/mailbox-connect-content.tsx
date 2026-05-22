@@ -94,10 +94,8 @@ export function MailboxConnectContent({
   // Reihenfolge: explizite Initial-Server (vom Parent) → Provider-Preset → harter Fallback.
   const initImapHost   = initialServers?.imapHost   ?? initProvider?.imap.host   ?? "";
   const initImapPort   = initialServers?.imapPort   ?? initProvider?.imap.port   ?? 993;
-  const initImapSecure = initialServers?.imapSecure ?? initProvider?.imap.secure ?? true;
   const initSmtpHost   = initialServers?.smtpHost   ?? initProvider?.smtp.host   ?? "";
   const initSmtpPort   = initialServers?.smtpPort   ?? initProvider?.smtp.port   ?? 587;
-  const initSmtpSecure = initialServers?.smtpSecure ?? initProvider?.smtp.secure ?? false;
   // Falls Parent custom Server-Werte mitgibt, soll der Server-Details-Accordion
   // direkt aufgeklappt sein — User sieht sofort, dass die Felder befüllt sind.
   const initShowAdv    = Boolean(initialServers?.imapHost || initialServers?.smtpHost) && !initProvider;
@@ -108,13 +106,17 @@ export function MailboxConnectContent({
   const [showAdv, setShowAdv]           = useState(initShowAdv);
   const [imapHost, setImapHost]         = useState(initImapHost);
   const [imapPort, setImapPort]         = useState(initImapPort);
-  const [imapSecure, setImapSecure]     = useState(initImapSecure);
   const [smtpHost, setSmtpHost]         = useState(initSmtpHost);
   // Fallback für unbekannte Domain: 587 + STARTTLS (heutiger Standard, weit
   // verbreitet bei Custom-Domains/Hostern). Provider-Presets überschreiben das.
   const [smtpPort, setSmtpPort]         = useState(initSmtpPort);
-  const [smtpSecure, setSmtpSecure]     = useState(initSmtpSecure);
   const [backend, setBackend]           = useState<MailBackend | null>(null);
+
+  // TLS-Modus aus dem Port ableiten statt separater Checkbox: implizites TLS nur
+  // auf 993 (IMAP) / 465 (SMTP); alle anderen Ports nutzen STARTTLS (secure=false,
+  // trotzdem verschlüsselt). Deckt alle Provider-Presets exakt ab.
+  const imapSecure = imapPort === 993;
+  const smtpSecure = smtpPort === 465;
   const [separateSmtp, setSeparateSmtp] = useState(false);
   const [smtpEmail, setSmtpEmail]       = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
@@ -173,8 +175,8 @@ export function MailboxConnectContent({
   // ── Live provider detection ───────────────────────────────────────────────
 
   function applyServerSettings(s: { imap: { host: string; port: number; secure: boolean }; smtp: { host: string; port: number; secure: boolean } }) {
-    setImapHost(s.imap.host); setImapPort(s.imap.port); setImapSecure(s.imap.secure);
-    setSmtpHost(s.smtp.host); setSmtpPort(s.smtp.port); setSmtpSecure(s.smtp.secure);
+    setImapHost(s.imap.host); setImapPort(s.imap.port);
+    setSmtpHost(s.smtp.host); setSmtpPort(s.smtp.port);
   }
 
   function selectBackend(b: MailBackend) {
@@ -199,8 +201,8 @@ export function MailboxConnectContent({
     } else if (hadProvider || hadBackend) {
       // Switched away from a known domain — clear auto-filled settings
       setBackend(null);
-      setImapHost(""); setImapPort(993); setImapSecure(true);
-      setSmtpHost(""); setSmtpPort(587); setSmtpSecure(false);
+      setImapHost(""); setImapPort(993);
+      setSmtpHost(""); setSmtpPort(587);
     }
   }
 
@@ -307,8 +309,8 @@ export function MailboxConnectContent({
             type="button"
             onClick={() => {
               setBackend(null);
-              setImapHost(""); setImapPort(993); setImapSecure(true);
-              setSmtpHost(""); setSmtpPort(587); setSmtpSecure(false);
+              setImapHost(""); setImapPort(993);
+              setSmtpHost(""); setSmtpPort(587);
             }}
             className="shrink-0 text-xs text-muted hover:text-ink"
           >
@@ -475,10 +477,9 @@ export function MailboxConnectContent({
                             inputMode="numeric"
                             className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                           />
-                          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
-                            <input type="checkbox" checked={imapSecure} onChange={(e) => setImapSecure(e.target.checked)} />
-                            SSL/TLS
-                          </label>
+                          <span className="text-xs text-muted">
+                            {imapSecure ? "SSL/TLS" : "STARTTLS"}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -504,10 +505,9 @@ export function MailboxConnectContent({
                             inputMode="numeric"
                             className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                           />
-                          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
-                            <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} />
-                            SSL/TLS
-                          </label>
+                          <span className="text-xs text-muted">
+                            {smtpSecure ? "SSL/TLS" : "STARTTLS"}
+                          </span>
                         </div>
                       )}
                     </div>
