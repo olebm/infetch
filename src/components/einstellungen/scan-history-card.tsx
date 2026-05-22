@@ -29,8 +29,8 @@ function triggerLabel(triggeredBy: string): string {
   return "automatisch";
 }
 
-export async function ScanHistoryCard() {
-  const scans = await getRecentScans(10);
+export async function ScanHistoryCard({ organizationId }: { organizationId: string | null }) {
+  const scans = await getRecentScans(10, organizationId);
 
   return (
     <Card padding="lg">

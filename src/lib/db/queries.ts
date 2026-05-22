@@ -1588,7 +1588,7 @@ export type RecentScanRow = {
 // Letzte N IMAP-Scan-Runs fuer die Scan-History-Anzeige in den Einstellungen.
 // Bewusst global (sync_runs ist nicht org-scoped) — fuer Free-only-Launch
 // unkritisch, fuer Multi-Tenant-Strictness waere Schema-Aenderung noetig.
-export async function getRecentScans(limit = 20): Promise<RecentScanRow[]> {
+export async function getRecentScans(limit = 20, organizationId: string | null = null): Promise<RecentScanRow[]> {
   const rows = await sql<
     {
       id: number;
@@ -1603,6 +1603,7 @@ export async function getRecentScans(limit = 20): Promise<RecentScanRow[]> {
            triggered_by AS "triggeredBy", summary_json AS "summaryJson"
     FROM sync_runs
     WHERE type = 'imap_scan'
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY id DESC
     LIMIT ${limit}
   `;

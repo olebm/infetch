@@ -12,6 +12,7 @@ import {
   getLastScanAt,
   getPrimaryMailAccount,
   getSecondaryMailAccount,
+  getRecentScans,
 } from "@/lib/db/queries";
 
 // Regressionstest für Mandanten-Isolation der Lieferanten-/Missing-Queries.
@@ -209,6 +210,15 @@ describe.skipIf(!hasDb)("tenant isolation — dashboard queries", () => {
   it("getLastScanAt: returns own org's last scan, not another's later one", async () => {
     expect((await getLastScanAt(D_ORG_A))!).toContain("2026-05-01");
     expect((await getLastScanAt(D_ORG_B))!).toContain("2026-05-02");
+  });
+
+  it("getRecentScans: returns only own org's scans (Einstellungen scan history)", async () => {
+    const scansA = await getRecentScans(10, D_ORG_A);
+    const scansB = await getRecentScans(10, D_ORG_B);
+    expect(scansA).toHaveLength(1);
+    expect(scansB).toHaveLength(1);
+    expect(scansA[0].startedAt).toContain("2026-05-01");
+    expect(scansB[0].startedAt).toContain("2026-05-02");
   });
 
   it("getPrimaryMailAccount/getSecondaryMailAccount: org-scoped (mailbox-leak regression)", async () => {

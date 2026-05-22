@@ -81,7 +81,11 @@ export async function runPrimaryImapScan(
 async function runPrimaryImapScanImpl(
   input?: RunPrimaryImapScanInput,
 ): Promise<ImapScanResult> {
-  const triggeredBy = input?.triggeredBy ?? (input?.bypassQuota ? "retroactive_scan" : "user");
+  // sync_runs.triggered_by CHECK erlaubt nur 'user' | 'schedule' | 'system'.
+  // Default 'user' (manueller/onboarding Scan); der Auto-Pilot übergibt explizit
+  // 'schedule'. Der retroaktive Backscan (bypassQuota) lief vorher als
+  // 'retroactive_scan' — das verletzt die CHECK (INFETCH-222) → jetzt 'user'.
+  const triggeredBy = input?.triggeredBy ?? "user";
   const syncRunRows = await sql<{ id: number }[]>`
     INSERT INTO sync_runs (type, status, triggered_by, started_at, organization_id)
     VALUES ('imap_scan', 'running', ${triggeredBy}, CURRENT_TIMESTAMP, ${input?.limitToOrgId ?? null})

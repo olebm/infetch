@@ -253,7 +253,7 @@ export default async function SetupPage() {
         </div>
       </Card>
 
-      <ScanHistoryCard />
+      <ScanHistoryCard organizationId={auth?.organization?.id ?? null} />
     </div>
   );
 
