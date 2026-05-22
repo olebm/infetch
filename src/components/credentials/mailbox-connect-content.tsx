@@ -370,8 +370,8 @@ export function MailboxConnectContent({
 
       {/* App-password warning — above the password field so it's read before entry */}
       {provider?.id !== "protonmail" && (provider?.hint ?? backend?.hint) && (
-        <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs text-ink">
-          <span className="font-medium">Wichtig: </span>
+        <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs font-medium text-ink">
+          <span className="font-semibold">Wichtig: </span>
           {provider?.hint ?? backend?.hint}
           {(provider?.appPasswordUrl ?? backend?.appPasswordUrl) && (
             <a
