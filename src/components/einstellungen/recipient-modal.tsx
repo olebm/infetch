@@ -17,6 +17,18 @@ interface RecipientModalProps {
 }
 
 export function RecipientModal({ open, onClose, smtpOptions = [] }: RecipientModalProps) {
+  // Form + useActionState liegen in der Kind-Komponente, die nur bei open
+  // gemountet wird (Modal gibt sonst null zurück). So startet der Action-State
+  // bei jedem Öffnen frisch — sonst klebt status="success" und der Auto-Close-
+  // Effekt würde das Modal beim Wiederöffnen sofort schließen.
+  return (
+    <Modal open={open} onClose={onClose} title="Empfänger konfigurieren" size="md">
+      <RecipientForm onClose={onClose} smtpOptions={smtpOptions} />
+    </Modal>
+  );
+}
+
+function RecipientForm({ onClose, smtpOptions }: { onClose: () => void; smtpOptions: SmtpAccountOption[] }) {
   const [state, formAction, isPending] = useActionState(saveExportTargetAction, idle);
   const [selected, setSelected] = useState<Recipient | null>(null);
   const [email, setEmail] = useState("");
@@ -29,20 +41,6 @@ export function RecipientModal({ open, onClose, smtpOptions = [] }: RecipientMod
     if (state.status === "success") onClose();
   }, [state.status, onClose]);
 
-  // Reset form when the modal opens. Uses the "store previous value" pattern
-  // (https://react.dev/reference/react/useState#storing-information-from-previous-renders)
-  // instead of an effect, per the react-hooks/set-state-in-effect rule.
-  const [prevOpen, setPrevOpen] = useState(open);
-  if (prevOpen !== open) {
-    setPrevOpen(open);
-    if (open) {
-      setSelected(null);
-      setEmail("");
-      setSlot("kontist");
-      setSmtpSlot("primary");
-    }
-  }
-
   function pick(r: Recipient) {
     setSelected(r);
     setEmail(r.email);
@@ -50,7 +48,6 @@ export function RecipientModal({ open, onClose, smtpOptions = [] }: RecipientMod
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Empfänger konfigurieren" size="md">
       <form action={formAction} className="space-y-5">
         <input type="hidden" name="exportTarget" value={slot} />
         <input type="hidden" name="smtpSlot" value={smtpSlot} />
@@ -192,7 +189,6 @@ export function RecipientModal({ open, onClose, smtpOptions = [] }: RecipientMod
           </button>
         </div>
       </form>
-    </Modal>
   );
 }
 
@@ -234,26 +230,34 @@ function EditRecipientModal({
   target: EditRecipientTarget;
   smtpOptions: SmtpAccountOption[];
 }) {
+  // Form + State in der Kind-Komponente: nur bei open gemountet → frischer
+  // Action-State pro Öffnung (verhindert sticky status="success", der das Modal
+  // beim Wiederöffnen sofort schließen würde).
+  return (
+    <Modal open={open} onClose={onClose} title={`${target.label} bearbeiten`} size="md">
+      <EditRecipientForm onClose={onClose} target={target} smtpOptions={smtpOptions} />
+    </Modal>
+  );
+}
+
+function EditRecipientForm({
+  onClose,
+  target,
+  smtpOptions,
+}: {
+  onClose: () => void;
+  target: EditRecipientTarget;
+  smtpOptions: SmtpAccountOption[];
+}) {
   const [state, formAction, isPending] = useActionState(saveExportTargetAction, idle);
   const [email, setEmail] = useState(target.recipientEmail ?? "");
   const [smtpSlot, setSmtpSlot] = useState<"primary" | "secondary">(target.smtpSlot);
-
-  // Re-sync fields whenever the modal (re-)opens for a target.
-  const [prevOpen, setPrevOpen] = useState(open);
-  if (prevOpen !== open) {
-    setPrevOpen(open);
-    if (open) {
-      setEmail(target.recipientEmail ?? "");
-      setSmtpSlot(target.smtpSlot);
-    }
-  }
 
   useEffect(() => {
     if (state.status === "success") onClose();
   }, [state.status, onClose]);
 
   return (
-    <Modal open={open} onClose={onClose} title={`${target.label} bearbeiten`} size="md">
       <form action={formAction} className="space-y-5">
         <input type="hidden" name="exportTarget" value={target.target} />
         <input type="hidden" name="smtpSlot" value={smtpSlot} />
@@ -307,7 +311,6 @@ function EditRecipientModal({
           </button>
         </div>
       </form>
-    </Modal>
   );
 }
 

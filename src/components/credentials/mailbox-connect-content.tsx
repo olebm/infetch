@@ -518,9 +518,9 @@ export function MailboxConnectContent({
           })()}
 
           {/* Separate SMTP credentials — Advanced-Option, im Onboarding
-              ausgeblendet (verwirrt mehr als sie hilft); bleibt im Settings-
-              Mode für Profi-Setups erhalten. */}
-          {mode !== "onboarding" && !smtpOnly && (
+              ausgeblendet (verwirrt mehr als sie hilft); nur im FULL-Modus
+              relevant (imap-only/smtp-only konfigurieren je nur ein Protokoll). */}
+          {mode !== "onboarding" && !smtpOnly && !imapOnly && (
             <div className="border-t border-line/60 pt-3">
               <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
                 <input
