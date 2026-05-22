@@ -460,7 +460,7 @@ export function MailboxConnectContent({
               <div className={oneCol ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
                 {!smtpOnly && (
                   <div>
-                    <div className="mb-2 text-xs font-medium text-muted">IMAP — Empfangs-Server</div>
+                    <div className="mb-2 text-xs font-medium text-muted">Empfangs-Server</div>
                     <div className="space-y-1.5">
                       <input
                         value={imapHost}
@@ -479,7 +479,7 @@ export function MailboxConnectContent({
                             className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                           />
                           <span className="text-xs text-muted">
-                            {imapSecure ? "SSL/TLS" : "STARTTLS"}
+                            {imapSecure ? "verschlüsselt" : "STARTTLS"}
                           </span>
                         </div>
                       )}
@@ -488,7 +488,7 @@ export function MailboxConnectContent({
                 )}
                 {!imapOnly && (
                   <div>
-                    <div className="mb-2 text-xs font-medium text-muted">SMTP — Versand-Server</div>
+                    <div className="mb-2 text-xs font-medium text-muted">Versand-Server</div>
                     <div className="space-y-1.5">
                       <input
                         value={smtpHost}
@@ -507,7 +507,7 @@ export function MailboxConnectContent({
                             className="h-8 w-20 rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
                           />
                           <span className="text-xs text-muted">
-                            {smtpSecure ? "SSL/TLS" : "STARTTLS"}
+                            {smtpSecure ? "verschlüsselt" : "STARTTLS"}
                           </span>
                         </div>
                       )}

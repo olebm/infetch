@@ -271,7 +271,7 @@ export default async function SetupPage() {
         </div>
         <div className="mt-5 border-t border-line pt-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium text-muted">Konfidenz-Schwelle</span>
+            <span className="text-xs font-medium text-muted">Empfindlichkeit</span>
           </div>
           <ConfidenceSlider initialValue={confidenceThreshold} />
           <div className="mt-1 flex justify-between text-[11px] text-muted">

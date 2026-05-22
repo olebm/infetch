@@ -39,7 +39,7 @@ export function ImapAccountForm({
   const [port, setPort] = useState(String(account?.port || 993));
   const [secure, setSecure] = useState(account ? Boolean(account.secure) : true);
 
-  const heading = slot === "primary" ? "IMAP Postfach" : "IMAP Postfach 2";
+  const heading = slot === "primary" ? "Empfangs-Postfach" : "Empfangs-Postfach 2";
   const secretOnFile = secretPresent || credentialStored || state.status === "success";
   const showStoredMask = secretOnFile && passwordLength === 0;
 
@@ -119,7 +119,7 @@ export function ImapAccountForm({
             checked={secure}
             onChange={(e) => setSecure(e.target.checked)}
           />
-          TLS/SSL verwenden
+          Verschlüsselte Verbindung
         </label>
         <div className="flex flex-wrap gap-2">
           <button
