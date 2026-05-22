@@ -24,7 +24,7 @@ export default async function SendersPage({
   if (selectedId) {
     const sender = senders.find((s) => s.id === selectedId);
     if (sender?.matchedVendorId) {
-      vendorInvoices = await getVendorInvoices(sender.matchedVendorId);
+      vendorInvoices = await getVendorInvoices(sender.matchedVendorId, auth?.organization?.id ?? null);
     } else if (sender) {
       // Kein Katalog-Vendor (vendor_id NULL ist Normalfall) → Rechnungen über
       // die Mail-Quelle (Absender-Domain) laden statt leere Liste (INFETCH-218).

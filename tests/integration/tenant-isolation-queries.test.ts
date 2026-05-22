@@ -13,6 +13,7 @@ import {
   getPrimaryMailAccount,
   getSecondaryMailAccount,
   getRecentScans,
+  getVendorInvoices,
 } from "@/lib/db/queries";
 
 // Regressionstest für Mandanten-Isolation der Lieferanten-/Missing-Queries.
@@ -219,6 +220,23 @@ describe.skipIf(!hasDb)("tenant isolation — dashboard queries", () => {
     expect(scansB).toHaveLength(1);
     expect(scansA[0].startedAt).toContain("2026-05-01");
     expect(scansB[0].startedAt).toContain("2026-05-02");
+  });
+
+  it("getVendorInvoices: org-scoped for a SHARED global vendor (senders detail)", async () => {
+    const gKey = `dash-global-${SUFFIX}`;
+    const [gv] = await sql<{ id: number }[]>`
+      INSERT INTO vendors (name, canonical_key, category, organization_id)
+      VALUES ('Global Shared', ${gKey}, 'saas', NULL) RETURNING id
+    `;
+    try {
+      await sql`INSERT INTO invoices (organization_id, source, status, confidence, dedupe_key, vendor_id) VALUES (${D_ORG_A}, 'manual', 'exported', 0.9, ${`gv-a-${SUFFIX}`}, ${gv.id})`;
+      await sql`INSERT INTO invoices (organization_id, source, status, confidence, dedupe_key, vendor_id) VALUES (${D_ORG_B}, 'manual', 'exported', 0.9, ${`gv-b-${SUFFIX}`}, ${gv.id})`;
+      expect(await getVendorInvoices(gv.id, D_ORG_A)).toHaveLength(1);
+      expect(await getVendorInvoices(gv.id, D_ORG_B)).toHaveLength(1);
+    } finally {
+      await sql`DELETE FROM invoices WHERE vendor_id = ${gv.id}`;
+      await sql`DELETE FROM vendors WHERE id = ${gv.id}`;
+    }
   });
 
   it("getPrimaryMailAccount/getSecondaryMailAccount: org-scoped (mailbox-leak regression)", async () => {

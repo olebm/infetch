@@ -1786,7 +1786,10 @@ export type VendorInvoiceRow = {
   invoiceNumber: string | null;
 };
 
-export async function getVendorInvoices(vendorId: number): Promise<VendorInvoiceRow[]> {
+export async function getVendorInvoices(vendorId: number, organizationId: string | null = null): Promise<VendorInvoiceRow[]> {
+  // SEC: org-gescopt — ein global gematchter Katalog-Vendor (z. B. "Telekom")
+  // wird von mehreren Orgs genutzt; ohne Org-Filter würde die Anbieter-Detail-
+  // Ansicht Rechnungen FREMDER Mandanten zeigen.
   return await sql<VendorInvoiceRow[]>`
     SELECT
       id,
@@ -1798,6 +1801,7 @@ export async function getVendorInvoices(vendorId: number): Promise<VendorInvoice
       invoice_number AS "invoiceNumber"
     FROM invoices
     WHERE vendor_id = ${vendorId}
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY COALESCE(invoice_date, created_at) DESC
     LIMIT 200`;
 }
