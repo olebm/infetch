@@ -48,7 +48,7 @@ function UsageBar({ label, current, max, formatCurrent, formatMax, unit }: Usage
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-xs font-medium text-ink">{label}</span>
         <span className={`text-xs font-mono ${textColor}`}>
-          {formatCurrent(current)} / {formatMax(max)}{unit ? ` ${unit}` : ""}
+          {formatCurrent(current)}/{formatMax(max)}{unit ? ` ${unit}` : ""}
         </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-line">
@@ -109,7 +109,7 @@ export async function UsageCard({ organizationId }: Props) {
           max={limits.maxInvoicesPerMonth}
           formatCurrent={(n) => String(n)}
           formatMax={(n) => String(n)}
-          unit="/ Monat"
+          unit="/ pro Monat"
         />
         <UsageBar
           label="Speicher"
