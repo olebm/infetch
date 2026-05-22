@@ -266,7 +266,11 @@ export default async function SetupPage() {
   const tabs: TabItem[] = [
     { key: "buchhaltung",   label: "Buchhaltung",    content: buchhaltungTab   },
     { key: "postfach",      label: "Postfächer",      content: postfachTab      },
-    { key: "integrationen", label: "Integrationen",   content: integrationsTab  },
+    // Integrationen (lexoffice/sevDesk) erst einblenden, wenn der Pro-Tarif
+    // aktiviert ist — im Free-only-Launch ausgeblendet.
+    ...(appConfig.billing.proEnabled
+      ? [{ key: "integrationen", label: "Integrationen", content: integrationsTab }]
+      : []),
     { key: "ki",            label: "KI & Auto-Pilot", content: aiTab            },
   ];
 
