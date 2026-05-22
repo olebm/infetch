@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { provisionAfterOtp } from "@/app/login/actions";
+import { provisionAfterOtp, verifyOtpCode } from "@/app/login/actions";
 
 interface LoginFormProps {
   next: string;
@@ -211,31 +211,39 @@ export function LoginForm({ next }: LoginFormProps) {
     setStatus("verifying");
     setErrorMsg("");
 
-    const supabase = createSupabaseBrowserClient();
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: code,
-      type: "email",
-    });
-
-    if (error) {
+    // Verify läuft serverseitig: derselbe Request, der den Code einlöst, setzt
+    // die Session-Cookies und legt das Profil an (spiegelt /auth/callback). Das
+    // beseitigt die Cross-Boundary-Cookie-Race des früheren Pfads (Browser-
+    // verifyOtp → separate getUser()-Action), die zum Login-Loop führte.
+    let result: Awaited<ReturnType<typeof verifyOtpCode>>;
+    try {
+      result = await verifyOtpCode({ email: email.trim().toLowerCase(), code });
+    } catch {
+      // z. B. veraltete Server-Action-ID nach einem Deploy → Seite neu laden.
       setStatus("sent");
-      setErrorMsg(error.message || "Code ungültig oder abgelaufen.");
+      setErrorMsg("Verbindung unterbrochen. Bitte Seite neu laden und erneut versuchen.");
       resetCode();
       setTimeout(() => focusInput(0), 50);
       return;
     }
 
-    // Mutex setzen bevor await, damit ein gleichzeitig feuerndes onAuthStateChange
-    // (z. B. Magic-Link genau im selben Moment geklickt) nicht doppelt navigiert.
-    navigatingRef.current = true;
-    // Postgres-Profil sicherstellen (OTP-Code läuft nicht über /auth/callback)
-    const result = await provisionAfterOtp();
     if (!result.ok) {
-      setStatus("error");
-      setErrorMsg("Anmeldung fehlgeschlagen. Bitte erneut versuchen.");
+      // Falscher/abgelaufener Code → auf dem Code-Screen bleiben (kein Sprung
+      // zurück auf die E-Mail-Eingabe), Code leeren, Hinweis zeigen.
+      setStatus("sent");
+      setErrorMsg(
+        result.error === "invalid_input"
+          ? "Bitte den 6-stelligen Code vollständig eingeben."
+          : "Code ungültig oder abgelaufen. Bitte erneut eingeben oder neuen Code anfordern.",
+      );
+      resetCode();
+      setTimeout(() => focusInput(0), 50);
       return;
     }
+
+    // Mutex setzen, damit ein gleichzeitig feuerndes onAuthStateChange
+    // (z. B. Magic-Link genau im selben Moment geklickt) nicht doppelt navigiert.
+    navigatingRef.current = true;
 
     // Neue User direkt ins Onboarding — vermeidet den sichtbaren Doppel-
     // Redirect ueber das Layout-Gate (vorher: → "/" → Gate → "/onboarding").

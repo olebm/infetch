@@ -85,11 +85,64 @@ export async function loginAsTestUser(formData: FormData) {
 }
 
 /**
- * Nach erfolgreichem OTP-Code-Login: Postgres-Profil sicherstellen.
+ * OTP-Code serverseitig einlösen — verifyOtp läuft im selben Request, der die
+ * Session-Cookies setzt (Set-Cookie auf der Action-Response). Das ersetzt den
+ * vorherigen Pfad „Client-verifyOtp → separate Server-Action getUser()", dessen
+ * Cross-Boundary-Cookie-Race der Auslöser des Login-Loops war: sah die Server-
+ * Action die frisch im Browser gesetzten Cookies nicht, kam {ok:false} zurück
+ * und der Client fiel auf den Start-Screen zurück (INFETCH-219).
  *
- * Der 6-stellige Code wird clientseitig per verifyOtp eingelöst und läuft
- * NICHT über /auth/callback — daher muss der Bridge-User hier angelegt
- * werden, sonst fehlt die Org und der User landet zurück auf /login.
+ * Spiegelt damit den bewährten Magic-Link-Pfad in /auth/callback:
+ *   1. Verify im selben Request, der die Cookies schreibt (kein zweiter Hop).
+ *   2. Provisioning aus `data.user` direkt — kein redundanter getUser().
+ *   3. Provisioning-Fehler ist NICHT fatal: die Session steht, der User kommt
+ *      rein; ein fehlendes Profil legt der nächste Request / das Layout-Gate an.
+ */
+export async function verifyOtpCode(input: {
+  email: string;
+  code: string;
+}): Promise<{ ok: true; isNewUser: boolean } | { ok: false; error: string }> {
+  const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
+  const code = typeof input.code === "string" ? input.code.trim() : "";
+
+  if (!email || !/^\d{6}$/.test(code)) {
+    return { ok: false, error: "invalid_input" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    email,
+    token: code,
+    type: "email",
+  });
+
+  if (error || !data.user?.email) {
+    // Falscher/abgelaufener Code → Client bleibt auf dem Code-Screen.
+    return { ok: false, error: error?.message ?? "verify_failed" };
+  }
+
+  // Provisioning wie im Magic-Link-Callback: NICHT fatal. Ein transienter
+  // DB-Fehler darf den frisch authentifizierten User nicht zurück ins Login
+  // werfen — die Session steht bereits.
+  let isNewUser = false;
+  try {
+    isNewUser = await ensureUserProvisioned({
+      id: data.user.id,
+      email: data.user.email,
+      user_metadata: data.user.user_metadata ?? null,
+    });
+  } catch (err) {
+    console.error("[login] OTP provisioning failed (non-fatal):", err);
+  }
+
+  return { ok: true, isNewUser };
+}
+
+/**
+ * Nach erfolgreichem OTP-Login (Magic-Link im anderen Tab): Postgres-Profil
+ * sicherstellen. Wird nur noch vom Cross-Tab-`onAuthStateChange`-Pfad genutzt,
+ * wo die Browser-Session via StorageEvent bereits steht. Der Code-Eingabe-Pfad
+ * läuft über `verifyOtpCode` (serverseitig).
  */
 export async function provisionAfterOtp(): Promise<{ ok: boolean; isNewUser?: boolean }> {
   const supabase = await createSupabaseServerClient();
