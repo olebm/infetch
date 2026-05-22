@@ -823,9 +823,8 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="border-t border-line">
-          <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-5 text-xs text-muted flex flex-col md:flex-row gap-2 md:gap-6">
-            <div>© 2026 Infetch</div>
-            <button type="button" data-contact="" className="hover:text-ink transition-colors">hallo@infetch.de</button>
+          <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-5 text-xs text-muted text-center">
+            © 2026 Infetch
           </div>
         </div>
       </footer>
