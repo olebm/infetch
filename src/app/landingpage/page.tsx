@@ -28,7 +28,8 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 
 function fmtHeroTimestamp(): string {
   const n = new Date();
-  return `${n.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" })} · ${n.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
+  const tz = { timeZone: "Europe/Berlin" } as const;
+  return `${n.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric", ...tz })} · ${n.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", ...tz })}`;
 }
 
 export default function LandingPage() {
