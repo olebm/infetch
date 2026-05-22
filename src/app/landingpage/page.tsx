@@ -5,6 +5,8 @@ import { LogoStrip } from "./logo-strip";
 import { ContactController } from "./contact-controller";
 import { MobileNav } from "./mobile-nav";
 import { appConfig } from "@/lib/config/env";
+import { LiveNow } from "./live-demo";
+import { formatDemoNow } from "./demo-time";
 
 // ─── Tooltip helper ───────────────────────────────────────────────────────────
 
@@ -28,6 +30,9 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 export default function LandingPage() {
   // Free-only Launch: kein Preis-/Pro-Marketing auf der Landingpage.
   const proEnabled = appConfig.billing.proEnabled;
+  // Build-Zeit-Fallback für die Live-Datums-Komponenten (SSR / ohne JS). Im
+  // Browser aktualisiert live-demo.tsx nach dem Mount auf die echte aktuelle Zeit.
+  const now = new Date();
   return (
     <div className="overflow-x-hidden">
       {/* ================================================================== */}
@@ -125,7 +130,7 @@ export default function LandingPage() {
             <div className="mock-window shadow-lift">
               <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
                 <div className="font-display text-2xl text-ink">Heute</div>
-                <div className="text-[11px] text-muted stat-num">14. Mai 2026 · 14:32</div>
+                <div className="text-[11px] text-muted stat-num"><LiveNow format="datetime" fallback={formatDemoNow(now, "datetime")} /></div>
               </div>
 
               <ul className="px-2 pb-3">
@@ -188,7 +193,7 @@ export default function LandingPage() {
 
               <div className="px-5 py-3 border-t border-line bg-surface flex items-center justify-between text-xs text-muted">
                 <span>Auto-Pilot <span className="text-ink stat-num">aktiv</span></span>
-                <span className="stat-num">247 Rechnungen · Mai 2026</span>
+                <span className="stat-num">247 Rechnungen · <LiveNow format="month" fallback={formatDemoNow(now, "month")} /></span>
               </div>
             </div>
           </div>
@@ -444,17 +449,17 @@ export default function LandingPage() {
               <div className="mt-6 mock-window">
                 <ul className="divide-y divide-line">
                   {[
-                    { domain: "notion.so",  name: "Notion Team Plan",   expect: "monatlich · 32,00 €", label: "Mai fehlt",     cls: "text-warn" },
-                    { domain: "figma.com",  name: "Figma Inc.",          expect: "monatlich · 45,00 €", label: "Mai erhalten",  cls: "text-muted" },
-                    { domain: "dropbox.com", name: "Dropbox Business",    expect: "monatlich · 13,99 €", label: "Mai erhalten", cls: "text-muted" },
-                  ].map(({ domain, name, expect, label, cls }) => (
+                    { domain: "notion.so",  name: "Notion Team Plan",   expect: "monatlich · 32,00 €", suffix: "fehlt",     cls: "text-warn" },
+                    { domain: "figma.com",  name: "Figma Inc.",          expect: "monatlich · 45,00 €", suffix: "erhalten",  cls: "text-muted" },
+                    { domain: "dropbox.com", name: "Dropbox Business",    expect: "monatlich · 13,99 €", suffix: "erhalten", cls: "text-muted" },
+                  ].map(({ domain, name, expect, suffix, cls }) => (
                     <li key={domain} className="px-4 py-3 flex items-center gap-4 row-hover">
                       <VendorLogo domain={domain} name={name} size={36} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-ink truncate">{name}</div>
                         <div className="mt-0.5 text-xs text-muted stat-num">{expect}</div>
                       </div>
-                      <span className={`text-xs ${cls}`}>{label}</span>
+                      <span className={`text-xs ${cls}`}><LiveNow format="monthName" fallback={formatDemoNow(now, "monthName")} /> {suffix}</span>
                     </li>
                   ))}
                 </ul>
@@ -824,7 +829,7 @@ export default function LandingPage() {
         </div>
         <div className="border-t border-line">
           <div className="max-w-[1180px] mx-auto px-6 md:px-8 py-5 text-xs text-muted text-center">
-            © 2026 Infetch
+            © <LiveNow format="year" fallback={formatDemoNow(now, "year")} /> Infetch
           </div>
         </div>
       </footer>
