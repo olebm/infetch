@@ -1419,11 +1419,12 @@ export async function getMonthlyKpis(month: string, organizationId: string | nul
   return { total, sumGross, prevTotal, prevSumGross, deltaPercent };
 }
 
-export async function getDailyTimeseries(days: number): Promise<Array<{ date: string; count: number }>> {
+export async function getDailyTimeseries(days: number, organizationId: string | null): Promise<Array<{ date: string; count: number }>> {
   const rows = await sql<Array<{ date: string; count: string }>>`
     SELECT (COALESCE(invoice_date, created_at)::TIMESTAMP)::DATE::TEXT AS date, COUNT(*) AS count
     FROM invoices
     WHERE status = 'exported'
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
       AND COALESCE(invoice_date, created_at)::TIMESTAMPTZ >= NOW() - INTERVAL '1 day' * ${days}
     GROUP BY date
     ORDER BY date ASC`;

@@ -97,7 +97,7 @@ export async function DashboardView() {
     getSetupSnapshot(orgId),
     getAutomationStats(orgId),
     getSecondaryStats(orgId),
-    getDailyTimeseries(30),
+    getDailyTimeseries(30, orgId),
     getTopVendors(5, orgId),
     getOverdueVendors(orgId),
     getInvoices({ status: "duplicate", limit: 3, organizationId: orgId }),
