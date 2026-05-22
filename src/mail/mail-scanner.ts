@@ -47,9 +47,9 @@ type RunPrimaryImapScanInput = {
   bypassQuota?: boolean;
   /** Nur Accounts dieser Organisation scannen. */
   limitToOrgId?: string | null;
-  /** Auslöser-Label für sync_runs.triggered_by. Default: "user" (manueller
-   *  Scan) bzw. "retroactive_scan" (12-Monats-Backscan). Der Auto-Pilot-
-   *  Scheduler übergibt "cron" → wird als „automatisch" angezeigt. */
+  /** Auslöser-Label für sync_runs.triggered_by (CHECK erlaubt 'user' |
+   *  'schedule' | 'system'). Default: "user" (manueller Scan). Der Auto-Pilot-
+   *  Scheduler übergibt "schedule" → wird als „automatisch" angezeigt. */
   triggeredBy?: string;
 };
 
