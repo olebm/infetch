@@ -109,7 +109,7 @@ export async function UsageCard({ organizationId }: Props) {
           max={limits.maxInvoicesPerMonth}
           formatCurrent={(n) => String(n)}
           formatMax={(n) => String(n)}
-          unit="/ pro Monat"
+          unit="pro Monat"
         />
         <UsageBar
           label="Speicher"
