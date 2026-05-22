@@ -1397,14 +1397,22 @@ export async function getMonthlyKpis(month: string, organizationId: string | nul
   type KpiRow = { total: string; sumGross: string | null };
 
   // SEC (Dashboard-Konsistenz): org-gescopt — vorher zählte die Query über ALLE
-  // Mandanten (fehlender organization_id-Filter, Multi-Tenant-Leak). Quelle wie
-  // getAutomationStats: invoices.status='exported'.
+  // Mandanten (fehlender organization_id-Filter, Multi-Tenant-Leak).
+  //
+  // DATUMS-BASIS (Trust): Gruppierung nach updated_at (= Verarbeitungs-/Versand-
+  // Monat), NICHT nach invoice_date (Rechnungsdatum des Dokuments). Sonst zeigt
+  // die KPI „automatisch versendet" in Monaten VOR Account-Existenz: der
+  // Erstscan importiert Alt-Rechnungen mit Rechnungsdatum Feb/Mär/Apr, die alle
+  // erst HEUTE erfasst+exportiert wurden. invoice_date würde sie auf ihre
+  // Dokument-Monate verteilen → „das System hat im Februar versendet" (Account
+  // gibt's erst seit Mai). updated_at ist konsistent mit getAutomationStats und
+  // lässt alle Dashboard-Zahlen (Hero, KPI, Graph) auf dieselbe Achse fallen.
   const getKpi = async (mo: string): Promise<KpiRow> =>
     (await sql<KpiRow[]>`
       SELECT COUNT(*) AS total, SUM(amount_gross) AS "sumGross"
       FROM invoices
       WHERE status = 'exported'
-        AND invoice_date LIKE ${mo + '%'}
+        AND TO_CHAR(updated_at::TIMESTAMP, 'YYYY-MM') = ${mo}
         AND organization_id IS NOT DISTINCT FROM ${organizationId}`)[0];
 
   const cur = await getKpi(month);
@@ -1421,12 +1429,17 @@ export async function getMonthlyKpis(month: string, organizationId: string | nul
 }
 
 export async function getDailyTimeseries(days: number, organizationId: string | null): Promise<Array<{ date: string; count: number }>> {
+  // DATUMS-BASIS (Trust): wie getMonthlyKpis nach updated_at (Verarbeitungs-/
+  // Versandzeit), NICHT nach invoice_date. Sonst verteilt der Graph heute
+  // erfasste Alt-Rechnungen auf ihre Dokument-Daten → er zeigt „Aktivität" in
+  // Tagen vor Account-Existenz. updated_at zeigt, wann der Auto-Pilot wirklich
+  // gearbeitet hat — konsistent mit Hero und KPI.
   const rows = await sql<Array<{ date: string; count: string }>>`
-    SELECT (COALESCE(invoice_date, created_at)::TIMESTAMP)::DATE::TEXT AS date, COUNT(*) AS count
+    SELECT (updated_at::TIMESTAMP)::DATE::TEXT AS date, COUNT(*) AS count
     FROM invoices
     WHERE status = 'exported'
       AND organization_id IS NOT DISTINCT FROM ${organizationId}
-      AND COALESCE(invoice_date, created_at)::TIMESTAMPTZ >= NOW() - INTERVAL '1 day' * ${days}
+      AND updated_at::TIMESTAMPTZ >= NOW() - INTERVAL '1 day' * ${days}
     GROUP BY date
     ORDER BY date ASC`;
 

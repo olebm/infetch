@@ -246,3 +246,44 @@ describe.skipIf(!hasDb)("tenant isolation — dashboard queries", () => {
     expect((await getSecondaryMailAccount(D_ORG_B))?.username).toBe("secondary-b@iso.local");
   });
 });
+
+// ── Dashboard-Datums-Basis: updated_at (Versand-/Verarbeitungszeit), NICHT
+// invoice_date (Dokumentdatum). Regression-Guard für den Trust-Bug, bei dem der
+// Erstscan Alt-Rechnungen (Rechnungsdatum vor Account-Existenz) importiert und
+// das Dashboard „automatisch versendet" in Monaten vor dem Account zeigte.
+// Szenario: 1 exportierte Rechnung mit invoice_date 2020-02-15, aber updated_at
+// = jetzt (Default beim Insert) → muss im AKTUELLEN Monat zählen, nicht im
+// Dokumentmonat 2020-02.
+const DB_ORG = `dbasis-${SUFFIX}`;
+const DB_USER = `dbasis-u-${SUFFIX}`;
+const DB_NOW_MONTH = new Date().toISOString().slice(0, 7);
+
+describe.skipIf(!hasDb)("dashboard date basis — updated_at, not invoice_date", () => {
+  beforeEach(async () => {
+    await sql`DELETE FROM invoices WHERE organization_id = ${DB_ORG}`;
+    await sql`DELETE FROM organizations WHERE id = ${DB_ORG}`;
+    await sql`DELETE FROM users WHERE id = ${DB_USER}`;
+    await sql`INSERT INTO users (id, email, name) VALUES (${DB_USER}, ${`${DB_USER}@iso.local`}, 'DB') ON CONFLICT DO NOTHING`;
+    await sql`INSERT INTO organizations (id, name, slug, tier, owner_user_id) VALUES (${DB_ORG}, ${DB_ORG}, ${DB_ORG}, 'pro', ${DB_USER}) ON CONFLICT DO NOTHING`;
+    // Alt-Dokument (invoice_date 2020), heute erfasst+exportiert (updated_at = Default now()).
+    await sql`
+      INSERT INTO invoices (organization_id, source, status, confidence, dedupe_key, invoice_date, amount_gross, created_at)
+      VALUES (${DB_ORG}, 'manual', 'exported', 0.9, ${`dbasis-inv-${SUFFIX}`}, '2020-02-15', 42, NOW())
+    `;
+  });
+  afterEach(async () => {
+    await sql`DELETE FROM invoices WHERE organization_id = ${DB_ORG}`;
+    await sql`DELETE FROM organizations WHERE id = ${DB_ORG}`;
+    await sql`DELETE FROM users WHERE id = ${DB_USER}`;
+  });
+
+  it("getMonthlyKpis: zählt im Verarbeitungsmonat (jetzt), nicht im Rechnungsmonat (2020-02)", async () => {
+    expect((await getMonthlyKpis(DB_NOW_MONTH, DB_ORG)).total).toBe(1);
+    expect((await getMonthlyKpis("2020-02", DB_ORG)).total).toBe(0);
+  });
+
+  it("getDailyTimeseries: Alt-Rechnung erscheint im 30-Tage-Fenster (updated_at heute)", async () => {
+    const sum = (await getDailyTimeseries(30, DB_ORG)).reduce((s, r) => s + r.count, 0);
+    expect(sum).toBe(1); // unter invoice_date-Basis wäre 2020 außerhalb des Fensters → 0
+  });
+});
