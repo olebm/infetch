@@ -50,6 +50,8 @@ import {
   markInvoicePrivateAction,
   restoreInvoiceFromPrivateAction,
   updateInvoiceReviewAction,
+  approveInvoicesAction,
+  ignoreInvoicesAction,
 } from "@/app/(app)/audit/actions";
 import { toggleVendorHiddenAction } from "@/app/(app)/fehlt/actions";
 import { removeOnlineAccountAction } from "@/app/(app)/online-accounts/actions";
@@ -251,6 +253,19 @@ describe.skipIf(!hasDb)("cross-tenant IDOR fixes (Stream A)", () => {
       await restoreInvoiceFromPrivateAction(invoiceB);
       const after = await getInvoiceStatus(invoiceB);
       expect(after.isPrivate).toBe(true);
+    });
+  });
+
+  describe("approveInvoicesAction / ignoreInvoicesAction (Bulk)", () => {
+    it("approve: eigene Rechnung wird ready, fremde bleibt unverändert (auch bei gemischten IDs)", async () => {
+      await approveInvoicesAction([invoiceA, invoiceB]);
+      expect((await getInvoiceStatus(invoiceA)).status).toBe("ready");        // eigene → ready
+      expect((await getInvoiceStatus(invoiceB)).status).toBe("needs_review"); // fremde unverändert
+    });
+
+    it("ignore: fremde Rechnung bleibt unverändert", async () => {
+      await ignoreInvoicesAction([invoiceB]);
+      expect((await getInvoiceStatus(invoiceB)).status).toBe("needs_review");
     });
   });
 
