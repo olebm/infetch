@@ -105,7 +105,7 @@ export async function DashboardView() {
     getInvoiceStatusCounts(orgId),
     (() => {
       const now = new Date();
-      return getMonthlyKpis(now.toISOString().slice(0, 7));
+      return getMonthlyKpis(now.toISOString().slice(0, 7), orgId);
     })(),
     getObservationStartDate(),
     getLastScanAt(),
@@ -150,7 +150,7 @@ export async function DashboardView() {
   for (let i = 2; i <= 4; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const iso = d.toISOString().slice(0, 7);
-    const kpi = await getMonthlyKpis(iso);
+    const kpi = await getMonthlyKpis(iso, orgId);
     if (kpi.total > 0) {
       olderMonths.push({ label: MONTHS_DE[d.getMonth()]!, count: kpi.total });
     }

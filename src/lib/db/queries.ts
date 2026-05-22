@@ -283,17 +283,20 @@ export async function getAutomationStats(organizationId: string | null = null): 
       daysActive: null,
     };
   }
-  // PERF: vier separate COUNT-Queries auf `exports WHERE status='sent'` zu einer
-  // aggregierten Query zusammengefasst (FILTER + MIN). needsReview bleibt
-  // separat, da andere Tabelle — parallel ausgeführt.
+  // "versendet" = invoices.status='exported' (zuverlässig org-gescopt). Vorher
+  // las das die exports-Tabelle (status='sent'), die beim INSERT aber KEIN
+  // organization_id setzt → org-Filter lieferte 0 trotz erfolgter Sends (Hero
+  // zeigte fälschlich „unterwegs"). invoices.status='exported' wird in derselben
+  // Transaktion wie exports.sent gesetzt und ist die org-sichere Quelle der
+  // Wahrheit — konsistent mit capturedCount und getMonthlyKpis.
   const [exportAgg, needsReviewRow, capturedRow] = await Promise.all([
     sql<{ today: string; thisWeek: string; lifetime: string; days: number | null }[]>`
       SELECT
-        COUNT(*) FILTER (WHERE (sent_at::TIMESTAMP)::DATE = CURRENT_DATE) AS today,
-        COUNT(*) FILTER (WHERE sent_at::TIMESTAMPTZ >= NOW() - INTERVAL '7 days') AS "thisWeek",
+        COUNT(*) FILTER (WHERE (updated_at::TIMESTAMP)::DATE = CURRENT_DATE) AS today,
+        COUNT(*) FILTER (WHERE updated_at::TIMESTAMPTZ >= NOW() - INTERVAL '7 days') AS "thisWeek",
         COUNT(*) AS lifetime,
-        EXTRACT(EPOCH FROM (NOW() - MIN(sent_at)::TIMESTAMP))::INTEGER / 86400 AS days
-      FROM exports WHERE status = 'sent' AND organization_id = ${organizationId}
+        EXTRACT(EPOCH FROM (NOW() - MIN(updated_at)::TIMESTAMP))::INTEGER / 86400 AS days
+      FROM invoices WHERE status = 'exported' AND organization_id = ${organizationId}
     `,
     sql<{ count: string }[]>`
       SELECT COUNT(*) AS count FROM invoices
@@ -1377,7 +1380,7 @@ export type MonthlyKpis = {
   deltaPercent: number | null;
 };
 
-export async function getMonthlyKpis(month: string): Promise<MonthlyKpis> {
+export async function getMonthlyKpis(month: string, organizationId: string | null): Promise<MonthlyKpis> {
   const [yearStr, mStr] = month.split("-");
   const year = parseInt(yearStr ?? "0", 10);
   const m = parseInt(mStr ?? "1", 10);
@@ -1387,12 +1390,16 @@ export async function getMonthlyKpis(month: string): Promise<MonthlyKpis> {
 
   type KpiRow = { total: string; sumGross: string | null };
 
+  // SEC (Dashboard-Konsistenz): org-gescopt — vorher zählte die Query über ALLE
+  // Mandanten (fehlender organization_id-Filter, Multi-Tenant-Leak). Quelle wie
+  // getAutomationStats: invoices.status='exported'.
   const getKpi = async (mo: string): Promise<KpiRow> =>
     (await sql<KpiRow[]>`
       SELECT COUNT(*) AS total, SUM(amount_gross) AS "sumGross"
       FROM invoices
       WHERE status = 'exported'
-        AND invoice_date LIKE ${mo + '%'}`)[0];
+        AND invoice_date LIKE ${mo + '%'}
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`)[0];
 
   const cur = await getKpi(month);
   const prev = await getKpi(prevMonth);
