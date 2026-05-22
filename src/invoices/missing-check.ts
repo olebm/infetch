@@ -3,6 +3,7 @@ import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { appConfig } from "@/lib/config/env";
 import { recordSyncEvent } from "@/lib/db/events";
 import { resolveVendorMonthStatus, type SourceStatus } from "@/invoices/status";
+import { getOrgTier, getScanSinceDate } from "@/lib/tier";
 
 type VendorRow = {
   id: number;
@@ -44,8 +45,8 @@ export async function runMissingInvoiceCheck(): Promise<MissingCheckResult> {
 
   try {
     // vendor_month_status ist seit Migration 0019 org-scoped → pro Org prüfen.
-    const orgs = await sql<{ id: string }[]>`
-      SELECT id FROM organizations WHERE deleted_at IS NULL ORDER BY created_at
+    const orgs = await sql<{ id: string; createdAt: string | null }[]>`
+      SELECT id, created_at::text AS "createdAt" FROM organizations WHERE deleted_at IS NULL ORDER BY created_at
     `;
     // organization_id mitladen: pro Org nur die für sie relevanten Vendors
     // prüfen (eigene + globale Seeds). Ohne diesen Filter bekäme jede Org
@@ -61,12 +62,29 @@ export async function runMissingInvoiceCheck(): Promise<MissingCheckResult> {
     const summary = { checked: 0, found: 0, required: 0, actionRequired: 0, disabled: 0 };
 
     for (const org of orgs) {
+      // Fenster pro Org auf das TATSÄCHLICHE Import-Fenster begrenzen
+      // (getScanSinceDate — exakt das, was der Scanner abruft) und nicht vor
+      // Org-Beginn. Sonst entstehen "missing"-Zellen für Monate, die nie
+      // gescannt wurden (Free = nur laufender Monat) → falsche „Fehlt"-Flut.
+      const tier = await getOrgTier(org.id);
+      const sinceMonth = format(getScanSinceDate(tier, appConfig.syncMonthsBack), "yyyy-MM");
+      const orgStartMonth = org.createdAt ? org.createdAt.slice(0, 7) : sinceMonth;
+      const lowerBound = sinceMonth > orgStartMonth ? sinceMonth : orgStartMonth;
+      const orgMonths = months.filter((m) => m >= lowerBound);
+
+      // Veraltete Zellen außerhalb des Fensters wegräumen (rein abgeleiteter
+      // Cache, wird in-Fenster neu erzeugt) — hält „Fehlt" konsistent.
+      await sql`
+        DELETE FROM vendor_month_status
+        WHERE organization_id = ${org.id} AND year_month < ${lowerBound}
+      `;
+
       // Nur eigene + globale Seed-Vendors dieser Org.
       const orgVendors = vendors.filter(
         (v) => v.organizationId === null || v.organizationId === org.id,
       );
       for (const vendor of orgVendors) {
-        for (const yearMonth of months) {
+        for (const yearMonth of orgMonths) {
           const signal = invoiceByOrgVendorMonth.get(`${org.id}:${vendor.id}:${yearMonth}`);
           const sourceStatus = await resolveSourceStatus(vendor, yearMonth, signal, org.id);
           const final = resolveVendorMonthStatus(sourceStatus);

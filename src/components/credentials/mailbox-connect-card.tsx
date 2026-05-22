@@ -67,7 +67,7 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
               </div>
               <div className="mt-0.5 flex items-center gap-1 text-xs text-ok">
                 <Check size={11} aria-hidden />
-                IMAP + SMTP konfiguriert · Primäres Postfach
+                Empfang + Versand aktiv · Primäres Postfach
               </div>
             </div>
             <button
@@ -113,7 +113,7 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
               </div>
               <div className="mt-0.5 flex items-center gap-1 text-xs text-ok">
                 <Check size={11} aria-hidden />
-                IMAP + SMTP konfiguriert · Sekundäres Postfach
+                Empfang + Versand aktiv · Sekundäres Postfach
               </div>
             </div>
             <button

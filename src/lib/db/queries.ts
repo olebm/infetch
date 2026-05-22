@@ -809,6 +809,11 @@ export type MissingItem = {
 
 const BUCKET_PRIORITY: Record<MissingItem["bucket"], number> = { help: 0, auto: 1, wait: 2 };
 
+// Portal-Auto-Abruf ist operativ noch NICHT live → den "auto"-Bucket ("Wird
+// automatisch geholt") vorerst nicht vergeben, sonst ein Versprechen, das nicht
+// eingelöst wird. Auf true setzen, sobald der Portal-Agent real abruft.
+const PORTAL_FETCH_LIVE = false;
+
 export async function getMissingItems(organizationId: string | null): Promise<MissingItem[]> {
   const rows = await sql<Array<{
     vendorId: number;
@@ -855,7 +860,7 @@ export async function getMissingItems(organizationId: string | null): Promise<Mi
     const portalAvailable = Boolean(r.portalEnabled);
     let bucket: MissingItem["bucket"];
     if (r.finalStatus === "action_required") bucket = "help";
-    else if (r.portalStatus === "required" || r.portalStatus === "running") bucket = "auto";
+    else if (PORTAL_FETCH_LIVE && (r.portalStatus === "required" || r.portalStatus === "running")) bucket = "auto";
     else bucket = "wait";
 
     const item: MissingItem = {
