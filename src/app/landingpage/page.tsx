@@ -42,7 +42,7 @@ export default function LandingPage() {
             <a href="#how" className="hover:text-ink">Wie es funktioniert</a>
             <a href="#features" className="hover:text-ink">Funktionen</a>
             <a href="#sicherheit" className="hover:text-ink">Sicherheit</a>
-            {proEnabled && <a href="#preise" className="hover:text-ink">Preise</a>}
+            <a href="#preise" className="hover:text-ink">Preise</a>
             <a href="#faq" className="hover:text-ink">FAQ</a>
           </nav>
           <div className="hidden md:flex items-center gap-2 ml-auto">
@@ -638,20 +638,19 @@ export default function LandingPage() {
       {/* ================================================================== */}
       {/* PREISE                                                              */}
       {/* ================================================================== */}
-      {proEnabled && (
       <section id="preise" className="py-20 md:py-28 bg-paper border-y border-line">
         <div className="max-w-[1180px] mx-auto px-6 md:px-8">
           <div className="max-w-2xl">
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted">Preise</div>
             <h2 className="mt-3 font-display text-4xl md:text-5xl text-ink leading-[1.05]">
-              Zwei Tarife. Kein Kleingedrucktes.
+              {proEnabled ? "Zwei Tarife. Kein Kleingedrucktes." : "Kostenlos. Kein Kleingedrucktes."}
             </h2>
             <p className="mt-5 text-muted leading-relaxed">
               Kostenlos starten. Keine Kreditkarte. Monatlich kündbar.
             </p>
           </div>
 
-          <div className="mt-14 grid md:grid-cols-2 gap-8 max-w-4xl">
+          <div className={`mt-14 ${proEnabled ? "grid md:grid-cols-2 gap-8 max-w-4xl" : "max-w-md"}`}>
             {/* Plan: Free */}
             <div className="border border-line rounded-2xl p-8 bg-white flex flex-col">
               <div className="text-sm text-muted">Free</div>
@@ -672,7 +671,8 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            {/* Plan: Pro (highlighted) */}
+            {/* Plan: Pro — erst sichtbar, wenn der Pro-Tarif aktiv ist (proEnabled) */}
+            {proEnabled && (
             <div className="border-2 border-ink rounded-2xl p-8 bg-white flex flex-col relative">
               <div className="absolute -top-3.5 left-7 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-ink text-white text-[10px] uppercase tracking-[0.14em]">
                 empfohlen
@@ -698,6 +698,7 @@ export default function LandingPage() {
                 Pro wählen
               </Link>
             </div>
+            )}
           </div>
 
           <div className="mt-8 text-xs text-muted">
@@ -706,7 +707,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-      )}
 
       {/* ================================================================== */}
       {/* FAQ                                                                 */}
@@ -801,7 +801,7 @@ export default function LandingPage() {
             <ul className="mt-3 space-y-2 text-sm text-ink">
               <li><a href="#how" className="hover:text-muted">Wie es funktioniert</a></li>
               <li><a href="#features" className="hover:text-muted">Funktionen</a></li>
-              {proEnabled && <li><a href="#preise" className="hover:text-muted">Preise</a></li>}
+              <li><a href="#preise" className="hover:text-muted">Preise</a></li>
             </ul>
           </div>
           <div>
