@@ -6,7 +6,8 @@
  *   Project → Alerts → Add Recipient → Webhook
  *   URL: https://app.infetch.de/api/sentry-webhook
  *
- * Kein Signature-Secret erforderlich (Glitchtip signiert Webhooks nicht).
+ * Glitchtip sendet Slack-kompatibles JSON:
+ *   { alias, text, attachments: [{ title, title_link, color, fields }] }
  */
 
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
@@ -16,12 +17,45 @@ import { NextResponse } from "next/server";
 const ERROR_LOG = join(process.cwd(), "data", "sentry-errors.jsonl");
 const MAX_ENTRIES = 50;
 
-// ── Rollierende JSONL-Datei ───────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type GlitchtipField = { title: string; value: string; short: boolean };
+type GlitchtipAttachment = {
+  title?: string;
+  title_link?: string;
+  text?: string;
+  color?: string;
+  fields?: GlitchtipField[];
+};
+type GlitchtipPayload = {
+  alias?: string;
+  text?: string;
+  attachments?: GlitchtipAttachment[];
+};
 
 type ErrorEntry = {
   receivedAt: string;
-  raw: unknown;
+  title: string;
+  permalink: string;
+  level: string;
+  project: string;
+  culprit: string;
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function colorToLevel(color?: string): string {
+  if (!color) return "error";
+  if (color === "warning") return "warning";
+  if (color === "good") return "info";
+  return "error"; // "danger" und alles andere
+}
+
+function fieldValue(fields: GlitchtipField[] | undefined, key: string): string {
+  return fields?.find((f) => f.title.toLowerCase() === key)?.value ?? "";
+}
+
+// ── Rollierende JSONL-Datei ───────────────────────────────────────────────────
 
 function appendEntry(entry: ErrorEntry) {
   try {
@@ -32,11 +66,8 @@ function appendEntry(entry: ErrorEntry) {
           .split("\n")
           .filter(Boolean)
           .flatMap((line) => {
-            try {
-              return [JSON.parse(line) as ErrorEntry];
-            } catch {
-              return [];
-            }
+            try { return [JSON.parse(line) as ErrorEntry]; }
+            catch { return []; }
           })
       : [];
 
@@ -54,16 +85,26 @@ function appendEntry(entry: ErrorEntry) {
 export async function POST(request: Request) {
   const rawBody = await request.text();
 
-  let payload: unknown;
+  let payload: GlitchtipPayload;
   try {
-    payload = JSON.parse(rawBody);
+    payload = JSON.parse(rawBody) as GlitchtipPayload;
   } catch {
-    payload = rawBody;
+    return NextResponse.json({ error: "Ungültiges JSON." }, { status: 400 });
   }
 
-  appendEntry({ receivedAt: new Date().toISOString(), raw: payload });
+  const attachment = payload.attachments?.[0];
+  const fields = attachment?.fields;
 
-  console.log("[glitchtip-webhook] Event empfangen:", JSON.stringify(payload, null, 2));
+  const entry: ErrorEntry = {
+    receivedAt: new Date().toISOString(),
+    title: attachment?.title ?? payload.text ?? "Unbekannter Fehler",
+    permalink: attachment?.title_link ?? "",
+    level: colorToLevel(attachment?.color),
+    project: fieldValue(fields, "project"),
+    culprit: fieldValue(fields, "culprit") || fieldValue(fields, "release") || "",
+  };
+
+  appendEntry(entry);
 
   return NextResponse.json({ ok: true });
 }
