@@ -107,7 +107,7 @@ export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
       <Modal
         open={openSlot !== null}
         onClose={() => setOpenSlot(null)}
-        title={openSlot ? `${slotLabel(openSlot)} konfigurieren` : "Absende-Konto"}
+        title="Absende-Konto konfigurieren"
         size="md"
       >
         {openSlot !== null && (

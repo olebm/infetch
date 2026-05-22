@@ -192,7 +192,7 @@ export default async function SetupPage() {
                 </div>
                 <StatusBadge
                   status={t.enabled ? "configured" : "disabled"}
-                  label={idx === 0 ? "Standard" : "Sekundär"}
+                  label={idx === 0 ? "Primär" : "Sekundär"}
                 />
                 <EditRecipientButton
                   target={{ target: t.target, label: t.label, recipientEmail: t.recipientEmail, smtpSlot: t.smtpSlot, enabled: t.enabled }}
