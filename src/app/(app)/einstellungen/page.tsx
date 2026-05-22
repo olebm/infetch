@@ -228,19 +228,11 @@ export default async function SetupPage() {
       </Card>
 
       <Card padding="lg">
-        <div className="text-sm font-medium text-ink">KI-Backend</div>
+        <div className="text-sm font-medium text-ink">KI</div>
         <div className="mb-4 mt-0.5 text-xs text-muted">
           Inklusive. Kein eigener Key nötig.
         </div>
         <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-3">
-          <div className="rounded border border-line p-3">
-            <div className="text-muted">Modell</div>
-            <div className="mt-0.5 font-medium text-ink">EU-Hosted · OCR + Strukturextraktion</div>
-          </div>
-          <div className="rounded border border-line p-3">
-            <div className="text-muted">Region</div>
-            <div className="mt-0.5 font-medium text-ink">Frankfurt · DSGVO-konform</div>
-          </div>
           <div className="rounded border border-line p-3">
             <div className="text-muted">Status</div>
             <div className="mt-1">
@@ -249,6 +241,14 @@ export default async function SetupPage() {
                 label={appConfig.mistral.enabled ? "Ok" : "deaktiviert"}
               />
             </div>
+          </div>
+          <div className="rounded border border-line p-3">
+            <div className="text-muted">Modell</div>
+            <div className="mt-0.5 font-medium text-ink">EU-Hosted</div>
+          </div>
+          <div className="rounded border border-line p-3">
+            <div className="text-muted">Region</div>
+            <div className="mt-0.5 font-medium text-ink">Frankfurt · DSGVO-konform</div>
           </div>
         </div>
       </Card>
@@ -264,14 +264,14 @@ export default async function SetupPage() {
   );
 
   const tabs: TabItem[] = [
-    { key: "buchhaltung",   label: "Buchhaltung",    content: buchhaltungTab   },
     { key: "postfach",      label: "Postfächer",      content: postfachTab      },
+    { key: "buchhaltung",   label: "Buchhaltung",    content: buchhaltungTab   },
     // Integrationen (lexoffice/sevDesk) erst einblenden, wenn der Pro-Tarif
     // aktiviert ist — im Free-only-Launch ausgeblendet.
     ...(appConfig.billing.proEnabled
       ? [{ key: "integrationen", label: "Integrationen", content: integrationsTab }]
       : []),
-    { key: "ki",            label: "KI & Auto-Pilot", content: aiTab            },
+    { key: "ki",            label: "Auto-Pilot", content: aiTab            },
   ];
 
   return (
@@ -280,7 +280,7 @@ export default async function SetupPage() {
         title="Einstellungen"
         subline="Postfächer, Empfänger und Auto-Pilot."
       />
-      <Tabs tabs={tabs} defaultKey="buchhaltung" />
+      <Tabs tabs={tabs} defaultKey="postfach" />
     </div>
   );
 }
