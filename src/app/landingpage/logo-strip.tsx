@@ -31,6 +31,10 @@ async function getTopLandingVendors(): Promise<{ name: string; domain: string | 
     LEFT JOIN invoices i ON i.vendor_id = v.id
     WHERE v.organization_id IS NULL
       AND v.hidden IS NOT TRUE
+      AND EXISTS (
+        SELECT 1 FROM vendor_aliases
+        WHERE vendor_id = v.id AND match_type = 'domain'
+      )
     GROUP BY v.id, v.name
     ORDER BY COUNT(i.id) DESC, v.name ASC
     LIMIT 6
