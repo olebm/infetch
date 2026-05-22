@@ -107,9 +107,9 @@ export async function DashboardView() {
       const now = new Date();
       return getMonthlyKpis(now.toISOString().slice(0, 7), orgId);
     })(),
-    getObservationStartDate(),
-    getLastScanAt(),
-    getLastScanFailure(),
+    getObservationStartDate(orgId),
+    getLastScanAt(orgId),
+    getLastScanFailure(orgId),
     canImportInvoice(orgId),
   ]);
 

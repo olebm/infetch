@@ -1515,13 +1515,21 @@ export async function getOverdueVendors(organizationId: string | null = null): P
   return rows.map((r) => ({ ...r, daysSince: Number(r.daysSince) }));
 }
 
-export async function getObservationStartDate(): Promise<string | null> {
-  const row = (await sql`SELECT MIN(created_at) AS "firstAt" FROM invoices`)[0] as { firstAt: string | null } | undefined;
+export async function getObservationStartDate(organizationId: string | null): Promise<string | null> {
+  // SEC: org-gescopt — sonst „seit X" = frühestes Invoice ALLER Mandanten.
+  const row = (await sql`SELECT MIN(created_at) AS "firstAt" FROM invoices WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`)[0] as { firstAt: string | null } | undefined;
   return row?.firstAt ?? null;
 }
 
-export async function getLastScanAt(): Promise<string | null> {
-  const row = (await sql`SELECT MAX(created_at) AS "lastAt" FROM sync_events WHERE event_type = 'imap_scan'`)[0] as { lastAt: string | null } | undefined;
+export async function getLastScanAt(organizationId: string | null): Promise<string | null> {
+  // Aus sync_runs lesen (dort liegen die echten Scan-Läufe, org-gescopt), NICHT
+  // aus sync_events mit event_type='imap_scan' — das schreibt der Scanner nie
+  // (er schreibt 'imap_scan_completed'), die alte Query lieferte daher immer
+  // null → Dashboard zeigte dauerhaft „noch kein Scan".
+  const row = (await sql`
+    SELECT MAX(started_at) AS "lastAt" FROM sync_runs
+    WHERE type = 'imap_scan' AND organization_id IS NOT DISTINCT FROM ${organizationId}
+  `)[0] as { lastAt: string | null } | undefined;
   return row?.lastAt ?? null;
 }
 
@@ -1529,7 +1537,7 @@ export async function getLastScanAt(): Promise<string | null> {
 // auch tatsaechlich die latest Row ist (also kein erfolgreicher/laufender Scan
 // danach kam). So verschwindet das Dashboard-Warnbanner automatisch, sobald der
 // naechste Scan wieder gruen ist.
-export async function getLastScanFailure(): Promise<
+export async function getLastScanFailure(organizationId: string | null): Promise<
   { failedAt: string; errorSnippet: string } | null
 > {
   const rows = await sql<
@@ -1537,7 +1545,7 @@ export async function getLastScanFailure(): Promise<
   >`
     SELECT status, finished_at AS "finishedAt", summary_json AS "summaryJson"
     FROM sync_runs
-    WHERE type = 'imap_scan'
+    WHERE type = 'imap_scan' AND organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY id DESC
     LIMIT 1
   `;
