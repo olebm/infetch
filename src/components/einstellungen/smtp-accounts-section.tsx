@@ -23,10 +23,6 @@ export interface SmtpAccountSlot {
   servers?: { smtpHost?: string; smtpPort?: number; smtpSecure?: boolean };
 }
 
-function slotLabel(slot: "primary" | "secondary"): string {
-  return slot === "secondary" ? "Absende-Konto 2" : "Absende-Konto 1";
-}
-
 export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
   const [openSlot, setOpenSlot] = useState<"primary" | "secondary" | null>(null);
 
@@ -45,7 +41,7 @@ export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
           </div>
           <div className="mt-0.5 flex items-center gap-1 text-xs text-ok">
             <Check size={11} aria-hidden />
-            Versand aktiv · {slotLabel(acc.slot)}
+            Versand aktiv
           </div>
         </div>
         <button
