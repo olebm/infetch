@@ -25,9 +25,15 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function fmtHeroTimestamp(): string {
+  const n = new Date();
+  return `${n.toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" })} · ${n.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 export default function LandingPage() {
   // Free-only Launch: kein Preis-/Pro-Marketing auf der Landingpage.
   const proEnabled = appConfig.billing.proEnabled;
+  const heroTimestamp = fmtHeroTimestamp();
   return (
     <div className="overflow-x-hidden">
       {/* ================================================================== */}
@@ -125,7 +131,7 @@ export default function LandingPage() {
             <div className="mock-window shadow-lift">
               <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
                 <div className="font-display text-2xl text-ink">Heute</div>
-                <div className="text-[11px] text-muted stat-num">14. Mai 2026 · 14:32</div>
+                <div className="text-[11px] text-muted stat-num">{heroTimestamp}</div>
               </div>
 
               <ul className="px-2 pb-3">
