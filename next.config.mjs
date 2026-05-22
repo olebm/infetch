@@ -28,13 +28,11 @@ function buildCsp() {
   const sentryOrigin = safeOrigin(process.env.SENTRY_DSN);
 
   // Plausible (cookielose Analytics): Script + Event-Endpoint freigeben.
-  // Origin aus NEXT_PUBLIC_PLAUSIBLE_SRC ableiten (Default: plausible.io).
-  const plausibleOrigin = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN
-    ? safeOrigin(
-        process.env.NEXT_PUBLIC_PLAUSIBLE_SRC ||
-          "https://plausible.io/js/script.js",
-      )
-    : "";
+  // Origin DIREKT aus NEXT_PUBLIC_PLAUSIBLE_SRC ableiten — exakt die Variable,
+  // die auch <PlausibleAnalytics> rendert. Vorher war die CSP auf
+  // NEXT_PUBLIC_PLAUSIBLE_DOMAIN gegated; war SRC (Script lädt) ohne DOMAIN
+  // gesetzt, blieb der Origin leer → CSP-Verstoß (INFETCH-217).
+  const plausibleOrigin = safeOrigin(process.env.NEXT_PUBLIC_PLAUSIBLE_SRC);
 
   const connectSrc = ["'self'", supabaseOrigin, supabaseWs, sentryOrigin, plausibleOrigin]
     .filter(Boolean)
