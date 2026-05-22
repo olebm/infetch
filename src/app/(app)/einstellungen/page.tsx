@@ -12,7 +12,7 @@ import { MailboxConnectCard, type MailboxSlot } from "@/components/credentials/m
 import { SmtpAccountsSection, type SmtpAccountSlot } from "@/components/einstellungen/smtp-accounts-section";
 import { StatusBadge } from "@/components/status/status-badge";
 import { AddRecipientButton, EditRecipientButton } from "@/components/einstellungen/recipient-modal";
-import { clearExportTargetAction } from "@/app/(app)/einstellungen/actions";
+import { RemoveTargetButton } from "@/components/einstellungen/remove-target-button";
 import { ConfidenceSlider } from "@/components/einstellungen/confidence-slider";
 import { SubjectTemplateCard } from "@/components/einstellungen/subject-template-card";
 import { Tabs, type TabItem } from "@/components/ui/tabs";
@@ -198,15 +198,7 @@ export default async function SetupPage() {
                   target={{ target: t.target, label: t.label, recipientEmail: t.recipientEmail, smtpSlot: t.smtpSlot, enabled: t.enabled }}
                   smtpOptions={smtpOptions}
                 />
-                <form action={clearExportTargetAction}>
-                  <input type="hidden" name="targetId" value={t.id} />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center px-1 py-2 -mx-1 text-xs text-muted underline underline-offset-4 decoration-line hover:text-danger"
-                  >
-                    entfernen
-                  </button>
-                </form>
+                <RemoveTargetButton targetId={String(t.id)} />
               </div>
               );
             })}

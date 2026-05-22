@@ -71,32 +71,41 @@ export function ImapAccountForm({
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <input
-          name="imapHost"
-          value={host}
-          onChange={(e) => setHost(e.target.value)}
-          placeholder="imap.example.com"
-          className="rounded border border-line bg-surface px-3 py-2 text-sm"
-          required
-        />
-        <input
-          name="imapPort"
-          type="number"
-          min={1}
-          max={65535}
-          value={port}
-          onChange={(e) => setPort(e.target.value)}
-          className="rounded border border-line bg-surface px-3 py-2 text-sm"
-          required
-        />
-        <input
-          name="imapUser"
-          defaultValue={account?.username || ""}
-          placeholder="rechnung@example.com"
-          autoComplete="username"
-          className="rounded border border-line bg-surface px-3 py-2 text-sm"
-          required
-        />
+        <div>
+          <label className="mb-1 block text-xs text-muted">Server-Adresse</label>
+          <input
+            name="imapHost"
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+            placeholder="imap.example.com"
+            className="w-full rounded border border-line bg-surface px-3 py-2 text-sm"
+            required
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted">Port</label>
+          <input
+            name="imapPort"
+            type="number"
+            min={1}
+            max={65535}
+            value={port}
+            onChange={(e) => setPort(e.target.value)}
+            className="w-full rounded border border-line bg-surface px-3 py-2 text-sm"
+            required
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted">Benutzername</label>
+          <input
+            name="imapUser"
+            defaultValue={account?.username || ""}
+            placeholder="rechnung@example.com"
+            autoComplete="username"
+            className="w-full rounded border border-line bg-surface px-3 py-2 text-sm"
+            required
+          />
+        </div>
         <div className="min-w-0">
           <label className="mb-1 block text-xs text-muted">Passwort</label>
           <OverlaySecretPasswordInput

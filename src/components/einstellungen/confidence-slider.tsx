@@ -53,7 +53,7 @@ export function ConfidenceSlider({ initialValue }: ConfidenceSliderProps) {
           value={displayValue}
           onChange={handleChange}
           className="h-1.5 flex-1 cursor-pointer accent-ink"
-          aria-label="Konfidenz-Schwelle"
+          aria-label="Empfindlichkeit"
         />
         <span className="w-10 text-right font-mono text-sm font-semibold tabular-nums text-ink">
           {displayValue}%
