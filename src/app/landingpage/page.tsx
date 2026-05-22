@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { VendorLogo } from "@/components/ui/vendor-logo";
@@ -209,7 +210,9 @@ export default function LandingPage() {
           <div className="text-[11px] uppercase tracking-[0.14em] text-muted text-center mb-7">
             Erkennt Rechnungen von
           </div>
-          <LogoStrip />
+          <Suspense fallback={<div className="h-12" />}>
+            <LogoStrip />
+          </Suspense>
           <div className="mt-6 text-center text-xs text-muted">
             Und alle weiteren — die KI erkennt Absender und Betrag automatisch.
           </div>

@@ -1,4 +1,5 @@
-import Image from "next/image";
+import { VendorLogo } from "@/components/ui/vendor-logo";
+import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 
 function Tip({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -16,38 +17,34 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-// INFETCH-132: Logos lokal gebündelt (public/images/logos/*.svg, Simple Icons CC0)
-// statt Brandfetch-CDN — keine externen Drittanbieter-Requests auf der
-// öffentlichen Landingpage mehr. Logos sind versioniert und im Browser-Cache
-// (Cache-Control: immutable via next.config.mjs).
-const DISPLAY: ReadonlyArray<{ slug: string; alt: string }> = [
-  { slug: "google",   alt: "Google"   },
-  { slug: "figma",    alt: "Figma"    },
-  { slug: "dropbox",  alt: "Dropbox"  },
-  { slug: "github",   alt: "GitHub"   },
-  { slug: "zoom",     alt: "Zoom"     },
-  { slug: "notion",   alt: "Notion"   },
-  { slug: "stripe",   alt: "Stripe"   },
-];
+// Top global vendors by invoice count — cross-org aggregate, public landing page.
+async function getTopLandingVendors(): Promise<{ name: string; domain: string | null }[]> {
+  return sql<{ name: string; domain: string | null }[]>`
+    SELECT
+      v.name,
+      (
+        SELECT alias FROM vendor_aliases
+        WHERE vendor_id = v.id AND match_type = 'domain'
+        ORDER BY priority ASC LIMIT 1
+      ) AS domain
+    FROM vendors v
+    LEFT JOIN invoices i ON i.vendor_id = v.id
+    WHERE v.organization_id IS NULL
+      AND v.hidden IS NOT TRUE
+    GROUP BY v.id, v.name
+    ORDER BY COUNT(i.id) DESC, v.name ASC
+    LIMIT 12
+  `;
+}
 
-export function LogoStrip() {
+export async function LogoStrip() {
+  const vendors = await getTopLandingVendors();
+
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-5 md:gap-x-10">
-      {DISPLAY.map(({ slug, alt }) => (
-        <Tip key={slug} label={alt}>
-          <div
-            className="rounded-full inline-flex shrink-0 items-center justify-center overflow-hidden bg-white"
-            style={{ width: 48, height: 48 }}
-          >
-            <Image
-              src={`/images/logos/${slug}.svg`}
-              alt=""
-              width={32}
-              height={32}
-              unoptimized
-              style={{ objectFit: "contain" }}
-            />
-          </div>
+      {vendors.map(({ name, domain }) => (
+        <Tip key={name} label={name}>
+          <VendorLogo name={name} domain={domain} size={48} />
         </Tip>
       ))}
     </div>
