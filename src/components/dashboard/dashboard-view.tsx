@@ -21,8 +21,7 @@ import {
   getTopVendors,
 } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { getOrgTier, getScanSinceDate, canImportInvoice } from "@/lib/tier";
-import { appConfig } from "@/lib/config/env";
+import { canImportInvoice } from "@/lib/tier";
 
 const MONTHS_DE = [
   "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -88,7 +87,6 @@ export async function DashboardView() {
     obsStart,
     lastScanAt,
     lastScanFailure,
-    tier,
     quota,
   ] = await Promise.all([
     // orgId hier kritisch: ohne ihn würde der Snapshot globale secret_refs
@@ -112,7 +110,6 @@ export async function DashboardView() {
     getObservationStartDate(),
     getLastScanAt(),
     getLastScanFailure(),
-    getOrgTier(orgId),
     canImportInvoice(orgId),
   ]);
 
@@ -180,9 +177,6 @@ export async function DashboardView() {
   // die der Scanner selbst verwendet — Anzeige und Realitaet matchen damit
   // garantiert. Free = aktueller Monatsbeginn, Pro/Business = syncMonthsBack
   // (Default 6).
-  const scanSinceDate = getScanSinceDate(tier, appConfig.syncMonthsBack);
-  const scanSinceLabel = `${String(scanSinceDate.getDate()).padStart(2, "0")}.${String(scanSinceDate.getMonth() + 1).padStart(2, "0")}.${scanSinceDate.getFullYear()}`;
-  const tierLabel = tier === "free" ? "Free-Plan" : tier === "pro" ? "Pro-Plan" : "Business-Plan";
 
   // Relativ-Label fuer Banner (analoge Logik, kein Tier-Fallback noetig).
   const lastScanFailureRelative = lastScanFailure
@@ -534,13 +528,6 @@ export async function DashboardView() {
               </dd>
             </div>
           </dl>
-          {setup.imapConfigured && (
-            <div className="mt-4 text-[11px] text-muted">
-              Scan-Reichweite: ab <span className="stat-num text-ink">{scanSinceLabel}</span>{" "}
-              ({tierLabel}
-              {tier === "free" && " — Pro holt 6 Monate, Retroaktiv-Scan 12 Monate"}).
-            </div>
-          )}
         </section>
       )}
     </div>

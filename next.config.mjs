@@ -51,7 +51,8 @@ function buildCsp() {
     // VendorLogo im App-Bereich lädt Icons von Brandfetch-CDN (Token-gated).
     // Landingpage-LogoStrip nutzt lokale SVGs (INFETCH-132); cdn.brandfetch.io
     // bleibt für den authentifizierten App-Bereich (Dashboard, Senders-View etc.).
-    "img-src 'self' data: blob: https://cdn.brandfetch.io",
+    // Supabase-Storage-Origin für Avatare (img-src), Brandfetch-CDN für Logos.
+    `img-src 'self' data: blob: https://cdn.brandfetch.io${supabaseOrigin ? ` ${supabaseOrigin}` : ""}`,
     "font-src 'self' data:",
     `connect-src ${connectSrc}`,
     // PDF-Vorschau läuft same-origin über /api/invoice-files (+ blob:-Fallback).

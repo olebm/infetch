@@ -76,10 +76,10 @@ function AppFooter() {
           <span>© 2026 Infetch</span>
         </div>
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-1 md:ml-auto" aria-label="Footer-Navigation">
-          <a href="#" className="hover:text-ink">Datenschutz</a>
-          <a href="#" className="hover:text-ink">AGB</a>
-          <a href="#" className="hover:text-ink">Impressum</a>
           <SupportFooterLink />
+          <a href="#" className="hover:text-ink">AGB</a>
+          <a href="#" className="hover:text-ink">Datenschutz</a>
+          <a href="#" className="hover:text-ink">Impressum</a>
         </nav>
       </div>
     </footer>

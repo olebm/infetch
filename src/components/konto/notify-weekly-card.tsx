@@ -17,10 +17,8 @@ export function NotifyWeeklyCard({ initialValue }: { initialValue: boolean }) {
         <div className="mt-0.5 text-xs text-muted">
           Jeden Montag per E-Mail: Rechnungen der letzten Woche auf einen Blick.
         </div>
-        {state.status !== "idle" && (
-          <div className={`mt-1.5 text-xs ${state.status === "error" ? "text-danger" : "text-success"}`}>
-            {state.message}
-          </div>
+        {state.status === "error" && (
+          <div className="mt-1.5 text-xs text-danger">{state.message}</div>
         )}
       </div>
       <form
@@ -39,7 +37,7 @@ export function NotifyWeeklyCard({ initialValue }: { initialValue: boolean }) {
             relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent
             transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2
             disabled:cursor-not-allowed disabled:opacity-50
-            ${optimisticValue ? "bg-ink" : "bg-line"}
+            ${optimisticValue ? "bg-ok" : "bg-line"}
           `}
         >
           <span

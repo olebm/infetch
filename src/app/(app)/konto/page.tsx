@@ -66,7 +66,7 @@ export default async function KontoPage() {
             initialAvatarUrl={profileFields?.avatarUrl ?? null}
           />
           <div className="mt-5 border-t border-line pt-5">
-            <NotifyWeeklyCard initialValue={profileFields?.notifyWeekly ?? false} />
+            <NotifyWeeklyCard initialValue={profileFields?.notifyWeekly ?? true} />
           </div>
         </Card>
 
@@ -110,18 +110,20 @@ export default async function KontoPage() {
           </Card>
         )}
 
-        {/* 3 ── Mitglieder ──────────────────────────────────────────────────── */}
-        <Card padding="none">
-          <MembersCard
-            members={orgMembers}
-            pendingInvitations={pendingInvitations}
-            currentUserId={auth?.user?.id ?? ""}
-            currentUserRole={currentUserRole}
-            orgName={auth?.organization?.name ?? ""}
-            maxUsers={limits.maxUsers}
-            isPro={isPro}
-          />
-        </Card>
+        {/* 3 ── Mitglieder — nur Pro/Business (Free = Einzelnutzer) ──────────── */}
+        {isPro && (
+          <Card padding="none">
+            <MembersCard
+              members={orgMembers}
+              pendingInvitations={pendingInvitations}
+              currentUserId={auth?.user?.id ?? ""}
+              currentUserRole={currentUserRole}
+              orgName={auth?.organization?.name ?? ""}
+              maxUsers={limits.maxUsers}
+              isPro={isPro}
+            />
+          </Card>
+        )}
 
         {/* 4 ── Paket ──────────────────────────────────────────────────────── */}
         <BillingCard tier={tier} limits={limits} hasStripeCustomer={hasStripeCustomer} />
