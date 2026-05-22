@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, ChevronRight, Download } from "lucide-react";
+import { Search, ChevronRight, Download, X } from "lucide-react";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { PageHeader } from "@/components/ui/page-header";
 import type { SenderWithStats, VendorInvoiceRow } from "@/lib/db/queries";
@@ -132,17 +132,25 @@ export function SendersView({
       <div className="mt-8 border-t border-line">
         {/* Search + sort */}
         <div className="flex flex-col gap-3 border-b border-line py-4 md:flex-row md:items-center md:justify-between">
-          <div className="relative w-full md:w-80">
-            <Search
-              size={14}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-            />
+          <div className="flex h-10 w-full items-center gap-2 rounded border border-line bg-paper px-3 md:w-80">
+            <Search size={15} className="shrink-0 text-muted/60" aria-hidden />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Anbieter, Domain oder Kategorie…"
-              className="h-9 w-full rounded border border-line bg-white pl-9 pr-3 text-sm placeholder:text-muted/70 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              placeholder="Suchen…"
+              aria-label="Suche"
+              className="flex-1 bg-transparent text-sm text-ink placeholder:text-muted/50 outline-none"
             />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                aria-label="Suche löschen"
+                className="flex h-6 w-6 shrink-0 items-center justify-center text-muted/60 transition-colors hover:text-muted"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-1 text-xs">
             {(
@@ -317,7 +325,7 @@ function SenderDetail({
       </div>
 
       {/* Header */}
-      <div className="flex flex-col gap-6 border-b border-line pb-8 md:flex-row md:items-end md:gap-10">
+      <div className="flex flex-col gap-6 border-b border-line pb-8 md:flex-row md:items-start md:justify-between md:gap-10">
         <div className="flex items-center gap-5">
           <VendorLogo domain={sender.fromDomain} name={name} size={72} />
           <div>
@@ -330,6 +338,16 @@ function SenderDetail({
               {name}
             </h1>
           </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {feedbackMsg && <span className="text-xs text-ok">{feedbackMsg}</span>}
+          <button
+            onClick={toggleBlocked}
+            disabled={isPending}
+            className="shrink-0 rounded border border-line px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-ink disabled:opacity-50"
+          >
+            {isPending ? "…" : sender.blocked ? "Wiederherstellen" : "Als Privat markieren"}
+          </button>
         </div>
       </div>
 
@@ -374,25 +392,9 @@ function SenderDetail({
         </div>
       </dl>
 
-      {/* Meta / actions */}
-      <div className="-mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4 text-xs text-muted">
-          <button
-            onClick={toggleBlocked}
-            disabled={isPending}
-            className="underline decoration-line underline-offset-4 hover:text-ink disabled:opacity-50"
-          >
-            {isPending
-              ? "…"
-              : sender.blocked
-                ? "Wiederherstellen"
-                : "Als Privat markieren"}
-          </button>
-          {feedbackMsg && (
-            <span className="text-xs text-ok">{feedbackMsg}</span>
-          )}
-        </div>
-        {invoices.length > 0 && (
+      {/* Download */}
+      {invoices.length > 0 && (
+        <div className="-mt-4 flex flex-wrap items-center justify-end gap-3">
           <a
             href={sender.matchedVendorId
               ? `/api/export/download?vendorId=${sender.matchedVendorId}`
@@ -403,8 +405,8 @@ function SenderDetail({
             <Download size={12} />
             Rechnungen herunterladen
           </a>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Invoice list */}
       <section>

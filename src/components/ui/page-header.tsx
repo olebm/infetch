@@ -8,6 +8,8 @@ interface PageHeaderProps {
   subline?: ReactNode;
   /** Optional action cluster, right-aligned on md+ */
   actions?: ReactNode;
+  /** Vertikale Ausrichtung der actions auf md+ — "end" (Grundlinie, default) oder "start" (Oberkante) */
+  actionsAlign?: "start" | "end";
 }
 
 /**
@@ -17,9 +19,13 @@ interface PageHeaderProps {
  * but commanding masthead. Subline + actions wrap below on mobile, right-align
  * on md+. Big bottom margin (`mb-10 md:mb-14`) — pages breathe.
  */
-export function PageHeader({ title, eyebrow, subline, actions }: PageHeaderProps) {
+export function PageHeader({ title, eyebrow, subline, actions, actionsAlign = "end" }: PageHeaderProps) {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:mb-10 md:mb-14 md:flex-row md:items-end md:justify-between">
+    <div
+      className={`mb-6 flex flex-col gap-4 sm:mb-10 md:mb-14 md:flex-row md:justify-between ${
+        actionsAlign === "start" ? "md:items-start" : "md:items-end"
+      }`}
+    >
       <div>
         {eyebrow && (
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">{eyebrow}</p>

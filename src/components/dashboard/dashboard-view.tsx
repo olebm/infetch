@@ -247,7 +247,7 @@ export async function DashboardView() {
 
   return (
     <div className="screen-enter screen-enter-active">
-      <PageHeader title="Übersicht" subline={subline} actions={quotaChip} />
+      <PageHeader title="Übersicht" subline={subline} actions={quotaChip} actionsAlign="start" />
 
       {/* SCAN-FEHLER-BANNER — nur wenn der letzte Scan failed war.
           Verschwindet automatisch, sobald der naechste Scan wieder gruen ist
