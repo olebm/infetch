@@ -124,6 +124,7 @@ export async function UsageCard({ organizationId }: Props) {
       {SHOW_PLAN_COMPARISON && tier === "free" && (
         <div className="mt-6 border-t border-line pt-5">
           <div className="mb-3 text-xs font-medium text-ink">Paketvergleich</div>
+          <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr>
@@ -146,6 +147,7 @@ export async function UsageCard({ organizationId }: Props) {
               <PlanRow label="Export (lexoffice / sevDesk)" freeNo proOk />
             </tbody>
           </table>
+          </div>
           <div className="mt-4">
             <form action="/api/stripe/checkout" method="post">
               <button

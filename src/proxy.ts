@@ -29,6 +29,7 @@ const APP_HOSTNAME = "app.infetch.de";
 // Pfade, die auch auf der Landing-Domain ausgeliefert werden
 const LANDING_ALLOWED_PREFIXES = [
   "/landingpage",
+  "/blog",            // Blog — öffentlich, muss same-origin bleiben (RSC-Navigation)
   "/agb",
   "/datenschutz",
   "/impressum",
@@ -36,6 +37,7 @@ const LANDING_ALLOWED_PREFIXES = [
   "/changelog",
   "/ueber-uns",
   "/auth",            // /auth/callback — falls Magic Link auf infetch.de landet
+  "/api/csp-report",  // Browser postet CSP-Violations — kein Redirect bei POST erlaubt
 ];
 
 // ── App-Domain: öffentliche Pfade (kein Auth nötig) ───────────────────────────
