@@ -41,10 +41,12 @@ html, body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* iOS Safari: auto-zoom bei fokussierten Inputs verhindern (font-size < 16px triggert Zoom) */
+/* iOS Safari: auto-zoom bei fokussierten Inputs verhindern (font-size < 16px triggert Zoom).
+   !important nötig: Tailwind-Klassen (text-sm, text-xs etc.) haben höhere Spezifität (0,1,0)
+   als der Typselektor (0,0,1) und würden die Regel sonst überschreiben. */
 @media screen and (max-width: 767px) {
   input, select, textarea {
-    font-size: 16px;
+    font-size: 16px !important;
   }
 }
 

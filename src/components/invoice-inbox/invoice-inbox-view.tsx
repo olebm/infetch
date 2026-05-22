@@ -359,7 +359,7 @@ export async function InvoiceInboxView({
                               {formatDate(invoice.invoiceDate)}
                             </div>
                           </div>
-                          <div className="hidden whitespace-nowrap text-right stat-num text-sm tabular-nums text-ink sm:flex sm:items-center sm:justify-end">
+                          <div className="flex shrink-0 items-center justify-end whitespace-nowrap text-right stat-num text-sm tabular-nums text-ink">
                             {formatAmount(invoice.amountGross, invoice.currency)}
                           </div>
                           <div className="hidden w-24 md:flex md:items-center">

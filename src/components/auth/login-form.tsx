@@ -280,6 +280,8 @@ export function LoginForm({ next }: LoginFormProps) {
                   type="text"
                   inputMode="numeric"
                   autoComplete={i === 0 ? "one-time-code" : "off"}
+                  autoCorrect="off"
+                  autoCapitalize="off"
                   pattern="[0-9]*"
                   maxLength={1}
                   aria-label={`Ziffer ${i + 1}`}
@@ -300,7 +302,7 @@ export function LoginForm({ next }: LoginFormProps) {
           <button
             type="submit"
             disabled={status === "verifying" || code.length < CODE_LENGTH}
-            className="h-10 w-full rounded bg-brand text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+            className="h-11 w-full rounded bg-brand text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
           >
             {status === "verifying" ? "Wird geprüft…" : "Anmelden"}
           </button>
@@ -362,7 +364,7 @@ export function LoginForm({ next }: LoginFormProps) {
       <button
         type="submit"
         disabled={status === "loading" || !email.trim()}
-        className="h-10 w-full rounded bg-brand text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+        className="h-11 w-full rounded bg-brand text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
       >
         {status === "loading" ? "Wird gesendet…" : "Login-Code senden"}
       </button>
