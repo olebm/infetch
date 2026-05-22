@@ -47,6 +47,10 @@ type RunPrimaryImapScanInput = {
   bypassQuota?: boolean;
   /** Nur Accounts dieser Organisation scannen. */
   limitToOrgId?: string | null;
+  /** Auslöser-Label für sync_runs.triggered_by. Default: "user" (manueller
+   *  Scan) bzw. "retroactive_scan" (12-Monats-Backscan). Der Auto-Pilot-
+   *  Scheduler übergibt "cron" → wird als „automatisch" angezeigt. */
+  triggeredBy?: string;
 };
 
 export async function runPrimaryImapScan(
@@ -77,7 +81,7 @@ export async function runPrimaryImapScan(
 async function runPrimaryImapScanImpl(
   input?: RunPrimaryImapScanInput,
 ): Promise<ImapScanResult> {
-  const triggeredBy = input?.bypassQuota ? "retroactive_scan" : "user";
+  const triggeredBy = input?.triggeredBy ?? (input?.bypassQuota ? "retroactive_scan" : "user");
   const syncRunRows = await sql<{ id: number }[]>`
     INSERT INTO sync_runs (type, status, triggered_by, started_at, organization_id)
     VALUES ('imap_scan', 'running', ${triggeredBy}, CURRENT_TIMESTAMP, ${input?.limitToOrgId ?? null})

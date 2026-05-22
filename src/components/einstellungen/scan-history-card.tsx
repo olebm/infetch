@@ -30,13 +30,13 @@ function triggerLabel(triggeredBy: string): string {
 }
 
 export async function ScanHistoryCard() {
-  const scans = await getRecentScans(20);
+  const scans = await getRecentScans(10);
 
   return (
     <Card padding="lg">
       <div className="text-sm font-medium text-ink">Letzte Scans</div>
       <div className="mt-0.5 text-xs text-muted">
-        Die letzten 20 Postfach-Abrufe — automatisch und manuell.
+        Die letzten 10 Postfach-Abrufe — automatisch und manuell.
       </div>
 
       {scans.length === 0 ? (

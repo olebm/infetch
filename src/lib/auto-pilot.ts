@@ -136,7 +136,7 @@ async function runMailScanAllOrgs() {
   const orgIds = await listOrgsWithConfiguredMailbox();
   for (const orgId of orgIds) {
     try {
-      await runPrimaryImapScan({ limitToOrgId: orgId });
+      await runPrimaryImapScan({ limitToOrgId: orgId, triggeredBy: "cron" });
     } catch {
       // pro-Org-Fehler isoliert; sichtbar in der org-eigenen sync_runs-Row
     }
