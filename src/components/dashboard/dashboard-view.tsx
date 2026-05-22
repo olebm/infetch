@@ -224,9 +224,30 @@ export async function DashboardView() {
     });
   }
 
+  // Quota-Status als dezenter Chip oben rechts in der Header-Zeile (statt
+  // breitem Banner). Beruhigungstext bleibt als Hover-Tooltip erhalten.
+  const quotaChip = quotaAtLimit ? (
+    <span
+      title="Weitere Rechnungen dieses Monats werden im nächsten Monat automatisch nachgeholt — es geht nichts verloren."
+      className="inline-flex items-center gap-1.5 rounded-full border border-warn/30 bg-warn-soft/40 px-2.5 py-1 text-xs font-medium text-ink"
+    >
+      <AlertTriangle size={13} className="shrink-0 text-warn" aria-hidden />
+      <span className="stat-num">{quota.current}/{quota.max}</span>
+      <span className="font-normal text-muted">Limit erreicht</span>
+    </span>
+  ) : quotaNearLimit ? (
+    <span
+      title={`Du näherst dich dem Monatslimit (${quota.current}/${quota.max} Rechnungen).`}
+      className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-muted"
+    >
+      <span className="stat-num text-ink">{quota.current}/{quota.max}</span>
+      Monatslimit
+    </span>
+  ) : null;
+
   return (
     <div className="screen-enter screen-enter-active">
-      <PageHeader title="Übersicht" subline={subline} />
+      <PageHeader title="Übersicht" subline={subline} actions={quotaChip} />
 
       {/* SCAN-FEHLER-BANNER — nur wenn der letzte Scan failed war.
           Verschwindet automatisch, sobald der naechste Scan wieder gruen ist
@@ -251,28 +272,8 @@ export async function DashboardView() {
         </div>
       )}
 
-      {/* QUOTA-BANNER — nur Free (endliches Limit). Bei 100% bzw. >=80%. */}
-      {quotaAtLimit && (
-        <div className="mt-3 rounded-md border border-warn/30 bg-warn-soft/40 p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warn" aria-hidden />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-ink">
-                Monatslimit erreicht (<span className="stat-num">{quota.current}/{quota.max}</span> Rechnungen)
-              </div>
-              <div className="mt-1 text-xs text-muted">
-                Weitere Rechnungen dieses Monats werden im nächsten Monat automatisch nachgeholt — es geht nichts verloren.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {quotaNearLimit && (
-        <div className="mt-3 rounded-md border border-line bg-surface px-4 py-3 text-xs text-muted">
-          Du näherst dich dem Monatslimit (
-          <span className="stat-num text-ink">{quota.current}/{quota.max}</span> Rechnungen).
-        </div>
-      )}
+      {/* QUOTA-Status: dezenter Chip oben rechts im PageHeader (s. quotaChip),
+          kein breites Banner mehr. */}
 
       {/* HERO */}
       <AutoPilotHero setup={setup} />
