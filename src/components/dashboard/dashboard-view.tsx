@@ -293,13 +293,17 @@ export async function DashboardView() {
       {!isFresh && (
         <div className="md:hidden mt-3">
 
-          {/* Kompakte Monatszeile */}
-          <div className="flex items-baseline justify-between border-b border-line pb-3">
-            <div className="font-display text-2xl stat-num text-ink">
-              {currencyEUR(monthly.total)}
+          {/* Kompakte Monatszeile — nur wenn schon etwas versendet wurde, damit
+              direkt nach dem Onboarding kein "0 €" erscheint, während dispatchPendingExports
+              noch läuft (Rechnungen sind 'ready', aber noch nicht 'exported'). */}
+          {stats.exportedLifetime > 0 && (
+            <div className="flex items-baseline justify-between border-b border-line pb-3">
+              <div className="font-display text-2xl stat-num text-ink">
+                {currencyEUR(monthly.sumGross)}
+              </div>
+              <div className="text-xs text-muted">{monthLabel}</div>
             </div>
-            <div className="text-xs text-muted">{monthLabel}</div>
-          </div>
+          )}
 
           {/* Action Card — nur wenn Rechnungen auf Review warten */}
           {reviewCount > 0 && (
@@ -358,8 +362,11 @@ export async function DashboardView() {
 
       {/* ── DESKTOP DASHBOARD ───────────────────────────────────────────────── */}
 
-      {/* MONAT IN REVIEW */}
-      {!isFresh && (
+      {/* MONAT IN REVIEW — nur zeigen wenn Rechnungen tatsächlich versendet wurden.
+          Direkt nach dem Onboarding sind Rechnungen 'ready' (capturedCount > 0),
+          aber dispatchPendingExports läuft noch im Hintergrund → exportedLifetime = 0.
+          Ohne diese Guard steht kurzzeitig "0 Rechnungen automatisch versendet". */}
+      {!isFresh && stats.exportedLifetime > 0 && (
         <section className="hidden md:block mt-8 md:mt-16">
           {/* Section header line — subtle */}
           <div className="flex items-baseline justify-between border-b border-line pb-3">
