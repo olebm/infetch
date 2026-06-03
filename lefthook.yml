@@ -1,0 +1,37 @@
+# Git hooks — installed via `npm run prepare` ("prepare": "lefthook install").
+# The `prepare` lifecycle runs on every `npm install`, so the hooks self-install
+# for anyone who clones + installs (this is the fix for "a hook that never gets
+# installed"). Local hooks are CONVENIENCE, not the authority: the blocking gate
+# is the PR CI in .github/workflows/ci.yml. See docs/adr/0000-stufe-und-gates.md.
+#
+# Split rationale:
+#   pre-commit — only STAGED files, must stay fast (sub-second) so nobody reaches
+#                for `--no-verify`. ESLint + Prettier check on what you're committing.
+#   pre-push   — full-project typecheck + lint + format:check before code is shared.
+#                Heavier (whole-repo tsc) but runs far less often than commits.
+#   tests      — NOT in hooks: integration tests need a Postgres service. They run
+#                in the `test` CI job (Postgres 16 + migrations). Hooks must not
+#                depend on a running DB.
+
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      # --no-warn-ignored: a staged file inside an eslint-ignored path (e.g.
+      # .github/**) is passed explicitly here; without the flag eslint emits a
+      # "File ignored" warning that --max-warnings=0 would turn into a failure.
+      run: npx eslint --max-warnings=0 --no-warn-ignored {staged_files}
+    format:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,css,yml,yaml}"
+      run: npx prettier --check {staged_files}
+
+pre-push:
+  parallel: false
+  commands:
+    typecheck:
+      run: npm run typecheck
+    lint:
+      run: npm run lint
+    format:
+      run: npm run format:check
