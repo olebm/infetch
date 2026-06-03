@@ -1,0 +1,43 @@
+{
+  "_doc": "Privilege snapshot baseline — consumed by privilege-snapshot.test.ts. This is an ALLOWLIST: when a migration intentionally changes the privilege surface (adds an org-scoped table, a policy, a deny-all table, or a SECURITY DEFINER function), update the matching list here IN THE SAME PR so the change is reviewed. An accidental change (RLS turned off, a rogue SECURITY DEFINER function, a new org table with no RLS) turns the test red because it was NOT mirrored here. Scope is the public schema only — Postgres roles are platform-managed by Supabase and diverge across CI/local/prod, so they are deliberately out of scope (see docs/adr/0000-stufe-und-gates.md).",
+  "rlsEnabledTables": [
+    "ai_extractions",
+    "auto_approval_rules",
+    "credential_refs",
+    "discovered_senders",
+    "encrypted_secrets",
+    "export_targets",
+    "exports",
+    "integration_targets",
+    "invoice_files",
+    "invoices",
+    "jobs",
+    "mail_accounts",
+    "mail_inbound_addresses",
+    "mail_messages",
+    "org_members",
+    "organizations",
+    "portal_browser_sessions",
+    "portal_recipes",
+    "portal_run_logs",
+    "portal_runs",
+    "portal_sessions",
+    "settings",
+    "sync_events",
+    "sync_runs",
+    "usage_events",
+    "users",
+    "vendor_aliases",
+    "vendor_month_status",
+    "vendors"
+  ],
+  "securityDefinerFunctions": [],
+  "rlsEnabledTablesWithoutPolicy": [
+    "encrypted_secrets",
+    "jobs",
+    "portal_browser_sessions",
+    "settings",
+    "sync_events",
+    "sync_runs"
+  ]
+}
