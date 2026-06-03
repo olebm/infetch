@@ -942,7 +942,29 @@ export async function getMissingItems(organizationId: string | null): Promise<Mi
 
 export async function getMissingMatrix(organizationId: string | null, includeHidden = false) {
   const allVendors = await getVendors(organizationId);
-  const vendors = includeHidden ? allVendors : allVendors.filter((v) => !v.hidden);
+
+  // Evidenz-Gate + erwarteter Eingangstag (Median) pro Vendor aus der ECHTEN
+  // Historie — analog zur Listen-Ansicht (getMissingItems). So bleibt die
+  // Matrix konsistent: nur Vendor mit eigener Historie erscheinen, und der
+  // laufende Monat gilt erst ab Fälligkeit als „missing" (nicht verfrüht).
+  const history = await sql<Array<{ vendorId: number; expectedDay: number | string | null }>>`
+    SELECT vendor_id AS "vendorId",
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY SUBSTR(invoice_date, 9, 2)::int) AS "expectedDay"
+    FROM invoices
+    WHERE organization_id IS NOT DISTINCT FROM ${organizationId}
+      AND vendor_id IS NOT NULL
+      AND status NOT IN ('ignored', 'duplicate', 'failed')
+      AND invoice_date IS NOT NULL
+      AND SUBSTR(invoice_date, 9, 2) ~ '^[0-9][0-9]$'
+    GROUP BY vendor_id`;
+  const expectedDayByVendor = new Map(
+    history.map((h) => [Number(h.vendorId), h.expectedDay == null ? null : Number(h.expectedDay)]),
+  );
+
+  const visible = includeHidden ? allVendors : allVendors.filter((v) => !v.hidden);
+  // Evidenz-Gate: nur Vendor mit echter eigener Historie.
+  const vendors = visible.filter((v) => expectedDayByVendor.has(v.id));
+
   const months = Array.from({ length: appConfig.syncMonthsBack }, (_, index) =>
     format(subMonths(new Date(), appConfig.syncMonthsBack - index - 1), "yyyy-MM"),
   );
@@ -961,18 +983,27 @@ export async function getMissingMatrix(organizationId: string | null, includeHid
     FROM vendor_month_status
     WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`;
   const statusByVendorMonth = new Map(statuses.map((status) => [`${status.vendorId}:${status.yearMonth}`, status]));
+  const today = new Date();
 
-  return vendors.map((vendor) => ({
-    vendor,
-    months: months.map((month) => {
-      const row = statusByVendorMonth.get(`${vendor.id}:${month}`);
-      return {
-        month,
-        status: row ? getMatrixCellStatus(row) : "unchecked",
-        source: row?.sourceUsed || "none",
-      };
-    }),
-  }));
+  return vendors.map((vendor) => {
+    const expectedDay = expectedDayByVendor.get(vendor.id) ?? null;
+    return {
+      vendor,
+      months: months.map((month) => {
+        const row = statusByVendorMonth.get(`${vendor.id}:${month}`);
+        let status = row ? getMatrixCellStatus(row) : "unchecked";
+        // Timing-Gate: den laufenden Monat erst ab Fälligkeit als „missing" zeigen.
+        if (status === "missing" && !isMissingDue(month, expectedDay, today)) {
+          status = "unchecked";
+        }
+        return {
+          month,
+          status,
+          source: row?.sourceUsed || "none",
+        };
+      }),
+    };
+  });
 }
 
 function getMatrixCellStatus(row: {
