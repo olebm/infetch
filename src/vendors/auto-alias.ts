@@ -146,21 +146,25 @@ export type RematchSummary = {
 };
 
 export async function rematchUnmatchedInvoices(
-  matchVendor: (signals: string[]) => Promise<{
+  matchVendor: (signals: string[], organizationId?: string | null) => Promise<{
     vendorId: number | null;
     canonicalKey: string | null;
     confidence: number;
   }>,
+  organizationId?: string | null,
 ): Promise<RematchSummary> {
-  // Kandidaten: Rechnungen ohne vendor_id ODER mit niedrigem Confidence-Score
+  // Kandidaten: Rechnungen ohne vendor_id ODER mit niedrigem Confidence-Score.
+  // Optional auf EINE Org begrenzt (Auto-Lever nach Scan); ohne Arg global
+  // (manueller Senders-Button / Script) — abwärtskompatibel.
   const candidates = await sql<Array<{
     id: number;
+    organizationId: string | null;
     vendorId: number | null;
     filename: string | null;
     fromAddress: string | null;
     rawTextPath: string | null;
   }>>`
-    SELECT i.id AS id, i.vendor_id AS "vendorId",
+    SELECT i.id AS id, i.organization_id AS "organizationId", i.vendor_id AS "vendorId",
            (SELECT inf.original_filename FROM invoice_files inf
             WHERE inf.invoice_id = i.id ORDER BY inf.created_at DESC LIMIT 1) AS filename,
            (SELECT mm.from_address FROM invoice_files inf
@@ -169,7 +173,8 @@ export async function rematchUnmatchedInvoices(
             ORDER BY inf.created_at DESC LIMIT 1) AS "fromAddress",
            i.raw_text_path AS "rawTextPath"
     FROM invoices i
-    WHERE i.vendor_id IS NULL OR i.confidence < 0.7
+    WHERE (i.vendor_id IS NULL OR i.confidence < 0.7)
+      AND (${organizationId ?? null}::text IS NULL OR i.organization_id = ${organizationId ?? null})
   `;
 
   let matched = 0;
@@ -182,7 +187,9 @@ export async function rematchUnmatchedInvoices(
       continue;
     }
 
-    const result = await matchVendor(signals);
+    // Match gegen die OWN-Org des Kandidaten scopen → nie einen org-fremden
+    // Vendor zuordnen (Cross-Tenant-Schutz, auch im manuellen Global-Lauf).
+    const result = await matchVendor(signals, candidate.organizationId);
     if (result.vendorId && result.vendorId !== candidate.vendorId) {
       await sql`
         UPDATE invoices

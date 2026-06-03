@@ -16,13 +16,21 @@ type AliasRow = {
   priority: number;
 };
 
-export async function matchVendor(signals: string[]): Promise<VendorMatch> {
+export async function matchVendor(signals: string[], organizationId?: string | null): Promise<VendorMatch> {
   const haystack = signals.filter(Boolean).join("\n").toLowerCase();
+  // Org-aware: bei gesetzter Org NUR globale Seeds (organization_id NULL) und
+  // Vendors DIESER Org berücksichtigen. Sonst könnte ein org-spezifischer Vendor
+  // einer FREMDEN Org einer Rechnung zugeordnet werden — ein Cross-Tenant-Leak,
+  // da getInvoiceDetail Vendors per unsafeGlobalSql ohne Org-Filter joint.
+  // Default (kein Arg) = global wie bisher → abwärtskompatibel für Alt-Aufrufer.
   const aliases = await sql<AliasRow[]>`
     SELECT vendors.id AS "vendorId", vendors.name AS "vendorName", vendors.canonical_key AS "canonicalKey",
       vendor_aliases.alias, vendor_aliases.match_type AS "matchType", vendor_aliases.priority
     FROM vendor_aliases
     JOIN vendors ON vendors.id = vendor_aliases.vendor_id
+    WHERE ${organizationId ?? null}::text IS NULL
+       OR vendors.organization_id IS NULL
+       OR vendors.organization_id = ${organizationId ?? null}
     ORDER BY vendor_aliases.priority ASC, length(vendor_aliases.alias) DESC
   `;
 
