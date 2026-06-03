@@ -3,6 +3,7 @@ import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { appConfig } from "@/lib/config/env";
 import { getStoredSmtpAccount } from "@/mail/smtp-settings";
 import { hasConfiguredCredential } from "@/lib/secrets/credential-store";
+import { isMissingDue } from "@/invoices/missing-expectation";
 
 type CountRow = { count: string | number };
 
@@ -833,6 +834,7 @@ export async function getMissingItems(organizationId: string | null): Promise<Mi
     portalStatus: string;
     vendorDomain: string | null;
     avgAmount: number | null;
+    expectedDay: number | string | null;
   }>>`
     SELECT v.id AS "vendorId", v.name AS "vendorName", v.canonical_key AS "vendorCanonicalKey",
       v.portal_enabled AS "portalEnabled",
@@ -847,7 +849,19 @@ export async function getMissingItems(organizationId: string | null): Promise<Mi
         SELECT AVG(i.amount_gross)
         FROM invoices i
         WHERE i.vendor_id = v.id AND i.status = 'exported' AND i.amount_gross IS NOT NULL
-      ) AS "avgAmount"
+      ) AS "avgAmount",
+      -- Erwarteter Eingangstag = Median-Tag aus der erkannten Historie dieses
+      -- Vendors (org-scoped). invoice_date ist TEXT 'YYYY-MM-DD' → Tag = Zeichen
+      -- 9–10, kein ::date-Cast nötig. Treibt die „verfrüht?"-Logik (isMissingDue).
+      (
+        SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY SUBSTR(i.invoice_date, 9, 2)::int)
+        FROM invoices i
+        WHERE i.vendor_id = v.id
+          AND i.organization_id IS NOT DISTINCT FROM ${organizationId}
+          AND i.status NOT IN ('ignored', 'duplicate', 'failed')
+          AND i.invoice_date IS NOT NULL
+          AND SUBSTR(i.invoice_date, 9, 2) ~ '^[0-9][0-9]$'
+      ) AS "expectedDay"
     FROM vendor_month_status vms
     JOIN vendors v ON v.id = vms.vendor_id
     -- hidden::boolean: in Prod ist die Spalte INTEGER (Migration 0001), in
@@ -859,12 +873,30 @@ export async function getMissingItems(organizationId: string | null): Promise<Mi
     WHERE v.hidden::boolean IS NOT TRUE
       AND vms.final_status IN ('missing', 'action_required', 'unchecked')
       AND vms.organization_id IS NOT DISTINCT FROM ${organizationId}
+      -- Evidenz-Gate: nur Vendor mit ECHTER eigener Historie zeigen. Globale
+      -- Seed-Vendor ohne je erkannte Rechnung erzeugen sonst Schein-Lücken
+      -- (z. B. Adobe als bloßer Seed) — passt zum UI-Versprechen
+      -- „Erwartungen kommen aus den letzten 12 Monaten".
+      AND EXISTS (
+        SELECT 1 FROM invoices ie
+        WHERE ie.vendor_id = v.id
+          AND ie.organization_id IS NOT DISTINCT FROM ${organizationId}
+          AND ie.status NOT IN ('ignored', 'duplicate', 'failed')
+          AND ie.invoice_date IS NOT NULL
+      )
     ORDER BY v.name ASC, vms.year_month DESC`;
 
   type Entry = { item: MissingItem; count: number };
   const vendorMap = new Map<number, Entry>();
+  const today = new Date();
 
   for (const r of rows) {
+    // Timing-Gate: einen laufenden Monat erst als Lücke zeigen, wenn die
+    // Rechnung plausibel fällig ist (erwarteter Eingangstag + Karenz, Wochenende
+    // auf Werktag verschoben). Vergangene Monate immer, Zukunft nie.
+    const expectedDay = r.expectedDay == null ? null : Number(r.expectedDay);
+    if (!isMissingDue(r.yearMonth, expectedDay, today)) continue;
+
     const portalAvailable = Boolean(r.portalEnabled);
     let bucket: MissingItem["bucket"];
     if (r.finalStatus === "action_required") bucket = "help";
