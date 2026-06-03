@@ -10,7 +10,9 @@ type InvoiceFileRow = {
   invoiceDate: string | null;
 };
 
-export async function syncStoredInvoiceFileNamesForInvoice(invoiceId: number): Promise<{ updated: number; skipped: number }> {
+export async function syncStoredInvoiceFileNamesForInvoice(
+  invoiceId: number,
+): Promise<{ updated: number; skipped: number }> {
   const files = await sql<InvoiceFileRow[]>`
     SELECT invoice_files.id, invoice_files.original_filename AS "originalFilename", invoice_files.stored_path AS "storedPath",
       invoice_files.created_at AS "createdAt", invoices.raw_text_path AS "rawTextPath", vendors.canonical_key AS "vendorKey",
@@ -25,7 +27,10 @@ export async function syncStoredInvoiceFileNamesForInvoice(invoiceId: number): P
   return syncStoredInvoiceFileRows(files);
 }
 
-export async function syncAllStoredInvoiceFileNames(): Promise<{ updated: number; skipped: number }> {
+export async function syncAllStoredInvoiceFileNames(): Promise<{
+  updated: number;
+  skipped: number;
+}> {
   const files = await sql<InvoiceFileRow[]>`
     SELECT invoice_files.id, invoice_files.original_filename AS "originalFilename", invoice_files.stored_path AS "storedPath",
       invoice_files.created_at AS "createdAt", invoices.raw_text_path AS "rawTextPath", vendors.canonical_key AS "vendorKey",
@@ -44,7 +49,9 @@ export async function syncAllStoredInvoiceFileNames(): Promise<{ updated: number
  * Files are keyed by a deterministic Storage key at upload time.
  * This function is kept as a no-op for backward compatibility.
  */
-async function syncStoredInvoiceFileRows(files: InvoiceFileRow[]): Promise<{ updated: number; skipped: number }> {
+async function syncStoredInvoiceFileRows(
+  files: InvoiceFileRow[],
+): Promise<{ updated: number; skipped: number }> {
   void files;
   return { updated: 0, skipped: 0 };
 }

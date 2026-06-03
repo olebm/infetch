@@ -45,7 +45,8 @@ export function RetroactiveScanCard({ isPro }: Props) {
           {!isPro && <ProBadge feature="Retroaktiver Scan (12 Mo.)" />}
         </div>
         <div className="mt-0.5 text-xs text-muted">
-          Scannt dein Postfach 12 Monate zurück und importiert fehlende Rechnungen — zählt nicht gegen das Monatslimit.
+          Scannt dein Postfach 12 Monate zurück und importiert fehlende Rechnungen — zählt nicht
+          gegen das Monatslimit.
         </div>
 
         {/* Status feedback */}

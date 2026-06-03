@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 
 const MESSAGES: Record<string, string> = {
-  otp_expired:    "Dieser Link ist abgelaufen — bitte fordere unten einen neuen an.",
-  access_denied:  "Der Login-Link ist ungültig — bitte fordere unten einen neuen an.",
-  auth_error:     "Anmeldung fehlgeschlagen — bitte versuche es erneut.",
+  otp_expired: "Dieser Link ist abgelaufen — bitte fordere unten einen neuen an.",
+  access_denied: "Der Login-Link ist ungültig — bitte fordere unten einen neuen an.",
+  auth_error: "Anmeldung fehlgeschlagen — bitte versuche es erneut.",
 };
 
 export function AuthErrorBanner({ queryError }: { queryError?: string }) {

@@ -43,14 +43,13 @@ const SHOW_SECONDARY_MAILBOX = false;
 export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
   const [openSlot, setOpenSlot] = useState<"primary" | "secondary" | null>(null);
 
-  const primary   = slots.find((s) => s.key === "primary")!;
+  const primary = slots.find((s) => s.key === "primary")!;
   const secondary = slots.find((s) => s.key === "secondary");
   const hasSecondary = secondary?.isConnected;
 
   return (
     <>
       <div className="divide-y divide-line">
-
         {/* ── Primary slot ─────────────────────────────────────────────────── */}
         {primary.isConnected && primary.email ? (
           <div className="flex items-center gap-3 py-3">
@@ -126,36 +125,40 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
           </div>
         ) : (
           /* Show "add secondary" only once primary is connected (vorerst ausgeblendet) */
-          SHOW_SECONDARY_MAILBOX && primary.isConnected && (
-            isPro ? (
-              <button
-                type="button"
-                onClick={() => setOpenSlot("secondary")}
-                className="flex w-full items-center gap-3 py-3 text-left hover:opacity-80"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-dashed border-line bg-surface text-muted">
-                  <Plus size={14} aria-hidden />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm text-muted">Weiteres Postfach verbinden</div>
-                  <div className="text-xs text-muted">Sekundäres Konto für zusätzliche Postfächer.</div>
-                </div>
-              </button>
-            ) : (
-              <div className="flex items-center gap-3 py-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-dashed border-line bg-surface text-muted">
-                  <Plus size={14} aria-hidden />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted">Weiteres Postfach verbinden</span>
-                    <ProBadge feature="Sekundäres Postfach" />
-                  </div>
-                  <div className="text-xs text-muted">Sekundäres Konto für zusätzliche Postfächer.</div>
+          SHOW_SECONDARY_MAILBOX &&
+          primary.isConnected &&
+          (isPro ? (
+            <button
+              type="button"
+              onClick={() => setOpenSlot("secondary")}
+              className="flex w-full items-center gap-3 py-3 text-left hover:opacity-80"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-dashed border-line bg-surface text-muted">
+                <Plus size={14} aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-muted">Weiteres Postfach verbinden</div>
+                <div className="text-xs text-muted">
+                  Sekundäres Konto für zusätzliche Postfächer.
                 </div>
               </div>
-            )
-          )
+            </button>
+          ) : (
+            <div className="flex items-center gap-3 py-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-dashed border-line bg-surface text-muted">
+                <Plus size={14} aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted">Weiteres Postfach verbinden</span>
+                  <ProBadge feature="Sekundäres Postfach" />
+                </div>
+                <div className="text-xs text-muted">
+                  Sekundäres Konto für zusätzliche Postfächer.
+                </div>
+              </div>
+            </div>
+          ))
         )}
       </div>
 

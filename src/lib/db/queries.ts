@@ -17,37 +17,49 @@ export type DashboardStats = {
   exportReady: number;
 };
 
-export async function getDashboardStats(
-  organizationId: string | null,
-): Promise<DashboardStats> {
+export async function getDashboardStats(organizationId: string | null): Promise<DashboardStats> {
   const c = (rows: CountRow[]) => Number(rows[0]?.count ?? 0);
   return {
-    invoicesTotal: c(await sql<CountRow[]>`
+    invoicesTotal: c(
+      await sql<CountRow[]>`
       SELECT COUNT(*) AS count FROM invoices
-      WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`),
-    downloadedPdfs: c(await sql<CountRow[]>`
+      WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`,
+    ),
+    downloadedPdfs: c(
+      await sql<CountRow[]>`
       SELECT COUNT(*) AS count FROM invoice_files
-      WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`),
-    needsReview: c(await sql<CountRow[]>`
+      WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`,
+    ),
+    needsReview: c(
+      await sql<CountRow[]>`
       SELECT COUNT(*) AS count FROM invoices
       WHERE status = 'needs_review'
-        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
-    duplicates: c(await sql<CountRow[]>`
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`,
+    ),
+    duplicates: c(
+      await sql<CountRow[]>`
       SELECT COUNT(*) AS count FROM invoices
       WHERE status = 'duplicate'
-        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
-    missing: c(await sql<CountRow[]>`
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`,
+    ),
+    missing: c(
+      await sql<CountRow[]>`
       SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status
       WHERE final_status = 'missing'
-        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
-    actionRequired: c(await sql<CountRow[]>`
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`,
+    ),
+    actionRequired: c(
+      await sql<CountRow[]>`
       SELECT COUNT(DISTINCT vendor_id) AS count FROM vendor_month_status
       WHERE final_status = 'action_required'
-        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
-    exportReady: c(await sql<CountRow[]>`
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`,
+    ),
+    exportReady: c(
+      await sql<CountRow[]>`
       SELECT COUNT(*) AS count FROM exports
       WHERE status = 'ready'
-        AND organization_id IS NOT DISTINCT FROM ${organizationId}`),
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`,
+    ),
   };
 }
 
@@ -123,8 +135,16 @@ export async function getSetupSnapshot(organizationId?: string | null) {
   // frische Org fälschlich "aktiv" melden bzw. eine vollständig aufgesetzte
   // Org von einer fremden disabled-Row beeinträchtigen.
   const exportTargetActive = organizationId
-    ? Number((await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled IS TRUE AND recipient_email IS NOT NULL AND organization_id = ${organizationId}`)[0].count) > 0
-    : Number((await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled IS TRUE AND recipient_email IS NOT NULL AND organization_id IS NULL`)[0].count) > 0;
+    ? Number(
+        (
+          await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled IS TRUE AND recipient_email IS NOT NULL AND organization_id = ${organizationId}`
+        )[0].count,
+      ) > 0
+    : Number(
+        (
+          await sql`SELECT COUNT(*) AS count FROM export_targets WHERE enabled IS TRUE AND recipient_email IS NOT NULL AND organization_id IS NULL`
+        )[0].count,
+      ) > 0;
   const mistralConfigured =
     (await hasConfiguredCredential("mistral")) || appConfig.mistral.configured;
   return {
@@ -140,7 +160,11 @@ export async function getSetupSnapshot(organizationId?: string | null) {
 }
 
 export async function getUnmappedSenderCount(): Promise<number> {
-  return Number((await sql`SELECT COUNT(*) AS count FROM discovered_senders WHERE matched_vendor_id IS NULL AND blocked IS NOT TRUE AND pdf_count > 0`)[0].count);
+  return Number(
+    (
+      await sql`SELECT COUNT(*) AS count FROM discovered_senders WHERE matched_vendor_id IS NULL AND blocked IS NOT TRUE AND pdf_count > 0`
+    )[0].count,
+  );
 }
 
 export type AgentCostSummary = {
@@ -166,13 +190,15 @@ export type AgentCostSummary = {
 export async function getAgentCostSummary(daysBack = 30): Promise<AgentCostSummary> {
   const sinceIso = new Date(Date.now() - daysBack * 86400_000).toISOString();
 
-  const [total] = await sql<Array<{
-    totalRuns: string;
-    totalInvoices: string;
-    totalLlmCalls: string;
-    totalCostCents: string;
-    avgDurationMs: string;
-  }>>`
+  const [total] = await sql<
+    Array<{
+      totalRuns: string;
+      totalInvoices: string;
+      totalLlmCalls: string;
+      totalCostCents: string;
+      avgDurationMs: string;
+    }>
+  >`
     SELECT
       COUNT(*) AS "totalRuns",
       COALESCE(SUM(invoices_found), 0) AS "totalInvoices",
@@ -218,12 +244,14 @@ export async function getAgentCostSummary(daysBack = 30): Promise<AgentCostSumma
   };
 }
 
-export async function getPortalIssueAccounts(): Promise<Array<{
-  vendorKey: string;
-  vendorName: string;
-  status: string;
-  errorMessage: string | null;
-}>> {
+export async function getPortalIssueAccounts(): Promise<
+  Array<{
+    vendorKey: string;
+    vendorName: string;
+    status: string;
+    errorMessage: string | null;
+  }>
+> {
   return await sql`
     SELECT v.canonical_key AS "vendorKey", v.name AS "vendorName", p.status, p.error_message AS "errorMessage"
     FROM portal_run_logs p
@@ -236,8 +264,12 @@ export async function getPortalIssueAccounts(): Promise<Array<{
 
 export async function getExportQueueCounts() {
   return {
-    pending: Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'pending'`)[0].count),
-    failed: Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'failed'`)[0].count),
+    pending: Number(
+      (await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'pending'`)[0].count,
+    ),
+    failed: Number(
+      (await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'failed'`)[0].count,
+    ),
   };
 }
 
@@ -249,9 +281,19 @@ export type TodayBilanz = {
 
 export async function getTodayBilanz(): Promise<TodayBilanz> {
   return {
-    importedToday: Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE (created_at::TIMESTAMP)::DATE = CURRENT_DATE`)[0].count),
-    exportedToday: Number((await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND (sent_at::TIMESTAMP)::DATE = CURRENT_DATE`)[0].count),
-    needsReview: Number((await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count),
+    importedToday: Number(
+      (
+        await sql`SELECT COUNT(*) AS count FROM invoices WHERE (created_at::TIMESTAMP)::DATE = CURRENT_DATE`
+      )[0].count,
+    ),
+    exportedToday: Number(
+      (
+        await sql`SELECT COUNT(*) AS count FROM exports WHERE status = 'sent' AND (sent_at::TIMESTAMP)::DATE = CURRENT_DATE`
+      )[0].count,
+    ),
+    needsReview: Number(
+      (await sql`SELECT COUNT(*) AS count FROM invoices WHERE status = 'needs_review'`)[0].count,
+    ),
   };
 }
 
@@ -268,7 +310,9 @@ export type AutomationStats = {
   daysActive: number | null;
 };
 
-export async function getAutomationStats(organizationId: string | null = null): Promise<AutomationStats> {
+export async function getAutomationStats(
+  organizationId: string | null = null,
+): Promise<AutomationStats> {
   // SEC (INFETCH-176): Pflicht-Org-Filter. Ohne orgId → Null-Defaults statt
   // globaler Aggregate über alle Mandanten. Dashboard reicht auth.organization.id
   // rein; ohne Org-Kontext (z.B. neuer User vor Org-Erstellung) sieht der User
@@ -325,14 +369,26 @@ export async function getAutomationStats(organizationId: string | null = null): 
 }
 
 export async function getRecentEvents(limit = 8) {
-  return await sql<Array<{ id: number; level: string; eventType: string; message: string; createdAt: string }>>`
+  return await sql<
+    Array<{ id: number; level: string; eventType: string; message: string; createdAt: string }>
+  >`
     SELECT id, level, event_type AS "eventType", message, created_at AS "createdAt"
     FROM sync_events
     ORDER BY created_at DESC, id DESC
     LIMIT ${limit}`;
 }
 
-export async function getInvoices(options: { limit?: number; status?: string; statuses?: string[]; year?: string; search?: string; includePrivate?: boolean; organizationId?: string | null } = {}) {
+export async function getInvoices(
+  options: {
+    limit?: number;
+    status?: string;
+    statuses?: string[];
+    year?: string;
+    search?: string;
+    includePrivate?: boolean;
+    organizationId?: string | null;
+  } = {},
+) {
   const limit = options.limit ?? 200;
   const whereClauses: string[] = [];
 
@@ -380,11 +436,15 @@ export async function getInvoices(options: { limit?: number; status?: string; st
     params.push(options.status);
   }
   if (options.year) {
-    conditions.push(`EXTRACT(YEAR FROM COALESCE(invoices.invoice_date, invoices.created_at)::TIMESTAMP)::TEXT = $${paramIdx++}`);
+    conditions.push(
+      `EXTRACT(YEAR FROM COALESCE(invoices.invoice_date, invoices.created_at)::TIMESTAMP)::TEXT = $${paramIdx++}`,
+    );
     params.push(options.year);
   }
   if (options.search) {
-    conditions.push(`(vendors.name ILIKE $${paramIdx++} OR invoices.invoice_number ILIKE $${paramIdx++})`);
+    conditions.push(
+      `(vendors.name ILIKE $${paramIdx++} OR invoices.invoice_number ILIKE $${paramIdx++})`,
+    );
     params.push(`%${options.search}%`, `%${options.search}%`);
   }
 
@@ -467,7 +527,7 @@ export async function getInvoices(options: { limit?: number; status?: string; st
     ORDER BY COALESCE(invoices.invoice_date, invoices.created_at) DESC
     LIMIT ${limitParam}`;
 
-  return await sql.unsafe(queryText, params) as InvoiceListRow[];
+  return (await sql.unsafe(queryText, params)) as InvoiceListRow[];
 }
 
 export async function getInvoiceYears(organizationId: string | null = null): Promise<number[]> {
@@ -487,14 +547,22 @@ export async function getInvoiceStatusCounts(organizationId: string | null = nul
     GROUP BY status`;
 }
 
-export async function getPrivateInvoiceCount(organizationId: string | null = null): Promise<number> {
-  return Number((await sql`
+export async function getPrivateInvoiceCount(
+  organizationId: string | null = null,
+): Promise<number> {
+  return Number(
+    (
+      await sql`
     SELECT COUNT(*) AS count FROM invoices
     WHERE is_private IS TRUE
-      AND (${organizationId}::text IS NULL OR organization_id = ${organizationId})`)[0].count);
+      AND (${organizationId}::text IS NULL OR organization_id = ${organizationId})`
+    )[0].count,
+  );
 }
 
-export async function getPrivateInvoices(options: { year?: string; search?: string; organizationId?: string | null } = {}) {
+export async function getPrivateInvoices(
+  options: { year?: string; search?: string; organizationId?: string | null } = {},
+) {
   const conditions: string[] = ["invoices.is_private IS TRUE"];
   const params: Array<string | number> = [];
   let paramIdx = 1;
@@ -505,11 +573,15 @@ export async function getPrivateInvoices(options: { year?: string; search?: stri
   }
 
   if (options.year) {
-    conditions.push(`EXTRACT(YEAR FROM COALESCE(invoices.invoice_date, invoices.created_at)::TIMESTAMP)::TEXT = $${paramIdx++}`);
+    conditions.push(
+      `EXTRACT(YEAR FROM COALESCE(invoices.invoice_date, invoices.created_at)::TIMESTAMP)::TEXT = $${paramIdx++}`,
+    );
     params.push(options.year);
   }
   if (options.search) {
-    conditions.push(`(vendors.name ILIKE $${paramIdx++} OR invoices.invoice_number ILIKE $${paramIdx++})`);
+    conditions.push(
+      `(vendors.name ILIKE $${paramIdx++} OR invoices.invoice_number ILIKE $${paramIdx++})`,
+    );
     params.push(`%${options.search}%`, `%${options.search}%`);
   }
 
@@ -532,7 +604,8 @@ export async function getPrivateInvoices(options: { year?: string; search?: stri
     vendorDomain: string | null;
   };
 
-  return await sql.unsafe(`
+  return (await sql.unsafe(
+    `
     SELECT
       invoices.id,
       invoices.status,
@@ -567,38 +640,43 @@ export async function getPrivateInvoices(options: { year?: string; search?: stri
     LEFT JOIN vendors ON vendors.id = invoices.vendor_id
     ${where}
     ORDER BY COALESCE(invoices.invoice_date, invoices.created_at) DESC
-    LIMIT ${limitParam}`, params) as PrivateInvoiceRow[];
+    LIMIT ${limitParam}`,
+    params,
+  )) as PrivateInvoiceRow[];
 }
 
 export async function getInvoiceDetail(invoiceId: number, organizationId: string | null = null) {
-  const invoice = (await sql<Array<{
-    id: number;
-    vendorId: number | null;
-    source: string;
-    status: string;
-    invoiceNumber: string | null;
-    invoiceDate: string | null;
-    servicePeriodStart: string | null;
-    servicePeriodEnd: string | null;
-    amountGross: number | null;
-    amountNet: number | null;
-    vatAmount: number | null;
-    currency: string | null;
-    confidence: number | null;
-    dedupeKey: string | null;
-    duplicateOfInvoiceId: number | null;
-    rawTextPath: string | null;
-    vatRate: number | null;
-    docType: string | null;
-    preferredExportTargetId: number | null;
-    createdAt: string;
-    updatedAt: string;
-    vendorName: string | null;
-    vendorDomain: string | null;
-    senderAddress: string | null;
-    duplicateVendorName: string | null;
-    duplicateInvoiceNumber: string | null;
-  }>>`
+  const invoice = (
+    await sql<
+      Array<{
+        id: number;
+        vendorId: number | null;
+        source: string;
+        status: string;
+        invoiceNumber: string | null;
+        invoiceDate: string | null;
+        servicePeriodStart: string | null;
+        servicePeriodEnd: string | null;
+        amountGross: number | null;
+        amountNet: number | null;
+        vatAmount: number | null;
+        currency: string | null;
+        confidence: number | null;
+        dedupeKey: string | null;
+        duplicateOfInvoiceId: number | null;
+        rawTextPath: string | null;
+        vatRate: number | null;
+        docType: string | null;
+        preferredExportTargetId: number | null;
+        createdAt: string;
+        updatedAt: string;
+        vendorName: string | null;
+        vendorDomain: string | null;
+        senderAddress: string | null;
+        duplicateVendorName: string | null;
+        duplicateInvoiceNumber: string | null;
+      }>
+    >`
     SELECT
       invoices.id,
       invoices.vendor_id AS "vendorId",
@@ -651,21 +729,24 @@ export async function getInvoiceDetail(invoiceId: number, organizationId: string
     LEFT JOIN invoices AS duplicate_invoices ON duplicate_invoices.id = invoices.duplicate_of_invoice_id
     LEFT JOIN vendors AS duplicate_vendors ON duplicate_vendors.id = duplicate_invoices.vendor_id
     WHERE invoices.id = ${invoiceId}
-      AND (${organizationId}::text IS NULL OR invoices.organization_id = ${organizationId})`)[0];
+      AND (${organizationId}::text IS NULL OR invoices.organization_id = ${organizationId})`
+  )[0];
 
   if (!invoice) return null;
 
-  const files = await sql<Array<{
-    id: number;
-    originalFilename: string;
-    storedPath: string;
-    sha256: string;
-    sizeBytes: number;
-    mimeType: string;
-    sourceType: string;
-    sourceRefId: string | null;
-    createdAt: string;
-  }>>`
+  const files = await sql<
+    Array<{
+      id: number;
+      originalFilename: string;
+      storedPath: string;
+      sha256: string;
+      sizeBytes: number;
+      mimeType: string;
+      sourceType: string;
+      sourceRefId: string | null;
+      createdAt: string;
+    }>
+  >`
     SELECT id, original_filename AS "originalFilename", stored_path AS "storedPath", sha256,
       size_bytes AS "sizeBytes", mime_type AS "mimeType", source_type AS "sourceType",
       source_ref_id AS "sourceRefId", created_at AS "createdAt"
@@ -673,32 +754,38 @@ export async function getInvoiceDetail(invoiceId: number, organizationId: string
     WHERE invoice_id = ${invoiceId}
     ORDER BY created_at DESC, id DESC`;
 
-  const latestExtraction = (await sql<Array<{
-    id: number;
-    provider: string;
-    model: string | null;
-    promptVersion: string;
-    status: string;
-    error: string | null;
-    outputJson: string | null;
-    createdAt: string;
-  }>>`
+  const latestExtraction = (
+    await sql<
+      Array<{
+        id: number;
+        provider: string;
+        model: string | null;
+        promptVersion: string;
+        status: string;
+        error: string | null;
+        outputJson: string | null;
+        createdAt: string;
+      }>
+    >`
     SELECT id, provider, model, prompt_version AS "promptVersion", status, error,
       output_json AS "outputJson", created_at AS "createdAt"
     FROM ai_extractions
     WHERE invoice_id = ${invoiceId}
     ORDER BY created_at DESC, id DESC
-    LIMIT 1`)[0];
+    LIMIT 1`
+  )[0];
 
-  const events = await sql<Array<{
-    id: number;
-    level: string;
-    eventType: string;
-    yearMonth: string | null;
-    message: string;
-    metadataJson: string;
-    createdAt: string;
-  }>>`
+  const events = await sql<
+    Array<{
+      id: number;
+      level: string;
+      eventType: string;
+      yearMonth: string | null;
+      message: string;
+      metadataJson: string;
+      createdAt: string;
+    }>
+  >`
     SELECT id, level, event_type AS "eventType", year_month AS "yearMonth", message, metadata_json AS "metadataJson",
       created_at AS "createdAt"
     FROM sync_events
@@ -722,16 +809,22 @@ export async function getInvoiceDetail(invoiceId: number, organizationId: string
   };
 }
 
-export async function getInvoiceReviewOptions(currentInvoiceId: number, limit = 50, organizationId: string | null = null) {
-  return await sql<Array<{
-    id: number;
-    invoiceNumber: string | null;
-    invoiceDate: string | null;
-    amountGross: number | null;
-    currency: string | null;
-    status: string;
-    vendorName: string | null;
-  }>>`
+export async function getInvoiceReviewOptions(
+  currentInvoiceId: number,
+  limit = 50,
+  organizationId: string | null = null,
+) {
+  return await sql<
+    Array<{
+      id: number;
+      invoiceNumber: string | null;
+      invoiceDate: string | null;
+      amountGross: number | null;
+      currency: string | null;
+      status: string;
+      vendorName: string | null;
+    }>
+  >`
     SELECT invoices.id, invoices.invoice_number AS "invoiceNumber", invoices.invoice_date AS "invoiceDate",
       invoices.amount_gross AS "amountGross", invoices.currency, invoices.status,
       vendors.name AS "vendorName"
@@ -772,10 +865,12 @@ export async function getVendors(organizationId: string | null): Promise<VendorR
 }
 
 export async function findVendorByCanonicalKey(canonicalKey: string): Promise<VendorRow | null> {
-  const row = (await sql<VendorRow[]>`
+  const row = (
+    await sql<VendorRow[]>`
     SELECT id, name, canonical_key AS "canonicalKey", category, portal_enabled AS "portalEnabled", hidden,
       portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory"
-    FROM vendors WHERE canonical_key = ${canonicalKey} LIMIT 1`)[0];
+    FROM vendors WHERE canonical_key = ${canonicalKey} LIMIT 1`
+  )[0];
   return row ?? null;
 }
 
@@ -824,18 +919,20 @@ const BUCKET_PRIORITY: Record<MissingItem["bucket"], number> = { help: 0, auto: 
 const PORTAL_FETCH_LIVE = false;
 
 export async function getMissingItems(organizationId: string | null): Promise<MissingItem[]> {
-  const rows = await sql<Array<{
-    vendorId: number;
-    vendorName: string;
-    vendorCanonicalKey: string;
-    portalEnabled: number;
-    yearMonth: string;
-    finalStatus: string;
-    portalStatus: string;
-    vendorDomain: string | null;
-    avgAmount: number | null;
-    expectedDay: number | string | null;
-  }>>`
+  const rows = await sql<
+    Array<{
+      vendorId: number;
+      vendorName: string;
+      vendorCanonicalKey: string;
+      portalEnabled: number;
+      yearMonth: string;
+      finalStatus: string;
+      portalStatus: string;
+      vendorDomain: string | null;
+      avgAmount: number | null;
+      expectedDay: number | string | null;
+    }>
+  >`
     SELECT v.id AS "vendorId", v.name AS "vendorName", v.canonical_key AS "vendorCanonicalKey",
       v.portal_enabled AS "portalEnabled",
       vms.year_month AS "yearMonth", vms.final_status AS "finalStatus", vms.portal_status AS "portalStatus",
@@ -900,7 +997,8 @@ export async function getMissingItems(organizationId: string | null): Promise<Mi
     const portalAvailable = Boolean(r.portalEnabled);
     let bucket: MissingItem["bucket"];
     if (r.finalStatus === "action_required") bucket = "help";
-    else if (PORTAL_FETCH_LIVE && (r.portalStatus === "required" || r.portalStatus === "running")) bucket = "auto";
+    else if (PORTAL_FETCH_LIVE && (r.portalStatus === "required" || r.portalStatus === "running"))
+      bucket = "auto";
     else bucket = "wait";
 
     const item: MissingItem = {
@@ -968,21 +1066,25 @@ export async function getMissingMatrix(organizationId: string | null, includeHid
   const months = Array.from({ length: appConfig.syncMonthsBack }, (_, index) =>
     format(subMonths(new Date(), appConfig.syncMonthsBack - index - 1), "yyyy-MM"),
   );
-  const statuses = await sql<Array<{
-    vendorId: number;
-    yearMonth: string;
-    mailStatus: string;
-    portalStatus: string;
-    manualStatus: string;
-    finalStatus: string;
-    sourceUsed: string;
-  }>>`
+  const statuses = await sql<
+    Array<{
+      vendorId: number;
+      yearMonth: string;
+      mailStatus: string;
+      portalStatus: string;
+      manualStatus: string;
+      finalStatus: string;
+      sourceUsed: string;
+    }>
+  >`
     SELECT vendor_id AS "vendorId", year_month AS "yearMonth", mail_status AS "mailStatus",
       portal_status AS "portalStatus", manual_status AS "manualStatus",
       final_status AS "finalStatus", source_used AS "sourceUsed"
     FROM vendor_month_status
     WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`;
-  const statusByVendorMonth = new Map(statuses.map((status) => [`${status.vendorId}:${status.yearMonth}`, status]));
+  const statusByVendorMonth = new Map(
+    statuses.map((status) => [`${status.vendorId}:${status.yearMonth}`, status]),
+  );
   const today = new Date();
 
   return vendors.map((vendor) => {
@@ -1020,16 +1122,18 @@ function getMatrixCellStatus(row: {
 }
 
 export async function getRuns(limit = 40) {
-  return await sql<Array<{
-    id: number;
-    type: string;
-    status: string;
-    triggeredBy: string;
-    summaryJson: string;
-    startedAt: string | null;
-    finishedAt: string | null;
-    createdAt: string;
-  }>>`
+  return await sql<
+    Array<{
+      id: number;
+      type: string;
+      status: string;
+      triggeredBy: string;
+      summaryJson: string;
+      startedAt: string | null;
+      finishedAt: string | null;
+      createdAt: string;
+    }>
+  >`
     SELECT id, type, status, triggered_by AS "triggeredBy", summary_json AS "summaryJson", started_at AS "startedAt",
       finished_at AS "finishedAt", created_at AS "createdAt"
     FROM sync_runs
@@ -1038,18 +1142,20 @@ export async function getRuns(limit = 40) {
 }
 
 export async function getDownloads(limit = 50) {
-  return await sql<Array<{
-    id: number;
-    invoiceId: number | null;
-    originalFilename: string;
-    storedPath: string;
-    sha256: string;
-    sizeBytes: number;
-    sourceType: string;
-    invoiceStatus: string | null;
-    aiStatus: string | null;
-    vendorName: string | null;
-  }>>`
+  return await sql<
+    Array<{
+      id: number;
+      invoiceId: number | null;
+      originalFilename: string;
+      storedPath: string;
+      sha256: string;
+      sizeBytes: number;
+      sourceType: string;
+      invoiceStatus: string | null;
+      aiStatus: string | null;
+      vendorName: string | null;
+    }>
+  >`
     SELECT invoice_files.id, invoice_files.invoice_id AS "invoiceId", invoice_files.original_filename AS "originalFilename",
       invoice_files.stored_path AS "storedPath", invoice_files.sha256, invoice_files.size_bytes AS "sizeBytes",
       invoice_files.source_type AS "sourceType", invoices.status AS "invoiceStatus",
@@ -1069,19 +1175,21 @@ export async function getDownloads(limit = 50) {
 }
 
 export async function getExportQueue(limit = 200) {
-  return await sql<Array<{
-    id: number;
-    invoiceId: number;
-    status: string;
-    attemptCount: number;
-    lastError: string | null;
-    sentAt: string | null;
-    targetLabel: string;
-    invoiceDate: string | null;
-    amountGross: number | null;
-    currency: string | null;
-    vendorName: string | null;
-  }>>`
+  return await sql<
+    Array<{
+      id: number;
+      invoiceId: number;
+      status: string;
+      attemptCount: number;
+      lastError: string | null;
+      sentAt: string | null;
+      targetLabel: string;
+      invoiceDate: string | null;
+      amountGross: number | null;
+      currency: string | null;
+      vendorName: string | null;
+    }>
+  >`
     SELECT exports.id, exports.invoice_id AS "invoiceId", exports.status,
       exports.attempt_count AS "attemptCount",
       exports.last_error AS "lastError", exports.sent_at AS "sentAt",
@@ -1104,14 +1212,16 @@ export async function getExportStats() {
 }
 
 export async function getCredentialSummaries() {
-  return await sql<Array<{
-    id: number;
-    scope: string;
-    label: string;
-    secretStore: string;
-    status: string;
-    lastVerifiedAt: string | null;
-  }>>`
+  return await sql<
+    Array<{
+      id: number;
+      scope: string;
+      label: string;
+      secretStore: string;
+      status: string;
+      lastVerifiedAt: string | null;
+    }>
+  >`
     SELECT id, scope, label, secret_store AS "secretStore", status, last_verified_at AS "lastVerifiedAt"
     FROM credential_refs
     ORDER BY scope, label`;
@@ -1129,23 +1239,27 @@ export type MailAccountSummary = {
 };
 
 export async function getPrimaryMailAccount(organizationId?: string | null) {
-  return (await sql<MailAccountSummary[]>`
+  return (
+    await sql<MailAccountSummary[]>`
     SELECT id, label, host, port, secure, username, status, last_verified_at AS "lastVerifiedAt"
     FROM mail_accounts
     WHERE label = 'Primary IMAP'
       AND (${organizationId ?? null}::text IS NULL OR organization_id = ${organizationId ?? null})
     ORDER BY id DESC
-    LIMIT 1`)[0];
+    LIMIT 1`
+  )[0];
 }
 
 export async function getSecondaryMailAccount(organizationId?: string | null) {
-  return (await sql<MailAccountSummary[]>`
+  return (
+    await sql<MailAccountSummary[]>`
     SELECT id, label, host, port, secure, username, status, last_verified_at AS "lastVerifiedAt"
     FROM mail_accounts
     WHERE label = 'Secondary IMAP'
       AND (${organizationId ?? null}::text IS NULL OR organization_id = ${organizationId ?? null})
     ORDER BY id DESC
-    LIMIT 1`)[0];
+    LIMIT 1`
+  )[0];
 }
 
 export async function getPrimarySmtpAccount() {
@@ -1236,24 +1350,28 @@ export async function upsertAutoApprovalRule(input: {
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ${input.id}
         AND organization_id IS NOT DISTINCT FROM ${input.organizationId}`;
-    const updated = (await sql<AutoApprovalRow[]>`
+    const updated = (
+      await sql<AutoApprovalRow[]>`
       SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
               r.created_at, r.updated_at, v.name AS vendor_name
       FROM auto_approval_rules r
       LEFT JOIN vendors v ON v.id = r.vendor_id
-      WHERE r.id = ${input.id}`)[0];
+      WHERE r.id = ${input.id}`
+    )[0];
     return mapAutoApprovalRow(updated);
   }
   const [inserted] = await sql<Array<{ id: string }>>`
     INSERT INTO auto_approval_rules (organization_id, vendor_id, vendor_pattern, max_amount_cents, enabled)
     VALUES (${input.organizationId}, ${input.vendorId}, ${input.vendorPattern}, ${input.maxAmountCents}, ${input.enabled})
     RETURNING id`;
-  const row = (await sql<AutoApprovalRow[]>`
+  const row = (
+    await sql<AutoApprovalRow[]>`
     SELECT r.id, r.vendor_id, r.vendor_pattern, r.max_amount_cents, r.enabled,
             r.created_at, r.updated_at, v.name AS vendor_name
     FROM auto_approval_rules r
     LEFT JOIN vendors v ON v.id = r.vendor_id
-    WHERE r.id = ${Number(inserted.id)}`)[0];
+    WHERE r.id = ${Number(inserted.id)}`
+  )[0];
   return mapAutoApprovalRow(row);
 }
 
@@ -1323,26 +1441,30 @@ export async function getIntegrationTarget(
   provider: IntegrationProvider,
   organizationId: string | null,
 ): Promise<IntegrationTarget | null> {
-  const row = (await sql<IntegrationRow[]>`
+  const row = (
+    await sql<IntegrationRow[]>`
     SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
             last_verified_at, created_at, updated_at
     FROM integration_targets
     WHERE provider = ${provider}
-      AND organization_id IS NOT DISTINCT FROM ${organizationId}`)[0];
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}`
+  )[0];
   return row ? mapIntegrationRow(row) : null;
 }
 
 export async function getActiveIntegrationTarget(
   organizationId: string | null,
 ): Promise<IntegrationTarget | null> {
-  const row = (await sql<IntegrationRow[]>`
+  const row = (
+    await sql<IntegrationRow[]>`
     SELECT id, provider, label, oauth_token_ref, external_account_id, enabled,
             last_verified_at, created_at, updated_at
     FROM integration_targets
     WHERE enabled IS TRUE
       AND organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY updated_at DESC
-    LIMIT 1`)[0];
+    LIMIT 1`
+  )[0];
   return row ? mapIntegrationRow(row) : null;
 }
 
@@ -1415,7 +1537,9 @@ export async function getAdjacentInvoiceIds(
     total: string;
   };
 
-  const row = ((await sql.unsafe(`
+  const row = (
+    await sql.unsafe(
+      `
     WITH queue AS (
       SELECT
         id,
@@ -1430,12 +1554,20 @@ export async function getAdjacentInvoiceIds(
     SELECT "prevId", "nextId", rn::INTEGER AS position, total::INTEGER AS total
     FROM queue
     WHERE id = $2
-    LIMIT 1`, [statuses, invoiceId, organizationId]))[0] as unknown) as QueueRow | undefined;
+    LIMIT 1`,
+      [statuses, invoiceId, organizationId],
+    )
+  )[0] as unknown as QueueRow | undefined;
 
   if (!row) {
-    const totalRow = ((await sql.unsafe(`
+    const totalRow = (
+      await sql.unsafe(
+        `
       SELECT COUNT(*) AS total FROM invoices WHERE status = ANY($1::text[])
-        AND ($2::text IS NULL OR organization_id = $2)`, [statuses, organizationId]))[0] as unknown) as { total: string };
+        AND ($2::text IS NULL OR organization_id = $2)`,
+        [statuses, organizationId],
+      )
+    )[0] as unknown as { total: string };
     return { prevId: null, nextId: null, position: 0, total: Number(totalRow.total) };
   }
 
@@ -1457,7 +1589,10 @@ export type MonthlyKpis = {
   deltaPercent: number | null;
 };
 
-export async function getMonthlyKpis(month: string, organizationId: string | null): Promise<MonthlyKpis> {
+export async function getMonthlyKpis(
+  month: string,
+  organizationId: string | null,
+): Promise<MonthlyKpis> {
   const [yearStr, mStr] = month.split("-");
   const year = parseInt(yearStr ?? "0", 10);
   const m = parseInt(mStr ?? "1", 10);
@@ -1479,12 +1614,14 @@ export async function getMonthlyKpis(month: string, organizationId: string | nul
   // gibt's erst seit Mai). updated_at ist konsistent mit getAutomationStats und
   // lässt alle Dashboard-Zahlen (Hero, KPI, Graph) auf dieselbe Achse fallen.
   const getKpi = async (mo: string): Promise<KpiRow> =>
-    (await sql<KpiRow[]>`
+    (
+      await sql<KpiRow[]>`
       SELECT COUNT(*) AS total, SUM(amount_gross) AS "sumGross"
       FROM invoices
       WHERE status = 'exported'
         AND TO_CHAR(updated_at::TIMESTAMP, 'YYYY-MM') = ${mo}
-        AND organization_id IS NOT DISTINCT FROM ${organizationId}`)[0];
+        AND organization_id IS NOT DISTINCT FROM ${organizationId}`
+    )[0];
 
   const cur = await getKpi(month);
   const prev = await getKpi(prevMonth);
@@ -1493,13 +1630,15 @@ export async function getMonthlyKpis(month: string, organizationId: string | nul
   const prevTotal = Number(prev.total ?? 0);
   const sumGross = Number(cur.sumGross ?? 0);
   const prevSumGross = Number(prev.sumGross ?? 0);
-  const deltaPercent =
-    prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
+  const deltaPercent = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   return { total, sumGross, prevTotal, prevSumGross, deltaPercent };
 }
 
-export async function getDailyTimeseries(days: number, organizationId: string | null): Promise<Array<{ date: string; count: number }>> {
+export async function getDailyTimeseries(
+  days: number,
+  organizationId: string | null,
+): Promise<Array<{ date: string; count: number }>> {
   // DATUMS-BASIS (Trust): wie getMonthlyKpis nach updated_at (Verarbeitungs-/
   // Versandzeit), NICHT nach invoice_date. Sonst verteilt der Graph heute
   // erfasste Alt-Rechnungen auf ihre Dokument-Daten → er zeigt „Aktivität" in
@@ -1528,13 +1667,15 @@ export async function getDailyTimeseries(days: number, organizationId: string | 
 export async function getTopVendors(
   limit = 5,
   organizationId: string | null = null,
-): Promise<Array<{
-  vendorName: string;
-  vendorDomain: string | null;
-  count: number;
-  sumGross: number;
-  deltaPrevMonth: number;
-}>> {
+): Promise<
+  Array<{
+    vendorName: string;
+    vendorDomain: string | null;
+    count: number;
+    sumGross: number;
+    deltaPrevMonth: number;
+  }>
+> {
   const curMonth = new Date().toISOString().slice(0, 7);
   const [yearStr, mStr] = curMonth.split("-");
   const year = parseInt(yearStr ?? "0", 10);
@@ -1578,16 +1719,20 @@ export async function getTopVendors(
     vendorDomain: row.vendorDomain,
     count: Number(row.count),
     sumGross: Number(row.sumGross ?? 0),
-    deltaPrevMonth: (Number(row.curCount ?? 0)) - (Number(row.prevCount ?? 0)),
+    deltaPrevMonth: Number(row.curCount ?? 0) - Number(row.prevCount ?? 0),
   }));
 }
 
-export async function getOverdueVendors(organizationId: string | null = null): Promise<Array<{
-  vendorName: string;
-  vendorDomain: string | null;
-  daysSince: number;
-}>> {
-  const rows = await sql<Array<{ vendorName: string; vendorDomain: string | null; daysSince: string }>>`
+export async function getOverdueVendors(organizationId: string | null = null): Promise<
+  Array<{
+    vendorName: string;
+    vendorDomain: string | null;
+    daysSince: number;
+  }>
+> {
+  const rows = await sql<
+    Array<{ vendorName: string; vendorDomain: string | null; daysSince: string }>
+  >`
     SELECT
       v.name AS "vendorName",
       (SELECT ds.from_domain FROM discovered_senders ds
@@ -1605,9 +1750,13 @@ export async function getOverdueVendors(organizationId: string | null = null): P
   return rows.map((r) => ({ ...r, daysSince: Number(r.daysSince) }));
 }
 
-export async function getObservationStartDate(organizationId: string | null): Promise<string | null> {
+export async function getObservationStartDate(
+  organizationId: string | null,
+): Promise<string | null> {
   // SEC: org-gescopt — sonst „seit X" = frühestes Invoice ALLER Mandanten.
-  const row = (await sql`SELECT MIN(created_at) AS "firstAt" FROM invoices WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`)[0] as { firstAt: string | null } | undefined;
+  const row = (
+    await sql`SELECT MIN(created_at) AS "firstAt" FROM invoices WHERE organization_id IS NOT DISTINCT FROM ${organizationId}`
+  )[0] as { firstAt: string | null } | undefined;
   return row?.firstAt ?? null;
 }
 
@@ -1616,10 +1765,12 @@ export async function getLastScanAt(organizationId: string | null): Promise<stri
   // aus sync_events mit event_type='imap_scan' — das schreibt der Scanner nie
   // (er schreibt 'imap_scan_completed'), die alte Query lieferte daher immer
   // null → Dashboard zeigte dauerhaft „noch kein Scan".
-  const row = (await sql`
+  const row = (
+    await sql`
     SELECT MAX(started_at) AS "lastAt" FROM sync_runs
     WHERE type = 'imap_scan' AND organization_id IS NOT DISTINCT FROM ${organizationId}
-  `)[0] as { lastAt: string | null } | undefined;
+  `
+  )[0] as { lastAt: string | null } | undefined;
   return row?.lastAt ?? null;
 }
 
@@ -1627,9 +1778,9 @@ export async function getLastScanAt(organizationId: string | null): Promise<stri
 // auch tatsaechlich die latest Row ist (also kein erfolgreicher/laufender Scan
 // danach kam). So verschwindet das Dashboard-Warnbanner automatisch, sobald der
 // naechste Scan wieder gruen ist.
-export async function getLastScanFailure(organizationId: string | null): Promise<
-  { failedAt: string; errorSnippet: string } | null
-> {
+export async function getLastScanFailure(
+  organizationId: string | null,
+): Promise<{ failedAt: string; errorSnippet: string } | null> {
   const rows = await sql<
     { status: string; finishedAt: string | null; summaryJson: string | null }[]
   >`
@@ -1676,7 +1827,10 @@ export type RecentScanRow = {
 // Letzte N IMAP-Scan-Runs fuer die Scan-History-Anzeige in den Einstellungen.
 // Bewusst global (sync_runs ist nicht org-scoped) — fuer Free-only-Launch
 // unkritisch, fuer Multi-Tenant-Strictness waere Schema-Aenderung noetig.
-export async function getRecentScans(limit = 20, organizationId: string | null = null): Promise<RecentScanRow[]> {
+export async function getRecentScans(
+  limit = 20,
+  organizationId: string | null = null,
+): Promise<RecentScanRow[]> {
   const rows = await sql<
     {
       id: number;
@@ -1703,8 +1857,7 @@ export async function getRecentScans(limit = 20, organizationId: string | null =
     } catch {
       // kaputtes JSON: alle Counter bleiben 0
     }
-    const num = (k: string) =>
-      typeof summary[k] === "number" ? (summary[k] as number) : 0;
+    const num = (k: string) => (typeof summary[k] === "number" ? (summary[k] as number) : 0);
     let errorSnippet: string | null = null;
     if (row.status === "failed" && typeof summary.error === "string") {
       const trimmed = summary.error.split("\n")[0].slice(0, 200).trim();
@@ -1733,7 +1886,9 @@ export type SecondaryStats = {
   forecastRestMonth: number | null;
 };
 
-export async function getSecondaryStats(organizationId: string | null = null): Promise<SecondaryStats> {
+export async function getSecondaryStats(
+  organizationId: string | null = null,
+): Promise<SecondaryStats> {
   // SEC (INFETCH-176): Pflicht-Org-Filter. Ohne orgId → Null-Defaults statt
   // globaler Aggregate über alle Mandanten.
   if (!organizationId) {
@@ -1779,9 +1934,7 @@ export async function getSecondaryStats(organizationId: string | null = null): P
   const lastReviewDays = invoices?.daysSinceReview ?? null;
   const hasExported = Number(exportsRow?.lifetime ?? 0) > 0;
   const autopilotDays =
-    hasExported && lastReviewDays == null
-      ? exportsRow?.minSent ?? null
-      : null;
+    hasExported && lastReviewDays == null ? (exportsRow?.minSent ?? null) : null;
 
   const filteredThisMonth = Number(invoices?.filteredThisMonth ?? 0);
 
@@ -1795,12 +1948,10 @@ export async function getSecondaryStats(organizationId: string | null = null): P
     forecastRestMonth = Math.round(rate * remaining);
   }
 
-  const avgLatencyMin =
-    latency?.avgMin != null ? Math.round(Number(latency.avgMin)) : null;
+  const avgLatencyMin = latency?.avgMin != null ? Math.round(Number(latency.avgMin)) : null;
 
   return {
-    daysSinceLastIntervention:
-      lastReviewDays != null ? Number(lastReviewDays) : autopilotDays,
+    daysSinceLastIntervention: lastReviewDays != null ? Number(lastReviewDays) : autopilotDays,
     avgLatencyMin,
     filteredThisMonth,
     forecastRestMonth,
@@ -1874,7 +2025,10 @@ export type VendorInvoiceRow = {
   invoiceNumber: string | null;
 };
 
-export async function getVendorInvoices(vendorId: number, organizationId: string | null = null): Promise<VendorInvoiceRow[]> {
+export async function getVendorInvoices(
+  vendorId: number,
+  organizationId: string | null = null,
+): Promise<VendorInvoiceRow[]> {
   // SEC: org-gescopt — ein global gematchter Katalog-Vendor (z. B. "Telekom")
   // wird von mehreren Orgs genutzt; ohne Org-Filter würde die Anbieter-Detail-
   // Ansicht Rechnungen FREMDER Mandanten zeigen.

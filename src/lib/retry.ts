@@ -50,16 +50,12 @@ export function defaultIsRetryable(err: unknown): boolean {
   if (err instanceof TransientHttpError) return true;
   if (isNetworkError(err)) return true;
   const status =
-    (err as { statusCode?: number })?.statusCode ??
-    (err as { status?: number })?.status;
+    (err as { statusCode?: number })?.statusCode ?? (err as { status?: number })?.status;
   if (typeof status === "number") return isRetryableHttpStatus(status);
   return false;
 }
 
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  opts: RetryOptions = {},
-): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {
   const retries = opts.retries ?? 3;
   const base = opts.baseDelayMs ?? 500;
   const max = opts.maxDelayMs ?? 8000;

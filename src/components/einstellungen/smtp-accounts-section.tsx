@@ -26,14 +26,19 @@ export interface SmtpAccountSlot {
 export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
   const [openSlot, setOpenSlot] = useState<"primary" | "secondary" | null>(null);
 
-  const primary   = slots.find((s) => s.slot === "primary");
+  const primary = slots.find((s) => s.slot === "primary");
   const secondary = slots.find((s) => s.slot === "secondary");
-  const editing   = openSlot ? slots.find((s) => s.slot === openSlot) : undefined;
+  const editing = openSlot ? slots.find((s) => s.slot === openSlot) : undefined;
 
   function configuredRow(acc: SmtpAccountSlot) {
     return (
       <div className="flex items-center gap-3 py-3">
-        <VendorLogo domain={acc.providerDomain} name={acc.fromAddress ?? ""} size={36} className="shrink-0" />
+        <VendorLogo
+          domain={acc.providerDomain}
+          name={acc.fromAddress ?? ""}
+          size={36}
+          className="shrink-0"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-medium text-ink">{acc.fromAddress}</span>
@@ -94,7 +99,9 @@ export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-sm text-muted">Weiteres Absende-Konto hinzufügen</div>
-              <div className="text-xs text-muted">Eigene Absenderadresse für einen zweiten Empfänger.</div>
+              <div className="text-xs text-muted">
+                Eigene Absenderadresse für einen zweiten Empfänger.
+              </div>
             </div>
           </button>
         )}

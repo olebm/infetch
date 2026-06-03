@@ -19,20 +19,63 @@
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
 }
-.legal-prose p { margin-top: 0.75rem; line-height: 1.7; }
-.legal-prose ul { margin-top: 0.75rem; padding-left: 1.25rem; list-style: disc; }
-.legal-prose ol { margin-top: 0.75rem; padding-left: 1.25rem; list-style: decimal; }
-.legal-prose li { margin-bottom: 0.35rem; line-height: 1.7; }
-.legal-prose strong { font-weight: 500; color: #1a1a1a; }
-.legal-prose hr { border: none; border-top: 1px solid #e8e6e0; margin: 2rem 0; }
+.legal-prose p {
+  margin-top: 0.75rem;
+  line-height: 1.7;
+}
+.legal-prose ul {
+  margin-top: 0.75rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+.legal-prose ol {
+  margin-top: 0.75rem;
+  padding-left: 1.25rem;
+  list-style: decimal;
+}
+.legal-prose li {
+  margin-bottom: 0.35rem;
+  line-height: 1.7;
+}
+.legal-prose strong {
+  font-weight: 500;
+  color: #1a1a1a;
+}
+.legal-prose hr {
+  border: none;
+  border-top: 1px solid #e8e6e0;
+  margin: 2rem 0;
+}
 .legal-prose blockquote {
   border-left: 2px solid #e8e6e0;
   padding-left: 1rem;
   margin: 1rem 0;
   font-style: italic;
 }
-.legal-prose table { width: 100%; font-size: 0.82rem; border-collapse: collapse; margin-top: 1rem; }
-.legal-prose th { text-align: left; font-weight: 500; color: #1a1a1a; padding: 0.5rem 0.75rem 0.5rem 0; border-bottom: 1px solid #e8e6e0; }
-.legal-prose td { padding: 0.5rem 0.75rem 0.5rem 0; border-bottom: 1px solid #f0ede7; vertical-align: top; }
-.legal-prose a { text-decoration: underline; text-decoration-color: #e8e6e0; text-underline-offset: 4px; }
-.legal-prose a:hover { text-decoration-color: #1a1a1a; color: #1a1a1a; }
+.legal-prose table {
+  width: 100%;
+  font-size: 0.82rem;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.legal-prose th {
+  text-align: left;
+  font-weight: 500;
+  color: #1a1a1a;
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-bottom: 1px solid #e8e6e0;
+}
+.legal-prose td {
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-bottom: 1px solid #f0ede7;
+  vertical-align: top;
+}
+.legal-prose a {
+  text-decoration: underline;
+  text-decoration-color: #e8e6e0;
+  text-underline-offset: 4px;
+}
+.legal-prose a:hover {
+  text-decoration-color: #1a1a1a;
+  color: #1a1a1a;
+}

@@ -66,8 +66,11 @@ function appendEntry(entry: ErrorEntry) {
           .split("\n")
           .filter(Boolean)
           .flatMap((line) => {
-            try { return [JSON.parse(line) as ErrorEntry]; }
-            catch { return []; }
+            try {
+              return [JSON.parse(line) as ErrorEntry];
+            } catch {
+              return [];
+            }
           })
       : [];
 

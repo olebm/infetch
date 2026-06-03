@@ -6,8 +6,8 @@ export async function AgentActivityPanel({ daysBack = 30 }: { daysBack?: number 
   if (summary.totalRuns === 0) {
     return (
       <div className="rounded border border-dashed border-line bg-surface p-6 text-center text-sm text-muted">
-        Noch keine KI-Läufe in den letzten {daysBack} Tagen. Sobald ein Online-Konto verbunden ist, siehst du hier
-        Kosten und Aktivität.
+        Noch keine KI-Läufe in den letzten {daysBack} Tagen. Sobald ein Online-Konto verbunden ist,
+        siehst du hier Kosten und Aktivität.
       </div>
     );
   }
@@ -22,7 +22,11 @@ export async function AgentActivityPanel({ daysBack = 30 }: { daysBack?: number 
           sub={summary.totalInvoices > 0 ? "automatisch" : "—"}
           tone="good"
         />
-        <Stat label="KI-Aufrufe" value={String(summary.totalLlmCalls)} sub="meist beim ersten Lauf" />
+        <Stat
+          label="KI-Aufrufe"
+          value={String(summary.totalLlmCalls)}
+          sub="meist beim ersten Lauf"
+        />
         <Stat
           label="KI-Kosten"
           value={formatCents(summary.totalCostCents)}

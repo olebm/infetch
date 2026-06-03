@@ -16,10 +16,7 @@ export function SessionsSection({
   sessionCount: number;
   lastUsedAt: string | null;
 }) {
-  const [state, formAction, isPending] = useActionState(
-    invalidateAllOtherSessionsAction,
-    idle,
-  );
+  const [state, formAction, isPending] = useActionState(invalidateAllOtherSessionsAction, idle);
 
   // Snapshot `now` once at mount — keeps `fmtRelative` pure during render
   // (react-hooks/purity rule). Trade-off: the "vor X Min" label doesn't
@@ -45,12 +42,8 @@ export function SessionsSection({
         <div className="text-sm text-ink">Aktive Sitzungen</div>
         <div className="text-xs text-muted">
           {sessionCount} aktiv · zuletzt {fmtRelative(lastUsedAt)}
-          {state.status === "success" && (
-            <span className="ml-2 text-ok">{state.message}</span>
-          )}
-          {state.status === "error" && (
-            <span className="ml-2 text-danger">{state.message}</span>
-          )}
+          {state.status === "success" && <span className="ml-2 text-ok">{state.message}</span>}
+          {state.status === "error" && <span className="ml-2 text-danger">{state.message}</span>}
         </div>
       </div>
       {otherCount > 0 && (
@@ -64,9 +57,7 @@ export function SessionsSection({
           </button>
         </form>
       )}
-      {otherCount === 0 && (
-        <span className="text-xs text-muted">nur diese</span>
-      )}
+      {otherCount === 0 && <span className="text-xs text-muted">nur diese</span>}
     </li>
   );
 }

@@ -1,6 +1,11 @@
 import { getInvoiceYears, getVendors } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { loadOrgMembers, loadUserOrganizations, getUserProfileFields, loadPendingInvitations } from "@/lib/auth/session";
+import {
+  loadOrgMembers,
+  loadUserOrganizations,
+  getUserProfileFields,
+  loadPendingInvitations,
+} from "@/lib/auth/session";
 import { ExportDownloadCard } from "@/components/einstellungen/export-download-card";
 import { UsageCard } from "@/components/einstellungen/usage-card";
 import { getOrgTier, getLimits } from "@/lib/tier";
@@ -25,7 +30,16 @@ export default async function KontoPage() {
   const auth = await getCurrentAuth();
   const orgId = auth?.organization?.id ?? null;
 
-  const [invoiceYears, vendors, userOrgs, orgMembers, pendingInvitations, profileFields, tier, orgRow] = await Promise.all([
+  const [
+    invoiceYears,
+    vendors,
+    userOrgs,
+    orgMembers,
+    pendingInvitations,
+    profileFields,
+    tier,
+    orgRow,
+  ] = await Promise.all([
     getInvoiceYears(orgId),
     getVendors(orgId),
     auth ? loadUserOrganizations(auth.user.id) : Promise.resolve([]),
@@ -34,11 +48,17 @@ export default async function KontoPage() {
     auth ? getUserProfileFields(auth.user.id) : Promise.resolve(null),
     getOrgTier(orgId),
     orgId
-      ? unsafeGlobalSql<{ stripe_customer_id: string | null }[]>`SELECT stripe_customer_id FROM organizations WHERE id = ${orgId} LIMIT 1`.catch(() => [] as { stripe_customer_id: string | null }[])
+      ? unsafeGlobalSql<
+          { stripe_customer_id: string | null }[]
+        >`SELECT stripe_customer_id FROM organizations WHERE id = ${orgId} LIMIT 1`.catch(
+          () => [] as { stripe_customer_id: string | null }[],
+        )
       : Promise.resolve([] as { stripe_customer_id: string | null }[]),
   ]);
 
-  const hasStripeCustomer = Boolean((orgRow as { stripe_customer_id: string | null }[])[0]?.stripe_customer_id);
+  const hasStripeCustomer = Boolean(
+    (orgRow as { stripe_customer_id: string | null }[])[0]?.stripe_customer_id,
+  );
 
   const isPro = tier !== "free";
   const limits = getLimits(tier);
@@ -48,13 +68,9 @@ export default async function KontoPage() {
 
   return (
     <div className="screen-enter screen-enter-active">
-      <PageHeader
-        title="Mein Konto"
-        subline="Profil, Arbeitsbereich und Paket."
-      />
+      <PageHeader title="Mein Konto" subline="Profil, Arbeitsbereich und Paket." />
 
       <div className="mt-8 space-y-4">
-
         {/* 1 ── Dein Profil ─────────────────────────────────────────────────── */}
         <Card padding="lg">
           <div className="mb-3 text-sm font-medium text-ink">Dein Profil</div>
@@ -90,7 +106,11 @@ export default async function KontoPage() {
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-ink">{org.name}</div>
                       <div className="text-xs text-muted">
-                        {org.slug} · {planLabel(org.tier, getLimits(org.tier as "free" | "pro" | "business").priceMonthlyEur)}
+                        {org.slug} ·{" "}
+                        {planLabel(
+                          org.tier,
+                          getLimits(org.tier as "free" | "pro" | "business").priceMonthlyEur,
+                        )}
                       </div>
                     </div>
                     {isCurrent ? (
@@ -102,9 +122,7 @@ export default async function KontoPage() {
                 );
               })}
               {userOrgs.length === 0 && (
-                <li className="px-5 py-3 text-sm text-muted">
-                  Kein Arbeitsbereich gefunden.
-                </li>
+                <li className="px-5 py-3 text-sm text-muted">Kein Arbeitsbereich gefunden.</li>
               )}
             </ul>
           </Card>
@@ -135,7 +153,6 @@ export default async function KontoPage() {
           isPro={isPro}
           email={auth?.user?.email ?? ""}
         />
-
       </div>
     </div>
   );

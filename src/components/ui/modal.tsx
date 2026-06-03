@@ -110,10 +110,10 @@ export function Modal({ open, onClose, title, children, footer, size = "md" }: M
         tabIndex={-1}
         className={cn(
           "relative flex w-full flex-col",
-          "max-h-[92dvh]",                       // nie höher als 92% Viewport
-          "rounded-t-xl sm:rounded-xl",          // oben gerundet auf Mobile, rundum auf Desktop
+          "max-h-[92dvh]", // nie höher als 92% Viewport
+          "rounded-t-xl sm:rounded-xl", // oben gerundet auf Mobile, rundum auf Desktop
           "border border-line/60 bg-paper shadow-pop",
-          "outline-none",                        // Fokus-Ring via tabIndex=-1 unterdrücken
+          "outline-none", // Fokus-Ring via tabIndex=-1 unterdrücken
           SIZE[size],
         )}
       >

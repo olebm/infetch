@@ -35,7 +35,9 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 // die Isolation-Frage irrelevant — wir interessieren uns nur dafür, ob die DB-WHERE-
 // Klausel hält.
 vi.mock("@/invoices/file-names", () => ({ syncStoredInvoiceFileNamesForInvoice: async () => {} }));
-vi.mock("@/invoices/missing-check", () => ({ runMissingInvoiceCheck: async () => ({ checked: 0, required: 0 }) }));
+vi.mock("@/invoices/missing-check", () => ({
+  runMissingInvoiceCheck: async () => ({ checked: 0, required: 0 }),
+}));
 vi.mock("@/vendors/auto-alias", () => ({ learnFromManualMatch: async () => ({ learned: false }) }));
 vi.mock("@/lib/db/events", () => ({ recordSyncEvent: async () => {} }));
 vi.mock("@/senders/discovered-senders", () => ({ blockSender: async () => {} }));
@@ -259,7 +261,7 @@ describe.skipIf(!hasDb)("cross-tenant IDOR fixes (Stream A)", () => {
   describe("approveInvoicesAction / ignoreInvoicesAction (Bulk)", () => {
     it("approve: eigene Rechnung wird ready, fremde bleibt unverändert (auch bei gemischten IDs)", async () => {
       await approveInvoicesAction([invoiceA, invoiceB]);
-      expect((await getInvoiceStatus(invoiceA)).status).toBe("ready");        // eigene → ready
+      expect((await getInvoiceStatus(invoiceA)).status).toBe("ready"); // eigene → ready
       expect((await getInvoiceStatus(invoiceB)).status).toBe("needs_review"); // fremde unverändert
     });
 

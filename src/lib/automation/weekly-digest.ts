@@ -31,15 +31,15 @@ export async function runWeeklyDigest(): Promise<WeeklyDigestResult> {
     WHERE u.notify_weekly = TRUE
   `;
 
-  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 19);
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19);
 
   const results: Array<{ email: string; sent: boolean; error?: string }> = [];
 
   for (const { email, orgId } of owners) {
     try {
-      const statsRows = await sql<{ sent: string; reviewed: string; pending: string; sumGross: string }[]>`
+      const statsRows = await sql<
+        { sent: string; reviewed: string; pending: string; sumGross: string }[]
+      >`
         SELECT
           COUNT(CASE WHEN status = 'exported' AND updated_at >= ${oneWeekAgo}::timestamp THEN 1 END)::text AS sent,
           COUNT(CASE WHEN status IN ('ready','exported') AND updated_at >= ${oneWeekAgo}::timestamp AND source != 'auto' THEN 1 END)::text AS reviewed,

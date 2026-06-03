@@ -18,7 +18,8 @@ export async function MissingMatrixView({ includeHidden = false }: { includeHidd
           <div>
             <h1 className="text-2xl font-semibold">Fehlt noch was?</h1>
             <p className="mt-2 max-w-3xl text-sm text-muted">
-              Pro Lieferant und Monat: was schon da ist, was wir noch holen, und wo du kurz helfen musst.
+              Pro Lieferant und Monat: was schon da ist, was wir noch holen, und wo du kurz helfen
+              musst.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -42,7 +43,8 @@ export async function MissingMatrixView({ includeHidden = false }: { includeHidd
 
       {rows.length === 0 ? (
         <div className="rounded border border-line bg-white p-8 text-center text-sm text-muted">
-          Noch keine Lieferanten erkannt. Sobald deine ersten Rechnungen reinkommen, taucht hier eine Liste auf.
+          Noch keine Lieferanten erkannt. Sobald deine ersten Rechnungen reinkommen, taucht hier
+          eine Liste auf.
         </div>
       ) : (
         <div className="overflow-x-auto rounded border border-line bg-white shadow-soft">

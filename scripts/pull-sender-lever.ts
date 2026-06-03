@@ -3,12 +3,14 @@ import { autoAssignSenders } from "../src/senders/discovered-senders";
 import { rematchUnmatchedInvoices } from "../src/vendors/auto-alias";
 import { matchVendor } from "../src/vendors/matcher";
 
-const beforeRows = await sql<{
-  total: string;
-  unmatched: string;
-  matched: string;
-  blocked: string;
-}[]>`
+const beforeRows = await sql<
+  {
+    total: string;
+    unmatched: string;
+    matched: string;
+    blocked: string;
+  }[]
+>`
   SELECT
     COUNT(*) AS total,
     SUM(CASE WHEN matched_vendor_id IS NULL AND blocked = false THEN 1 ELSE 0 END) AS unmatched,
@@ -24,7 +26,9 @@ const before = {
 };
 
 console.log("\n=== Sender-Hebel ziehen ===\n");
-console.log(`Vorher: ${before.total} Sender (${before.matched} matched, ${before.unmatched} ohne Vendor, ${before.blocked} blockiert)\n`);
+console.log(
+  `Vorher: ${before.total} Sender (${before.matched} matched, ${before.unmatched} ohne Vendor, ${before.blocked} blockiert)\n`,
+);
 
 console.log("Schritt 1: Auto-Zuordnen ...");
 const auto = await autoAssignSenders();
@@ -38,12 +42,14 @@ console.log(
   `  geprüft: ${rematch.scanned} · neu zugeordnet: ${rematch.matched} · offen geblieben: ${rematch.unchanged}\n`,
 );
 
-const afterRows = await sql<{
-  total: string;
-  unmatched: string;
-  matched: string;
-  blocked: string;
-}[]>`
+const afterRows = await sql<
+  {
+    total: string;
+    unmatched: string;
+    matched: string;
+    blocked: string;
+  }[]
+>`
   SELECT
     COUNT(*) AS total,
     SUM(CASE WHEN matched_vendor_id IS NULL AND blocked = false THEN 1 ELSE 0 END) AS unmatched,
@@ -58,6 +64,8 @@ const after = {
   blocked: Number(afterRows[0].blocked),
 };
 
-console.log(`Nachher: ${after.total} Sender (${after.matched} matched, ${after.unmatched} ohne Vendor, ${after.blocked} blockiert)`);
+console.log(
+  `Nachher: ${after.total} Sender (${after.matched} matched, ${after.unmatched} ohne Vendor, ${after.blocked} blockiert)`,
+);
 console.log(`\nDelta: -${before.unmatched - after.unmatched} aus 'Ohne Vendor' eliminiert.\n`);
 await sql.end();

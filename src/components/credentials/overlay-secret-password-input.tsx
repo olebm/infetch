@@ -18,8 +18,21 @@ export type OverlaySecretPasswordInputProps = Omit<ComponentPropsWithoutRef<"inp
 /**
  * Password input with masked typing (discs) and optional in-field ●●●● placeholder when a secret is stored but the box is empty.
  */
-export const OverlaySecretPasswordInput = forwardRef<HTMLInputElement, OverlaySecretPasswordInputProps>(
-  ({ showStoredPlaceholder, bulletCount = 14, className: wrapperClassName, style, placeholder, ...inputProps }, ref) => {
+export const OverlaySecretPasswordInput = forwardRef<
+  HTMLInputElement,
+  OverlaySecretPasswordInputProps
+>(
+  (
+    {
+      showStoredPlaceholder,
+      bulletCount = 14,
+      className: wrapperClassName,
+      style,
+      placeholder,
+      ...inputProps
+    },
+    ref,
+  ) => {
     return (
       <div
         className={`relative w-full rounded border border-line bg-surface focus-within:ring-2 focus-within:ring-brand/25 ${wrapperClassName ?? ""}`}
@@ -37,14 +50,18 @@ export const OverlaySecretPasswordInput = forwardRef<HTMLInputElement, OverlaySe
           type="password"
           {...inputProps}
           placeholder={showStoredPlaceholder ? "" : placeholder}
-          style={{
-            ...style,
-            WebkitTextSecurity: showStoredPlaceholder ? "none" : "disc",
-          } as CSSProperties & { WebkitTextSecurity?: "none" | "disc" }}
+          style={
+            {
+              ...style,
+              WebkitTextSecurity: showStoredPlaceholder ? "none" : "disc",
+            } as CSSProperties & { WebkitTextSecurity?: "none" | "disc" }
+          }
           className={`relative z-[1] block w-full border-0 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted/70 ${showStoredPlaceholder ? "text-transparent caret-neutral-900" : ""}`}
         />
         {showStoredPlaceholder ? (
-          <span className="sr-only">Secret liegt im Secret Store. Die Kreise sind nur Platzhalter im Eingabefeld.</span>
+          <span className="sr-only">
+            Secret liegt im Secret Store. Die Kreise sind nur Platzhalter im Eingabefeld.
+          </span>
         ) : null}
       </div>
     );

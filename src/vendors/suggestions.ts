@@ -15,7 +15,10 @@ type InvoiceContext = {
   rawTextPath: string | null;
 };
 
-async function loadInvoiceContext(invoiceId: number, organizationId: string | null): Promise<InvoiceContext> {
+async function loadInvoiceContext(
+  invoiceId: number,
+  organizationId: string | null,
+): Promise<InvoiceContext> {
   // Wenn keine Org angegeben ist: kein Context — sonst könnten Suggestions
   // für Invoices fremder Orgs geladen werden.
   if (!organizationId) {

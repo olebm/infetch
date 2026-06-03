@@ -43,7 +43,10 @@ export async function readOrgJsonSetting<T>(
   fallback: T,
 ): Promise<T> {
   if (!orgId) return readJsonSetting(key, fallback);
-  const scoped = await readJsonSetting<T | typeof MISSING_SETTING>(`${key}:${orgId}`, MISSING_SETTING);
+  const scoped = await readJsonSetting<T | typeof MISSING_SETTING>(
+    `${key}:${orgId}`,
+    MISSING_SETTING,
+  );
   return scoped === MISSING_SETTING ? readJsonSetting(key, fallback) : scoped;
 }
 

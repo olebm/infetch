@@ -27,7 +27,10 @@ test.describe("Audit-Posteingang", () => {
     await page.goto("/audit");
     await expect(page.getByTestId("app-main")).toBeVisible();
 
-    const searchInput = page.getByRole("searchbox").or(page.getByPlaceholder(/suchen|search/i)).first();
+    const searchInput = page
+      .getByRole("searchbox")
+      .or(page.getByPlaceholder(/suchen|search/i))
+      .first();
     if (await searchInput.isVisible()) {
       await searchInput.fill("test");
       await expect(searchInput).toHaveValue("test");

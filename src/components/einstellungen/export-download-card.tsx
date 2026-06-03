@@ -4,10 +4,7 @@ import { useActionState, useState } from "react";
 import { Download } from "lucide-react";
 import { ProBadge } from "@/components/ui/pro-badge";
 import { Card, CardHeader } from "@/components/ui/card";
-import {
-  deleteAccountAction,
-  type AccountDeletionState,
-} from "@/app/(app)/einstellungen/actions";
+import { deleteAccountAction, type AccountDeletionState } from "@/app/(app)/einstellungen/actions";
 
 export type VendorOption = { id: number; name: string };
 
@@ -21,7 +18,7 @@ type Props = {
 const DELETE_INITIAL: AccountDeletionState = { status: "idle", message: "" };
 
 export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
-  const [year, setYear]     = useState<string>("");
+  const [year, setYear] = useState<string>("");
   const [vendor, setVendor] = useState<string>("");
   const [confirm, setConfirm] = useState<string>("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -31,8 +28,7 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
   );
 
   const confirmMatches =
-    confirm.trim().toLowerCase() === email.trim().toLowerCase() &&
-    email.length > 0;
+    confirm.trim().toLowerCase() === email.trim().toLowerCase() && email.length > 0;
 
   // Free: vendorId muss gesetzt sein → Download pro Anbieter oder einzeln
   // Pro:  kein vendor nötig → Bulk-Export aller Rechnungen
@@ -44,10 +40,7 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
 
   return (
     <Card padding="lg">
-      <CardHeader
-        title="Daten & Konto"
-        description="Export oder Löschung — sofort wirksam."
-      />
+      <CardHeader title="Daten & Konto" description="Export oder Löschung — sofort wirksam." />
 
       {/* ── Free: Download pro Anbieter ──────────────────────────────────── */}
       <div className="space-y-3">
@@ -164,9 +157,9 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
       <div>
         <div className="text-sm font-medium text-ink">Konto löschen</div>
         <div className="mt-0.5 text-xs text-muted">
-          Dein Konto, dein Arbeitsbereich und alle hochgeladenen Rechnungen
-          werden sofort und unwiderruflich gelöscht. Ein laufendes Abo wird
-          gekündigt. Diese Aktion kann nicht rückgängig gemacht werden.
+          Dein Konto, dein Arbeitsbereich und alle hochgeladenen Rechnungen werden sofort und
+          unwiderruflich gelöscht. Ein laufendes Abo wird gekündigt. Diese Aktion kann nicht
+          rückgängig gemacht werden.
         </div>
 
         <form
@@ -179,8 +172,8 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
           }}
         >
           <label className="block text-xs text-muted">
-            Zur Bestätigung deine E-Mail-Adresse{" "}
-            <span className="font-mono text-ink">{email}</span> eingeben:
+            Zur Bestätigung deine E-Mail-Adresse <span className="font-mono text-ink">{email}</span>{" "}
+            eingeben:
           </label>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
@@ -224,9 +217,9 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
                   Konto wirklich löschen?
                 </div>
                 <p className="mt-2 text-sm text-muted">
-                  Deine Postfach-Verbindung, alle Rechnungen und Organisations-Daten
-                  werden <strong className="text-ink">unwiderruflich</strong> gelöscht.
-                  Diese Aktion kann nicht rückgängig gemacht werden.
+                  Deine Postfach-Verbindung, alle Rechnungen und Organisations-Daten werden{" "}
+                  <strong className="text-ink">unwiderruflich</strong> gelöscht. Diese Aktion kann
+                  nicht rückgängig gemacht werden.
                 </p>
                 <div className="mt-5 flex items-center justify-end gap-2">
                   <button
@@ -248,7 +241,9 @@ export function ExportDownloadCard({ years, vendors, isPro, email }: Props) {
                       // selben Browser-Tab die "Geist"-Daten seines
                       // Vorgänger-Kontos sehen.
                       if (typeof window !== "undefined") {
-                        try { sessionStorage.clear(); } catch {}
+                        try {
+                          sessionStorage.clear();
+                        } catch {}
                       }
                     }}
                     className="inline-flex h-9 items-center gap-2 rounded border border-danger/40 bg-danger px-3 text-sm font-medium text-white hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"

@@ -18,7 +18,9 @@ export type PortalActionState = {
   message: string;
 };
 
-export async function runMissingCheckAction(_previousState: MissingCheckState): Promise<MissingCheckState> {
+export async function runMissingCheckAction(
+  _previousState: MissingCheckState,
+): Promise<MissingCheckState> {
   void _previousState;
   await requireCurrentAuth();
   try {

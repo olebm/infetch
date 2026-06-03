@@ -7,10 +7,7 @@ import { Search, ChevronRight, Download, X } from "lucide-react";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { PageHeader } from "@/components/ui/page-header";
 import type { SenderWithStats, VendorInvoiceRow } from "@/lib/db/queries";
-import {
-  blockSenderAction,
-  unblockSenderAction,
-} from "@/app/(app)/senders/actions";
+import { blockSenderAction, unblockSenderAction } from "@/app/(app)/senders/actions";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,7 +56,7 @@ export function SendersView({
   const [sort, setSort] = useState<Sort>("sum");
 
   const totalCount = senders.reduce((s, a) => s + a.importedCount, 0);
-  const totalSum   = senders.reduce((s, a) => s + a.invoiceSum,    0);
+  const totalSum = senders.reduce((s, a) => s + a.invoiceSum, 0);
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -73,11 +70,11 @@ export function SendersView({
       );
     });
     return [...filtered].sort((a, b) => {
-      if (sort === "sum")   return b.invoiceSum    - a.invoiceSum;
+      if (sort === "sum") return b.invoiceSum - a.invoiceSum;
       if (sort === "count") return b.importedCount - a.importedCount;
       if (sort === "name") {
-        const na = (a.displayName ?? a.matchedVendorName ?? a.fromDomain);
-        const nb = (b.displayName ?? b.matchedVendorName ?? b.fromDomain);
+        const na = a.displayName ?? a.matchedVendorName ?? a.fromDomain;
+        const nb = b.displayName ?? b.matchedVendorName ?? b.fromDomain;
         return na.localeCompare(nb, "de");
       }
       return 0;
@@ -85,7 +82,7 @@ export function SendersView({
   }, [senders, q, sort]);
 
   const selectedSender = selectedSenderId
-    ? senders.find((s) => s.id === selectedSenderId) ?? null
+    ? (senders.find((s) => s.id === selectedSenderId) ?? null)
     : null;
 
   // 4b — restore scroll position when returning to list
@@ -113,11 +110,7 @@ export function SendersView({
   // ── Detail view ────────────────────────────────────────────────────────────
   if (selectedSender) {
     return (
-      <SenderDetail
-        sender={selectedSender}
-        invoices={vendorInvoices ?? []}
-        back={closeDetail}
-      />
+      <SenderDetail sender={selectedSender} invoices={vendorInvoices ?? []} back={closeDetail} />
     );
   }
 
@@ -153,20 +146,16 @@ export function SendersView({
             )}
           </div>
           <div className="flex items-center gap-1 text-xs">
-            {(
-              [
-                { id: "sum"   as const, label: "Summe"  },
-                { id: "count" as const, label: "Anzahl" },
-                { id: "name"  as const, label: "Name"   },
-              ]
-            ).map((o) => (
+            {[
+              { id: "sum" as const, label: "Summe" },
+              { id: "count" as const, label: "Anzahl" },
+              { id: "name" as const, label: "Name" },
+            ].map((o) => (
               <button
                 key={o.id}
                 onClick={() => setSort(o.id)}
                 className={`h-7 rounded px-2.5 ${
-                  sort === o.id
-                    ? "bg-ink text-white"
-                    : "text-muted hover:text-ink"
+                  sort === o.id ? "bg-ink text-white" : "text-muted hover:text-ink"
                 }`}
               >
                 {o.label}
@@ -189,18 +178,14 @@ export function SendersView({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-3">
-                      <div className="truncate text-sm font-medium text-ink">
-                        {name}
-                      </div>
+                      <div className="truncate text-sm font-medium text-ink">{name}</div>
                       {s.blocked ? (
                         <span className="inline-flex items-center gap-1 text-xs text-muted">
                           <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted" />
                           Privat
                         </span>
                       ) : s.vendorCategory ? (
-                        <span className="truncate text-xs text-muted">
-                          {s.vendorCategory}
-                        </span>
+                        <span className="truncate text-xs text-muted">{s.vendorCategory}</span>
                       ) : null}
                     </div>
                     <div className="stat-num mt-1 text-xs text-muted">
@@ -303,17 +288,16 @@ function SenderDetail({
 
   const statusLabel = (s: string) => {
     if (s === "needs_review") return "prüfen";
-    if (s === "exported")     return "versendet";
-    if (s === "new")          return "neu";
-    if (s === "ready")        return "bereit";
-    if (s === "ignored")      return "ignoriert";
-    if (s === "duplicate")    return "Duplikat";
+    if (s === "exported") return "versendet";
+    if (s === "new") return "neu";
+    if (s === "ready") return "bereit";
+    if (s === "ignored") return "ignoriert";
+    if (s === "duplicate") return "Duplikat";
     return s;
   };
 
   return (
     <div className="space-y-8">
-
       {/* Breadcrumb */}
       <div className="text-xs">
         <button
@@ -334,9 +318,7 @@ function SenderDetail({
                 ? `${sender.vendorCategory} · ${sender.fromDomain}`
                 : sender.fromDomain}
             </div>
-            <h1 className="font-display mt-1 text-2xl text-ink sm:text-4xl md:text-5xl">
-              {name}
-            </h1>
+            <h1 className="font-display mt-1 text-2xl text-ink sm:text-4xl md:text-5xl">{name}</h1>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
@@ -365,9 +347,7 @@ function SenderDetail({
           <dd className="font-display stat-num mt-1 text-2xl text-ink sm:text-3xl">
             {sender.invoiceSum > 0 ? fmtEur(sender.invoiceSum) : "–"}
           </dd>
-          {avg && avg > 0 && (
-            <dd className="mt-0.5 text-xs text-muted">⌀ {fmtEur(avg)}</dd>
-          )}
+          {avg && avg > 0 && <dd className="mt-0.5 text-xs text-muted">⌀ {fmtEur(avg)}</dd>}
         </div>
         <div>
           <dt className="text-xs text-muted">Status</dt>
@@ -375,19 +355,14 @@ function SenderDetail({
             {sender.blocked ? "Privat" : "Aktiv"}
           </dd>
           <dd className="mt-0.5 text-xs text-muted">
-            {sender.blocked
-              ? "wird nicht weitergeleitet"
-              : "wird weitergeleitet"}
+            {sender.blocked ? "wird nicht weitergeleitet" : "wird weitergeleitet"}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-muted">erfasst seit</dt>
-          <dd className="font-display stat-num mt-1 text-2xl text-ink sm:text-3xl">
-            {firstYear}
-          </dd>
+          <dd className="font-display stat-num mt-1 text-2xl text-ink sm:text-3xl">{firstYear}</dd>
           <dd className="mt-0.5 text-xs text-muted">
-            {fmtDate(sender.firstSeenAt)} · letzter{" "}
-            {fmtDate(sender.lastSeenAt)}
+            {fmtDate(sender.firstSeenAt)} · letzter {fmtDate(sender.lastSeenAt)}
           </dd>
         </div>
       </dl>
@@ -396,9 +371,11 @@ function SenderDetail({
       {invoices.length > 0 && (
         <div className="-mt-4 flex flex-wrap items-center justify-end gap-3">
           <a
-            href={sender.matchedVendorId
-              ? `/api/export/download?vendorId=${sender.matchedVendorId}`
-              : `/api/export/download?senderId=${sender.id}`}
+            href={
+              sender.matchedVendorId
+                ? `/api/export/download?vendorId=${sender.matchedVendorId}`
+                : `/api/export/download?senderId=${sender.id}`
+            }
             download
             className="inline-flex items-center gap-1.5 text-xs text-muted underline decoration-line underline-offset-4 hover:text-ink"
           >

@@ -149,14 +149,15 @@ export function DailyCalendar({ data }: DailyCalendarProps) {
         {/* X-axis labels */}
         <div className="mt-2 flex h-4 items-center text-[10px] text-muted" style={{ gap }}>
           {days.map((d, i) => (
-            <div
-              key={i}
-              className="flex-1 whitespace-nowrap text-center stat-num leading-none"
-            >
+            <div key={i} className="flex-1 whitespace-nowrap text-center stat-num leading-none">
               {d.isToday ? (
                 <span className="text-ink">heute</span>
               ) : tickIdx.includes(i) ? (
-                range === 7 ? WEEKDAYS[d.date.getDay()] : fmtShort(d.date)
+                range === 7 ? (
+                  WEEKDAYS[d.date.getDay()]
+                ) : (
+                  fmtShort(d.date)
+                )
               ) : (
                 ""
               )}

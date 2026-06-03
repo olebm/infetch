@@ -7,7 +7,8 @@ export function MailInvalidBanner() {
       <div className="flex items-center gap-2 text-sm text-danger">
         <AlertTriangle size={14} className="shrink-0" aria-hidden />
         <span>
-          <strong>Postfach nicht erreichbar</strong> — das App-Passwort ist abgelaufen oder wurde widerrufen.
+          <strong>Postfach nicht erreichbar</strong> — das App-Passwort ist abgelaufen oder wurde
+          widerrufen.
         </span>
       </div>
       <Link

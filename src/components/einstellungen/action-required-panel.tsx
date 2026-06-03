@@ -24,7 +24,13 @@ function formatDate(value: string | null): string {
   return ts.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-export function ActionRequiredPanel({ items, total }: { items: ActionRequiredInvoice[]; total: number }) {
+export function ActionRequiredPanel({
+  items,
+  total,
+}: {
+  items: ActionRequiredInvoice[];
+  total: number;
+}) {
   if (total === 0) {
     return (
       <div className="rounded border border-ok/30 bg-ok-soft px-4 py-3 text-sm text-ok">
@@ -53,7 +59,8 @@ export function ActionRequiredPanel({ items, total }: { items: ActionRequiredInv
                 {invoice.vendorName ?? "Unbekannter Lieferant"}
               </span>
               <span className="text-xs text-warn">
-                {formatDate(invoice.invoiceDate)} · {formatAmount(invoice.amountGross, invoice.currency)}
+                {formatDate(invoice.invoiceDate)} ·{" "}
+                {formatAmount(invoice.amountGross, invoice.currency)}
               </span>
             </Link>
           </li>

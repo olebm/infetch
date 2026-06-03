@@ -6,7 +6,8 @@ import { runMissingCheckAction, type MissingCheckState } from "@/app/(app)/fehlt
 
 const initialState: MissingCheckState = {
   status: "idle",
-  message: "Berechnet lokal, welche Vendor/Monat-Kombinationen fehlen und Portal-Fallback brauchen.",
+  message:
+    "Berechnet lokal, welche Vendor/Monat-Kombinationen fehlen und Portal-Fallback brauchen.",
 };
 
 export function MissingCheckForm() {

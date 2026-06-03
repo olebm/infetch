@@ -3,8 +3,18 @@ import { StatusBadge } from "@/components/status/status-badge";
 import { getRecentScans } from "@/lib/db/queries";
 
 const MONTHS_SHORT = [
-  "Jan", "Feb", "März", "Apr", "Mai", "Jun",
-  "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
+  "Jan",
+  "Feb",
+  "März",
+  "Apr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Dez",
 ];
 
 function formatRelative(iso: string): string {
@@ -55,13 +65,12 @@ export async function ScanHistoryCard({ organizationId }: { organizationId: stri
                   </span>
                 </div>
                 <div className="text-muted whitespace-nowrap stat-num">
-                  {scan.messagesSeen} durchsucht · {scan.pdfsFound} PDFs · {scan.imported} importiert
+                  {scan.messagesSeen} durchsucht · {scan.pdfsFound} PDFs · {scan.imported}{" "}
+                  importiert
                   {scan.duplicates > 0 && ` · ${scan.duplicates} Dubletten`}
                 </div>
               </div>
-              {scan.errorSnippet && (
-                <div className="mt-1 text-danger">{scan.errorSnippet}</div>
-              )}
+              {scan.errorSnippet && <div className="mt-1 text-danger">{scan.errorSnippet}</div>}
             </li>
           ))}
         </ul>

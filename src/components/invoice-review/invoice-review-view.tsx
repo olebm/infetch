@@ -1,5 +1,10 @@
 import path from "node:path";
-import { getInvoiceDetail, getInvoiceReviewOptions, getVendors, getAdjacentInvoiceIds } from "@/lib/db/queries";
+import {
+  getInvoiceDetail,
+  getInvoiceReviewOptions,
+  getVendors,
+  getAdjacentInvoiceIds,
+} from "@/lib/db/queries";
 import { getVendorSuggestions } from "@/vendors/suggestions";
 import { getExportTargets } from "@/exports/export-pipeline";
 import { getCurrentAuth } from "@/lib/auth/current";
@@ -13,8 +18,7 @@ export async function InvoiceReviewView({
   organizationId?: string | null;
 }) {
   const auth = await getCurrentAuth();
-  const orgId =
-    organizationId !== undefined ? organizationId : auth?.organization?.id ?? null;
+  const orgId = organizationId !== undefined ? organizationId : (auth?.organization?.id ?? null);
 
   const invoice = await getInvoiceDetail(invoiceId, orgId);
 
@@ -22,13 +26,14 @@ export async function InvoiceReviewView({
     return null;
   }
 
-  const [vendors, duplicateCandidates, vendorSuggestions, exportTargetsAll, adjacent] = await Promise.all([
-    getVendors(orgId),
-    getInvoiceReviewOptions(invoiceId, 50, orgId),
-    getVendorSuggestions(invoiceId, 3, orgId),
-    getExportTargets(orgId),
-    getAdjacentInvoiceIds(invoiceId, undefined, orgId),
-  ]);
+  const [vendors, duplicateCandidates, vendorSuggestions, exportTargetsAll, adjacent] =
+    await Promise.all([
+      getVendors(orgId),
+      getInvoiceReviewOptions(invoiceId, 50, orgId),
+      getVendorSuggestions(invoiceId, 3, orgId),
+      getExportTargets(orgId),
+      getAdjacentInvoiceIds(invoiceId, undefined, orgId),
+    ]);
 
   const exportTargets = exportTargetsAll.filter((t) => t.enabled && t.recipientEmail);
 

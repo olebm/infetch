@@ -1,17 +1,22 @@
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
-import { BUCKETS, uploadToStorage, downloadFromStorage, deleteFromStorage } from "@/lib/supabase/storage";
+import {
+  BUCKETS,
+  uploadToStorage,
+  downloadFromStorage,
+  deleteFromStorage,
+} from "@/lib/supabase/storage";
 
 export type BrowserSession = {
   vendorKey: string;
-  storageState: unknown;      // parsed JSON, ready for Playwright
-  storageStateKey: string;    // Storage bucket key (for DB)
+  storageState: unknown; // parsed JSON, ready for Playwright
+  storageStateKey: string; // Storage bucket key (for DB)
   lastLoginAt: string;
   expiresAt: string | null;
 };
 
 type SessionDbRow = {
   vendorKey: string;
-  storageStatePath: string;   // DB column — now holds Storage key
+  storageStatePath: string; // DB column — now holds Storage key
   lastLoginAt: string;
   expiresAt: string | null;
 };

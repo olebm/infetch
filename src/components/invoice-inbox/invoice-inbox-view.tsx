@@ -27,8 +27,18 @@ type Invoice = Awaited<ReturnType<typeof getInvoices>>[number];
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const MONTHS_DE = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "Dezember",
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
 ];
 
 function getMonthKey(inv: Invoice): string {
@@ -89,10 +99,10 @@ function groupByMonth(invoices: Invoice[]): Array<{
 
 const TABS = [
   { key: "review", label: "Bitte prüfen", statuses: ["needs_review", "new", "failed"] as string[] },
-  { key: "all",    label: "Eingegangen",  statuses: null },
-  { key: "sent",   label: "Versendet",    statuses: ["exported"] as string[] },
-  { key: "fehlt",  label: "Fehlt",        statuses: null },
-  { key: "privat", label: "Privat",       statuses: null },
+  { key: "all", label: "Eingegangen", statuses: null },
+  { key: "sent", label: "Versendet", statuses: ["exported"] as string[] },
+  { key: "fehlt", label: "Fehlt", statuses: null },
+  { key: "privat", label: "Privat", statuses: null },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -129,7 +139,8 @@ export async function InvoiceInboxView({
   const activeYear = year ?? null;
 
   const reviewCount = ["needs_review", "new", "failed"].reduce(
-    (acc, s) => acc + (counts.get(s) ?? 0), 0,
+    (acc, s) => acc + (counts.get(s) ?? 0),
+    0,
   );
   const sentCount = counts.get("exported") ?? 0;
   const allCount = Array.from(counts.values()).reduce((a, b) => a + b, 0);
@@ -158,11 +169,13 @@ export async function InvoiceInboxView({
   const invoices: Invoice[] = await (async () => {
     if (activeTab === "fehlt") return [];
     if (activeTab === "privat") {
-      return (await getPrivateInvoices({
-        year: activeYear ?? undefined,
-        search: search || undefined,
-        organizationId: orgId,
-      })).slice(0, 30);
+      return (
+        await getPrivateInvoices({
+          year: activeYear ?? undefined,
+          search: search || undefined,
+          organizationId: orgId,
+        })
+      ).slice(0, 30);
     }
     const tabCfg = TABS.find((t) => t.key === activeTab)!;
     const statusList = tabCfg.statuses;
@@ -188,10 +201,7 @@ export async function InvoiceInboxView({
 
   return (
     <div className="screen-enter screen-enter-active">
-      <PageHeader
-        title="Posteingang"
-        subline="Alles, was reinkommt — gefiltert nach Status."
-      />
+      <PageHeader title="Posteingang" subline="Alles, was reinkommt — gefiltert nach Status." />
 
       {/* Pull-to-Refresh — nur auf Touch-Geräten aktiv, Desktop: kein Effekt */}
       <PullToRefresh />
@@ -209,43 +219,53 @@ export async function InvoiceInboxView({
       <div className="flex flex-col gap-3 md:border-b md:border-line md:flex-row md:items-center md:justify-between">
         {/* Fade-Gradient am rechten Rand signalisiert weiteren Scroll-Inhalt auf Phones */}
         <div className="relative -mb-px border-b border-line md:border-none">
-        <nav className="no-scrollbar flex gap-0 overflow-x-auto" aria-label="Filter">
-          {TABS.filter((tabItem) => {
-            // Leere Tabs ausblenden — der gerade aktive Tab bleibt immer sichtbar.
-            if (tabItem.key === "fehlt") return stats.missing + stats.actionRequired > 0 || activeTab === "fehlt";
-            if (tabItem.key === "review") return reviewCount > 0 || activeTab === "review";
-            return true;
-          }).map((tabItem) => {
-            const isActive = activeTab === tabItem.key;
-            const fehltCount = stats.missing + stats.actionRequired;
-            const count =
-              tabItem.key === "review" ? reviewCount
-                : tabItem.key === "sent" ? sentCount
-                  : tabItem.key === "all" ? allCount
-                    : tabItem.key === "fehlt" ? (fehltCount > 0 ? fehltCount : null)
-                      : tabItem.key === "privat" ? (privatCount > 0 ? privatCount : null)
-                        : null;
-            return (
-              <Link
-                key={tabItem.key}
-                href={tabHref(tabItem.key)}
-                aria-current={isActive ? "page" : undefined}
-                className={`inline-flex h-11 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors md:px-4 ${
-                  isActive
-                    ? "border-brand text-ink"
-                    : "border-transparent text-muted hover:text-ink"
-                }`}
-              >
-                {tabItem.label}
-                {count !== null && count > 0 && (
-                  <span className="ml-1 rounded-full bg-line/70 px-1.5 py-0.5 text-xs text-muted">
-                    {count}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
+          <nav className="no-scrollbar flex gap-0 overflow-x-auto" aria-label="Filter">
+            {TABS.filter((tabItem) => {
+              // Leere Tabs ausblenden — der gerade aktive Tab bleibt immer sichtbar.
+              if (tabItem.key === "fehlt")
+                return stats.missing + stats.actionRequired > 0 || activeTab === "fehlt";
+              if (tabItem.key === "review") return reviewCount > 0 || activeTab === "review";
+              return true;
+            }).map((tabItem) => {
+              const isActive = activeTab === tabItem.key;
+              const fehltCount = stats.missing + stats.actionRequired;
+              const count =
+                tabItem.key === "review"
+                  ? reviewCount
+                  : tabItem.key === "sent"
+                    ? sentCount
+                    : tabItem.key === "all"
+                      ? allCount
+                      : tabItem.key === "fehlt"
+                        ? fehltCount > 0
+                          ? fehltCount
+                          : null
+                        : tabItem.key === "privat"
+                          ? privatCount > 0
+                            ? privatCount
+                            : null
+                          : null;
+              return (
+                <Link
+                  key={tabItem.key}
+                  href={tabHref(tabItem.key)}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`inline-flex h-11 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors md:px-4 ${
+                    isActive
+                      ? "border-brand text-ink"
+                      : "border-transparent text-muted hover:text-ink"
+                  }`}
+                >
+                  {tabItem.label}
+                  {count !== null && count > 0 && (
+                    <span className="ml-1 rounded-full bg-line/70 px-1.5 py-0.5 text-xs text-muted">
+                      {count}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
           {/* Fade signalisiert Scroll-Overflow — nur auf Phones sichtbar */}
           <div
             className="pointer-events-none absolute bottom-0 right-0 top-0 w-10 bg-gradient-to-l from-[#fbfaf7] to-transparent md:hidden"
@@ -301,9 +321,7 @@ export async function InvoiceInboxView({
                           : "Wir warten auf die erste Rechnung. Schau gleich nochmal vorbei."
                 }
                 action={
-                  search || activeYear
-                    ? { label: "Alle anzeigen", href: "/audit" }
-                    : undefined
+                  search || activeYear ? { label: "Alle anzeigen", href: "/audit" } : undefined
                 }
               />
             </div>
@@ -363,23 +381,20 @@ export async function InvoiceInboxView({
                             {formatAmount(invoice.amountGross, invoice.currency)}
                           </div>
                           <div className="hidden w-24 md:flex md:items-center">
-                            {activeTab === "privat"
-                              ? <StatusBadge status="ignored" label="privat" />
-                              : <StatusBadge status={invoice.status} />}
+                            {activeTab === "privat" ? (
+                              <StatusBadge status="ignored" label="privat" />
+                            ) : (
+                              <StatusBadge status={invoice.status} />
+                            )}
                           </div>
                           {activeTab === "privat" ? (
                             <WiederherstellenButton invoiceId={invoice.id} />
                           ) : invoice.status !== "exported" ? (
-                            <PrivatButton
-                              invoiceId={invoice.id}
-                              domain={invoice.vendorDomain}
-                            />
-                          ) : <div className="w-9" />}
-                          <ChevronRight
-                            className="shrink-0 text-muted"
-                            size={16}
-                            aria-hidden
-                          />
+                            <PrivatButton invoiceId={invoice.id} domain={invoice.vendorDomain} />
+                          ) : (
+                            <div className="w-9" />
+                          )}
+                          <ChevronRight className="shrink-0 text-muted" size={16} aria-hidden />
                         </Link>
                       </li>
                     ))}
@@ -387,12 +402,15 @@ export async function InvoiceInboxView({
                 </Fragment>
               ))}
               <div className="py-3 text-xs text-muted">
-                {invoices.length} von {
-                  activeTab === "review" ? reviewCount :
-                  activeTab === "sent"   ? sentCount   :
-                  activeTab === "privat" ? privatCount :
-                  allCount
-                } sichtbar
+                {invoices.length} von{" "}
+                {activeTab === "review"
+                  ? reviewCount
+                  : activeTab === "sent"
+                    ? sentCount
+                    : activeTab === "privat"
+                      ? privatCount
+                      : allCount}{" "}
+                sichtbar
               </div>
             </div>
           )}
@@ -405,7 +423,6 @@ export async function InvoiceInboxView({
           <ManualImportForm />
         </div>
       )}
-
     </div>
   );
 }

@@ -120,9 +120,10 @@ export async function recordRecipe(input: {
       };
     }
 
-    const locator = result.decision.action.type === "click" || result.decision.action.type === "fill"
-      ? locatorById.get((result.decision.action as { elementId: string }).elementId) ?? null
-      : null;
+    const locator =
+      result.decision.action.type === "click" || result.decision.action.type === "fill"
+        ? (locatorById.get((result.decision.action as { elementId: string }).elementId) ?? null)
+        : null;
 
     try {
       const executed = await executeAction(
@@ -209,7 +210,9 @@ export function synthesizeRecipe(input: {
   );
   if (loginEnd === -1) {
     // Fallback: nach erstem Password-Fill + 1
-    const pwIdx = steps.findIndex((s) => s.type === "fill" && "valueFrom" in s && s.valueFrom === "credential.password");
+    const pwIdx = steps.findIndex(
+      (s) => s.type === "fill" && "valueFrom" in s && s.valueFrom === "credential.password",
+    );
     loginEnd = pwIdx >= 0 ? Math.min(pwIdx + 1, steps.length - 1) : Math.min(steps.length - 1, 3);
   }
 
@@ -223,8 +226,10 @@ export function synthesizeRecipe(input: {
     navigationFlow,
     invoiceList: {
       rowSelector: "[data-testid*='invoice'], tr.invoice-row, ul.invoice-list > li, [role='row']",
-      dateSelector: "[data-testid*='date'], time, .date, [aria-label*='Datum'], [aria-label*='Date']",
-      downloadSelector: "a[download], a[href*='.pdf'], button[aria-label*='herunter'], button[aria-label*='download']",
+      dateSelector:
+        "[data-testid*='date'], time, .date, [aria-label*='Datum'], [aria-label*='Date']",
+      downloadSelector:
+        "a[download], a[href*='.pdf'], button[aria-label*='herunter'], button[aria-label*='download']",
     },
     successHeuristic: "url contains invoice|rechnung|abrechnung",
   };

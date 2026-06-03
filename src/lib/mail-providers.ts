@@ -4,10 +4,10 @@
 export type MailProvider = {
   id: string;
   name: string;
-  domain: string;            // für Logo-Anzeige via Brandfetch
-  domains: string[];         // alle bekannten E-Mail-Domains (für Auto-Erkennung)
-  hint?: string;             // UX-Hinweis für den User (z. B. "App-Passwort nötig")
-  appPasswordUrl?: string;   // Direkt-Link zur App-Passwort-Seite des Anbieters
+  domain: string; // für Logo-Anzeige via Brandfetch
+  domains: string[]; // alle bekannten E-Mail-Domains (für Auto-Erkennung)
+  hint?: string; // UX-Hinweis für den User (z. B. "App-Passwort nötig")
+  appPasswordUrl?: string; // Direkt-Link zur App-Passwort-Seite des Anbieters
   imap: {
     host: string;
     port: number;

@@ -13,7 +13,9 @@ interface SendEmailOptions {
   html: string;
 }
 
-async function sendEmail(opts: SendEmailOptions & { replyTo?: { name: string; email: string } }): Promise<boolean> {
+async function sendEmail(
+  opts: SendEmailOptions & { replyTo?: { name: string; email: string } },
+): Promise<boolean> {
   const { apiKey, fromEmail, fromName } = appConfig.brevo;
   if (!apiKey) return false; // kein Key → still überspringen
 
@@ -208,8 +210,18 @@ export async function sendReviewNotification(opts: {
 // ─── Monatlicher Report ───────────────────────────────────────────────────────
 
 const MONTHS_DE = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "Dezember",
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
 ];
 
 function formatEur(amount: number): string {
@@ -234,7 +246,17 @@ export async function sendMonthlyReport(opts: {
   topVendors: Array<{ name: string; count: number; sumGross: number }>;
   appUrl?: string;
 }): Promise<boolean> {
-  const { month, sent, sentAuto, sentManual, sumGross, prevSent, prevSumGross, pending, topVendors } = opts;
+  const {
+    month,
+    sent,
+    sentAuto,
+    sentManual,
+    sumGross,
+    prevSent,
+    prevSumGross,
+    pending,
+    topVendors,
+  } = opts;
   const base_url = opts.appUrl ?? "https://app.infetch.de";
 
   const [yearStr, mStr] = month.split("-");
@@ -242,23 +264,31 @@ export async function sendMonthlyReport(opts: {
   const year = yearStr ?? "";
 
   const deltaCount = prevSent > 0 ? Math.round(((sent - prevSent) / prevSent) * 100) : null;
-  const deltaAmount = prevSumGross > 0 ? Math.round(((sumGross - prevSumGross) / prevSumGross) * 100) : null;
+  const deltaAmount =
+    prevSumGross > 0 ? Math.round(((sumGross - prevSumGross) / prevSumGross) * 100) : null;
 
-  const deltaCountHtml = deltaCount !== null
-    ? `<span style="color:${deltaCount >= 0 ? "#2d7a3a" : "#c0392b"};font-size:12px;margin-left:8px">${deltaCount >= 0 ? "+" : ""}${deltaCount}%</span>`
-    : "";
-  const deltaAmountHtml = deltaAmount !== null
-    ? `<span style="color:${deltaAmount >= 0 ? "#2d7a3a" : "#c0392b"};font-size:12px;margin-left:8px">${deltaAmount >= 0 ? "+" : ""}${deltaAmount}%</span>`
-    : "";
+  const deltaCountHtml =
+    deltaCount !== null
+      ? `<span style="color:${deltaCount >= 0 ? "#2d7a3a" : "#c0392b"};font-size:12px;margin-left:8px">${deltaCount >= 0 ? "+" : ""}${deltaCount}%</span>`
+      : "";
+  const deltaAmountHtml =
+    deltaAmount !== null
+      ? `<span style="color:${deltaAmount >= 0 ? "#2d7a3a" : "#c0392b"};font-size:12px;margin-left:8px">${deltaAmount >= 0 ? "+" : ""}${deltaAmount}%</span>`
+      : "";
 
-  const vendorRowsHtml = topVendors.length > 0
-    ? topVendors.map((v, i) => `
+  const vendorRowsHtml =
+    topVendors.length > 0
+      ? topVendors
+          .map(
+            (v, i) => `
         <tr>
           <td style="padding:10px 0;border-bottom:1px solid #e5e2db;color:#6b6b67;font-size:13px">${i + 1}. ${v.name}</td>
           <td style="padding:10px 0;border-bottom:1px solid #e5e2db;text-align:right;font-size:13px;font-variant-numeric:tabular-nums">${v.count}×</td>
           <td style="padding:10px 0;border-bottom:1px solid #e5e2db;text-align:right;font-size:13px;font-variant-numeric:tabular-nums">${formatEur(v.sumGross)}</td>
-        </tr>`).join("")
-    : "";
+        </tr>`,
+          )
+          .join("")
+      : "";
 
   return sendEmail({
     to: opts.to,
@@ -283,19 +313,28 @@ export async function sendMonthlyReport(opts: {
           <td style="padding:12px 0;border-bottom:${pending > 0 ? "1px solid #e5e2db" : "none"};color:#6b6b67;font-size:13px">Manuell bestätigt</td>
           <td style="padding:12px 0;border-bottom:${pending > 0 ? "1px solid #e5e2db" : "none"};text-align:right;font-size:14px;font-variant-numeric:tabular-nums">${sentManual}</td>
         </tr>
-        ${pending > 0 ? `<tr>
+        ${
+          pending > 0
+            ? `<tr>
           <td style="padding:12px 0;color:#6b6b67;font-size:13px">Noch offen</td>
           <td style="padding:12px 0;text-align:right;font-weight:700;font-size:14px;color:#e07000;font-variant-numeric:tabular-nums">${pending}</td>
-        </tr>` : ""}
+        </tr>`
+            : ""
+        }
       </table>
-      ${vendorRowsHtml ? `
+      ${
+        vendorRowsHtml
+          ? `
         <p style="font-size:12px;color:#a0a09a;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.06em">Top-Anbieter</p>
         <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
           ${vendorRowsHtml}
-        </table>` : ""}
-      ${pending > 0
-        ? `<a href="${base_url}/audit?tab=review" class="btn">${pending} offene Rechnung${pending !== 1 ? "en" : ""} prüfen →</a>`
-        : `<a href="${base_url}" class="btn">Zur Übersicht →</a>`
+        </table>`
+          : ""
+      }
+      ${
+        pending > 0
+          ? `<a href="${base_url}/audit?tab=review" class="btn">${pending} offene Rechnung${pending !== 1 ? "en" : ""} prüfen →</a>`
+          : `<a href="${base_url}" class="btn">Zur Übersicht →</a>`
       }
     `),
   });
@@ -316,12 +355,13 @@ export async function sendWeeklyDigest(opts: {
 
   if (sent === 0 && reviewed === 0 && pending === 0) return false; // nichts zu berichten
 
-  const totalRow = (sumGross && sumGross > 0)
-    ? `<tr>
+  const totalRow =
+    sumGross && sumGross > 0
+      ? `<tr>
           <td style="padding:12px 0;border-bottom:1px solid #e5e2db;color:#6b6b67;font-size:13px">Gesamtbetrag</td>
           <td style="padding:12px 0;border-bottom:1px solid #e5e2db;text-align:right;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums">${formatEur(sumGross)}</td>
         </tr>`
-    : "";
+      : "";
 
   return sendEmail({
     to: opts.to,
@@ -339,14 +379,19 @@ export async function sendWeeklyDigest(opts: {
           <td style="padding:12px 0;border-bottom:${totalRow || pending > 0 ? "1px solid #e5e2db" : "none"};text-align:right;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums">${reviewed}</td>
         </tr>
         ${totalRow}
-        ${pending > 0 ? `<tr>
+        ${
+          pending > 0
+            ? `<tr>
           <td style="padding:12px 0;color:#6b6b67;font-size:13px">Noch offen</td>
           <td style="padding:12px 0;text-align:right;font-weight:700;font-size:18px;color:#e07000;font-variant-numeric:tabular-nums">${pending}</td>
-        </tr>` : ""}
+        </tr>`
+            : ""
+        }
       </table>
-      ${pending > 0
-        ? `<a href="${base_url}/posteingang" class="btn">${pending} offene Rechnung${pending !== 1 ? "en" : ""} prüfen →</a>`
-        : `<a href="${base_url}" class="btn">Zur Übersicht →</a>`
+      ${
+        pending > 0
+          ? `<a href="${base_url}/posteingang" class="btn">${pending} offene Rechnung${pending !== 1 ? "en" : ""} prüfen →</a>`
+          : `<a href="${base_url}" class="btn">Zur Übersicht →</a>`
       }
       <p style="font-size:11px;color:#a0a09a;margin-top:20px">Du erhältst diese Mail, weil du die Wochenzusammenfassung in deinem Konto aktiviert hast. Du kannst sie jederzeit unter <a href="${base_url}/konto" style="color:#a0a09a">infetch.de/konto</a> deaktivieren.</p>
     `),

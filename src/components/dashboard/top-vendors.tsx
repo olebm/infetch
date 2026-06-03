@@ -56,7 +56,9 @@ function VendorItem({ vendorName, vendorDomain, count, sumGross, deltaPrevMonth 
           </div>
           <div className="mt-0.5 stat-num text-xs text-muted">
             {count} × · {eur}{" "}
-            <span className="text-muted/70">· {trend} {deltaLabel}</span>
+            <span className="text-muted/70">
+              · {trend} {deltaLabel}
+            </span>
           </div>
         </div>
       </Link>

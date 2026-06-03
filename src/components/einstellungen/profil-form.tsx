@@ -10,24 +10,19 @@ const avatarIdle = { status: "idle" as const, message: "" };
 
 // ── Avatar Upload ─────────────────────────────────────────────────────────────
 
-function AvatarUpload({
-  name,
-  avatarUrl,
-}: {
-  name: string;
-  avatarUrl: string | null;
-}) {
+function AvatarUpload({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
   const [state, formAction, isPending] = useActionState(uploadAvatarAction, avatarIdle);
   const [preview, setPreview] = useState<string | null>(avatarUrl);
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("") || "?";
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "?";
 
   return (
     <form ref={formRef} action={formAction} className="shrink-0">
@@ -54,11 +49,7 @@ function AvatarUpload({
         >
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={preview}
-              alt="Aktuelles Profilbild"
-              className="h-full w-full object-cover"
-            />
+            <img src={preview} alt="Aktuelles Profilbild" className="h-full w-full object-cover" />
           ) : (
             <span className="flex h-full w-full items-center justify-center text-lg font-medium select-none">
               {initials}
@@ -77,7 +68,9 @@ function AvatarUpload({
           </span>
         </button>
         {state.status === "error" && (
-          <p className="text-[10px] text-danger max-w-[72px] text-center leading-tight">{state.message}</p>
+          <p className="text-[10px] text-danger max-w-[72px] text-center leading-tight">
+            {state.message}
+          </p>
         )}
       </div>
     </form>
@@ -111,7 +104,9 @@ export function ProfilForm({
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             {/* A11Y (INFETCH-104): htmlFor verknüpft Label mit Input */}
-            <label htmlFor="profile-name" className="mb-1.5 block text-xs font-medium text-muted">Name</label>
+            <label htmlFor="profile-name" className="mb-1.5 block text-xs font-medium text-muted">
+              Name
+            </label>
             <input
               id="profile-name"
               type="text"
@@ -124,7 +119,9 @@ export function ProfilForm({
             />
           </div>
           <div>
-            <label htmlFor="profile-email" className="mb-1.5 block text-xs font-medium text-muted">E-Mail</label>
+            <label htmlFor="profile-email" className="mb-1.5 block text-xs font-medium text-muted">
+              E-Mail
+            </label>
             <input
               id="profile-email"
               type="email"
@@ -135,7 +132,12 @@ export function ProfilForm({
             />
           </div>
           <div>
-            <label htmlFor="profile-companyName" className="mb-1.5 block text-xs font-medium text-muted">Firmenname</label>
+            <label
+              htmlFor="profile-companyName"
+              className="mb-1.5 block text-xs font-medium text-muted"
+            >
+              Firmenname
+            </label>
             <input
               id="profile-companyName"
               type="text"
@@ -147,7 +149,9 @@ export function ProfilForm({
             />
           </div>
           <div>
-            <label htmlFor="profile-vatId" className="mb-1.5 block text-xs font-medium text-muted">USt-ID</label>
+            <label htmlFor="profile-vatId" className="mb-1.5 block text-xs font-medium text-muted">
+              USt-ID
+            </label>
             <input
               id="profile-vatId"
               type="text"

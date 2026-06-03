@@ -111,7 +111,11 @@ export async function updateInvoiceReviewAction(
     // die Sender-Domain als Domain-Alias — damit kuenftige Mails vom selben
     // Sender automatisch matchen und nicht erneut im Review landen.
     if (newVendorId && newVendorId !== previousVendorId) {
-      const result = await learnFromManualMatch({ invoiceId, vendorId: newVendorId, organizationId: orgId });
+      const result = await learnFromManualMatch({
+        invoiceId,
+        vendorId: newVendorId,
+        organizationId: orgId,
+      });
       if (result.learned) {
         await recordSyncEvent({
           level: "info",
@@ -152,7 +156,13 @@ export async function updateInvoiceReviewAction(
 }
 
 const ALL_DB_STATUSES = new Set<string>([
-  "new", "needs_review", "ready", "ignored", "duplicate", "exported", "failed",
+  "new",
+  "needs_review",
+  "ready",
+  "ignored",
+  "duplicate",
+  "exported",
+  "failed",
 ]);
 
 function resolveReviewStatus(intent: string, currentStatus: string): ReviewStatus {
@@ -175,14 +185,18 @@ function parseOptionalInteger(value: FormDataEntryValue | null) {
 }
 
 function parseOptionalNumber(value: FormDataEntryValue | null) {
-  const normalized = String(value || "").trim().replace(",", ".");
+  const normalized = String(value || "")
+    .trim()
+    .replace(",", ".");
   if (!normalized) return null;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 function normalizeCurrency(value: FormDataEntryValue | null) {
-  const normalized = String(value || "").trim().toUpperCase();
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase();
   return normalized ? normalized.slice(0, 8) : null;
 }
 

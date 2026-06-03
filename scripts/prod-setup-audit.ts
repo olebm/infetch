@@ -35,7 +35,13 @@ async function main() {
     ORDER BY created_at ASC
   `;
 
-  const incomplete: Array<{ id: string; name: string; tier: string; missing: string[]; created: string }> = [];
+  const incomplete: Array<{
+    id: string;
+    name: string;
+    tier: string;
+    missing: string[];
+    created: string;
+  }> = [];
   let complete = 0;
 
   for (const org of orgs) {
@@ -47,7 +53,13 @@ async function main() {
     if (missing.length === 0) {
       complete++;
     } else {
-      incomplete.push({ id: org.id, name: org.name, tier: org.tier, missing, created: org.created_at });
+      incomplete.push({
+        id: org.id,
+        name: org.name,
+        tier: org.tier,
+        missing,
+        created: org.created_at,
+      });
     }
   }
 
@@ -59,7 +71,9 @@ async function main() {
   if (incomplete.length > 0) {
     console.log("Halb-Setup-Orgs (id | tier | created | fehlt):");
     for (const o of incomplete) {
-      console.log(`  ${o.id}  ${o.tier.padEnd(8)}  ${o.created.slice(0, 10)}  fehlt: ${o.missing.join(", ")}  (${o.name})`);
+      console.log(
+        `  ${o.id}  ${o.tier.padEnd(8)}  ${o.created.slice(0, 10)}  fehlt: ${o.missing.join(", ")}  (${o.name})`,
+      );
     }
   }
 

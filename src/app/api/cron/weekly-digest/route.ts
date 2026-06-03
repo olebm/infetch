@@ -27,7 +27,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const auth = req.headers.get("authorization") ?? "";
     const expected = `Bearer ${cronSecret}`;
     const authHash = crypto.createHash("sha256").update(auth).digest();
-    const expHash  = crypto.createHash("sha256").update(expected).digest();
+    const expHash = crypto.createHash("sha256").update(expected).digest();
     if (!crypto.timingSafeEqual(authHash, expHash)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

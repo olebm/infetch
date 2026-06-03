@@ -16,7 +16,10 @@ export function getRetentionMonths(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : 12;
 }
 
-export async function runRetention(): Promise<{ deletedMailMessages: number; cutoffMonths: number }> {
+export async function runRetention(): Promise<{
+  deletedMailMessages: number;
+  cutoffMonths: number;
+}> {
   const months = getRetentionMonths();
   // seen_at ist eine TEXT-Spalte. Ein einzelner nicht-ISO-parsbarer Wert würde
   // sonst den gesamten DELETE mit Cast-Fehler abbrechen (Retention läuft nie).

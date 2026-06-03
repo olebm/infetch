@@ -16,7 +16,10 @@ type AliasRow = {
   priority: number;
 };
 
-export async function matchVendor(signals: string[], organizationId?: string | null): Promise<VendorMatch> {
+export async function matchVendor(
+  signals: string[],
+  organizationId?: string | null,
+): Promise<VendorMatch> {
   const haystack = signals.filter(Boolean).join("\n").toLowerCase();
   // Org-aware: bei gesetzter Org NUR globale Seeds (organization_id NULL) und
   // Vendors DIESER Org berücksichtigen. Sonst könnte ein org-spezifischer Vendor
@@ -38,7 +41,8 @@ export async function matchVendor(signals: string[], organizationId?: string | n
 
   for (const row of aliases) {
     const alias = row.alias.toLowerCase();
-    const matched = row.matchType === "exact" ? haystack.split(/\s+/).includes(alias) : haystack.includes(alias);
+    const matched =
+      row.matchType === "exact" ? haystack.split(/\s+/).includes(alias) : haystack.includes(alias);
     if (!matched) continue;
 
     const confidence = row.matchType === "domain" || row.matchType === "exact" ? 0.9 : 0.72;

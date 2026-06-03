@@ -7,9 +7,11 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = { mode?: string };
 
-export default async function OnboardingPage(
-  { searchParams }: { searchParams: Promise<SearchParams> },
-) {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const auth = await requireCurrentAuth();
   const orgId = auth.organization?.id;
   const params = await searchParams;

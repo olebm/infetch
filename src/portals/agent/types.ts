@@ -2,7 +2,11 @@
 
 export type RecipeStep =
   | { type: "goto"; url: string }
-  | { type: "fill"; selector: string; valueFrom: "credential.username" | "credential.password" | "totp" }
+  | {
+      type: "fill";
+      selector: string;
+      valueFrom: "credential.username" | "credential.password" | "totp";
+    }
   | { type: "click"; selector: string }
   | { type: "waitForUrl"; pattern: string }
   | { type: "waitFor"; selector: string; timeoutMs?: number }

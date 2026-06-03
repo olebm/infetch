@@ -19,7 +19,13 @@ interface PageHeaderProps {
  * but commanding masthead. Subline + actions wrap below on mobile, right-align
  * on md+. Big bottom margin (`mb-10 md:mb-14`) — pages breathe.
  */
-export function PageHeader({ title, eyebrow, subline, actions, actionsAlign = "end" }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  eyebrow,
+  subline,
+  actions,
+  actionsAlign = "end",
+}: PageHeaderProps) {
   return (
     <div
       className={`mb-6 flex flex-col gap-4 sm:mb-10 md:mb-14 md:flex-row md:justify-between ${
@@ -33,13 +39,9 @@ export function PageHeader({ title, eyebrow, subline, actions, actionsAlign = "e
         <h1 className="font-display text-3xl leading-[0.95] text-ink sm:text-5xl md:text-6xl">
           {title}
         </h1>
-        {subline && (
-          <p className="mt-3 max-w-xl text-sm text-muted">{subline}</p>
-        )}
+        {subline && <p className="mt-3 max-w-xl text-sm text-muted">{subline}</p>}
       </div>
-      {actions && (
-        <div className="flex flex-wrap items-center gap-2">{actions}</div>
-      )}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

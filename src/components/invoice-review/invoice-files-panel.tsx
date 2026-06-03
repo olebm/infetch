@@ -15,7 +15,10 @@ export function InvoiceFilesPanel({ files }: { files: InvoiceFile[] }) {
   return (
     <div className="space-y-4">
       {files.map((file) => (
-        <div key={file.id} className="space-y-2 border-b border-line pb-4 last:border-b-0 last:pb-0">
+        <div
+          key={file.id}
+          className="space-y-2 border-b border-line pb-4 last:border-b-0 last:pb-0"
+        >
           <div className="text-sm font-medium">{file.displayFilename}</div>
           {file.originalFilename !== file.displayFilename ? (
             <div className="text-xs text-muted">{file.originalFilename}</div>

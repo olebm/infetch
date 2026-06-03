@@ -46,8 +46,8 @@ function confidenceTone(value: number | null | undefined): "ok" | "low" | "missi
 }
 
 const DOT_CLASS: Record<ReturnType<typeof confidenceTone>, string> = {
-  ok:      "bg-ok",
-  low:     "bg-warn",
+  ok: "bg-ok",
+  low: "bg-warn",
   missing: "bg-muted/40",
 };
 
@@ -166,15 +166,17 @@ function ConfirmPanel({
   invoice: Invoice;
   vendors: Array<{ id: number; name: string }>;
   exportTargets: Array<{ id: number; label: string; recipientEmail: string | null }>;
-  duplicateCandidates: Invoice["files"] extends Array<unknown> ? Array<{
-    id: number;
-    invoiceNumber: string | null;
-    invoiceDate: string | null;
-    amountGross: number | null;
-    currency: string | null;
-    status: string;
-    vendorName: string | null;
-  }> : never;
+  duplicateCandidates: Invoice["files"] extends Array<unknown>
+    ? Array<{
+        id: number;
+        invoiceNumber: string | null;
+        invoiceDate: string | null;
+        amountGross: number | null;
+        currency: string | null;
+        status: string;
+        vendorName: string | null;
+      }>
+    : never;
   isPending: boolean;
   onEdit: () => void;
   onIgnoreClick: () => void;
@@ -188,7 +190,11 @@ function ConfirmPanel({
       <input type="hidden" name="invoiceDate" value={invoice.invoiceDate ?? ""} />
       <input type="hidden" name="amountGross" value={formatDecimal(invoice.amountGross)} />
       <input type="hidden" name="currency" value={invoice.currency ?? "EUR"} />
-      <input type="hidden" name="vatRate" value={invoice.vatRate !== null ? String(invoice.vatRate) : ""} />
+      <input
+        type="hidden"
+        name="vatRate"
+        value={invoice.vatRate !== null ? String(invoice.vatRate) : ""}
+      />
       <input type="hidden" name="docType" value={invoice.docType ?? "invoice"} />
       <input type="hidden" name="invoiceNumber" value={invoice.invoiceNumber ?? ""} />
       <input type="hidden" name="amountNet" value={formatDecimal(invoice.amountNet)} />
@@ -204,7 +210,12 @@ function ConfirmPanel({
         {/* Vendor */}
         <div className="flex items-center justify-between gap-3 rounded-md px-3 py-2.5 hover:bg-surface/60">
           <div className="flex items-center gap-2.5 min-w-0">
-            <VendorLogo domain={invoice.vendorDomain} name={invoice.vendorName} size={28} className="shrink-0" />
+            <VendorLogo
+              domain={invoice.vendorDomain}
+              name={invoice.vendorName}
+              size={28}
+              className="shrink-0"
+            />
             <span className="text-sm font-medium text-ink truncate">
               {invoice.vendorName || "Unbekannter Anbieter"}
             </span>
@@ -215,7 +226,9 @@ function ConfirmPanel({
         <div className="flex items-center justify-between gap-3 rounded-md px-3 py-2.5 hover:bg-surface/60">
           <span className="text-sm text-muted">Datum</span>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-ink tabular-nums">{formatDate(invoice.invoiceDate)}</span>
+            <span className="text-sm font-medium text-ink tabular-nums">
+              {formatDate(invoice.invoiceDate)}
+            </span>
           </div>
         </div>
 
@@ -234,7 +247,8 @@ function ConfirmPanel({
           <div className="flex items-center justify-between gap-3 rounded-md px-3 py-2.5 text-sm">
             <span className="text-muted">Empfänger</span>
             <span className="text-ink">
-              {exportTargets.find((t) => t.id === invoice.preferredExportTargetId)?.label ?? "Standard"}
+              {exportTargets.find((t) => t.id === invoice.preferredExportTargetId)?.label ??
+                "Standard"}
             </span>
           </div>
         )}
@@ -257,7 +271,9 @@ function ConfirmPanel({
             className="py-3 text-base"
           >
             Bereit — verschicken
-            <kbd className="kbd ml-2 hidden border-white/30 bg-transparent text-white sm:inline-flex">⌘↵</kbd>
+            <kbd className="kbd ml-2 hidden border-white/30 bg-transparent text-white sm:inline-flex">
+              ⌘↵
+            </kbd>
           </Button>
         )}
 
@@ -362,7 +378,9 @@ function EditPanel({
   onIgnoreClick: () => void;
   ignoreSubmitRef: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const [vendorId, setVendorId] = useState<string>(invoice.vendorId ? String(invoice.vendorId) : "");
+  const [vendorId, setVendorId] = useState<string>(
+    invoice.vendorId ? String(invoice.vendorId) : "",
+  );
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
@@ -373,7 +391,10 @@ function EditPanel({
       <div className="space-y-3">
         {/* Vendor */}
         <div className="space-y-2">
-          <FormField label="Lieferant" hint={<ConfidenceDot value={extraction.vendor_confidence} />}>
+          <FormField
+            label="Lieferant"
+            hint={<ConfidenceDot value={extraction.vendor_confidence} />}
+          >
             {({ id }) => (
               <Select
                 id={id}
@@ -397,15 +418,26 @@ function EditPanel({
         </div>
 
         {/* Date */}
-        <FormField label="Rechnungsdatum" hint={<ConfidenceDot value={extraction.date_confidence} />}>
+        <FormField
+          label="Rechnungsdatum"
+          hint={<ConfidenceDot value={extraction.date_confidence} />}
+        >
           {({ id }) => (
-            <Input id={id} type="date" name="invoiceDate" defaultValue={invoice.invoiceDate || ""} />
+            <Input
+              id={id}
+              type="date"
+              name="invoiceDate"
+              defaultValue={invoice.invoiceDate || ""}
+            />
           )}
         </FormField>
 
         {/* Amount + currency */}
         <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
-          <FormField label="Gesamtbetrag" hint={<ConfidenceDot value={extraction.amount_confidence} />}>
+          <FormField
+            label="Gesamtbetrag"
+            hint={<ConfidenceDot value={extraction.amount_confidence} />}
+          >
             {({ id }) => (
               <Input
                 id={id}
@@ -431,9 +463,16 @@ function EditPanel({
 
         {/* VAT + doc type */}
         <div className="grid gap-3 sm:grid-cols-2">
-          <FormField label="USt.-Satz" hint={<ConfidenceDot value={extraction.vat_rate_confidence} />}>
+          <FormField
+            label="USt.-Satz"
+            hint={<ConfidenceDot value={extraction.vat_rate_confidence} />}
+          >
             {({ id }) => (
-              <Select id={id} name="vatRate" defaultValue={invoice.vatRate !== null ? String(invoice.vatRate) : ""}>
+              <Select
+                id={id}
+                name="vatRate"
+                defaultValue={invoice.vatRate !== null ? String(invoice.vatRate) : ""}
+              >
                 <option value="">Unbekannt</option>
                 <option value="0">0 %</option>
                 <option value="7">7 %</option>
@@ -441,7 +480,10 @@ function EditPanel({
               </Select>
             )}
           </FormField>
-          <FormField label="Beleg-Typ" hint={<ConfidenceDot value={extraction.doc_type_confidence} />}>
+          <FormField
+            label="Beleg-Typ"
+            hint={<ConfidenceDot value={extraction.doc_type_confidence} />}
+          >
             {({ id }) => (
               <Select id={id} name="docType" defaultValue={invoice.docType || "invoice"}>
                 <option value="invoice">Rechnung</option>
@@ -459,12 +501,15 @@ function EditPanel({
               <Select
                 id={id}
                 name="exportTargetId"
-                defaultValue={invoice.preferredExportTargetId ? String(invoice.preferredExportTargetId) : ""}
+                defaultValue={
+                  invoice.preferredExportTargetId ? String(invoice.preferredExportTargetId) : ""
+                }
               >
                 <option value="">Standard (alle aktiven)</option>
                 {exportTargets.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.label}{t.recipientEmail ? ` · ${t.recipientEmail}` : ""}
+                    {t.label}
+                    {t.recipientEmail ? ` · ${t.recipientEmail}` : ""}
                   </option>
                 ))}
               </Select>
@@ -479,7 +524,11 @@ function EditPanel({
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="flex w-full items-center gap-1.5 py-2.5 text-xs text-muted hover:text-ink"
           >
-            {showAdvanced ? <ChevronUp size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}
+            {showAdvanced ? (
+              <ChevronUp size={12} aria-hidden />
+            ) : (
+              <ChevronDown size={12} aria-hidden />
+            )}
             Erweiterte Felder
           </button>
 
@@ -542,13 +591,16 @@ function EditPanel({
                     <Select
                       id={id}
                       name="duplicateOfInvoiceId"
-                      defaultValue={invoice.duplicateOfInvoiceId ? String(invoice.duplicateOfInvoiceId) : ""}
+                      defaultValue={
+                        invoice.duplicateOfInvoiceId ? String(invoice.duplicateOfInvoiceId) : ""
+                      }
                     >
                       <option value="">Keine Verknüpfung</option>
                       {duplicateCandidates.map((candidate) => (
                         <option key={candidate.id} value={candidate.id}>
                           #{candidate.id} · {candidate.vendorName || "Unbekannt"} ·{" "}
-                          {candidate.invoiceNumber || "ohne Nummer"} · {candidate.invoiceDate || "-"}
+                          {candidate.invoiceNumber || "ohne Nummer"} ·{" "}
+                          {candidate.invoiceDate || "-"}
                         </option>
                       ))}
                     </Select>
@@ -577,7 +629,9 @@ function EditPanel({
             className="py-3"
           >
             Bereit — verschicken
-            <kbd className="kbd ml-2 hidden border-white/30 bg-transparent text-white sm:inline-flex">⌘↵</kbd>
+            <kbd className="kbd ml-2 hidden border-white/30 bg-transparent text-white sm:inline-flex">
+              ⌘↵
+            </kbd>
           </Button>
         )}
         <div className="flex gap-2">
@@ -783,7 +837,9 @@ export function InvoiceReviewForm({
 
       <div className="md:grid md:gap-6 md:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)]">
         {/* PDF */}
-        <div className={`overflow-hidden rounded-lg ${mobileTab === "pdf" ? "block" : "hidden md:block"}`}>
+        <div
+          className={`overflow-hidden rounded-lg ${mobileTab === "pdf" ? "block" : "hidden md:block"}`}
+        >
           {primaryFile ? (
             <PdfViewer
               src={`/api/invoice-files/${primaryFile.id}`}

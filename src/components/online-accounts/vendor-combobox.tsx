@@ -27,9 +27,7 @@ export function VendorCombobox({
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return options.slice(0, 50);
-    return options
-      .filter((o) => o.name.toLowerCase().includes(needle))
-      .slice(0, 50);
+    return options.filter((o) => o.name.toLowerCase().includes(needle)).slice(0, 50);
   }, [options, query]);
 
   return (

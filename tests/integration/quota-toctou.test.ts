@@ -62,8 +62,10 @@ async function seedFreeOrg() {
 async function seedInvoicesAtBoundary(count: number) {
   // Raw inserts bypass the importPdfBuffer pipeline. created_at uses NOW()
   // so each row counts toward the current month for canImportInvoice.
-  const rows = Array.from({ length: count }, (_, i) =>
-    sql`
+  const rows = Array.from(
+    { length: count },
+    (_, i) =>
+      sql`
       INSERT INTO invoices (vendor_id, source, status, invoice_number, organization_id)
       VALUES (NULL, 'manual', 'ready', ${`toctou-seed-${SUFFIX}-${i}`}, ${ORG_ID})
     `,
@@ -128,9 +130,7 @@ describe.skipIf(!hasDb)("quota TOCTOU prevention (in-tx recheck)", () => {
     ]);
 
     const successes = [r1, r2].filter((r) => r.ok && r.status === "imported");
-    const quotaFails = [r1, r2].filter(
-      (r) => !r.ok && r.status === "quota_exceeded",
-    );
+    const quotaFails = [r1, r2].filter((r) => !r.ok && r.status === "quota_exceeded");
 
     // Exactly one wins, exactly one is rejected. Without the in-tx recheck,
     // both would pass the pre-check (current = MAX-1) and both insert,

@@ -9,7 +9,10 @@ import { logout } from "@/app/login/actions";
 import { testMailConnectionAction } from "@/mail/connection-test";
 import { Button } from "@/components/ui/button";
 import { VendorLogo } from "@/components/ui/vendor-logo";
-import { MailboxConnectContent, type MailboxData } from "@/components/credentials/mailbox-connect-content";
+import {
+  MailboxConnectContent,
+  type MailboxData,
+} from "@/components/credentials/mailbox-connect-content";
 import { RECIPIENTS, type TargetSlot, isSharedInboxRecipient } from "@/lib/recipients";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -23,12 +26,12 @@ type WizardData = {
   smtpHost: string;
   smtpPort: number;
   smtpSecure: boolean;
-  smtpEmail: string;      // SMTP username (may differ from IMAP)
-  smtpPassword: string;   // SMTP password (may differ from IMAP)
+  smtpEmail: string; // SMTP username (may differ from IMAP)
+  smtpPassword: string; // SMTP password (may differ from IMAP)
   recipientName: string;
   recipientEmail: string;
-  recipientKey: string;       // selected RECIPIENTS key, or "custom"
-  recipientSlot: TargetSlot;  // export slot derived from the selected recipient
+  recipientKey: string; // selected RECIPIENTS key, or "custom"
+  recipientSlot: TargetSlot; // export slot derived from the selected recipient
   // Separate sending mailbox — the address registered at the accounting
   // software. Only collected (and mandatory) for shared-inbox recipients;
   // then invoices are sent from this account instead of the receiving one.
@@ -112,38 +115,58 @@ function saveToStorage(userId: string, step: number, data: WizardData): void {
 
 function clearStorage(userId: string): void {
   if (typeof window === "undefined") return;
-  try { sessionStorage.removeItem(storageKeyFor(userId)); } catch {}
+  try {
+    sessionStorage.removeItem(storageKeyFor(userId));
+  } catch {}
 }
 
 /** Räumt den alten globalen Key aus früheren Wizard-Versionen weg. */
 function clearLegacyStorage(): void {
   if (typeof window === "undefined") return;
-  try { sessionStorage.removeItem(LEGACY_STORAGE_KEY); } catch {}
+  try {
+    sessionStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {}
 }
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
 const DEFAULT_DATA: WizardData = {
-  imapEmail: "", imapPassword: "",
-  imapHost: "", imapPort: 993, imapSecure: true,
+  imapEmail: "",
+  imapPassword: "",
+  imapHost: "",
+  imapPort: 993,
+  imapSecure: true,
   // SMTP-Fallback für unbekannte Domains: 587 + STARTTLS ist heute der
   // gängige Standard; 465 (implizites SSL) führt bei vielen Mailservern
   // (z. B. IONOS-Custom-Domains) zu Connect-Errors. Provider-Presets
   // überschreiben das pro Anbieter (siehe mail-providers.ts).
-  smtpHost: "", smtpPort: 587, smtpSecure: false,
-  smtpEmail: "", smtpPassword: "",
-  recipientName: "", recipientEmail: "",
+  smtpHost: "",
+  smtpPort: 587,
+  smtpSecure: false,
+  smtpEmail: "",
+  smtpPassword: "",
+  recipientName: "",
+  recipientEmail: "",
   recipientKey: "custom",
   recipientSlot: "kontist",
-  senderEmail: "", senderPassword: "",
-  senderSmtpHost: "", senderSmtpPort: 587, senderSmtpSecure: false,
+  senderEmail: "",
+  senderPassword: "",
+  senderSmtpHost: "",
+  senderSmtpPort: 587,
+  senderSmtpSecure: false,
 };
 
 const IMAP_SMTP_DEFAULTS = {
-  imapEmail: "", imapPassword: "",
-  imapHost: "", imapPort: 993, imapSecure: true,
-  smtpHost: "", smtpPort: 587, smtpSecure: false,
-  smtpEmail: "", smtpPassword: "",
+  imapEmail: "",
+  imapPassword: "",
+  imapHost: "",
+  imapPort: 993,
+  imapSecure: true,
+  smtpHost: "",
+  smtpPort: 587,
+  smtpSecure: false,
+  smtpEmail: "",
+  smtpPassword: "",
 };
 
 // Effective SMTP/send settings = der Stand aus Step 3 ("Versand").
@@ -151,7 +174,11 @@ const IMAP_SMTP_DEFAULTS = {
 // vorbelegt, sodass für Standard-Postfächer kein erneutes Tippen nötig ist.
 // Bei Shared-Inbox-Recipients überschreibt der User dort die Sende-Adresse.
 function effectiveSmtp(d: WizardData): {
-  host: string; port: number; secure: boolean; user: string; pass: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
 } {
   return {
     host: d.senderSmtpHost,
@@ -226,21 +253,24 @@ export function OnboardingWizard({
   const [testErrors, setTestErrors] = useState<{ imap?: string; smtp?: string }>({});
   // Which protocols the current step's test actually cares about: Postfach
   // (receiving) checks IMAP + its SMTP; Versand (send-only) checks SMTP only.
-  const [testScope, setTestScope] = useState<{ imap: boolean; smtp: boolean }>({ imap: true, smtp: true });
+  const [testScope, setTestScope] = useState<{ imap: boolean; smtp: boolean }>({
+    imap: true,
+    smtp: true,
+  });
 
   useEffect(() => {
     if (!hydrated) return;
     saveToStorage(userId, step, data);
   }, [hydrated, step, data, userId]);
 
-  const set = (key: keyof WizardData) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set =
+    (key: keyof WizardData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setData((d) => ({ ...d, [key]: e.target.value }));
 
   const selectedRecipient =
     data.recipientKey === "custom"
       ? null
-      : RECIPIENTS.find((r) => r.key === data.recipientKey) ?? null;
+      : (RECIPIENTS.find((r) => r.key === data.recipientKey) ?? null);
   const selectedRecipientHint = selectedRecipient?.hint ?? null;
 
   const submitSmtp = effectiveSmtp(data);
@@ -268,16 +298,16 @@ export function OnboardingWizard({
     setTestErrors({});
 
     const fd = new FormData();
-    fd.set("tcImapHost",   data.imapHost);
-    fd.set("tcImapPort",   String(data.imapPort));
+    fd.set("tcImapHost", data.imapHost);
+    fd.set("tcImapPort", String(data.imapPort));
     fd.set("tcImapSecure", String(data.imapSecure));
-    fd.set("tcImapUser",   data.imapEmail);
-    fd.set("tcImapPass",   data.imapPassword);
-    fd.set("tcSmtpHost",   smtp.host);
-    fd.set("tcSmtpPort",   String(smtp.port));
+    fd.set("tcImapUser", data.imapEmail);
+    fd.set("tcImapPass", data.imapPassword);
+    fd.set("tcSmtpHost", smtp.host);
+    fd.set("tcSmtpPort", String(smtp.port));
     fd.set("tcSmtpSecure", String(smtp.secure));
-    fd.set("tcSmtpUser",   smtp.user);
-    fd.set("tcSmtpPass",   smtp.pass);
+    fd.set("tcSmtpUser", smtp.user);
+    fd.set("tcSmtpPass", smtp.pass);
 
     let result: Awaited<ReturnType<typeof testMailConnectionAction>>;
     try {
@@ -312,9 +342,20 @@ export function OnboardingWizard({
     setValidationError(null);
 
     if (currentKey === "postfach") {
-      if (!data.imapEmail)    { setValidationError("Bitte E-Mail-Adresse eingeben."); return; }
-      if (!data.imapPassword) { setValidationError("Bitte Passwort eingeben."); return; }
-      if (!data.imapHost)     { setValidationError("Server-Details fehlen — bitte Provider auswählen oder manuell eingeben."); return; }
+      if (!data.imapEmail) {
+        setValidationError("Bitte E-Mail-Adresse eingeben.");
+        return;
+      }
+      if (!data.imapPassword) {
+        setValidationError("Bitte Passwort eingeben.");
+        return;
+      }
+      if (!data.imapHost) {
+        setValidationError(
+          "Server-Details fehlen — bitte Provider auswählen oder manuell eingeben.",
+        );
+        return;
+      }
       // Step 1 testet sowohl IMAP als auch SMTP gegen die eingegebenen
       // Credentials (Standard-Annahme: gleicher Account fuer Empfang +
       // Versand). Bei Shared-Inbox-Recipients (Kontist/Accountable/...)
@@ -323,10 +364,10 @@ export function OnboardingWizard({
       // Senderdefaults fuer Step 3 schon hier vorbelegen.
       setData((prev) => ({
         ...prev,
-        senderEmail:      prev.senderEmail      || prev.imapEmail,
-        senderPassword:   prev.senderPassword   || prev.imapPassword,
-        senderSmtpHost:   prev.senderSmtpHost   || prev.smtpHost || prev.imapHost,
-        senderSmtpPort:   prev.senderSmtpPort   || prev.smtpPort,
+        senderEmail: prev.senderEmail || prev.imapEmail,
+        senderPassword: prev.senderPassword || prev.imapPassword,
+        senderSmtpHost: prev.senderSmtpHost || prev.smtpHost || prev.imapHost,
+        senderSmtpPort: prev.senderSmtpPort || prev.smtpPort,
         senderSmtpSecure: prev.senderSmtpSecure ?? prev.smtpSecure,
       }));
       await runTestAndAdvance(
@@ -352,9 +393,18 @@ export function OnboardingWizard({
     }
 
     if (currentKey === "versand") {
-      if (!data.senderEmail)    { setValidationError("Bitte Sende-Adresse eingeben."); return; }
-      if (!data.senderPassword) { setValidationError("Bitte Passwort für den Versand eingeben."); return; }
-      if (!data.senderSmtpHost) { setValidationError("Sende-Server fehlt — bitte SMTP-Host eintragen."); return; }
+      if (!data.senderEmail) {
+        setValidationError("Bitte Sende-Adresse eingeben.");
+        return;
+      }
+      if (!data.senderPassword) {
+        setValidationError("Bitte Passwort für den Versand eingeben.");
+        return;
+      }
+      if (!data.senderSmtpHost) {
+        setValidationError("Sende-Server fehlt — bitte SMTP-Host eintragen.");
+        return;
+      }
       // Versand = send-only mailbox: only SMTP is relevant.
       await runTestAndAdvance(
         {
@@ -369,7 +419,12 @@ export function OnboardingWizard({
       return;
     }
   };
-  const back = () => { setValidationError(null); setTestPhase("idle"); setTestErrors({}); setStep(() => Math.max(0, clampedStep - 1)); };
+  const back = () => {
+    setValidationError(null);
+    setTestPhase("idle");
+    setTestErrors({});
+    setStep(() => Math.max(0, clampedStep - 1));
+  };
 
   // Auf Step 0 ersetzt der Button "Abbrechen" die Zurück-Aktion: persistierten
   // Wizard-State löschen, Supabase-Session beenden, zurück zum Login. Das
@@ -452,7 +507,6 @@ export function OnboardingWizard({
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
-
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <header className="flex h-14 items-center border-b border-line bg-white px-6">
         <Image
@@ -470,9 +524,9 @@ export function OnboardingWizard({
       {editMode && (
         <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 mt-4">
           <div className="rounded-md border border-brand/30 bg-brand-soft/40 px-4 py-3 text-xs text-ink">
-            Du bearbeitest dein bestehendes Setup. Passwörter musst du aus
-            Sicherheitsgründen erneut eingeben — bestehende Empfänger und
-            Server-Daten bleiben unverändert, bis du sie überschreibst.
+            Du bearbeitest dein bestehendes Setup. Passwörter musst du aus Sicherheitsgründen erneut
+            eingeben — bestehende Empfänger und Server-Daten bleiben unverändert, bis du sie
+            überschreibst.
           </div>
         </div>
       )}
@@ -516,7 +570,6 @@ export function OnboardingWizard({
 
       {/* ── Step content ──────────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 sm:px-6 py-6 sm:py-8 md:py-12">
-
         {/* Postfach — IMAP-only (Empfangsserver) */}
         {currentKey === "postfach" && (
           <div>
@@ -554,14 +607,16 @@ export function OnboardingWizard({
             <p className="mt-2 text-sm text-muted">
               {isSharedInboxRecipient(data.recipientKey) && selectedRecipient?.email ? (
                 <>
-                  <span className="font-medium text-ink">{selectedRecipient.label}</span>{" "}
-                  nutzt eine Sammel-Adresse (<span className="font-mono">{selectedRecipient.email}</span>)
-                  und erkennt dich an deiner <span className="font-medium text-ink">Absender-Adresse</span>.
-                  Trage die dort hinterlegte E-Mail ein — von diesem Konto senden wir die Rechnungen.
+                  <span className="font-medium text-ink">{selectedRecipient.label}</span> nutzt eine
+                  Sammel-Adresse (<span className="font-mono">{selectedRecipient.email}</span>) und
+                  erkennt dich an deiner{" "}
+                  <span className="font-medium text-ink">Absender-Adresse</span>. Trage die dort
+                  hinterlegte E-Mail ein — von diesem Konto senden wir die Rechnungen.
                 </>
               ) : (
                 <>
-                  Standardmäßig wird vom Postfach aus Schritt 1 gesendet. Du kannst hier ein anderes SMTP-Konto eintragen, falls Versand und Empfang getrennt sind.
+                  Standardmäßig wird vom Postfach aus Schritt 1 gesendet. Du kannst hier ein anderes
+                  SMTP-Konto eintragen, falls Versand und Empfang getrennt sind.
                 </>
               )}
             </p>
@@ -589,8 +644,8 @@ export function OnboardingWizard({
               An wen schicken wir deine Rechnungen?
             </h1>
             <p className="mt-2 text-sm text-muted">
-              Deine Steuerkanzlei, ein Buchhaltungs-Tool wie Kontist oder
-              Lexoffice — oder eine eigene Adresse. Spaeter ergaenzbar.
+              Deine Steuerkanzlei, ein Buchhaltungs-Tool wie Kontist oder Lexoffice — oder eine
+              eigene Adresse. Spaeter ergaenzbar.
             </p>
 
             <div className="mt-6 rounded-md border border-line bg-paper p-5 space-y-5">
@@ -626,12 +681,20 @@ export function OnboardingWizard({
                         ) : (
                           <div
                             className="flex shrink-0 items-center justify-center rounded-full font-medium"
-                            style={{ width: 28, height: 28, background: "#dbd8d0", color: "#151a22", fontSize: 12 }}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              background: "#dbd8d0",
+                              color: "#151a22",
+                              fontSize: 12,
+                            }}
                           >
                             {r.label[0]}
                           </div>
                         )}
-                        <span className={`text-[11px] ${isActive ? "font-medium text-brand" : "text-muted"}`}>
+                        <span
+                          className={`text-[11px] ${isActive ? "font-medium text-brand" : "text-muted"}`}
+                        >
                           {r.label}
                         </span>
                       </button>
@@ -678,7 +741,9 @@ export function OnboardingWizard({
                   </div>
                 )}
                 <div className={data.recipientKey === "custom" ? "" : "md:col-span-2"}>
-                  <label className="mb-1 block text-xs font-medium text-muted">E-Mail-Adresse</label>
+                  <label className="mb-1 block text-xs font-medium text-muted">
+                    E-Mail-Adresse
+                  </label>
                   <input
                     type="email"
                     value={data.recipientEmail}
@@ -719,7 +784,9 @@ export function OnboardingWizard({
               <div className="flex items-baseline gap-3 px-4 py-3">
                 <dt className="w-28 shrink-0 text-xs text-muted">Empfänger</dt>
                 <dd className="text-sm text-ink font-mono">
-                  {data.recipientEmail || <span className="text-muted italic">nicht angegeben</span>}
+                  {data.recipientEmail || (
+                    <span className="text-muted italic">nicht angegeben</span>
+                  )}
                 </dd>
               </div>
               {data.recipientName && (
@@ -735,7 +802,8 @@ export function OnboardingWizard({
               <div className="text-sm text-ink">
                 <div className="font-medium">Jederzeit kündbar.</div>
                 <div className="mt-0.5 text-muted">
-                  Du kannst Infetch in den Einstellungen pausieren, Empfänger anpassen oder dein Konto schließen.
+                  Du kannst Infetch in den Einstellungen pausieren, Empfänger anpassen oder dein
+                  Konto schließen.
                 </div>
               </div>
             </div>
@@ -749,26 +817,34 @@ export function OnboardingWizard({
         )}
 
         {/* ── Validation error ──────────────────────────────────────────── */}
-        {validationError && (
-          <p className="mt-4 text-sm text-danger">{validationError}</p>
-        )}
+        {validationError && <p className="mt-4 text-sm text-danger">{validationError}</p>}
 
         {/* ── Connection test feedback ───────────────────────────────── */}
         {testPhase === "testing" && (
           <div className="mt-4 flex items-center gap-2 text-sm text-muted">
             <Loader2 size={14} className="animate-spin shrink-0" aria-hidden />
             <span>
-              Prüfe {testScope.imap && testScope.smtp ? "IMAP und SMTP" : testScope.smtp ? "SMTP" : "IMAP"}…
+              Prüfe{" "}
+              {testScope.imap && testScope.smtp
+                ? "IMAP und SMTP"
+                : testScope.smtp
+                  ? "SMTP"
+                  : "IMAP"}
+              …
             </span>
           </div>
         )}
         {testPhase === "success" && (
           <div className="mt-4 flex items-center gap-3 text-sm text-ok">
             {testScope.imap && (
-              <span className="flex items-center gap-1"><Check size={14} aria-hidden /> IMAP verbunden</span>
+              <span className="flex items-center gap-1">
+                <Check size={14} aria-hidden /> IMAP verbunden
+              </span>
             )}
             {testScope.smtp && (
-              <span className="flex items-center gap-1"><Check size={14} aria-hidden /> SMTP verbunden</span>
+              <span className="flex items-center gap-1">
+                <Check size={14} aria-hidden /> SMTP verbunden
+              </span>
             )}
           </div>
         )}
@@ -777,19 +853,23 @@ export function OnboardingWizard({
             <p className="flex items-center gap-1.5 font-medium text-danger">
               <WifiOff size={14} aria-hidden /> Verbindung fehlgeschlagen
             </p>
-            {testErrors.imap && <p className="mt-1 text-xs text-danger"><strong>IMAP:</strong> {testErrors.imap}</p>}
-            {testErrors.smtp && <p className="mt-1 text-xs text-danger"><strong>SMTP:</strong> {testErrors.smtp}</p>}
+            {testErrors.imap && (
+              <p className="mt-1 text-xs text-danger">
+                <strong>IMAP:</strong> {testErrors.imap}
+              </p>
+            )}
+            {testErrors.smtp && (
+              <p className="mt-1 text-xs text-danger">
+                <strong>SMTP:</strong> {testErrors.smtp}
+              </p>
+            )}
           </div>
         )}
 
         {/* ── Footer nav ────────────────────────────────────────────────── */}
         <div className="mt-6 flex items-center justify-between">
           {clampedStep === 0 ? (
-            <Button
-              variant="ghost"
-              onClick={handleCancel}
-              disabled={testPhase === "testing"}
-            >
+            <Button variant="ghost" onClick={handleCancel} disabled={testPhase === "testing"}>
               Abbrechen
             </Button>
           ) : (
@@ -810,34 +890,48 @@ export function OnboardingWizard({
               className="gap-1.5"
             >
               {testPhase === "testing" ? (
-                <><Loader2 size={16} className="animate-spin" aria-hidden /> Wird geprüft…</>
+                <>
+                  <Loader2 size={16} className="animate-spin" aria-hidden /> Wird geprüft…
+                </>
               ) : testPhase === "success" ? (
-                <><Check size={16} aria-hidden /> Verbunden</>
+                <>
+                  <Check size={16} aria-hidden /> Verbunden
+                </>
               ) : (
-                <>weiter <ArrowRight size={16} aria-hidden /></>
+                <>
+                  weiter <ArrowRight size={16} aria-hidden />
+                </>
               )}
             </Button>
           ) : (
             <form action={formAction}>
-              <input type="hidden" name="email"          value={data.imapEmail} />
-              <input type="hidden" name="password"       value={data.imapPassword} />
-              <input type="hidden" name="imapHost"       value={data.imapHost} />
-              <input type="hidden" name="imapPort"       value={data.imapPort} />
-              <input type="hidden" name="imapSecure"     value={String(data.imapSecure)} />
-              <input type="hidden" name="smtpHost"       value={submitSmtp.host} />
-              <input type="hidden" name="smtpPort"       value={submitSmtp.port} />
-              <input type="hidden" name="smtpSecure"     value={String(submitSmtp.secure)} />
-              <input type="hidden" name="smtpEmail"      value={submitSmtp.user} />
-              <input type="hidden" name="smtpPassword"   value={submitSmtp.pass} />
+              <input type="hidden" name="email" value={data.imapEmail} />
+              <input type="hidden" name="password" value={data.imapPassword} />
+              <input type="hidden" name="imapHost" value={data.imapHost} />
+              <input type="hidden" name="imapPort" value={data.imapPort} />
+              <input type="hidden" name="imapSecure" value={String(data.imapSecure)} />
+              <input type="hidden" name="smtpHost" value={submitSmtp.host} />
+              <input type="hidden" name="smtpPort" value={submitSmtp.port} />
+              <input type="hidden" name="smtpSecure" value={String(submitSmtp.secure)} />
+              <input type="hidden" name="smtpEmail" value={submitSmtp.user} />
+              <input type="hidden" name="smtpPassword" value={submitSmtp.pass} />
               <input type="hidden" name="recipientEmail" value={data.recipientEmail} />
-              <input type="hidden" name="exportTarget"   value={data.recipientSlot} />
+              <input type="hidden" name="exportTarget" value={data.recipientSlot} />
               <Button type="submit" disabled={isPending || setupSucceeded} className="gap-1.5">
                 {setupSucceeded ? (
-                  <><Check size={16} aria-hidden /> Postfach verbunden — starte Scan…</>
+                  <>
+                    <Check size={16} aria-hidden /> Postfach verbunden — starte Scan…
+                  </>
                 ) : isPending ? (
-                  <><Loader2 size={16} className="animate-spin" aria-hidden /> Postfach wird verbunden…</>
+                  <>
+                    <Loader2 size={16} className="animate-spin" aria-hidden /> Postfach wird
+                    verbunden…
+                  </>
                 ) : (
-                  <><span>Setup abschließen</span><ArrowRight size={16} aria-hidden /></>
+                  <>
+                    <span>Setup abschließen</span>
+                    <ArrowRight size={16} aria-hidden />
+                  </>
                 )}
               </Button>
             </form>

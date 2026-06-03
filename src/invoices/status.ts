@@ -1,7 +1,14 @@
 export type SourceStatus = {
   manualStatus: "none" | "imported";
   mailStatus: "unchecked" | "found" | "missing" | "error";
-  portalStatus: "not_needed" | "required" | "running" | "found" | "not_found" | "failed" | "disabled";
+  portalStatus:
+    | "not_needed"
+    | "required"
+    | "running"
+    | "found"
+    | "not_found"
+    | "failed"
+    | "disabled";
 };
 
 export type FinalInvoiceStatus = {
@@ -37,6 +44,8 @@ export function shouldRunPortalFallback(status: SourceStatus) {
   return (
     status.manualStatus !== "imported" &&
     status.mailStatus !== "found" &&
-    (status.portalStatus === "required" || status.portalStatus === "failed" || status.portalStatus === "not_found")
+    (status.portalStatus === "required" ||
+      status.portalStatus === "failed" ||
+      status.portalStatus === "not_found")
   );
 }

@@ -55,9 +55,7 @@ export const metadata: Metadata = {
       { url: "/images/icons/icon-120.png", sizes: "120x120", type: "image/png" },
       { url: "/images/icons/icon-180.png", sizes: "180x180", type: "image/png" },
     ],
-    other: [
-      { rel: "mask-icon", url: "/images/brand/infetch-icon.svg" },
-    ],
+    other: [{ rel: "mask-icon", url: "/images/brand/infetch-icon.svg" }],
   },
   manifest: "/site.webmanifest",
   robots: {

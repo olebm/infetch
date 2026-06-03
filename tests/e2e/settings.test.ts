@@ -48,7 +48,12 @@ test.describe("Einstellungen-Seite", () => {
     await page.goto("/einstellungen");
     await page.getByRole("tab", { name: /postfächer/i }).click();
 
-    await expect(page.getByRole("heading", { name: /postfächer.*IMAP/i }).or(page.getByText("Postfächer (IMAP)", { exact: true })).first()).toBeVisible();
+    await expect(
+      page
+        .getByRole("heading", { name: /postfächer.*IMAP/i })
+        .or(page.getByText("Postfächer (IMAP)", { exact: true }))
+        .first(),
+    ).toBeVisible();
   });
 
   test("Buchhaltung-Tab zeigt Empfänger-Bereich", async ({ page }) => {

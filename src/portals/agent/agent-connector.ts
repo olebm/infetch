@@ -58,7 +58,11 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
   if (!recipe) {
     const seed = getSeedRecipe(input.vendorKey);
     if (seed) {
-      recipeRow = await saveRecipe({ vendorKey: input.vendorKey, recipe: seed, recordedBy: "local" });
+      recipeRow = await saveRecipe({
+        vendorKey: input.vendorKey,
+        recipe: seed,
+        recordedBy: "local",
+      });
       recipe = seed;
     }
   }
@@ -82,13 +86,12 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
     (await chromium.launch({
       headless,
       slowMo: appConfig.portalAgent.slowMoMs > 0 ? appConfig.portalAgent.slowMoMs : undefined,
-      args: [
-        "--disable-blink-features=AutomationControlled",
-        "--disable-dev-shm-usage",
-      ],
+      args: ["--disable-blink-features=AutomationControlled", "--disable-dev-shm-usage"],
     }));
   if (appConfig.portalAgent.verbose) {
-    console.log(`[portal-agent] vendor=${input.vendorKey} headless=${headless} slowMo=${appConfig.portalAgent.slowMoMs}ms`);
+    console.log(
+      `[portal-agent] vendor=${input.vendorKey} headless=${headless} slowMo=${appConfig.portalAgent.slowMoMs}ms`,
+    );
   }
   const ownsBrowser = !input.sharedBrowser;
   let context: BrowserContext | null = null;
@@ -148,13 +151,15 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
     }
 
     // Re-Record-Logik: nur wenn kein Recipe vorhanden ODER Recipe nach Fail-Schwelle als broken markiert
-    const recipeIsBroken = recipeRow?.failureCount !== undefined && recipeRow.failureCount + 1 >= RECIPE_FAILURES_BEFORE_RECORD;
+    const recipeIsBroken =
+      recipeRow?.failureCount !== undefined &&
+      recipeRow.failureCount + 1 >= RECIPE_FAILURES_BEFORE_RECORD;
     const shouldRerecord =
       !recipe || (playResult?.status === "recipe_broken" && !playResult.ok && recipeIsBroken);
 
     if (shouldRerecord) {
       mode = playResult ? "replay_then_record" : "record";
-      const loginUrl = recipe?.loginUrl ?? await deriveLoginUrl(input.vendorKey);
+      const loginUrl = recipe?.loginUrl ?? (await deriveLoginUrl(input.vendorKey));
 
       // Frischer Context fuer das Recording (sauber starten)
       try {
@@ -268,7 +273,8 @@ async function loadCredentials(vendorKey: string): Promise<AgentCredentials | nu
   const meta = await readPortalCredential(vendorKey);
   if (!meta) return null;
   const { readCredentialSecret } = await import("@/lib/secrets/credential-store");
-  const totpSecret = (await readCredentialSecret({ scope: "totp", ownerId: vendorKey })) ?? undefined;
+  const totpSecret =
+    (await readCredentialSecret({ scope: "totp", ownerId: vendorKey })) ?? undefined;
   return { username: meta.username, password: meta.password, totpSecret };
 }
 
@@ -288,7 +294,17 @@ async function failureResult(
   llmCalls: number,
   llmCostCents: number,
 ): Promise<RunResult> {
-  await logRun({ vendorKey, recipeId, mode, status, invoicesFound: 0, durationMs, errorMessage: message, llmCalls, llmCostCents });
+  await logRun({
+    vendorKey,
+    recipeId,
+    mode,
+    status,
+    invoicesFound: 0,
+    durationMs,
+    errorMessage: message,
+    llmCalls,
+    llmCostCents,
+  });
   return {
     vendorKey,
     recipeId,

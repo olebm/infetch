@@ -48,7 +48,10 @@ test.describe("Konto-Seite", () => {
       await expect(upgradeBtn).toBeHidden();
     } else {
       // Paid-Tier: "Abonnement verwalten" oder kein Upgrade-Button
-      test.info().annotations.push({ type: "info", description: "Paid tier — Upgrade-Button nicht erwartet" });
+      test.info().annotations.push({
+        type: "info",
+        description: "Paid tier — Upgrade-Button nicht erwartet",
+      });
     }
   });
 

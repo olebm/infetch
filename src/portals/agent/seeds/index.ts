@@ -16,13 +16,20 @@ export const SEED_RECIPES: Record<string, Recipe> = {
     loginUrl: "https://www.enbw.com/meine-rechnungen/",
     loginFlow: [
       { type: "goto", url: "https://login.enbw.com/" },
-      { type: "fill", selector: "input[type='email'], input[name='username']", valueFrom: "credential.username" },
+      {
+        type: "fill",
+        selector: "input[type='email'], input[name='username']",
+        valueFrom: "credential.username",
+      },
       { type: "fill", selector: "input[type='password']", valueFrom: "credential.password" },
       { type: "click", selector: "button[type='submit']" },
       { type: "waitForUrl", pattern: "**/meine-rechnungen*" },
     ],
     navigationFlow: [
-      { type: "waitFor", selector: "[data-testid='invoice-list'], table.invoices, ul.invoice-list" },
+      {
+        type: "waitFor",
+        selector: "[data-testid='invoice-list'], table.invoices, ul.invoice-list",
+      },
     ],
     invoiceList: {
       rowSelector: "[data-testid='invoice-row'], table.invoices tr, ul.invoice-list > li",

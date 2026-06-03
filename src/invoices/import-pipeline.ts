@@ -2,7 +2,12 @@ import crypto from "node:crypto";
 import type postgres from "postgres";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { recordSyncEvent } from "@/lib/db/events";
-import { BUCKETS, uploadToStorage, deleteFromStorage, buildInvoiceStorageKey } from "@/lib/supabase/storage";
+import {
+  BUCKETS,
+  uploadToStorage,
+  deleteFromStorage,
+  buildInvoiceStorageKey,
+} from "@/lib/supabase/storage";
 import { runInvoiceAiExtraction } from "@/ai/extract-invoice";
 import { attemptAutoTransfer } from "@/lib/automation/auto-transfer";
 import { sendReviewNotification } from "@/lib/mail/notify";
@@ -105,7 +110,11 @@ export async function importManualPdf(input: {
   }
 
   if (input.file.size > maxPdfSizeBytes) {
-    return { ok: false, status: "failed", message: "PDF ist größer als 20 MB und wurde nicht importiert." };
+    return {
+      ok: false,
+      status: "failed",
+      message: "PDF ist größer als 20 MB und wurde nicht importiert.",
+    };
   }
 
   return importPdfBuffer({
@@ -128,12 +137,20 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   }
 
   if (input.buffer.byteLength > maxPdfSizeBytes) {
-    return { ok: false, status: "failed", message: "PDF ist größer als 20 MB und wurde nicht importiert." };
+    return {
+      ok: false,
+      status: "failed",
+      message: "PDF ist größer als 20 MB und wurde nicht importiert.",
+    };
   }
 
   const buffer = input.buffer;
   if (!isLikelyPdf(buffer)) {
-    return { ok: false, status: "failed", message: "Datei hat keinen gültigen PDF-Header und wurde nicht importiert." };
+    return {
+      ok: false,
+      status: "failed",
+      message: "Datei hat keinen gültigen PDF-Header und wurde nicht importiert.",
+    };
   }
 
   // ── Tier-Quota-Check ────────────────────────────────────────────────────────
@@ -157,9 +174,10 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     }
 
     if (!storageQuota.allowed) {
-      const usedMb  = Math.round(storageQuota.usedBytes  / (1024 * 1024));
-      const maxMb   = Math.round(storageQuota.maxBytes   / (1024 * 1024));
-      if (orgId) void fireUpgradeNudgeIfNeeded(orgId, storageQuota.usedBytes, storageQuota.maxBytes);
+      const usedMb = Math.round(storageQuota.usedBytes / (1024 * 1024));
+      const maxMb = Math.round(storageQuota.maxBytes / (1024 * 1024));
+      if (orgId)
+        void fireUpgradeNudgeIfNeeded(orgId, storageQuota.usedBytes, storageQuota.maxBytes);
       return {
         ok: false,
         status: "quota_exceeded",
@@ -205,7 +223,10 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
 
   const extraction = await extractPdfText(buffer);
   const parsed = parseInvoiceFields(extraction.text, input.originalFilename);
-  const vendor = await matchVendor([input.originalFilename, extraction.text], input.organizationId ?? null);
+  const vendor = await matchVendor(
+    [input.originalFilename, extraction.text],
+    input.organizationId ?? null,
+  );
   // Plausibilitäts-Check: nur zuverlässig erfasste Rechnungen dürfen ungeprüft
   // freigegeben werden. Fehlende Währung, Zukunfts-Datum oder ein absurder
   // Betrag (z. B. gieriger Regex → 350.167.000,00 €) → manuelle Prüfung statt
@@ -220,7 +241,12 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     : vendor.vendorId && parsed.invoiceDate && parsed.amountGross && implausibilityReason === null
       ? "ready"
       : "needs_review";
-  const confidence = calculateConfidence(vendor.confidence, parsed, extraction.text, extraction.error);
+  const confidence = calculateConfidence(
+    vendor.confidence,
+    parsed,
+    extraction.text,
+    extraction.error,
+  );
   const productLabel = deriveInvoiceProductLabel({
     vendorKey: vendor.canonicalKey,
     originalFilename: input.originalFilename,
@@ -237,9 +263,11 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
   });
   const rawTextKey = `${sha256}.txt`;
   await uploadToStorage(BUCKETS.INVOICES, storageKey, buffer, { contentType: "application/pdf" });
-  await uploadToStorage(BUCKETS.RAW_TEXT, rawTextKey, extraction.text, { contentType: "text/plain; charset=utf-8" });
-  const storedPath = storageKey;   // DB column now stores Storage key
-  const rawTextPath = rawTextKey;  // DB column now stores Storage key
+  await uploadToStorage(BUCKETS.RAW_TEXT, rawTextKey, extraction.text, {
+    contentType: "text/plain; charset=utf-8",
+  });
+  const storedPath = storageKey; // DB column now stores Storage key
+  const rawTextPath = rawTextKey; // DB column now stores Storage key
 
   // Wrap core DB inserts in a transaction so a mid-flight failure does not
   // leave orphaned invoice rows without a corresponding invoice_file row.
@@ -473,9 +501,13 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
 
 function buildImportMessage(invoiceStatus: string, aiStatus: string) {
   const base =
-    invoiceStatus === "ready" ? "PDF importiert und als exportbereit markiert." : "PDF importiert. Review ist erforderlich.";
-  if (aiStatus === "skipped_local") return `${base} Alle Felder lokal extrahiert — Mistral nicht benötigt.`;
-  if (aiStatus === "succeeded" || aiStatus === "cached") return `${base} Mistral Analyse abgeschlossen.`;
+    invoiceStatus === "ready"
+      ? "PDF importiert und als exportbereit markiert."
+      : "PDF importiert. Review ist erforderlich.";
+  if (aiStatus === "skipped_local")
+    return `${base} Alle Felder lokal extrahiert — Mistral nicht benötigt.`;
+  if (aiStatus === "succeeded" || aiStatus === "cached")
+    return `${base} Mistral Analyse abgeschlossen.`;
   if (aiStatus === "failed") return `${base} Mistral Analyse fehlgeschlagen.`;
   if (aiStatus === "skipped") return `${base} Mistral Analyse übersprungen.`;
   return base;
@@ -483,7 +515,12 @@ function buildImportMessage(invoiceStatus: string, aiStatus: string) {
 
 function calculateConfidence(
   vendorConfidence: number,
-  parsed: { invoiceDate: string | null; amountGross: number | null; invoiceNumber: string | null; currency: string | null },
+  parsed: {
+    invoiceDate: string | null;
+    amountGross: number | null;
+    invoiceNumber: string | null;
+    currency: string | null;
+  },
   text: string,
   extractionError: string | null,
 ) {
@@ -522,9 +559,24 @@ async function upsertVendorMonthStatusTx(
   if (!input.vendorId || !input.invoiceDate) return;
   const yearMonth = input.invoiceDate.slice(0, 7);
   const statusBySource = {
-    manual: { mailStatus: "unchecked", portalStatus: "not_needed", manualStatus: "imported", sourceUsed: "manual" },
-    mail: { mailStatus: "found", portalStatus: "not_needed", manualStatus: "none", sourceUsed: "mail" },
-    portal: { mailStatus: "missing", portalStatus: "found", manualStatus: "none", sourceUsed: "portal" },
+    manual: {
+      mailStatus: "unchecked",
+      portalStatus: "not_needed",
+      manualStatus: "imported",
+      sourceUsed: "manual",
+    },
+    mail: {
+      mailStatus: "found",
+      portalStatus: "not_needed",
+      manualStatus: "none",
+      sourceUsed: "mail",
+    },
+    portal: {
+      mailStatus: "missing",
+      portalStatus: "found",
+      manualStatus: "none",
+      sourceUsed: "portal",
+    },
   }[input.sourceType];
 
   await tx`

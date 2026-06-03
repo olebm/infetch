@@ -6,7 +6,11 @@ const defaultRows = [
   { label: "Mein Postfach", scope: "imap", detail: "Hier holen wir deine Rechnungen ab" },
   { label: "Versand-Adresse", scope: "smtp", detail: "Hier verschicken wir an deine Buchhaltung" },
   { label: "KI-Erkennung", scope: "mistral", detail: "Liest Beträge und Daten automatisch aus" },
-  { label: "Online-Konten", scope: "portal", detail: "Optional, für Auto-Abholen aus Lieferanten-Portalen" },
+  {
+    label: "Online-Konten",
+    scope: "portal",
+    detail: "Optional, für Auto-Abholen aus Lieferanten-Portalen",
+  },
 ];
 
 export async function CredentialStatusPanel() {
@@ -18,8 +22,13 @@ export async function CredentialStatusPanel() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {rows.map((row) => {
-        const imapRows = credentials.filter((credential) => credential.scope === row.scope && credential.status === "configured");
-        const stored = row.scope === "imap" ? imapRows[0] : credentials.find((credential) => credential.scope === row.scope);
+        const imapRows = credentials.filter(
+          (credential) => credential.scope === row.scope && credential.status === "configured",
+        );
+        const stored =
+          row.scope === "imap"
+            ? imapRows[0]
+            : credentials.find((credential) => credential.scope === row.scope);
         const isMistralEnv = row.scope === "mistral" && appConfig.mistral.configured;
         const status =
           row.scope === "imap"
@@ -33,7 +42,10 @@ export async function CredentialStatusPanel() {
               ? "nicht eingerichtet"
               : `${formatSecretSource(imapRows[0]?.secretStore ?? "")}${imapRows.length > 1 ? ` (${imapRows.length} Konten)` : ""}`
             : stored?.secretStore || (isMistralEnv ? ".env.local" : "nicht eingerichtet");
-        const lastVerifiedAt = row.scope === "imap" ? imapRows[0]?.lastVerifiedAt || null : stored?.lastVerifiedAt || null;
+        const lastVerifiedAt =
+          row.scope === "imap"
+            ? imapRows[0]?.lastVerifiedAt || null
+            : stored?.lastVerifiedAt || null;
 
         return (
           <article key={row.scope} className="rounded border border-line bg-white p-4 shadow-soft">
@@ -45,7 +57,9 @@ export async function CredentialStatusPanel() {
               <StatusBadge status={status} />
             </div>
             <div className="mt-4 text-xs text-muted">Speicherort: {formatSecretSource(source)}</div>
-            <div className="mt-1 text-xs text-muted">Zuletzt geprüft: {lastVerifiedAt || "noch nicht"}</div>
+            <div className="mt-1 text-xs text-muted">
+              Zuletzt geprüft: {lastVerifiedAt || "noch nicht"}
+            </div>
           </article>
         );
       })}

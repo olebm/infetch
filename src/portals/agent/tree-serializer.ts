@@ -110,19 +110,22 @@ export async function snapshotTree(page: Page): Promise<SerializedTree> {
       const role = inferRole(el);
       if (!role) continue;
       const name = accessibleName(el);
-      const isPassword =
-        el instanceof HTMLInputElement && el.type === "password";
+      const isPassword = el instanceof HTMLInputElement && el.type === "password";
       const value = isPassword
         ? null
         : el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement
           ? (el.value ?? "").slice(0, 60) || null
           : null;
       const required =
-        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        el instanceof HTMLSelectElement
           ? el.required
           : null;
       const checked =
-        el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio") ? el.checked : null;
+        el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio")
+          ? el.checked
+          : null;
       result.push({ role, name, value, required, checked, isPassword });
     }
     return result;

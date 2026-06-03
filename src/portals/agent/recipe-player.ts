@@ -13,7 +13,14 @@ export type PlayDownload = {
 
 export type PlayResult = {
   ok: boolean;
-  status: "success" | "recipe_broken" | "login_required" | "two_factor" | "captcha" | "no_invoices" | "failed";
+  status:
+    | "success"
+    | "recipe_broken"
+    | "login_required"
+    | "two_factor"
+    | "captcha"
+    | "no_invoices"
+    | "failed";
   message: string | null;
   downloads: PlayDownload[];
 };
@@ -45,7 +52,12 @@ export async function playRecipe(
       if (friction) {
         return { ok: false, status: friction.status, message: friction.message, downloads };
       }
-      return { ok: false, status: "no_invoices", message: "Keine Rechnungen auf der Seite gefunden.", downloads };
+      return {
+        ok: false,
+        status: "no_invoices",
+        message: "Keine Rechnungen auf der Seite gefunden.",
+        downloads,
+      };
     }
 
     for (const row of rows) {
@@ -88,7 +100,11 @@ export async function playRecipe(
       return { ok: false, status: friction.status, message: friction.message, downloads };
     }
 
-    if (/timeout|selector .* not found|locator .* not found|getByRole|element.*not found/i.test(message)) {
+    if (
+      /timeout|selector .* not found|locator .* not found|getByRole|element.*not found/i.test(
+        message,
+      )
+    ) {
       return { ok: false, status: "recipe_broken", message: shortMessage(message), downloads };
     }
     return { ok: false, status: "failed", message: shortMessage(message), downloads };
@@ -123,7 +139,10 @@ async function detectFriction(page: Page): Promise<FrictionResult | null> {
       })
       .catch(() => false);
     if (hasCaptcha) {
-      return { status: "captcha", message: "Portal verlangt ein CAPTCHA — bitte einmal manuell anmelden." };
+      return {
+        status: "captcha",
+        message: "Portal verlangt ein CAPTCHA — bitte einmal manuell anmelden.",
+      };
     }
 
     const twoFactor = await page
@@ -143,7 +162,8 @@ async function detectFriction(page: Page): Promise<FrictionResult | null> {
     if (twoFactor) {
       return {
         status: "two_factor",
-        message: "Portal fordert einen 2FA-Code. Wenn du einen TOTP-Schlüssel hinterlegt hast, lernen wir das beim nächsten Recording.",
+        message:
+          "Portal fordert einen 2FA-Code. Wenn du einen TOTP-Schlüssel hinterlegt hast, lernen wir das beim nächsten Recording.",
       };
     }
 

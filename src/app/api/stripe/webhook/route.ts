@@ -94,10 +94,7 @@ async function handleCheckoutCompleted(
 
 // ── DB: Tier bei Subscription-Update anpassen ─────────────────────────────────
 
-async function handleSubscriptionChanged(
-  sub: Stripe.Subscription,
-  eventTs: number,
-): Promise<void> {
+async function handleSubscriptionChanged(sub: Stripe.Subscription, eventTs: number): Promise<void> {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const priceId = sub.items.data[0]?.price.id;
 
@@ -162,26 +159,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Stripe-Events tragen immer `created` (Unix-Sek.). Defensiver Fallback
   // auf "jetzt", falls ein Event ohne created ankommt (kein harter Fehler).
-  const eventTs =
-    typeof event.created === "number"
-      ? event.created
-      : Math.floor(Date.now() / 1000);
+  const eventTs = typeof event.created === "number" ? event.created : Math.floor(Date.now() / 1000);
 
   try {
     switch (event.type) {
       case "checkout.session.completed":
-        await handleCheckoutCompleted(
-          event.data.object as Stripe.Checkout.Session,
-          eventTs,
-        );
+        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session, eventTs);
         break;
 
       case "customer.subscription.updated":
       case "customer.subscription.deleted":
-        await handleSubscriptionChanged(
-          event.data.object as Stripe.Subscription,
-          eventTs,
-        );
+        await handleSubscriptionChanged(event.data.object as Stripe.Subscription, eventTs);
         break;
 
       default:

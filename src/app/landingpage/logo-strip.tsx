@@ -5,13 +5,17 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
   return (
     <span className="relative group/tip inline-flex">
       {children}
-      <span className="hidden md:block pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+      <span
+        className="hidden md:block pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
                        rounded-md px-2.5 py-1 bg-ink text-white text-[11px] leading-snug
                        whitespace-nowrap opacity-0 group-hover/tip:opacity-100
-                       transition-opacity duration-150 z-50 shadow-pop">
+                       transition-opacity duration-150 z-50 shadow-pop"
+      >
         {label}
-        <span className="absolute top-full left-1/2 -translate-x-1/2
-                         border-[4px] border-transparent border-t-ink" />
+        <span
+          className="absolute top-full left-1/2 -translate-x-1/2
+                         border-[4px] border-transparent border-t-ink"
+        />
       </span>
     </span>
   );

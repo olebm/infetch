@@ -31,9 +31,7 @@ export function Tabs({ tabs, defaultKey }: TabsProps) {
               aria-selected={selected}
               onClick={() => setActive(tab.key)}
               className={`inline-flex items-center gap-2 border-b-2 px-3 md:px-4 h-11 text-sm font-medium whitespace-nowrap transition-colors ${
-                selected
-                  ? "border-brand text-ink"
-                  : "border-transparent text-muted hover:text-ink"
+                selected ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
               }`}
             >
               {tab.label}

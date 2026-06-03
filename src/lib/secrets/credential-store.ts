@@ -32,9 +32,7 @@ export function buildSecretRef(
   ownerId = "default",
   organizationId?: string | null,
 ) {
-  const key = organizationId
-    ? `${scope}:${organizationId}:${ownerId}`
-    : `${scope}:${ownerId}`;
+  const key = organizationId ? `${scope}:${organizationId}:${ownerId}` : `${scope}:${ownerId}`;
   const digest = crypto.createHash("sha256").update(key).digest("hex").slice(0, 16);
   return `invoice-agent:${scope}:${digest}`;
 }
@@ -68,7 +66,7 @@ function getActiveStoreName(): StoreName {
   if (isDbStoreAvailable()) return "encrypted_db";
   throw new Error(
     "Kein Secret Store verfügbar. " +
-    "Stelle sicher dass das Projekt mit Supabase Vault (pgsodium) verbunden ist.",
+      "Stelle sicher dass das Projekt mit Supabase Vault (pgsodium) verbunden ist.",
   );
 }
 
@@ -84,18 +82,12 @@ async function writeToStore(
   }
 }
 
-async function readFromStore(
-  storeName: StoreName,
-  secretRef: string,
-): Promise<string | null> {
+async function readFromStore(storeName: StoreName, secretRef: string): Promise<string | null> {
   if (storeName === "os_keychain") return readOsSecret(secretRef);
   return readDbSecret(secretRef);
 }
 
-async function deleteFromStore(
-  storeName: StoreName,
-  secretRef: string,
-): Promise<void> {
+async function deleteFromStore(storeName: StoreName, secretRef: string): Promise<void> {
   if (storeName === "os_keychain") {
     await deleteOsSecret(secretRef);
   } else {

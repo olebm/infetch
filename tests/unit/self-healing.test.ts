@@ -15,7 +15,9 @@ import type { InvoiceAiExtraction } from "@/ai/schemas";
 // They require a real Postgres connection with seeded vendor data.
 
 async function getVendorId(canonicalKey: string): Promise<number> {
-  const rows = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}`;
+  const rows = await sql<
+    { id: number }[]
+  >`SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}`;
   if (!rows[0]) throw new Error(`vendor ${canonicalKey} not seeded`);
   return rows[0].id;
 }
@@ -75,13 +77,17 @@ async function insertInvoice(input: {
 describe("provisionAutoApprovalRules", () => {
   beforeEach(async () => {
     // Remove leftover rules so NOT EXISTS check doesn't skip the vendor
-    const openaiId = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = 'openai'`;
+    const openaiId = await sql<
+      { id: number }[]
+    >`SELECT id FROM vendors WHERE canonical_key = 'openai'`;
     if (openaiId[0]) {
       await sql`DELETE FROM auto_approval_rules WHERE vendor_id = ${openaiId[0].id}`;
     }
   });
   afterEach(async () => {
-    const openaiId = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = 'openai'`;
+    const openaiId = await sql<
+      { id: number }[]
+    >`SELECT id FROM vendors WHERE canonical_key = 'openai'`;
     if (openaiId[0]) {
       await sql`DELETE FROM auto_approval_rules WHERE vendor_id = ${openaiId[0].id}`;
     }
@@ -168,7 +174,13 @@ describe("auto-approval per-field-confidence fallback", () => {
         needs_review: false,
         review_reason: null,
       },
-      { organizationId: null, vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
+      {
+        organizationId: null,
+        vendorId,
+        vendorName: "OpenAI",
+        amountGross: 29,
+        invoiceDate: "2026-05-01",
+      },
     );
 
     expect(decision.autoApproved).toBe(true);
@@ -199,7 +211,13 @@ describe("auto-approval per-field-confidence fallback", () => {
         needs_review: false,
         review_reason: null,
       },
-      { organizationId: null, vendorId, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
+      {
+        organizationId: null,
+        vendorId,
+        vendorName: "OpenAI",
+        amountGross: 29,
+        invoiceDate: "2026-05-01",
+      },
     );
 
     expect(decision.autoApproved).toBe(false);
@@ -278,7 +296,9 @@ describe("escalateStuckReviews", () => {
     const result = await escalateStuckReviews();
 
     expect(result.escalated).toBeGreaterThanOrEqual(1);
-    const rows = await sql<{ status: string }[]>`SELECT status FROM invoices WHERE dedupe_key = ${dkOld}`;
+    const rows = await sql<
+      { status: string }[]
+    >`SELECT status FROM invoices WHERE dedupe_key = ${dkOld}`;
     expect(rows[0].status).toBe("ignored");
   });
 
@@ -293,7 +313,9 @@ describe("escalateStuckReviews", () => {
     const before = await escalateStuckReviews();
     void before;
 
-    const rows = await sql<{ status: string }[]>`SELECT status FROM invoices WHERE dedupe_key = ${dkNew}`;
+    const rows = await sql<
+      { status: string }[]
+    >`SELECT status FROM invoices WHERE dedupe_key = ${dkNew}`;
     expect(rows[0].status).toBe("needs_review");
   });
 });

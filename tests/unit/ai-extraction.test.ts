@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildInvoiceExtractionPayload, createInvoiceExtractionInputHash, runInvoiceAiExtraction } from "@/ai/extract-invoice";
+import {
+  buildInvoiceExtractionPayload,
+  createInvoiceExtractionInputHash,
+  runInvoiceAiExtraction,
+} from "@/ai/extract-invoice";
 import type { InvoiceAiExtraction } from "@/ai/schemas";
 import { sql } from "@/lib/db/client";
 
@@ -52,7 +56,9 @@ describe("Mistral invoice extraction pipeline", () => {
     );
 
     expect(payload).not.toHaveProperty("stored_path");
-    expect(createInvoiceExtractionInputHash(payload)).toBe(createInvoiceExtractionInputHash(payload));
+    expect(createInvoiceExtractionInputHash(payload)).toBe(
+      createInvoiceExtractionInputHash(payload),
+    );
   });
 
   it("records a succeeded AI audit row and applies validated fields to the invoice", async () => {
@@ -69,7 +75,14 @@ describe("Mistral invoice extraction pipeline", () => {
       async () => validExtraction,
     );
 
-    const invoiceRows = await sql<{ status: string; invoiceNumber: string | null; amountGross: number | null; vendorKey: string }[]>`
+    const invoiceRows = await sql<
+      {
+        status: string;
+        invoiceNumber: string | null;
+        amountGross: number | null;
+        vendorKey: string;
+      }[]
+    >`
       SELECT invoices.status, invoices.invoice_number AS "invoiceNumber", invoices.amount_gross AS "amountGross",
         vendors.canonical_key AS "vendorKey"
       FROM invoices

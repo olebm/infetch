@@ -10,13 +10,27 @@ import {
 } from "@/app/(app)/senders/actions";
 import type { DiscoveredSender } from "@/senders/discovered-senders";
 
-type Vendor = { id: number; name: string; canonicalKey: string; category: string; portalEnabled: number };
+type Vendor = {
+  id: number;
+  name: string;
+  canonicalKey: string;
+  category: string;
+  portalEnabled: number;
+};
 
 type Mode = null | "block" | "link" | "create";
 
-export function SenderRowActions({ sender, vendors }: { sender: DiscoveredSender; vendors: Vendor[] }) {
+export function SenderRowActions({
+  sender,
+  vendors,
+}: {
+  sender: DiscoveredSender;
+  vendors: Vendor[];
+}) {
   const [mode, setMode] = useState<Mode>(null);
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
+    null,
+  );
   const [pending, setPending] = useState(false);
 
   const close = () => {
@@ -34,7 +48,10 @@ export function SenderRowActions({ sender, vendors }: { sender: DiscoveredSender
         setFeedback({ type: "error", message: result.message });
       }
     } catch (error) {
-      setFeedback({ type: "error", message: error instanceof Error ? error.message : "Aktion fehlgeschlagen." });
+      setFeedback({
+        type: "error",
+        message: error instanceof Error ? error.message : "Aktion fehlgeschlagen.",
+      });
     } finally {
       setPending(false);
     }
@@ -187,7 +204,11 @@ export function SenderRowActions({ sender, vendors }: { sender: DiscoveredSender
         className="w-44 rounded border border-line bg-paper px-2 py-1 text-xs"
         required
       />
-      <select name="category" defaultValue="service" className="rounded border border-line bg-paper px-2 py-1 text-xs">
+      <select
+        name="category"
+        defaultValue="service"
+        className="rounded border border-line bg-paper px-2 py-1 text-xs"
+      >
         <option value="service">Service</option>
         <option value="hosting">Hosting</option>
         <option value="ai">AI</option>

@@ -3,10 +3,7 @@
 import { useState, useTransition } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import {
-  blockInvoiceSenderAction,
-  markSenderDomainPrivateAction,
-} from "@/app/(app)/audit/actions";
+import { blockInvoiceSenderAction, markSenderDomainPrivateAction } from "@/app/(app)/audit/actions";
 
 type IgnoreScope = "once" | "sender" | "domain";
 
@@ -63,9 +60,7 @@ export function IgnoreOptionsDialog({
   const [selected, setSelected] = useState<IgnoreScope>("once");
   const [isPending, startTransition] = useTransition();
 
-  const domain =
-    vendorDomain ||
-    (senderAddress ? senderAddress.split("@").at(-1) ?? null : null);
+  const domain = vendorDomain || (senderAddress ? (senderAddress.split("@").at(-1) ?? null) : null);
 
   const senderLabel = vendorName || senderAddress || domain || "diesem Absender";
 
@@ -121,16 +116,13 @@ export function IgnoreOptionsDialog({
 
         {senderAddress && (
           <RadioOption value="sender" selected={selected} onChange={setSelected}>
-            Alle künftigen von{" "}
-            <span className="font-medium text-ink">{senderLabel}</span>
+            Alle künftigen von <span className="font-medium text-ink">{senderLabel}</span>
           </RadioOption>
         )}
 
         {domain && (
           <RadioOption value="domain" selected={selected} onChange={setSelected}>
-            Domain{" "}
-            <span className="font-mono font-medium text-ink">{domain}</span>{" "}
-            immer ignorieren
+            Domain <span className="font-mono font-medium text-ink">{domain}</span> immer ignorieren
           </RadioOption>
         )}
       </div>

@@ -190,8 +190,16 @@ describe.skipIf(!hasDb)("tenant isolation — dashboard queries", () => {
     await cleanupDashboard();
     // A: 2 exported (heute erstellt), Scan 2026-05-01.
     // B: 3 exported (created_at 2020 = alt), Scan 2026-05-02 (später als A).
-    await seedDashboardOrg(D_ORG_A, D_USER_A, "a", { invoices: 2, createdAt: `${TODAY}T10:00:00Z`, scanAt: "2026-05-01T10:00:00Z" });
-    await seedDashboardOrg(D_ORG_B, D_USER_B, "b", { invoices: 3, createdAt: "2020-01-01T10:00:00Z", scanAt: "2026-05-02T10:00:00Z" });
+    await seedDashboardOrg(D_ORG_A, D_USER_A, "a", {
+      invoices: 2,
+      createdAt: `${TODAY}T10:00:00Z`,
+      scanAt: "2026-05-01T10:00:00Z",
+    });
+    await seedDashboardOrg(D_ORG_B, D_USER_B, "b", {
+      invoices: 3,
+      createdAt: "2020-01-01T10:00:00Z",
+      scanAt: "2026-05-02T10:00:00Z",
+    });
   });
   afterEach(cleanupDashboard);
 

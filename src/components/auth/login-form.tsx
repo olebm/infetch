@@ -13,9 +13,7 @@ const CODE_LENGTH = 6;
 export function LoginForm({ next }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "sent" | "verifying" | "error"
-  >("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "sent" | "verifying" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
@@ -48,11 +46,7 @@ export function LoginForm({ next }: LoginFormProps) {
       navigatingRef.current = true;
       // Provisioning ist idempotent — /auth/callback hat es ggf. schon erledigt.
       const result = await provisionAfterOtp();
-      const dest = result.isNewUser
-        ? "/onboarding"
-        : next && next !== "/"
-          ? next
-          : "/";
+      const dest = result.isNewUser ? "/onboarding" : next && next !== "/" ? next : "/";
       window.location.assign(dest);
     });
     return () => subscription.unsubscribe();
@@ -156,8 +150,7 @@ export function LoginForm({ next }: LoginFormProps) {
     if (error.status === 429) {
       return {
         ok: false,
-        message:
-          "Zu viele Anmelde-Anfragen. Bitte in ein paar Minuten erneut versuchen.",
+        message: "Zu viele Anmelde-Anfragen. Bitte in ein paar Minuten erneut versuchen.",
       };
     }
     return {
@@ -259,17 +252,13 @@ export function LoginForm({ next }: LoginFormProps) {
       <div className="mt-6 rounded border border-line bg-surface p-4 text-sm text-ink">
         <p className="font-medium">Code verschickt ✓</p>
         <p className="mt-1 text-muted">
-          Wir haben einen Login-Code an{" "}
-          <span className="font-medium text-ink">{email}</span> geschickt.
-          Gib den 6-stelligen Code ein – oder klick einfach den Link in der
-          E-Mail.
+          Wir haben einen Login-Code an <span className="font-medium text-ink">{email}</span>{" "}
+          geschickt. Gib den 6-stelligen Code ein – oder klick einfach den Link in der E-Mail.
         </p>
 
         <form onSubmit={handleVerify} className="mt-4 space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">
-              Login-Code
-            </label>
+            <label className="mb-1 block text-xs font-medium text-muted">Login-Code</label>
             <div className="flex gap-2" role="group" aria-label="6-stelliger Login-Code">
               {digits.map((digit, i) => (
                 <input
@@ -315,9 +304,7 @@ export function LoginForm({ next }: LoginFormProps) {
             disabled={cooldown > 0 || status === "verifying"}
             className="text-muted underline underline-offset-4 decoration-line disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
           >
-            {cooldown > 0
-              ? `Code erneut senden (${cooldown}s)`
-              : "Code erneut senden"}
+            {cooldown > 0 ? `Code erneut senden (${cooldown}s)` : "Code erneut senden"}
           </button>
           <button
             type="button"

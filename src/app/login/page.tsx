@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
 
 // Konsistent mit der Landingpage-Sicherheits-Sektion (Cloud-SaaS, EU-Hosting).
 const TRUST_ITEMS = [
-  { icon: Globe2,   label: "EU-Server",       detail: "Frankfurt"        },
-  { icon: Lock,     label: "Verschlüsselt",   detail: "AES-256"          },
-  { icon: Shield,   label: "DSGVO",           detail: "AVV inklusive"    },
+  { icon: Globe2, label: "EU-Server", detail: "Frankfurt" },
+  { icon: Lock, label: "Verschlüsselt", detail: "AES-256" },
+  { icon: Shield, label: "DSGVO", detail: "AVV inklusive" },
   { icon: FileCode, label: "Volle Kontrolle", detail: "Export jederzeit" },
 ];
 
@@ -33,7 +33,6 @@ export default async function LoginPage({
   return (
     <div className="flex min-h-screen flex-col bg-surface">
       <main className="grid flex-1 md:grid-cols-2">
-
         {/* ── Left — white brand panel ──────────────────────────────────── */}
         <div className="hidden flex-col justify-between border-r border-line bg-white p-12 md:flex">
           {/* Logo */}
@@ -95,7 +94,6 @@ export default async function LoginPage({
         {/* ── Right — login form ────────────────────────────────────────── */}
         <div className="flex items-center justify-center p-6 md:p-12">
           <div className="w-full max-w-sm">
-
             {/* Mobile: logo + link back to landing */}
             <div className="mb-8 md:hidden">
               <Link href="https://infetch.de" aria-label="Zur Startseite">
@@ -108,7 +106,8 @@ export default async function LoginPage({
               Einloggen oder Account erstellen
             </h1>
             <p className="mt-1 text-sm text-muted">
-              Egal ob neu oder schon bei Infetch — wir schicken dir einen Login-Code. Kein Passwort nötig.
+              Egal ob neu oder schon bei Infetch — wir schicken dir einen Login-Code. Kein Passwort
+              nötig.
             </p>
 
             <AuthErrorBanner queryError={queryError} />
@@ -118,10 +117,27 @@ export default async function LoginPage({
 
             <p className="mt-6 text-xs text-muted">
               Mit Klick auf &bdquo;Login-Code senden&ldquo; akzeptierst du{" "}
-              <Link href="/agb" className="underline underline-offset-4 decoration-line hover:text-ink">Nutzungsbedingungen</Link>,{" "}
-              <Link href="/datenschutz" className="underline underline-offset-4 decoration-line hover:text-ink">Datenschutz</Link>{" "}
+              <Link
+                href="/agb"
+                className="underline underline-offset-4 decoration-line hover:text-ink"
+              >
+                Nutzungsbedingungen
+              </Link>
+              ,{" "}
+              <Link
+                href="/datenschutz"
+                className="underline underline-offset-4 decoration-line hover:text-ink"
+              >
+                Datenschutz
+              </Link>{" "}
               und{" "}
-              <Link href="/avv" className="underline underline-offset-4 decoration-line hover:text-ink">Auftragsverarbeitungsvertrag</Link>.
+              <Link
+                href="/avv"
+                className="underline underline-offset-4 decoration-line hover:text-ink"
+              >
+                Auftragsverarbeitungsvertrag
+              </Link>
+              .
             </p>
 
             {process.env.ENABLE_TEST_LOGIN === "true" && (
@@ -138,7 +154,6 @@ export default async function LoginPage({
             )}
           </div>
         </div>
-
       </main>
     </div>
   );

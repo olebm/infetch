@@ -215,15 +215,17 @@ export type BackfillResult = {
 
 export async function backfillFromMailMessages(): Promise<BackfillResult> {
   // Pro Org gruppieren — Org via mail_account herleiten.
-  const summary = await sql<Array<{
-    organizationId: string | null;
-    fromAddress: string;
-    mailCount: string;
-    pdfCount: string;
-    importedCount: string;
-    firstSeen: string;
-    lastSeen: string;
-  }>>`
+  const summary = await sql<
+    Array<{
+      organizationId: string | null;
+      fromAddress: string;
+      mailCount: string;
+      pdfCount: string;
+      importedCount: string;
+      firstSeen: string;
+      lastSeen: string;
+    }>
+  >`
     SELECT
       ma.organization_id AS "organizationId",
       LOWER(mm.from_address) AS "fromAddress",
@@ -295,14 +297,16 @@ function nameFromDomain(domain: string): string {
 export async function autoAssignSenders(organizationId?: string | null): Promise<AutoAssignResult> {
   // Optional auf EINE Org begrenzt (Auto-Lever nach Scan); ohne Arg global
   // (manueller Senders-Button / Script) — abwärtskompatibel.
-  const unmatched = await sql<Array<{
-    id: number;
-    organizationId: string | null;
-    fromAddress: string;
-    fromDomain: string;
-    displayName: string | null;
-    pdfCount: number;
-  }>>`
+  const unmatched = await sql<
+    Array<{
+      id: number;
+      organizationId: string | null;
+      fromAddress: string;
+      fromDomain: string;
+      displayName: string | null;
+      pdfCount: number;
+    }>
+  >`
     SELECT id, organization_id AS "organizationId", from_address AS "fromAddress",
       from_domain AS "fromDomain", display_name AS "displayName", pdf_count AS "pdfCount"
     FROM discovered_senders
@@ -315,7 +319,9 @@ export async function autoAssignSenders(organizationId?: string | null): Promise
   let skipped = 0;
 
   for (const sender of unmatched) {
-    const signals = [sender.fromAddress, sender.fromDomain, sender.displayName || ""].filter(Boolean);
+    const signals = [sender.fromAddress, sender.fromDomain, sender.displayName || ""].filter(
+      Boolean,
+    );
     // Match gegen die Org des Senders scopen (Cross-Tenant-Schutz).
     const match = await matchVendor(signals, sender.organizationId);
 

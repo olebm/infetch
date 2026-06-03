@@ -20,11 +20,7 @@ describe("apply-all-migrations — parseArgs", () => {
   });
 
   it("accepts --set as both '--set=k=v' and '--set k=v', repeatable", () => {
-    const out = parseArgs([
-      "--set=app.designated_org=185109b5-…",
-      "--set",
-      "app.other=value",
-    ]);
+    const out = parseArgs(["--set=app.designated_org=185109b5-…", "--set", "app.other=value"]);
     expect(out.sets).toEqual(["app.designated_org=185109b5-…", "app.other=value"]);
   });
 
@@ -103,11 +99,7 @@ describe("apply-all-migrations — selectMigrationFiles", () => {
 
   it("respects --up-to as an inclusive cap (string compare)", () => {
     const out = selectMigrationFiles(fileList, { upTo: "0018" });
-    expect(out).toEqual([
-      "0001_initial_schema.sql",
-      "0003_stripe.sql",
-      "0010_rls.sql",
-    ]);
+    expect(out).toEqual(["0001_initial_schema.sql", "0003_stripe.sql", "0010_rls.sql"]);
   });
 
   it("includes the boundary version exactly", () => {

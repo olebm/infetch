@@ -18,9 +18,7 @@ export function DispatchButton() {
 
   return (
     <form action={formAction} className="flex items-center gap-3">
-      {state.status !== "idle" && (
-        <p className={`text-sm ${messageColor}`}>{state.message}</p>
-      )}
+      {state.status !== "idle" && <p className={`text-sm ${messageColor}`}>{state.message}</p>}
       <button
         type="submit"
         disabled={isPending}

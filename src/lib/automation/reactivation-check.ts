@@ -28,13 +28,15 @@ export async function runReactivationCheck(): Promise<ReactivationResult> {
   }
 
   // Orgs mit mind. 1 Rechnung, deren letzte Rechnung > 30 Tage zurückliegt
-  const rows = await sql<{
-    orgId: string;
-    ownerEmail: string;
-    ownerName: string | null;
-    lastInvoiceDate: string;
-    daysSince: number;
-  }[]>`
+  const rows = await sql<
+    {
+      orgId: string;
+      ownerEmail: string;
+      ownerName: string | null;
+      lastInvoiceDate: string;
+      daysSince: number;
+    }[]
+  >`
     SELECT
       o.id                                              AS "orgId",
       u.email                                           AS "ownerEmail",

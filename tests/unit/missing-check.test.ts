@@ -12,7 +12,9 @@ const TEST_ORG_ID = `org-missing-test-${Date.now()}`;
 const TEST_USER_ID = `user-missing-test-${Date.now()}`;
 
 async function getVendorId(canonicalKey: string): Promise<number> {
-  const rows = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}`;
+  const rows = await sql<
+    { id: number }[]
+  >`SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}`;
   if (!rows[0]) throw new Error(`vendor ${canonicalKey} not found`);
   return rows[0].id;
 }
@@ -56,7 +58,9 @@ describe("missing invoice check", () => {
 
     const result = await runMissingInvoiceCheck();
 
-    const openAiRows = await sql<{ manualStatus: string; finalStatus: string; sourceUsed: string }[]>`
+    const openAiRows = await sql<
+      { manualStatus: string; finalStatus: string; sourceUsed: string }[]
+    >`
       SELECT manual_status AS "manualStatus", final_status AS "finalStatus", source_used AS "sourceUsed"
       FROM vendor_month_status
       WHERE organization_id = ${TEST_ORG_ID} AND vendor_id = ${openAiId} AND year_month = ${currentMonth}

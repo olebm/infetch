@@ -185,7 +185,11 @@ async function resolveSourceStatus(
     return { manualStatus: "none", mailStatus: "missing", portalStatus: "disabled" };
   }
   const existingStatus = existing[0]?.portalStatus;
-  if (existingStatus === "running" || existingStatus === "failed" || existingStatus === "not_found") {
+  if (
+    existingStatus === "running" ||
+    existingStatus === "failed" ||
+    existingStatus === "not_found"
+  ) {
     return { manualStatus: "none", mailStatus: "missing", portalStatus: existingStatus };
   }
   return { manualStatus: "none", mailStatus: "missing", portalStatus: "required" };

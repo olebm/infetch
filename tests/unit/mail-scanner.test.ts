@@ -9,7 +9,12 @@ import { runPrimaryImapScan } from "@/mail/mail-scanner";
 // in CI environments that only have a plain Postgres instance.
 const hasSupabase = Boolean(process.env.SUPABASE_URL);
 
-function buildMail(options: { messageId: string; subject: string; pdfName: string; pdfBody: string }) {
+function buildMail(options: {
+  messageId: string;
+  subject: string;
+  pdfName: string;
+  pdfBody: string;
+}) {
   return Buffer.from(
     [
       "From: Billing <billing@example.com>",
@@ -116,87 +121,136 @@ function createTwoPhaseClient(
 }
 
 describe("mail scanner", () => {
-  it.skipIf(!hasSupabase)("never downloads the full source of mails without a PDF attachment", async () => {
-    const acctRows = await sql<{ id: number }[]>`
+  it.skipIf(!hasSupabase)(
+    "never downloads the full source of mails without a PDF attachment",
+    async () => {
+      const acctRows = await sql<{ id: number }[]>`
       INSERT INTO mail_accounts (label, host, port, secure, username, status)
       VALUES ('Primary IMAP MinTest', 'imap.min.test', 993, true, 'min-test@example.com', 'configured')
       RETURNING id
     `;
-    const acctId = acctRows[0].id;
+      const acctId = acctRows[0].id;
 
-    const client = createTwoPhaseClient(
-      [
-        { source: buildMail({ messageId: "min-pdf@example.com", subject: "Stripe invoice", pdfName: "stripe.pdf", pdfBody: "x" }), hasPdf: true },
-        { source: buildPlainMail("min-plain@example.com", "Private newsletter"), hasPdf: false },
-      ],
-      99n,
-    );
+      const client = createTwoPhaseClient(
+        [
+          {
+            source: buildMail({
+              messageId: "min-pdf@example.com",
+              subject: "Stripe invoice",
+              pdfName: "stripe.pdf",
+              pdfBody: "x",
+            }),
+            hasPdf: true,
+          },
+          { source: buildPlainMail("min-plain@example.com", "Private newsletter"), hasPdf: false },
+        ],
+        99n,
+      );
 
-    const result = await runPrimaryImapScan({
-      accountClients: [
-        {
-          account: { id: acctId, label: "Primary IMAP" as const, host: "imap.min.test", port: 993, secure: 1, username: "min-test@example.com" },
-          client,
-        },
-      ],
-    });
+      const result = await runPrimaryImapScan({
+        accountClients: [
+          {
+            account: {
+              id: acctId,
+              label: "Primary IMAP" as const,
+              host: "imap.min.test",
+              port: 993,
+              secure: 1,
+              username: "min-test@example.com",
+            },
+            client,
+          },
+        ],
+      });
 
-    // Beide Mails werden "gesehen" (Phase 1), aber nur die PDF-Mail (uid 1)
-    // wird im Volltext geladen — die private Mail (uid 2) nie.
-    expect(result.messagesSeen).toBe(2);
-    expect(client.sourceFetchedUids).toEqual([1]);
-    expect(result.messagesProcessed).toBe(1);
-  });
+      // Beide Mails werden "gesehen" (Phase 1), aber nur die PDF-Mail (uid 1)
+      // wird im Volltext geladen — die private Mail (uid 2) nie.
+      expect(result.messagesSeen).toBe(2);
+      expect(client.sourceFetchedUids).toEqual([1]);
+      expect(result.messagesProcessed).toBe(1);
+    },
+  );
 
-  it.skipIf(!hasSupabase)("scans two configured mailboxes and feeds both through the import pipeline", async () => {
-    // Insert test mail accounts
-    const acct1Rows = await sql<{ id: number }[]>`
+  it.skipIf(!hasSupabase)(
+    "scans two configured mailboxes and feeds both through the import pipeline",
+    async () => {
+      // Insert test mail accounts
+      const acct1Rows = await sql<{ id: number }[]>`
       INSERT INTO mail_accounts (label, host, port, secure, username, status)
       VALUES ('Primary IMAP Test', 'imap.one.test', 993, true, 'scanner-test-one@example.com', 'configured')
       RETURNING id
     `;
-    const acct2Rows = await sql<{ id: number }[]>`
+      const acct2Rows = await sql<{ id: number }[]>`
       INSERT INTO mail_accounts (label, host, port, secure, username, status)
       VALUES ('Secondary IMAP Test', 'imap.two.test', 993, true, 'scanner-test-two@example.com', 'configured')
       RETURNING id
     `;
-    const acct1Id = acct1Rows[0].id;
-    const acct2Id = acct2Rows[0].id;
+      const acct1Id = acct1Rows[0].id;
+      const acct2Id = acct2Rows[0].id;
 
-    const result = await runPrimaryImapScan({
-      accountClients: [
-        {
-          account: { id: acct1Id, label: "Primary IMAP" as const, host: "imap.one.test", port: 993, secure: 1, username: "scanner-test-one@example.com" },
-          client: createClient(
-            [buildMail({ messageId: "scanner-test-one@example.com", subject: "OpenAI invoice", pdfName: "openai.pdf", pdfBody: "one" })],
-            11n,
-          ),
-        },
-        {
-          account: { id: acct2Id, label: "Secondary IMAP" as const, host: "imap.two.test", port: 993, secure: 1, username: "scanner-test-two@example.com" },
-          client: createClient(
-            [buildMail({ messageId: "scanner-test-two@example.com", subject: "Hetzner invoice", pdfName: "hetzner.pdf", pdfBody: "two" })],
-            22n,
-          ),
-        },
-      ],
-    });
+      const result = await runPrimaryImapScan({
+        accountClients: [
+          {
+            account: {
+              id: acct1Id,
+              label: "Primary IMAP" as const,
+              host: "imap.one.test",
+              port: 993,
+              secure: 1,
+              username: "scanner-test-one@example.com",
+            },
+            client: createClient(
+              [
+                buildMail({
+                  messageId: "scanner-test-one@example.com",
+                  subject: "OpenAI invoice",
+                  pdfName: "openai.pdf",
+                  pdfBody: "one",
+                }),
+              ],
+              11n,
+            ),
+          },
+          {
+            account: {
+              id: acct2Id,
+              label: "Secondary IMAP" as const,
+              host: "imap.two.test",
+              port: 993,
+              secure: 1,
+              username: "scanner-test-two@example.com",
+            },
+            client: createClient(
+              [
+                buildMail({
+                  messageId: "scanner-test-two@example.com",
+                  subject: "Hetzner invoice",
+                  pdfName: "hetzner.pdf",
+                  pdfBody: "two",
+                }),
+              ],
+              22n,
+            ),
+          },
+        ],
+      });
 
-    const invoiceRows = await sql<{ count: string }[]>`
+      const invoiceRows = await sql<{ count: string }[]>`
       SELECT COUNT(*) AS count FROM invoices
     `;
-    const mailRows = await sql<{ count: string }[]>`
+      const mailRows = await sql<{ count: string }[]>`
       SELECT COUNT(*) AS count FROM mail_messages WHERE mail_account_id IN (${acct1Id}, ${acct2Id})
     `;
 
-    expect(result).toMatchObject({
-      accountsScanned: 2,
-      messagesSeen: 2,
-      messagesProcessed: 2,
-      pdfsFound: 2,
-    });
-    expect(Number(mailRows[0].count)).toBe(2);
-    // Note: invoices may be > 2 if other tests ran; just check we got at least 2
-    expect(Number(invoiceRows[0].count)).toBeGreaterThanOrEqual(2);
-  });
+      expect(result).toMatchObject({
+        accountsScanned: 2,
+        messagesSeen: 2,
+        messagesProcessed: 2,
+        pdfsFound: 2,
+      });
+      expect(Number(mailRows[0].count)).toBe(2);
+      // Note: invoices may be > 2 if other tests ran; just check we got at least 2
+      expect(Number(invoiceRows[0].count)).toBeGreaterThanOrEqual(2);
+    },
+  );
 });

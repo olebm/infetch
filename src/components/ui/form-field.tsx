@@ -47,8 +47,9 @@ export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<H
   },
 );
 
-export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  function Textarea({ className = "", ...props }, ref) {
-    return <textarea ref={ref} className={`${INPUT_BASE} ${className}`} {...props} />;
-  },
-);
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function Textarea({ className = "", ...props }, ref) {
+  return <textarea ref={ref} className={`${INPUT_BASE} ${className}`} {...props} />;
+});

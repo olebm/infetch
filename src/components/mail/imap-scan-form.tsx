@@ -27,7 +27,11 @@ export function ImapScanForm({ variant = "card" }: { variant?: "card" | "button"
             "disabled:cursor-not-allowed disabled:opacity-60",
           )}
         >
-          {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <MailSearch className="h-4 w-4" aria-hidden />}
+          {isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <MailSearch className="h-4 w-4" aria-hidden />
+          )}
           {isPending ? "Hole Rechnungen..." : "Rechnungen abholen"}
           {!isPending && <ArrowRight className="h-4 w-4" aria-hidden />}
         </button>
@@ -53,7 +57,11 @@ export function ImapScanForm({ variant = "card" }: { variant?: "card" | "button"
           <p
             className={cn(
               "mt-1 text-sm",
-              state.status === "error" ? "text-danger" : state.status === "success" ? "text-ok" : "text-muted",
+              state.status === "error"
+                ? "text-danger"
+                : state.status === "success"
+                  ? "text-ok"
+                  : "text-muted",
             )}
           >
             {state.message}
@@ -64,7 +72,11 @@ export function ImapScanForm({ variant = "card" }: { variant?: "card" | "button"
           disabled={isPending}
           className="inline-flex items-center justify-center gap-2 rounded bg-brand px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <MailSearch className="h-4 w-4" aria-hidden />}
+          {isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <MailSearch className="h-4 w-4" aria-hidden />
+          )}
           {isPending ? "Hole..." : "Jetzt abholen"}
         </button>
       </div>

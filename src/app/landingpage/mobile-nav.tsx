@@ -4,11 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 
 const LINKS = [
-  { href: "#how",        label: "Wie es funktioniert" },
-  { href: "#features",   label: "Funktionen"           },
-  { href: "#sicherheit", label: "Sicherheit"           },
-  { href: "#preise",     label: "Preise"               },
-  { href: "#faq",        label: "FAQ"                  },
+  { href: "#how", label: "Wie es funktioniert" },
+  { href: "#features", label: "Funktionen" },
+  { href: "#sicherheit", label: "Sicherheit" },
+  { href: "#preise", label: "Preise" },
+  { href: "#faq", label: "FAQ" },
 ];
 
 export function MobileNav() {
@@ -32,11 +32,21 @@ export function MobileNav() {
       >
         {open ? (
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-            <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path
+              d="M4 4l12 12M16 4L4 16"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
         ) : (
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-            <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path
+              d="M3 6h14M3 10h14M3 14h14"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
         )}
       </button>

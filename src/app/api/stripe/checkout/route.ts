@@ -35,11 +35,9 @@ function getBaseUrl(request: NextRequest): string {
   if (configured) return configured.replace(/\/$/, "");
 
   const proto = (request.headers.get("x-forwarded-proto") ?? "https").split(",")[0]!.trim();
-  const rawHost = (
-    request.headers.get("x-forwarded-host") ??
-    request.headers.get("host") ??
-    ""
-  ).split(",")[0]!.trim();
+  const rawHost = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "")
+    .split(",")[0]!
+    .trim();
 
   // SECURITY: URL-Parser benutzen — split(":")[0] würde
   // `app.infetch.de:80@malicious.com` als "app.infetch.de" akzeptieren,
@@ -69,18 +67,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // ── Stripe konfiguriert? ─────────────────────────────────────────────────────
   if (!isStripeConfigured()) {
-    return NextResponse.json(
-      { error: "Stripe ist nicht konfiguriert." },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: "Stripe ist nicht konfiguriert." }, { status: 503 });
   }
 
   const priceId = appConfig.stripe.priceIdPro;
   if (!priceId) {
-    return NextResponse.json(
-      { error: "STRIPE_PRICE_ID_PRO fehlt." },
-      { status: 503 },
-    );
+    return NextResponse.json({ error: "STRIPE_PRICE_ID_PRO fehlt." }, { status: 503 });
   }
 
   const orgId = auth.organization.id;

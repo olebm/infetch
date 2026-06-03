@@ -78,10 +78,7 @@ describe.skipIf(!hasDb)("per-org advisory lock (withOrgLock)", () => {
     // Two concurrent holds of 150ms each on the SAME org. One acquires
     // immediately; the other must wait until the first releases. So the
     // two windows must NOT overlap.
-    const [winA, winB] = await Promise.all([
-      holdLockFor(ORG_A, 150),
-      holdLockFor(ORG_A, 150),
-    ]);
+    const [winA, winB] = await Promise.all([holdLockFor(ORG_A, 150), holdLockFor(ORG_A, 150)]);
 
     const [aStart, aEnd] = winA;
     const [bStart, bEnd] = winB;
@@ -95,10 +92,7 @@ describe.skipIf(!hasDb)("per-org advisory lock (withOrgLock)", () => {
   it("runs different-org concurrent calls in parallel", async () => {
     // Two concurrent holds of 150ms each on DIFFERENT orgs — they should
     // overlap (run in parallel) because the lock keys differ.
-    const [winA, winB] = await Promise.all([
-      holdLockFor(ORG_A, 150),
-      holdLockFor(ORG_B, 150),
-    ]);
+    const [winA, winB] = await Promise.all([holdLockFor(ORG_A, 150), holdLockFor(ORG_B, 150)]);
 
     const [aStart, aEnd] = winA;
     const [bStart, bEnd] = winB;

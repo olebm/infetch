@@ -13,16 +13,16 @@ export async function testMailConnectionAction(
 ): Promise<ConnectionTestResult> {
   await requireCurrentAuth();
 
-  const imapHost   = String(formData.get("tcImapHost")   || "");
-  const imapPort   = Number(formData.get("tcImapPort")   || 993);
+  const imapHost = String(formData.get("tcImapHost") || "");
+  const imapPort = Number(formData.get("tcImapPort") || 993);
   const imapSecure = String(formData.get("tcImapSecure") || "true") !== "false";
-  const imapUser   = String(formData.get("tcImapUser")   || "");
-  const imapPass   = String(formData.get("tcImapPass")   || "");
-  const smtpHost   = String(formData.get("tcSmtpHost")   || "");
-  const smtpPort   = Number(formData.get("tcSmtpPort")   || 465);
+  const imapUser = String(formData.get("tcImapUser") || "");
+  const imapPass = String(formData.get("tcImapPass") || "");
+  const smtpHost = String(formData.get("tcSmtpHost") || "");
+  const smtpPort = Number(formData.get("tcSmtpPort") || 465);
   const smtpSecure = String(formData.get("tcSmtpSecure") || "true") !== "false";
-  const smtpUser   = String(formData.get("tcSmtpUser")   || "");
-  const smtpPass   = String(formData.get("tcSmtpPass")   || "");
+  const smtpUser = String(formData.get("tcSmtpUser") || "");
+  const smtpPass = String(formData.get("tcSmtpPass") || "");
 
   if (!imapHost || !smtpHost || !imapUser || !imapPass) {
     return {
@@ -45,11 +45,11 @@ export async function testImapOnlyConnectionAction(
 ): Promise<ProtoResult> {
   await requireCurrentAuth();
 
-  const host   = String(formData.get("tcImapHost")   || "");
-  const port   = Number(formData.get("tcImapPort")   || 993);
+  const host = String(formData.get("tcImapHost") || "");
+  const port = Number(formData.get("tcImapPort") || 993);
   const secure = String(formData.get("tcImapSecure") || "true") !== "false";
-  const user   = String(formData.get("tcImapUser")   || "");
-  const pass   = String(formData.get("tcImapPass")   || "");
+  const user = String(formData.get("tcImapUser") || "");
+  const pass = String(formData.get("tcImapPass") || "");
 
   if (!host || !user || !pass) {
     return { ok: false, error: "Fehlende Pflichtfelder." };
@@ -63,11 +63,11 @@ export async function testSmtpOnlyConnectionAction(
 ): Promise<ProtoResult> {
   await requireCurrentAuth();
 
-  const host   = String(formData.get("tcSmtpHost")   || "");
-  const port   = Number(formData.get("tcSmtpPort")   || 587);
+  const host = String(formData.get("tcSmtpHost") || "");
+  const port = Number(formData.get("tcSmtpPort") || 587);
   const secure = String(formData.get("tcSmtpSecure") || "false") !== "false";
-  const user   = String(formData.get("tcSmtpUser")   || "");
-  const pass   = String(formData.get("tcSmtpPass")   || "");
+  const user = String(formData.get("tcSmtpUser") || "");
+  const pass = String(formData.get("tcSmtpPass") || "");
 
   if (!host || !user || !pass) {
     return { ok: false, error: "Fehlende Pflichtfelder." };
@@ -76,11 +76,16 @@ export async function testSmtpOnlyConnectionAction(
 }
 
 async function testImap(
-  host: string, port: number, secure: boolean,
-  user: string, pass: string,
+  host: string,
+  port: number,
+  secure: boolean,
+  user: string,
+  pass: string,
 ): Promise<ProtoResult> {
   const client = new ImapFlow({
-    host, port, secure,
+    host,
+    port,
+    secure,
     auth: { user, pass },
     logger: false,
     connectionTimeout: 10_000,
@@ -95,16 +100,25 @@ async function testImap(
   } catch (e) {
     return { ok: false, error: normalizeError(e) };
   } finally {
-    try { await client.logout(); } catch { /* teardown */ }
+    try {
+      await client.logout();
+    } catch {
+      /* teardown */
+    }
   }
 }
 
 async function testSmtp(
-  host: string, port: number, secure: boolean,
-  user: string, pass: string,
+  host: string,
+  port: number,
+  secure: boolean,
+  user: string,
+  pass: string,
 ): Promise<ProtoResult> {
   const transporter = nodemailer.createTransport({
-    host, port, secure,
+    host,
+    port,
+    secure,
     auth: { user, pass },
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
@@ -126,10 +140,14 @@ function normalizeError(e: unknown): string {
   const m = msg.toLowerCase();
   if (m.includes("enotfound") || m.includes("getaddrinfo"))
     return "Server-Adresse nicht gefunden — Adresse prüfen";
-  if (m.includes("auth") || m.includes("invalid credentials") || m.includes("login failed") || m.includes("password"))
+  if (
+    m.includes("auth") ||
+    m.includes("invalid credentials") ||
+    m.includes("login failed") ||
+    m.includes("password")
+  )
     return "Falsches Passwort oder App-Passwort";
-  if (m.includes("econnrefused"))
-    return "Verbindung abgelehnt — Port prüfen";
+  if (m.includes("econnrefused")) return "Verbindung abgelehnt — Port prüfen";
   if (m.includes("etimedout") || m.includes("timeout"))
     return "Server antwortet nicht — Adresse oder Port prüfen";
   if (m.includes("cert") || m.includes("ssl") || m.includes("tls"))

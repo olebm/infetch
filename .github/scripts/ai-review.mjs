@@ -166,8 +166,7 @@ async function ghPost(p, body) {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
-  if (!r.ok)
-    throw new Error(`POST ${p} -> ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  if (!r.ok) throw new Error(`POST ${p} -> ${r.status}: ${(await r.text()).slice(0, 200)}`);
   return r.json();
 }
 async function postVisibleComment(body) {
@@ -231,9 +230,7 @@ async function callModel(diff) {
 
   if (!res.ok) {
     const detail = (await res.text().catch(() => "")).slice(0, 200);
-    throw new ReviewUnavailableError(
-      `model API ${res.status} (model: ${REVIEW_MODEL}) ${detail}`,
-    );
+    throw new ReviewUnavailableError(`model API ${res.status} (model: ${REVIEW_MODEL}) ${detail}`);
   }
   const data = await res.json();
 
@@ -245,9 +242,7 @@ async function callModel(diff) {
   // (refusal, pause_turn, tool_use, ...) may yield partial/empty text that
   // would falsely parse to "no findings". Treat as not-evaluated.
   if (!["end_turn", "stop_sequence"].includes(data.stop_reason))
-    throw new ReviewUnavailableError(
-      `unexpected stop_reason: ${String(data.stop_reason)}`,
-    );
+    throw new ReviewUnavailableError(`unexpected stop_reason: ${String(data.stop_reason)}`);
 
   const raw =
     Array.isArray(data.content) && typeof data.content[0]?.text === "string"
@@ -263,12 +258,9 @@ async function callModel(diff) {
     );
   } catch {
     // Parse failure is VISIBLE, not an empty (false-green) result.
-    throw new ReviewUnavailableError(
-      `unparseable model output: ${raw.slice(0, 200)}`,
-    );
+    throw new ReviewUnavailableError(`unparseable model output: ${raw.slice(0, 200)}`);
   }
-  if (!Array.isArray(parsed))
-    throw new ReviewUnavailableError("model output not a JSON array");
+  if (!Array.isArray(parsed)) throw new ReviewUnavailableError("model output not a JSON array");
   return parsed;
 }
 
@@ -285,18 +277,13 @@ function validateFindings(raw) {
       severity: VALID_SEVERITY.has(f.severity) ? f.severity : "medium",
       category: VALID_CATEGORY.has(f.category) ? f.category : "logic",
       confidence,
-      title:
-        typeof f.title === "string" && f.title.trim()
-          ? f.title.trim()
-          : "(untitled)",
+      title: typeof f.title === "string" && f.title.trim() ? f.title.trim() : "(untitled)",
       description: typeof f.description === "string" ? f.description : "",
       suggestion: typeof f.suggestion === "string" ? f.suggestion : "",
     });
   }
   const order = { critical: 0, high: 1, medium: 2, low: 3 };
-  return out
-    .sort((a, b) => order[a.severity] - order[b.severity])
-    .slice(0, MAX_FINDINGS);
+  return out.sort((a, b) => order[a.severity] - order[b.severity]).slice(0, MAX_FINDINGS);
 }
 
 // -- Formatting ---------------------------------------------------------------
@@ -307,9 +294,7 @@ function fmt(f) {
     `${EMOJI[f.severity] ?? "⚪"} **[${String(f.category).toUpperCase()}]** ${f.title}`,
     `*Severity: **${f.severity}** · Confidence: ${conf}%*`,
     "",
-    f.description
-      ? `<details><summary>Details</summary>\n\n${f.description}\n\n</details>\n`
-      : "",
+    f.description ? `<details><summary>Details</summary>\n\n${f.description}\n\n</details>\n` : "",
     f.suggestion
       ? `<details><summary>Suggested fix</summary>\n\n${f.suggestion}\n\n</details>`
       : "",
@@ -341,9 +326,7 @@ function summary(findings, inline, failed, truncated) {
     "",
   ];
   for (const f of findings.filter((f) => !f._inline)) {
-    const loc = f.file
-      ? ` · 📁 \`${f.file}\`${f.line ? ` L${f.line}` : ""}`
-      : "";
+    const loc = f.file ? ` · 📁 \`${f.file}\`${f.line ? ` L${f.line}` : ""}` : "";
     lines.push(
       `### ${EMOJI[f.severity]} ${f.title}`,
       `*${f.category} · ${f.severity} · ${Math.round(f.confidence * 100)}%*${loc}`,
@@ -357,14 +340,8 @@ function summary(findings, inline, failed, truncated) {
     );
   }
   if (inline) lines.push(`*${inline} finding(s) inline in the diff.*`, "");
-  if (failed)
-    lines.push(
-      `*⚠️ ${failed} inline comment(s) could not be placed — see above.*`,
-      "",
-    );
-  lines.push(
-    "<sub>AI Code Review · Confidence ≥ 70% · Advisory — review before merge</sub>",
-  );
+  if (failed) lines.push(`*⚠️ ${failed} inline comment(s) could not be placed — see above.*`, "");
+  lines.push("<sub>AI Code Review · Confidence ≥ 70% · Advisory — review before merge</sub>");
   return lines.join("\n");
 }
 
@@ -467,9 +444,7 @@ async function main() {
     await postVisibleComment(summary(findings, inline, failed, tooBig));
     console.warn(`review API failed, posted as issue comment: ${e.message}`);
   }
-  console.log(
-    `done — ${findings.length} findings (${inline} inline, ${failed} failed)`,
-  );
+  console.log(`done — ${findings.length} findings (${inline} inline, ${failed} failed)`);
 }
 
 // Any crash, rejection, or non-Error throw AFTER work began would otherwise
@@ -497,11 +472,7 @@ async function abortVisible(label, e) {
   );
   process.exit(1);
 }
-process.on("unhandledRejection", (e) =>
-  abortVisible("unhandled rejection", e),
-);
-process.on("uncaughtException", (e) =>
-  abortVisible("uncaught exception", e),
-);
+process.on("unhandledRejection", (e) => abortVisible("unhandled rejection", e));
+process.on("uncaughtException", (e) => abortVisible("uncaught exception", e));
 
 main().catch((e) => abortVisible("internal error", e));

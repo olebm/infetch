@@ -37,12 +37,17 @@ function buildCsp() {
   // cross-origin to app.infetch.de after Coolify's redirect.
   const appOrigin = safeOrigin(process.env.NEXT_PUBLIC_APP_URL);
 
-  const connectSrc = ["'self'", supabaseOrigin, supabaseWs, sentryOrigin, plausibleOrigin, appOrigin]
+  const connectSrc = [
+    "'self'",
+    supabaseOrigin,
+    supabaseWs,
+    sentryOrigin,
+    plausibleOrigin,
+    appOrigin,
+  ]
     .filter(Boolean)
     .join(" ");
-  const scriptSrc = ["'self'", "'unsafe-inline'", plausibleOrigin]
-    .filter(Boolean)
-    .join(" ");
+  const scriptSrc = ["'self'", "'unsafe-inline'", plausibleOrigin].filter(Boolean).join(" ");
 
   return [
     "default-src 'self'",
@@ -84,15 +89,11 @@ const nextConfig = {
       // Adressiert "Effiziente Cache-Lebensdauer verwenden" in PageSpeed.
       {
         source: "/fonts/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
       {
         source: "/images/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
       {
         source: "/(.*)",

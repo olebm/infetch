@@ -7,8 +7,18 @@ import { MissingRefreshButton } from "./missing-refresh-button";
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const MONTHS_DE = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "Dezember",
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
 ];
 
 function fmtYearMonth(ym: string): string {
@@ -20,15 +30,13 @@ function fmtYearMonth(ym: string): string {
 function fmtAmount(v: number | null): string {
   if (v == null) return "–";
   return (
-    "≈ " +
-    v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
-    " €"
+    "≈ " + v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
   );
 }
 
 function reasonText(item: MissingItem): string {
   if (item.bucket === "help") {
-    if (item.portalStatus === "failed")         return "Letzter Abruf fehlgeschlagen — Login nötig";
+    if (item.portalStatus === "failed") return "Letzter Abruf fehlgeschlagen — Login nötig";
     if (item.portalStatus === "login_required") return "Login abgelaufen — bitte neu anmelden";
     return "Brauche kurz dein OK";
   }
@@ -126,11 +134,7 @@ export async function MissingListView({ organizationId }: { organizationId: stri
                 key={`${item.vendorId}-${item.yearMonth}`}
                 className="group/row flex items-center gap-4 border-b border-line py-5"
               >
-                <VendorLogo
-                  domain={item.vendorDomain}
-                  name={item.vendorName}
-                  size={40}
-                />
+                <VendorLogo domain={item.vendorDomain} name={item.vendorName} size={40} />
 
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-ink">{item.vendorName}</div>
@@ -151,9 +155,7 @@ export async function MissingListView({ organizationId }: { organizationId: stri
       ))}
 
       <div className="flex items-center justify-between py-3">
-        <p className="text-xs text-muted">
-          Erwartungen kommen aus den letzten 12 Monaten.
-        </p>
+        <p className="text-xs text-muted">Erwartungen kommen aus den letzten 12 Monaten.</p>
         <MissingRefreshButton />
       </div>
     </div>

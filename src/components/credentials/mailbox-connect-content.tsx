@@ -14,7 +14,12 @@
 
 import { useState, useEffect, useActionState } from "react";
 import { ChevronDown, ExternalLink, Check, WifiOff, Loader2 } from "lucide-react";
-import { MAIL_PROVIDERS, MAIL_BACKENDS, type MailProvider, type MailBackend } from "@/lib/mail-providers";
+import {
+  MAIL_PROVIDERS,
+  MAIL_BACKENDS,
+  type MailProvider,
+  type MailBackend,
+} from "@/lib/mail-providers";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import {
   saveMailboxCredentialsAction,
@@ -92,25 +97,26 @@ export function MailboxConnectContent({
   const imapOnly = purpose === "imap-only";
   const initProvider = initialEmail ? detectProvider(initialEmail) : null;
   // Reihenfolge: explizite Initial-Server (vom Parent) → Provider-Preset → harter Fallback.
-  const initImapHost   = initialServers?.imapHost   ?? initProvider?.imap.host   ?? "";
-  const initImapPort   = initialServers?.imapPort   ?? initProvider?.imap.port   ?? 993;
-  const initSmtpHost   = initialServers?.smtpHost   ?? initProvider?.smtp.host   ?? "";
-  const initSmtpPort   = initialServers?.smtpPort   ?? initProvider?.smtp.port   ?? 587;
+  const initImapHost = initialServers?.imapHost ?? initProvider?.imap.host ?? "";
+  const initImapPort = initialServers?.imapPort ?? initProvider?.imap.port ?? 993;
+  const initSmtpHost = initialServers?.smtpHost ?? initProvider?.smtp.host ?? "";
+  const initSmtpPort = initialServers?.smtpPort ?? initProvider?.smtp.port ?? 587;
   // Falls Parent custom Server-Werte mitgibt, soll der Server-Details-Accordion
   // direkt aufgeklappt sein — User sieht sofort, dass die Felder befüllt sind.
-  const initShowAdv    = Boolean(initialServers?.imapHost || initialServers?.smtpHost) && !initProvider;
+  const initShowAdv =
+    Boolean(initialServers?.imapHost || initialServers?.smtpHost) && !initProvider;
 
-  const [email, setEmail]               = useState(initialEmail ?? "");
-  const [password, setPassword]         = useState("");
-  const [provider, setProvider]         = useState<MailProvider | null>(initProvider);
-  const [showAdv, setShowAdv]           = useState(initShowAdv);
-  const [imapHost, setImapHost]         = useState(initImapHost);
-  const [imapPort, setImapPort]         = useState(initImapPort);
-  const [smtpHost, setSmtpHost]         = useState(initSmtpHost);
+  const [email, setEmail] = useState(initialEmail ?? "");
+  const [password, setPassword] = useState("");
+  const [provider, setProvider] = useState<MailProvider | null>(initProvider);
+  const [showAdv, setShowAdv] = useState(initShowAdv);
+  const [imapHost, setImapHost] = useState(initImapHost);
+  const [imapPort, setImapPort] = useState(initImapPort);
+  const [smtpHost, setSmtpHost] = useState(initSmtpHost);
   // Fallback für unbekannte Domain: 587 + STARTTLS (heutiger Standard, weit
   // verbreitet bei Custom-Domains/Hostern). Provider-Presets überschreiben das.
-  const [smtpPort, setSmtpPort]         = useState(initSmtpPort);
-  const [backend, setBackend]           = useState<MailBackend | null>(null);
+  const [smtpPort, setSmtpPort] = useState(initSmtpPort);
+  const [backend, setBackend] = useState<MailBackend | null>(null);
 
   // TLS-Modus aus dem Port ableiten statt separater Checkbox: implizites TLS nur
   // auf 993 (IMAP) / 465 (SMTP); alle anderen Ports nutzen STARTTLS (secure=false,
@@ -118,12 +124,14 @@ export function MailboxConnectContent({
   const imapSecure = imapPort === 993;
   const smtpSecure = smtpPort === 465;
   const [separateSmtp, setSeparateSmtp] = useState(false);
-  const [smtpEmail, setSmtpEmail]       = useState("");
+  const [smtpEmail, setSmtpEmail] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
 
   type SettingsTestPhase = "idle" | "testing" | "success" | "error";
   const [settingsTestPhase, setSettingsTestPhase] = useState<SettingsTestPhase>("idle");
-  const [settingsTestErrors, setSettingsTestErrors] = useState<{ imap?: string; smtp?: string }>({});
+  const [settingsTestErrors, setSettingsTestErrors] = useState<{ imap?: string; smtp?: string }>(
+    {},
+  );
 
   // Settings-Mode: Action nach purpose. smtp-only speichert nur ein Absende-Konto,
   // imap-only nur das Empfangs-Postfach, full beides.
@@ -133,10 +141,7 @@ export function MailboxConnectContent({
       ? saveImapMailboxAction
       : saveMailboxCredentialsAction;
 
-  const [state, formAction, isPending] = useActionState(
-    settingsAction,
-    initialState,
-  );
+  const [state, formAction, isPending] = useActionState(settingsAction, initialState);
 
   useEffect(() => {
     if (mode === "settings" && state.status === "success" && onSuccess) {
@@ -160,23 +165,45 @@ export function MailboxConnectContent({
         password,
         smtpEmail: separateSmtp ? smtpEmail : email,
         smtpPassword: separateSmtp ? smtpPassword : password,
-        imapHost, imapPort, imapSecure,
-        smtpHost, smtpPort, smtpSecure,
+        imapHost,
+        imapPort,
+        imapSecure,
+        smtpHost,
+        smtpPort,
+        smtpSecure,
         providerId: provider?.id ?? null,
       });
     }
   }, [
-    mode, onDataChange, email, password,
-    imapHost, imapPort, imapSecure,
-    smtpHost, smtpPort, smtpSecure, provider, backend,
-    separateSmtp, smtpEmail, smtpPassword, smtpOnly, imapOnly,
+    mode,
+    onDataChange,
+    email,
+    password,
+    imapHost,
+    imapPort,
+    imapSecure,
+    smtpHost,
+    smtpPort,
+    smtpSecure,
+    provider,
+    backend,
+    separateSmtp,
+    smtpEmail,
+    smtpPassword,
+    smtpOnly,
+    imapOnly,
   ]);
 
   // ── Live provider detection ───────────────────────────────────────────────
 
-  function applyServerSettings(s: { imap: { host: string; port: number; secure: boolean }; smtp: { host: string; port: number; secure: boolean } }) {
-    setImapHost(s.imap.host); setImapPort(s.imap.port);
-    setSmtpHost(s.smtp.host); setSmtpPort(s.smtp.port);
+  function applyServerSettings(s: {
+    imap: { host: string; port: number; secure: boolean };
+    smtp: { host: string; port: number; secure: boolean };
+  }) {
+    setImapHost(s.imap.host);
+    setImapPort(s.imap.port);
+    setSmtpHost(s.smtp.host);
+    setSmtpPort(s.smtp.port);
   }
 
   function selectBackend(b: MailBackend) {
@@ -186,7 +213,10 @@ export function MailboxConnectContent({
 
   function handleEmailChange(value: string) {
     setEmail(value);
-    if (settingsTestPhase === "error") { setSettingsTestPhase("idle"); setSettingsTestErrors({}); }
+    if (settingsTestPhase === "error") {
+      setSettingsTestPhase("idle");
+      setSettingsTestErrors({});
+    }
     if (showAdv) return; // user is manually configuring — don't override
 
     const found = detectProvider(value);
@@ -201,8 +231,10 @@ export function MailboxConnectContent({
     } else if (hadProvider || hadBackend) {
       // Switched away from a known domain — clear auto-filled settings
       setBackend(null);
-      setImapHost(""); setImapPort(993);
-      setSmtpHost(""); setSmtpPort(587);
+      setImapHost("");
+      setImapPort(993);
+      setSmtpHost("");
+      setSmtpPort(587);
     }
   }
 
@@ -216,28 +248,31 @@ export function MailboxConnectContent({
     try {
       // Nur das je nach purpose relevante Protokoll testen. Übersprungene
       // Protokolle zählen als "ok".
-      let imapOk = true, smtpOk = true;
+      let imapOk = true,
+        smtpOk = true;
       let imapErr: string | undefined, smtpErr: string | undefined;
 
       if (!smtpOnly) {
         const fd = new FormData();
-        fd.set("tcImapHost",   imapHost);
-        fd.set("tcImapPort",   String(imapPort));
+        fd.set("tcImapHost", imapHost);
+        fd.set("tcImapPort", String(imapPort));
         fd.set("tcImapSecure", String(imapSecure));
-        fd.set("tcImapUser",   email);
-        fd.set("tcImapPass",   password);
+        fd.set("tcImapUser", email);
+        fd.set("tcImapPass", password);
         const r = await testImapOnlyConnectionAction(null, fd);
-        imapOk = r.ok; imapErr = r.error;
+        imapOk = r.ok;
+        imapErr = r.error;
       }
       if (!imapOnly) {
         const fd = new FormData();
-        fd.set("tcSmtpHost",   smtpHost);
-        fd.set("tcSmtpPort",   String(smtpPort));
+        fd.set("tcSmtpHost", smtpHost);
+        fd.set("tcSmtpPort", String(smtpPort));
         fd.set("tcSmtpSecure", String(smtpSecure));
-        fd.set("tcSmtpUser",   separateSmtp ? smtpEmail : email);
-        fd.set("tcSmtpPass",   separateSmtp ? smtpPassword : password);
+        fd.set("tcSmtpUser", separateSmtp ? smtpEmail : email);
+        fd.set("tcSmtpPass", separateSmtp ? smtpPassword : password);
         const r = await testSmtpOnlyConnectionAction(null, fd);
-        smtpOk = r.ok; smtpErr = r.error;
+        smtpOk = r.ok;
+        smtpErr = r.error;
       }
 
       if (imapOk && smtpOk) {
@@ -253,7 +288,8 @@ export function MailboxConnectContent({
     } catch (err) {
       setSettingsTestPhase("error");
       setSettingsTestErrors({
-        imap: err instanceof Error ? err.message : "Verbindungstest konnte nicht ausgeführt werden.",
+        imap:
+          err instanceof Error ? err.message : "Verbindungstest konnte nicht ausgeführt werden.",
       });
     }
   }
@@ -264,7 +300,6 @@ export function MailboxConnectContent({
 
   const inner = (
     <div className="space-y-4">
-
       {/* Email */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">
@@ -289,8 +324,8 @@ export function MailboxConnectContent({
         <div className="flex items-center gap-2.5 rounded-md border border-ok/20 bg-ok/5 px-3 py-2">
           <VendorLogo domain={provider.domain} name={provider.name} size={20} />
           <span className="text-xs text-ink">
-            <span className="font-medium">{provider.name}</span>
-            {" "}erkannt — Server automatisch konfiguriert.
+            <span className="font-medium">{provider.name}</span> erkannt — Server automatisch
+            konfiguriert.
           </span>
         </div>
       )}
@@ -301,16 +336,18 @@ export function MailboxConnectContent({
           <div className="flex items-center gap-2.5">
             <VendorLogo domain={backend.domain} name={backend.name} size={20} />
             <span className="text-xs text-ink">
-              <span className="font-medium">{backend.name}</span>
-              {" "}ausgewählt — Server automatisch konfiguriert.
+              <span className="font-medium">{backend.name}</span> ausgewählt — Server automatisch
+              konfiguriert.
             </span>
           </div>
           <button
             type="button"
             onClick={() => {
               setBackend(null);
-              setImapHost(""); setImapPort(993);
-              setSmtpHost(""); setSmtpPort(587);
+              setImapHost("");
+              setImapPort(993);
+              setSmtpHost("");
+              setSmtpPort(587);
             }}
             className="shrink-0 text-xs text-muted hover:text-ink"
           >
@@ -324,9 +361,9 @@ export function MailboxConnectContent({
         <div className="rounded-md border border-line bg-surface px-4 py-3">
           <p className="text-sm font-medium text-ink">Wer verwaltet dein E-Mail-Postfach?</p>
           <p className="mt-0.5 text-xs text-muted">
-            Wir richten die Server-Daten automatisch ein. Faustregel: Google Workspace
-            wenn du dich mit deinem gmail-Konto einloggst, Microsoft 365 bei
-            outlook.com-/Exchange-Login, IONOS oder Strato beim deutschen Hoster.
+            Wir richten die Server-Daten automatisch ein. Faustregel: Google Workspace wenn du dich
+            mit deinem gmail-Konto einloggst, Microsoft 365 bei outlook.com-/Exchange-Login, IONOS
+            oder Strato beim deutschen Hoster.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {MAIL_BACKENDS.map((b) => (
@@ -342,8 +379,8 @@ export function MailboxConnectContent({
             ))}
           </div>
           <p className="mt-3 text-[11px] text-muted">
-            Nicht sicher? Schau im Web-Login deiner E-Mail oben/unten in der Ecke —
-            dort steht meist der Anbieter.
+            Nicht sicher? Schau im Web-Login deiner E-Mail oben/unten in der Ecke — dort steht meist
+            der Anbieter.
           </p>
           <button
             type="button"
@@ -360,16 +397,22 @@ export function MailboxConnectContent({
         <div className="rounded-md border border-line bg-surface px-4 py-3 text-xs">
           <p className="font-medium text-ink">Proton Mail Bridge erforderlich</p>
           <p className="mt-0.5 text-muted">
-            Proton Mail verschlüsselt alle E-Mails — externe Apps brauchen die Bridge als lokalen Proxy.
+            Proton Mail verschlüsselt alle E-Mails — externe Apps brauchen die Bridge als lokalen
+            Proxy.
           </p>
           <ol className="mt-2.5 space-y-1.5 text-muted">
             <li className="flex gap-2">
               <span className="shrink-0 font-medium text-ink">1.</span>
               <span>
-                <a href="https://proton.me/mail/bridge" target="_blank" rel="noopener noreferrer"
-                  className="font-medium text-brand hover:underline inline-flex items-center gap-0.5">
+                <a
+                  href="https://proton.me/mail/bridge"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-brand hover:underline inline-flex items-center gap-0.5"
+                >
                   Proton Mail Bridge herunterladen <ExternalLink size={10} aria-hidden />
-                </a>{" "}und installieren
+                </a>{" "}
+                und installieren
               </span>
             </li>
             <li className="flex gap-2">
@@ -378,11 +421,15 @@ export function MailboxConnectContent({
             </li>
             <li className="flex gap-2">
               <span className="shrink-0 font-medium text-ink">3.</span>
-              <span>Das <strong>Bridge-Passwort</strong> (nicht dein Proton-Login) aus der Bridge-App kopieren und unten eingeben</span>
+              <span>
+                Das <strong>Bridge-Passwort</strong> (nicht dein Proton-Login) aus der Bridge-App
+                kopieren und unten eingeben
+              </span>
             </li>
           </ol>
           <p className="mt-2 text-muted/70">
-            IMAP (Port 1143) und SMTP (Port 1025) sind bereits auf die Bridge-Adresse voreingestellt.
+            IMAP (Port 1143) und SMTP (Port 1025) sind bereits auf die Bridge-Adresse
+            voreingestellt.
           </p>
         </div>
       )}
@@ -408,7 +455,11 @@ export function MailboxConnectContent({
       {/* Password */}
       <div>
         <label className="mb-1 block text-xs font-medium text-muted">
-          {provider?.id === "protonmail" ? "Bridge-Passwort" : (provider?.hint ?? backend?.hint) ? "App-Passwort" : "Passwort"}
+          {provider?.id === "protonmail"
+            ? "Bridge-Passwort"
+            : (provider?.hint ?? backend?.hint)
+              ? "App-Passwort"
+              : "Passwort"}
         </label>
         <input
           type="password"
@@ -422,7 +473,8 @@ export function MailboxConnectContent({
         />
         {mode === "settings" && initialEmail && (
           <p className="mt-1 text-[11px] text-muted">
-            Dein gespeichertes Passwort wird aus Sicherheitsgründen nicht angezeigt — zum Speichern bitte erneut eingeben.
+            Dein gespeichertes Passwort wird aus Sicherheitsgründen nicht angezeigt — zum Speichern
+            bitte erneut eingeben.
           </p>
         )}
       </div>
@@ -457,7 +509,11 @@ export function MailboxConnectContent({
             const hidePortSsl = !provider && !backend;
             const oneCol = smtpOnly || imapOnly;
             return (
-              <div className={oneCol ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
+              <div
+                className={
+                  oneCol ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"
+                }
+              >
                 {!smtpOnly && (
                   <div>
                     <div className="mb-2 text-xs font-medium text-muted">Empfangs-Server</div>
@@ -565,14 +621,14 @@ export function MailboxConnectContent({
 
   return (
     <form onSubmit={handleSubmitWithTest} noValidate>
-      <input type="hidden" name="mailSlot"     value={slot} readOnly />
-      <input type="hidden" name="imapHost"     value={imapHost} readOnly />
-      <input type="hidden" name="imapPort"     value={imapPort} readOnly />
-      <input type="hidden" name="imapSecure"   value={String(imapSecure)} readOnly />
-      <input type="hidden" name="smtpHost"     value={smtpHost} readOnly />
-      <input type="hidden" name="smtpPort"     value={smtpPort} readOnly />
-      <input type="hidden" name="smtpSecure"   value={String(smtpSecure)} readOnly />
-      {!separateSmtp && <input type="hidden" name="smtpEmail"    value={email} readOnly />}
+      <input type="hidden" name="mailSlot" value={slot} readOnly />
+      <input type="hidden" name="imapHost" value={imapHost} readOnly />
+      <input type="hidden" name="imapPort" value={imapPort} readOnly />
+      <input type="hidden" name="imapSecure" value={String(imapSecure)} readOnly />
+      <input type="hidden" name="smtpHost" value={smtpHost} readOnly />
+      <input type="hidden" name="smtpPort" value={smtpPort} readOnly />
+      <input type="hidden" name="smtpSecure" value={String(smtpSecure)} readOnly />
+      {!separateSmtp && <input type="hidden" name="smtpEmail" value={email} readOnly />}
       {!separateSmtp && <input type="hidden" name="smtpPassword" value={password} readOnly />}
 
       {inner}
@@ -581,13 +637,27 @@ export function MailboxConnectContent({
       {settingsTestPhase === "testing" && (
         <div className="mt-4 flex items-center gap-2 text-sm text-muted">
           <Loader2 size={14} className="animate-spin shrink-0" aria-hidden />
-          <span>{smtpOnly ? "Prüfe Versand-Server…" : imapOnly ? "Prüfe Empfangs-Server…" : "Prüfe Verbindung…"}</span>
+          <span>
+            {smtpOnly
+              ? "Prüfe Versand-Server…"
+              : imapOnly
+                ? "Prüfe Empfangs-Server…"
+                : "Prüfe Verbindung…"}
+          </span>
         </div>
       )}
       {settingsTestPhase === "success" && (
         <div className="mt-4 flex items-center gap-3 text-sm text-ok">
-          {!smtpOnly && <span className="flex items-center gap-1"><Check size={14} aria-hidden /> Empfang verbunden</span>}
-          {!imapOnly && <span className="flex items-center gap-1"><Check size={14} aria-hidden /> Versand verbunden</span>}
+          {!smtpOnly && (
+            <span className="flex items-center gap-1">
+              <Check size={14} aria-hidden /> Empfang verbunden
+            </span>
+          )}
+          {!imapOnly && (
+            <span className="flex items-center gap-1">
+              <Check size={14} aria-hidden /> Versand verbunden
+            </span>
+          )}
         </div>
       )}
       {settingsTestPhase === "error" && (
@@ -595,8 +665,16 @@ export function MailboxConnectContent({
           <p className="flex items-center gap-1.5 font-medium text-danger">
             <WifiOff size={14} aria-hidden /> Verbindung fehlgeschlagen
           </p>
-          {settingsTestErrors.imap && <p className="mt-1 text-xs text-danger"><strong>Empfang:</strong> {settingsTestErrors.imap}</p>}
-          {settingsTestErrors.smtp && <p className="mt-1 text-xs text-danger"><strong>Versand:</strong> {settingsTestErrors.smtp}</p>}
+          {settingsTestErrors.imap && (
+            <p className="mt-1 text-xs text-danger">
+              <strong>Empfang:</strong> {settingsTestErrors.imap}
+            </p>
+          )}
+          {settingsTestErrors.smtp && (
+            <p className="mt-1 text-xs text-danger">
+              <strong>Versand:</strong> {settingsTestErrors.smtp}
+            </p>
+          )}
         </div>
       )}
 
@@ -611,16 +689,31 @@ export function MailboxConnectContent({
       <div className="mt-5 flex justify-end">
         <button
           type="submit"
-          disabled={settingsTestPhase === "testing" || settingsTestPhase === "success" || isPending || !email || (!smtpOnly && !imapHost) || (!imapOnly && !smtpHost)}
+          disabled={
+            settingsTestPhase === "testing" ||
+            settingsTestPhase === "success" ||
+            isPending ||
+            !email ||
+            (!smtpOnly && !imapHost) ||
+            (!imapOnly && !smtpHost)
+          }
           className="inline-flex h-9 items-center gap-2 rounded bg-brand px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {settingsTestPhase === "testing"
-            ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Verbindung wird geprüft…</>
-            : settingsTestPhase === "success"
-              ? <><Check size={14} aria-hidden /> Verbunden</>
-              : isPending
-                ? "Speichert…"
-                : smtpOnly ? "Absende-Konto speichern" : "Postfach verbinden"}
+          {settingsTestPhase === "testing" ? (
+            <>
+              <Loader2 size={14} className="animate-spin" aria-hidden /> Verbindung wird geprüft…
+            </>
+          ) : settingsTestPhase === "success" ? (
+            <>
+              <Check size={14} aria-hidden /> Verbunden
+            </>
+          ) : isPending ? (
+            "Speichert…"
+          ) : smtpOnly ? (
+            "Absende-Konto speichern"
+          ) : (
+            "Postfach verbinden"
+          )}
         </button>
       </div>
     </form>

@@ -23,11 +23,13 @@ export async function getPortalCredentialMetaMap(): Promise<Record<string, Porta
   return readJsonSetting<Record<string, PortalCredentialMeta>>(settingKey, {});
 }
 
-export async function getPortalCredentialMetaList(): Promise<Array<{
-  vendorKey: string;
-  username: string;
-  updatedAt: string | null;
-}>> {
+export async function getPortalCredentialMetaList(): Promise<
+  Array<{
+    vendorKey: string;
+    username: string;
+    updatedAt: string | null;
+  }>
+> {
   const meta = await getPortalCredentialMetaMap();
   return Object.values(meta).map((entry) => ({
     vendorKey: entry.vendorKey,
@@ -36,7 +38,10 @@ export async function getPortalCredentialMetaList(): Promise<Array<{
   }));
 }
 
-export async function savePortalCredentialMeta(input: { vendorKey: string; username: string }): Promise<void> {
+export async function savePortalCredentialMeta(input: {
+  vendorKey: string;
+  username: string;
+}): Promise<void> {
   const meta = await getPortalCredentialMetaMap();
   meta[input.vendorKey] = {
     vendorKey: input.vendorKey,
@@ -89,13 +94,15 @@ export async function listOnlineAccounts(): Promise<OnlineAccount[]> {
   const vendorKeys = Object.keys(meta);
   if (vendorKeys.length === 0) return [];
 
-  const rows = await sql<Array<{
-    vendorId: number;
-    vendorName: string;
-    vendorKey: string;
-    loginUrl: string | null;
-    category: string | null;
-  }>>`
+  const rows = await sql<
+    Array<{
+      vendorId: number;
+      vendorName: string;
+      vendorKey: string;
+      loginUrl: string | null;
+      category: string | null;
+    }>
+  >`
     SELECT id AS "vendorId", name AS "vendorName", canonical_key AS "vendorKey",
       portal_login_url AS "loginUrl", portal_category AS category
     FROM vendors WHERE canonical_key = ANY(${vendorKeys}::text[])

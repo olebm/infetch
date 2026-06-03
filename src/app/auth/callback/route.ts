@@ -20,9 +20,7 @@ export async function GET(request: NextRequest) {
   // Use x-forwarded-host + x-forwarded-proto set by the reverse proxy instead.
   const forwardedHost = request.headers.get("x-forwarded-host");
   const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
-  const origin = forwardedHost
-    ? `${forwardedProto}://${forwardedHost}`
-    : rawOrigin;
+  const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : rawOrigin;
   const code = searchParams.get("code");
   const rawNext = searchParams.get("next") ?? "/";
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";

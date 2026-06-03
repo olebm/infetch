@@ -5,10 +5,7 @@ import {
   updateCredentialVerificationStatus,
 } from "@/lib/secrets/credential-store";
 import type { ImapCredentialOwnerId, ImapMailAccountLabel } from "@/mail/imap-account-slots";
-import {
-  IMAP_MAIL_ACCOUNT_SLOTS,
-  imapCredentialOwnerIdForLabel,
-} from "@/mail/imap-account-slots";
+import { IMAP_MAIL_ACCOUNT_SLOTS, imapCredentialOwnerIdForLabel } from "@/mail/imap-account-slots";
 
 export type PrimaryImapAccount = {
   id: number;
@@ -47,9 +44,9 @@ export async function listConfiguredImapAccounts(
   limitToOrgId?: string | null,
 ): Promise<ConfiguredImapAccount[]> {
   const labels = IMAP_MAIL_ACCOUNT_SLOTS.map((s) => s.label);
-  const rows = await sql<Array<
-    Omit<PrimaryImapAccount, "label"> & { label: string; organization_id: string | null }
-  >>`
+  const rows = await sql<
+    Array<Omit<PrimaryImapAccount, "label"> & { label: string; organization_id: string | null }>
+  >`
     SELECT id, label, host, port, secure, username, organization_id
     FROM mail_accounts
     WHERE label = ANY(${labels}::text[]) AND status = 'configured'
@@ -97,15 +94,17 @@ export async function listOrgsWithConfiguredMailbox(): Promise<string[]> {
   return rows.map((r) => r.organizationId);
 }
 
-export async function createImapClientForAccount(
-  account: ConfiguredImapAccount,
-) {
+export async function createImapClientForAccount(account: ConfiguredImapAccount) {
   const ownerId = imapCredentialOwnerIdForLabel(account.label);
   if (!ownerId) {
     throw new Error("Unbekanntes IMAP-Postfach-Label.");
   }
 
-  const password = await readCredentialSecret({ scope: "imap", ownerId, organizationId: account.organizationId });
+  const password = await readCredentialSecret({
+    scope: "imap",
+    ownerId,
+    organizationId: account.organizationId,
+  });
   if (!password) {
     throw new Error(`IMAP-Passwort fehlt im Secret Store (${account.label}).`);
   }
@@ -144,9 +143,9 @@ export async function verifyImapAccountConnection(
     throw new Error("Unbekanntes IMAP-Postfach.");
   }
 
-  const rows = await sql<Array<
-    Omit<ConfiguredImapAccount, "credentialOwnerId"> & { organization_id?: string | null }
-  >>`
+  const rows = await sql<
+    Array<Omit<ConfiguredImapAccount, "credentialOwnerId"> & { organization_id?: string | null }>
+  >`
     SELECT id, label, host, port, secure, username, organization_id
     FROM mail_accounts
     WHERE label = ${slot.label}

@@ -25,14 +25,16 @@ function header(title: string) {
 // ── 1. Importiert, aber KEINEM Vendor zugeordnet (awork-Muster) ───────────────
 // Rechnung liegt im System, vendor_id IS NULL → für die "fehlt"-Matrix
 // unsichtbar, obwohl sie da ist. Mit Absender-Domain + KI-geratenem Namen.
-const unrecognized = await sql<Array<{
-  id: number;
-  invoiceDate: string | null;
-  status: string;
-  filename: string | null;
-  senderDomain: string | null;
-  aiVendor: string | null;
-}>>`
+const unrecognized = await sql<
+  Array<{
+    id: number;
+    invoiceDate: string | null;
+    status: string;
+    filename: string | null;
+    senderDomain: string | null;
+    aiVendor: string | null;
+  }>
+>`
   SELECT
     i.id,
     i.invoice_date AS "invoiceDate",
@@ -69,12 +71,14 @@ for (const r of unrecognized) {
 }
 
 // ── 2. Sender mit PDFs, aber ohne Vendor (Auto-Assign-Kandidaten) ─────────────
-const unmatchedSenders = await sql<Array<{
-  fromAddress: string;
-  fromDomain: string;
-  pdfCount: number;
-  importedCount: number;
-}>>`
+const unmatchedSenders = await sql<
+  Array<{
+    fromAddress: string;
+    fromDomain: string;
+    pdfCount: number;
+    importedCount: number;
+  }>
+>`
   SELECT from_address AS "fromAddress", from_domain AS "fromDomain",
     pdf_count AS "pdfCount", imported_count AS "importedCount"
   FROM discovered_senders
@@ -89,15 +93,19 @@ const unmatchedSenders = await sql<Array<{
 header(`2) Sender mit PDFs, aber ohne Vendor — ${unmatchedSenders.length}`);
 console.log("   → Der Auto-Assign-Lever würde hierfür Vendors anlegen.");
 for (const s of unmatchedSenders) {
-  console.log(`   ${s.fromAddress}  (Domain ${s.fromDomain})  PDFs=${s.pdfCount}  importiert=${s.importedCount}`);
+  console.log(
+    `   ${s.fromAddress}  (Domain ${s.fromDomain})  PDFs=${s.pdfCount}  importiert=${s.importedCount}`,
+  );
 }
 
 // ── 3. Blockierte Sender mit PDFs (übersprungen) ──────────────────────────────
-const blockedSenders = await sql<Array<{
-  fromAddress: string;
-  pdfCount: number;
-  blockedReason: string | null;
-}>>`
+const blockedSenders = await sql<
+  Array<{
+    fromAddress: string;
+    pdfCount: number;
+    blockedReason: string | null;
+  }>
+>`
   SELECT from_address AS "fromAddress", pdf_count AS "pdfCount", blocked_reason AS "blockedReason"
   FROM discovered_senders
   WHERE organization_id = ${orgId} AND blocked = TRUE AND pdf_count > 0

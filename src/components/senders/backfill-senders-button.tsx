@@ -16,7 +16,11 @@ export function BackfillSendersButton() {
         disabled={isPending}
         className="inline-flex items-center justify-center gap-2 rounded border border-line bg-paper px-4 py-2 text-sm font-medium hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <History className="h-4 w-4" aria-hidden />}
+        {isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        ) : (
+          <History className="h-4 w-4" aria-hidden />
+        )}
         {isPending ? "Backfill läuft..." : "Aus Mail-Historie befüllen"}
       </button>
       {state.status !== "idle" && state.message && (

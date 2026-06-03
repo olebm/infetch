@@ -30,14 +30,26 @@ function buildItems(senders: DiscoveredSender[]): SenderItem[] {
   return senders.map((s) => {
     const name = s.displayName || s.fromAddress;
     const privateHints = [
-      "spotify.com", "netflix.com", "amazon.de", "amazon.com", "rewe.de",
-      "lidl.de", "aldi.de", "dhl.de", "dpd.de", "hermes.de",
-      "vodafone.de", "o2.de", "klarna.de", "ikea.de", "stadtwerke",
+      "spotify.com",
+      "netflix.com",
+      "amazon.de",
+      "amazon.com",
+      "rewe.de",
+      "lidl.de",
+      "aldi.de",
+      "dhl.de",
+      "dpd.de",
+      "hermes.de",
+      "vodafone.de",
+      "o2.de",
+      "klarna.de",
+      "ikea.de",
+      "stadtwerke",
     ];
     const looksPrivate = privateHints.some((h) => s.fromDomain.includes(h));
-    const unsure = [
-      "amazon.de", "amazon.com", "telekom.de", "vodafone.de", "dhl.de",
-    ].some((h) => s.fromDomain.includes(h));
+    const unsure = ["amazon.de", "amazon.com", "telekom.de", "vodafone.de", "dhl.de"].some((h) =>
+      s.fromDomain.includes(h),
+    );
 
     return {
       id: s.id,
@@ -105,7 +117,9 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
       // If no run ever appears within 45s, the scan didn't start.
       if (status.state === "none" && Date.now() - startedAt > 45_000) {
         if (!cancelled) {
-          setScanError("Der erste Abruf konnte nicht gestartet werden. Du kannst ihn in den Einstellungen erneut auslösen.");
+          setScanError(
+            "Der erste Abruf konnte nicht gestartet werden. Du kannst ihn in den Einstellungen erneut auslösen.",
+          );
           setPhase("error");
         }
         return;
@@ -167,9 +181,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
       //    den LIVE needs_review-Rechnungen (NICHT auf einem Seitenaufbau-Snapshot;
       //    der Scan importiert asynchron, sonst blieben spät importierte Rechnungen
       //    in needs_review hängen). Privat-Absender → ignorieren, Rest → freigeben.
-      const privateDomains = items
-        .filter((i) => i.kind === "private")
-        .map((i) => i.domain);
+      const privateDomains = items.filter((i) => i.kind === "private").map((i) => i.domain);
       promises.push(finishOnboardingTriageAction(privateDomains));
       await Promise.all(promises);
     } finally {
@@ -183,17 +195,26 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     return (
       <div className="flex min-h-screen flex-col bg-paper">
         <header className="flex h-14 items-center border-b border-line px-6">
-          <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-7 w-auto" priority />
+          <Image
+            src="/images/brand/infetch-logo.svg"
+            alt="Infetch"
+            width={90}
+            height={28}
+            className="h-7 w-auto"
+            priority
+          />
         </header>
         <main className="flex flex-1 items-center">
           <div className="mx-auto w-full max-w-xl px-6">
             <div className="text-xs uppercase tracking-[0.14em] text-muted">Erstabruf</div>
             <h1 className="mt-3 font-display text-4xl leading-[1.05] text-ink md:text-5xl">
-              Wir durchsuchen<br />dein Postfach.
+              Wir durchsuchen
+              <br />
+              dein Postfach.
             </h1>
             <p className="mt-5 leading-relaxed text-muted">
-              Das kann je nach Postfachgröße ein paar Minuten dauern — bitte
-              lass das Fenster offen. Wir lesen nur Mails mit Rechnungsmerkmalen.
+              Das kann je nach Postfachgröße ein paar Minuten dauern — bitte lass das Fenster offen.
+              Wir lesen nur Mails mit Rechnungsmerkmalen.
             </p>
 
             <div className="mt-12 flex items-center gap-3 text-sm text-ink">
@@ -204,7 +225,9 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
             <dl className="mt-8 grid grid-cols-3 gap-x-4 gap-y-2 border-y border-line py-5 md:gap-x-8">
               <div>
                 <dt className="text-xs text-muted">Mails durchsucht</dt>
-                <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesSeen ?? 0}</dd>
+                <dd className="stat-num font-display text-2xl text-ink">
+                  {scan?.messagesSeen ?? 0}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">PDFs gefunden</dt>
@@ -227,11 +250,20 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     return (
       <div className="flex min-h-screen flex-col bg-paper">
         <header className="flex h-14 items-center border-b border-line px-6">
-          <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-7 w-auto" priority />
+          <Image
+            src="/images/brand/infetch-logo.svg"
+            alt="Infetch"
+            width={90}
+            height={28}
+            className="h-7 w-auto"
+            priority
+          />
         </header>
         <main className="flex flex-1 items-center">
           <div className="mx-auto w-full max-w-xl px-6">
-            <div className="text-xs uppercase tracking-[0.14em] text-muted">Erstabruf abgeschlossen</div>
+            <div className="text-xs uppercase tracking-[0.14em] text-muted">
+              Erstabruf abgeschlossen
+            </div>
             {imported > 0 ? (
               <>
                 <h1 className="mt-3 font-display text-5xl leading-[1.05] text-ink md:text-6xl">
@@ -239,8 +271,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                   {imported === 1 ? "Rechnung" : "Rechnungen"} geholt.
                 </h1>
                 <p className="mt-5 leading-relaxed text-muted">
-                  Bereits in Infetch. Ab jetzt läuft der Scan automatisch
-                  im Hintergrund weiter.
+                  Bereits in Infetch. Ab jetzt läuft der Scan automatisch im Hintergrund weiter.
                 </p>
               </>
             ) : (
@@ -249,8 +280,8 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                   Postfach durchsucht.
                 </h1>
                 <p className="mt-5 leading-relaxed text-muted">
-                  Aktuell keine Rechnungen gefunden. Infetch scannt dein
-                  Postfach ab jetzt automatisch im Hintergrund weiter.
+                  Aktuell keine Rechnungen gefunden. Infetch scannt dein Postfach ab jetzt
+                  automatisch im Hintergrund weiter.
                 </p>
               </>
             )}
@@ -258,7 +289,9 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
             <dl className="mt-10 grid grid-cols-3 gap-x-4 gap-y-2 border-y border-line py-5 md:gap-x-8">
               <div>
                 <dt className="text-xs text-muted">Mails durchsucht</dt>
-                <dd className="stat-num font-display text-2xl text-ink">{scan?.messagesSeen ?? 0}</dd>
+                <dd className="stat-num font-display text-2xl text-ink">
+                  {scan?.messagesSeen ?? 0}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-muted">PDFs gefunden</dt>
@@ -287,7 +320,14 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
     return (
       <div className="flex min-h-screen flex-col bg-paper">
         <header className="flex h-14 items-center border-b border-line px-6">
-          <Image src="/images/brand/infetch-logo.svg" alt="Infetch" width={90} height={28} className="h-7 w-auto" priority />
+          <Image
+            src="/images/brand/infetch-logo.svg"
+            alt="Infetch"
+            width={90}
+            height={28}
+            className="h-7 w-auto"
+            priority
+          />
         </header>
         <main className="flex flex-1 items-center justify-center px-6">
           <div className="w-full max-w-md text-center">
@@ -349,9 +389,8 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           Was ist <em className="italic text-muted">privat</em>?
         </h1>
         <p className="mt-5 max-w-xl leading-relaxed text-muted">
-          Du wählst pro <strong className="font-medium text-ink">Anbieter</strong> —
-          nicht pro einzelner Rechnung. Privates geht nie an deine Buchhaltung,
-          alles später änderbar.
+          Du wählst pro <strong className="font-medium text-ink">Anbieter</strong> — nicht pro
+          einzelner Rechnung. Privates geht nie an deine Buchhaltung, alles später änderbar.
         </p>
 
         <dl className="mt-10 grid grid-cols-3 gap-x-4 gap-y-2 border-y border-line py-5 md:gap-x-8">
@@ -373,8 +412,8 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
           <div className="flex items-center gap-1 text-xs">
             {(
               [
-                { id: "all" as const,     label: `Alle · ${items.length}` },
-                { id: "unsure" as const,  label: `Unsicher · ${stats.unsure}` },
+                { id: "all" as const, label: `Alle · ${items.length}` },
+                { id: "unsure" as const, label: `Unsicher · ${stats.unsure}` },
                 { id: "private" as const, label: `Privat · ${stats.privat}` },
               ] as const
             ).map((o) => (
@@ -382,9 +421,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                 key={o.id}
                 onClick={() => setFilter(o.id)}
                 className={`h-7 rounded px-2.5 ${
-                  filter === o.id
-                    ? "bg-ink text-white"
-                    : "text-muted hover:text-ink"
+                  filter === o.id ? "bg-ink text-white" : "text-muted hover:text-ink"
                 }`}
               >
                 {o.label}
@@ -427,9 +464,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                 <button
                   onClick={() => setKind(a.id, "business")}
                   className={`h-8 rounded-l px-3 ${
-                    a.kind === "business"
-                      ? "bg-ink text-white"
-                      : "text-muted hover:text-ink"
+                    a.kind === "business" ? "bg-ink text-white" : "text-muted hover:text-ink"
                   }`}
                 >
                   Geschäftlich
@@ -437,9 +472,7 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
                 <button
                   onClick={() => setKind(a.id, "private")}
                   className={`h-8 rounded-r border-l border-line px-3 ${
-                    a.kind === "private"
-                      ? "bg-ink text-white"
-                      : "text-muted hover:text-ink"
+                    a.kind === "private" ? "bg-ink text-white" : "text-muted hover:text-ink"
                   }`}
                 >
                   Privat
@@ -458,9 +491,8 @@ export function ErstabrufClient({ senders }: { senders: DiscoveredSender[] }) {
 
         <div className="mt-12 flex flex-col gap-4 border-t border-line pt-8 md:flex-row md:items-center md:justify-between">
           <div className="max-w-md text-xs text-muted">
-            <span className="text-ink">{stats.business}</span> Anbieter werden
-            an deine Buchhaltung weitergeleitet.{" "}
-            <span className="text-ink">{stats.privat}</span> bleiben in deinem
+            <span className="text-ink">{stats.business}</span> Anbieter werden an deine Buchhaltung
+            weitergeleitet. <span className="text-ink">{stats.privat}</span> bleiben in deinem
             Postfach — Infetch fasst sie nicht an.
           </div>
           <button

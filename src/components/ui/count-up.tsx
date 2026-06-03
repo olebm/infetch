@@ -56,9 +56,5 @@ export function CountUp({
     };
   }, [value, duration]);
 
-  return (
-    <span className={className}>
-      {display.toLocaleString(locale, format)}
-    </span>
-  );
+  return <span className={className}>{display.toLocaleString(locale, format)}</span>;
 }

@@ -61,7 +61,12 @@ describe.skipIf(!hasDb)("Empfänger → Absende-Konto-Zuweisung", () => {
   it("speichert den gewählten Slot (secondary) am Empfänger", async () => {
     const result = await saveExportTargetAction(
       { status: "idle", message: "" },
-      fd({ exportTarget: "accountable", recipientEmail: "expenses@accountable.eu", smtpSlot: "secondary", enabled: "on" }),
+      fd({
+        exportTarget: "accountable",
+        recipientEmail: "expenses@accountable.eu",
+        smtpSlot: "secondary",
+        enabled: "on",
+      }),
     );
     expect(result.status).toBe("success");
     expect(await smtpSlotFor("accountable")).toBe("secondary");
@@ -70,13 +75,23 @@ describe.skipIf(!hasDb)("Empfänger → Absende-Konto-Zuweisung", () => {
   it("Upsert wechselt den Slot eines bestehenden Empfängers (secondary → primary)", async () => {
     await saveExportTargetAction(
       { status: "idle", message: "" },
-      fd({ exportTarget: "kontist", recipientEmail: "belege@kontist.com", smtpSlot: "secondary", enabled: "on" }),
+      fd({
+        exportTarget: "kontist",
+        recipientEmail: "belege@kontist.com",
+        smtpSlot: "secondary",
+        enabled: "on",
+      }),
     );
     expect(await smtpSlotFor("kontist")).toBe("secondary");
 
     const result = await saveExportTargetAction(
       { status: "idle", message: "" },
-      fd({ exportTarget: "kontist", recipientEmail: "belege@kontist.com", smtpSlot: "primary", enabled: "on" }),
+      fd({
+        exportTarget: "kontist",
+        recipientEmail: "belege@kontist.com",
+        smtpSlot: "primary",
+        enabled: "on",
+      }),
     );
     expect(result.status).toBe("success");
     expect(await smtpSlotFor("kontist")).toBe("primary");
@@ -85,11 +100,21 @@ describe.skipIf(!hasDb)("Empfänger → Absende-Konto-Zuweisung", () => {
   it("weist Kontist und Accountable je ein eigenes Absende-Konto zu", async () => {
     await saveExportTargetAction(
       { status: "idle", message: "" },
-      fd({ exportTarget: "kontist", recipientEmail: "belege@kontist.com", smtpSlot: "primary", enabled: "on" }),
+      fd({
+        exportTarget: "kontist",
+        recipientEmail: "belege@kontist.com",
+        smtpSlot: "primary",
+        enabled: "on",
+      }),
     );
     await saveExportTargetAction(
       { status: "idle", message: "" },
-      fd({ exportTarget: "accountable", recipientEmail: "expenses@accountable.eu", smtpSlot: "secondary", enabled: "on" }),
+      fd({
+        exportTarget: "accountable",
+        recipientEmail: "expenses@accountable.eu",
+        smtpSlot: "secondary",
+        enabled: "on",
+      }),
     );
     expect(await smtpSlotFor("kontist")).toBe("primary");
     expect(await smtpSlotFor("accountable")).toBe("secondary");

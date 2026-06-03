@@ -17,7 +17,9 @@ type ProviderPresetGridProps = {
 export function ProviderPresetGrid({ onSelect }: ProviderPresetGridProps) {
   return (
     <div>
-      <p className="mb-2 text-xs text-muted">Anbieter wählen — Servereinstellungen werden automatisch eingetragen:</p>
+      <p className="mb-2 text-xs text-muted">
+        Anbieter wählen — Servereinstellungen werden automatisch eingetragen:
+      </p>
       <div className="flex flex-wrap gap-2">
         {MAIL_PROVIDERS.map((provider) => (
           <button
