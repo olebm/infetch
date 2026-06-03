@@ -1,0 +1,119 @@
+name: Nightly
+
+# The third testing ring (see docs/adr/0000-stufe-und-gates.md §"Testing-Ringe").
+# Scheduled workflows only fire from the file on the DEFAULT branch (main) — this
+# file does nothing until merged there. workflow_dispatch allows a manual run.
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC daily
+  workflow_dispatch: {}
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Time-based value: catches advisories disclosed when no PR is open. The same
+  # check runs per-PR in ci.yml, but advisories land on their own schedule.
+  audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Audit production dependencies (fail on high/critical)
+        run: npm audit --omit=dev --audit-level=high
+
+  # Drift guard: proves the migration chain still applies cleanly from scratch on
+  # a fresh Postgres. Catches a migration that rotted against an extension/object
+  # that changed underneath it. (Live repo-vs-prod schema drift needs a read-only
+  # prod DSN secret — tracked as a follow-up, see ADR-0000.)
+  migration-apply:
+    name: Migration Apply (from scratch)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Pre-migration bootstrap (auth.uid + vault stubs for vanilla pg)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/ci-bootstrap-pre.sql
+      - name: Apply all migrations linearly (skip 0002 — supabase_vault unavailable)
+        run: node scripts/apply-all-migrations.mjs "$DATABASE_URL" --skip=0002
+      - name: Seed fixture data (vendors + aliases)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/ci-bootstrap-seed.sql
+
+  # Incident → visible: on any failure above, open (or comment on) a tracking
+  # issue so the failure isn't silently lost overnight. Uses only trusted
+  # context values (no event-payload interpolation → no injection surface).
+  notify-on-failure:
+    name: Open issue on failure
+    needs: [audit, migration-apply]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const label = "nightly-failure";
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `The scheduled nightly workflow failed on \`${context.sha.slice(0, 7)}\`.`,
+              ``,
+              `Run: ${runUrl}`,
+              ``,
+              `Failing job: dependency audit and/or migration-apply drift. See the run for details.`,
+            ].join("\n");
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: label,
+            });
+            if (open.data.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: open.data[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: "Nightly checks failed",
+                body,
+                labels: [label],
+              });
+            }
