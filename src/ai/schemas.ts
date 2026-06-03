@@ -12,9 +12,15 @@ export const invoiceAiExtractionSchema = z
     invoice_date: isoDate.nullable(),
     service_period_start: isoDate.nullable(),
     service_period_end: isoDate.nullable(),
-    amount_gross: z.number().nonnegative().nullable(),
-    amount_net: z.number().nonnegative().nullable(),
-    vat_amount: z.number().nonnegative().nullable(),
+    // Beträge dürfen negativ sein: Gutschriften/Rückerstattungen/Negativ-
+    // Korrekturen (z. B. Microsoft Credit Note, invoice_number E0400Z4HWC,
+    // -1,04 €) liefern legitim negative Werte. Der frühere .nonnegative()-Guard
+    // ließ Zod hier mit too_small scheitern → Extraktion 'failed' → Beleg ohne
+    // Betrag/Vendor in needs_review (Datenverlust). Die Wire-JSON-Schema unten
+    // (nullableNumber) erlaubt Negative bereits — beide Schemas bleiben so synchron.
+    amount_gross: z.number().nullable(),
+    amount_net: z.number().nullable(),
+    vat_amount: z.number().nullable(),
     currency: z.string().length(3).nullable(),
     country: z.string().length(2).nullable(),
     language: z.string().min(2).max(12).nullable(),
