@@ -297,7 +297,7 @@ async function applyAiExtractionToInvoice(
     });
   }
 
-  const vendorId = (await resolveAiVendorId(extraction)) ?? current.vendorId;
+  const vendorId = (await resolveAiVendorId(extraction, organizationId)) ?? current.vendorId;
   const invoiceNumber = extraction.invoice_number || current.invoiceNumber;
   const invoiceDate = extraction.invoice_date || current.invoiceDate;
   const amountGross = extraction.amount_gross ?? current.amountGross;
@@ -367,16 +367,23 @@ async function applyAiExtractionToInvoice(
   `;
 }
 
-async function resolveAiVendorId(extraction: InvoiceAiExtraction): Promise<number | null> {
+async function resolveAiVendorId(
+  extraction: InvoiceAiExtraction,
+  organizationId: string | null,
+): Promise<number | null> {
   const canonicalKey = normalizeCanonicalKey(extraction.normalized_vendor);
   if (canonicalKey) {
+    // canonical_key ist global eindeutig → höchstens EIN Treffer. Org-scopen,
+    // damit kein org-fremder Vendor zugeordnet wird (Cross-Tenant-Schutz).
     const rows = await sql<{ id: number }[]>`
-      SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}
+      SELECT id FROM vendors
+      WHERE canonical_key = ${canonicalKey}
+        AND (${organizationId}::text IS NULL OR organization_id IS NULL OR organization_id = ${organizationId})
     `;
     if (rows[0]) return rows[0].id;
   }
 
-  const match = await matchVendor([extraction.normalized_vendor || "", extraction.vendor || ""]);
+  const match = await matchVendor([extraction.normalized_vendor || "", extraction.vendor || ""], organizationId);
   return match.vendorId;
 }
 

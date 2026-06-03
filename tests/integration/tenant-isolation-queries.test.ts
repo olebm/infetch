@@ -30,7 +30,10 @@ const USER_A = `user-a-vq-${SUFFIX}`;
 const USER_B = `user-b-vq-${SUFFIX}`;
 const KEY_A = `vendor-a-vq-${SUFFIX}`;
 const KEY_B = `vendor-b-vq-${SUFFIX}`;
-const YM = "2099-01"; // außerhalb jedes realen Fensters, kollidiert mit nichts
+// Vergangener Monat: wird vom Timing-Gate (isMissingDue) als fällig gewertet,
+// sodass die „fehlt"-Zeile erscheint. Ein Zukunftsmonat würde als „noch nicht
+// fällig" herausgefiltert. Org+Vendor sind pro Lauf eindeutig → keine Kollision.
+const YM = "2025-03";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 
@@ -45,6 +48,16 @@ async function seedOrgWithVendor(orgId: string, userId: string, key: string): Pr
     INSERT INTO vendors (name, canonical_key, category, organization_id)
     VALUES (${`Vendor ${key}`}, ${key}, 'unknown', ${orgId})
     RETURNING id
+  `;
+  // Echte Historie: das Evidenz-Gate von getMissingItems/getMissingMatrix zeigt
+  // einen Vendor nur, wenn die Org von ihm schon mind. eine erkannte Rechnung
+  // (mit Datum, nicht ignoriert/Dublette) hatte. Eine exportierte Alt-Rechnung
+  // genügt — der Isolations-Kontrakt unten bleibt davon unberührt.
+  await sql`
+    INSERT INTO invoices
+      (organization_id, vendor_id, source, status, invoice_date, amount_gross, currency, confidence, dedupe_key)
+    VALUES
+      (${orgId}, ${vendor.id}, 'manual', 'exported', '2025-01-10', 49, 'EUR', 0.9, ${`iso-hist-${key}`})
   `;
   await sql`
     INSERT INTO vendor_month_status

@@ -13,7 +13,9 @@ import {
 } from "@/mail/imap-client";
 import { imapCredentialOwnerIdForLabel, type ImapCredentialOwnerId, type ImapMailAccountLabel } from "@/mail/imap-account-slots";
 import { extractPdfAttachments, bodyStructureHasPdf } from "@/mail/attachment-extractor";
-import { isSenderAutoIgnored, isSenderBlocked, recordSenderObservation } from "@/senders/discovered-senders";
+import { autoAssignSenders, isSenderAutoIgnored, isSenderBlocked, recordSenderObservation } from "@/senders/discovered-senders";
+import { rematchUnmatchedInvoices } from "@/vendors/auto-alias";
+import { matchVendor } from "@/vendors/matcher";
 
 type ImapClientLike = Pick<ImapFlow, "connect" | "getMailboxLock" | "fetch" | "logout"> & {
   mailbox: { uidValidity: bigint } | false;
@@ -234,6 +236,36 @@ async function runPrimaryImapScanImpl(
           : "IMAP Scan abgeschlossen.",
       metadata: { ...finalPayload, syncRunId },
     });
+
+    // Self-Healing-Erkennung: den (bisher nur manuellen) Sender-Lever automatisch
+    // nach dem Scan ziehen, wenn neue Rechnungen kamen. So bekommt ein bislang
+    // unbekannter Anbieter (z. B. awork) sofort einen Vendor und unzugeordnete
+    // Rechnungen werden neu gematcht — ohne dass jemand im Senders-Tab klickt.
+    // Org-scoped + best-effort: ein Fehler hier darf den bereits als erfolgreich
+    // verbuchten Scan nicht kippen.
+    if (summary.imported > 0) {
+      const scannedOrgIds = input?.limitToOrgId
+        ? [input.limitToOrgId]
+        : [...new Set(accounts.map((account) => account.organizationId ?? null))];
+      for (const orgId of scannedOrgIds) {
+        try {
+          await autoAssignSenders(orgId);
+          await rematchUnmatchedInvoices(matchVendor, orgId);
+        } catch (leverError) {
+          await recordSyncEvent({
+            level: "warning",
+            eventType: "post_scan_recognition_failed",
+            message: "Automatische Anbieter-Zuordnung nach dem Scan fehlgeschlagen.",
+            metadata: {
+              syncRunId,
+              organizationId: orgId,
+              error: leverError instanceof Error ? leverError.message : String(leverError),
+            },
+          });
+        }
+      }
+    }
+
     return { syncRunId, ...summary };
   } catch (error) {
     const message = error instanceof Error ? error.message : "IMAP scan failed";

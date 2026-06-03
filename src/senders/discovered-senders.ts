@@ -1,5 +1,6 @@
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { matchVendor } from "@/vendors/matcher";
+import { isGenericEmailDomain } from "@/vendors/generic-domains";
 
 export type DiscoveredSender = {
   id: number;
@@ -291,7 +292,9 @@ function nameFromDomain(domain: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-export async function autoAssignSenders(): Promise<AutoAssignResult> {
+export async function autoAssignSenders(organizationId?: string | null): Promise<AutoAssignResult> {
+  // Optional auf EINE Org begrenzt (Auto-Lever nach Scan); ohne Arg global
+  // (manueller Senders-Button / Script) — abwärtskompatibel.
   const unmatched = await sql<Array<{
     id: number;
     organizationId: string | null;
@@ -304,6 +307,7 @@ export async function autoAssignSenders(): Promise<AutoAssignResult> {
       from_domain AS "fromDomain", display_name AS "displayName", pdf_count AS "pdfCount"
     FROM discovered_senders
     WHERE matched_vendor_id IS NULL AND blocked = FALSE
+      AND (${organizationId ?? null}::text IS NULL OR organization_id = ${organizationId ?? null})
   `;
 
   let matched = 0;
@@ -312,7 +316,8 @@ export async function autoAssignSenders(): Promise<AutoAssignResult> {
 
   for (const sender of unmatched) {
     const signals = [sender.fromAddress, sender.fromDomain, sender.displayName || ""].filter(Boolean);
-    const match = await matchVendor(signals);
+    // Match gegen die Org des Senders scopen (Cross-Tenant-Schutz).
+    const match = await matchVendor(signals, sender.organizationId);
 
     if (match.vendorId && match.confidence >= 0.7) {
       await sql`
@@ -333,6 +338,14 @@ export async function autoAssignSenders(): Promise<AutoAssignResult> {
     }
 
     if (sender.pdfCount === 0) {
+      skipped++;
+      continue;
+    }
+
+    // Keinen Vendor aus generischen Free-Mail-Domains (gmail.com & Co.) anlegen —
+    // das sind i. d. R. Privatpersonen, kein Lieferant. Ein oben bereits per
+    // Signal gematchter Vendor bleibt davon unberührt.
+    if (isGenericEmailDomain(sender.fromDomain)) {
       skipped++;
       continue;
     }

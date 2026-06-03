@@ -1,4 +1,5 @@
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
+import { isGenericEmailDomain } from "@/vendors/generic-domains";
 
 /**
  * Auto-Alias-Lernen: Wenn der User manuell einem unbekannten Lieferanten
@@ -64,34 +65,8 @@ export async function learnFromManualMatch(
     return { learned: false, reason: "invalid_sender_email" };
   }
 
-  // Blacklist: generische E-Mail-Provider-Domains nicht als Vendor-Alias speichern
-  const GENERIC_DOMAINS = new Set([
-    "gmail.com",
-    "googlemail.com",
-    "outlook.com",
-    "hotmail.com",
-    "yahoo.com",
-    "yahoo.de",
-    "icloud.com",
-    "me.com",
-    "gmx.de",
-    "gmx.net",
-    "gmx.at",
-    "web.de",
-    "t-online.de",
-    "freenet.de",
-    "aol.com",
-    "live.com",
-    "msn.com",
-    "mail.com",
-    "mail.de",
-    "posteo.de",
-    "mailbox.org",
-    "fastmail.com",
-    "proton.me",
-    "protonmail.com",
-  ]);
-  if (GENERIC_DOMAINS.has(domain)) {
+  // Generische E-Mail-Provider-Domains nicht als Vendor-Alias speichern.
+  if (isGenericEmailDomain(domain)) {
     return { learned: false, reason: "generic_email_provider", domain, senderEmail };
   }
 
@@ -146,21 +121,25 @@ export type RematchSummary = {
 };
 
 export async function rematchUnmatchedInvoices(
-  matchVendor: (signals: string[]) => Promise<{
+  matchVendor: (signals: string[], organizationId?: string | null) => Promise<{
     vendorId: number | null;
     canonicalKey: string | null;
     confidence: number;
   }>,
+  organizationId?: string | null,
 ): Promise<RematchSummary> {
-  // Kandidaten: Rechnungen ohne vendor_id ODER mit niedrigem Confidence-Score
+  // Kandidaten: Rechnungen ohne vendor_id ODER mit niedrigem Confidence-Score.
+  // Optional auf EINE Org begrenzt (Auto-Lever nach Scan); ohne Arg global
+  // (manueller Senders-Button / Script) — abwärtskompatibel.
   const candidates = await sql<Array<{
     id: number;
+    organizationId: string | null;
     vendorId: number | null;
     filename: string | null;
     fromAddress: string | null;
     rawTextPath: string | null;
   }>>`
-    SELECT i.id AS id, i.vendor_id AS "vendorId",
+    SELECT i.id AS id, i.organization_id AS "organizationId", i.vendor_id AS "vendorId",
            (SELECT inf.original_filename FROM invoice_files inf
             WHERE inf.invoice_id = i.id ORDER BY inf.created_at DESC LIMIT 1) AS filename,
            (SELECT mm.from_address FROM invoice_files inf
@@ -169,7 +148,8 @@ export async function rematchUnmatchedInvoices(
             ORDER BY inf.created_at DESC LIMIT 1) AS "fromAddress",
            i.raw_text_path AS "rawTextPath"
     FROM invoices i
-    WHERE i.vendor_id IS NULL OR i.confidence < 0.7
+    WHERE (i.vendor_id IS NULL OR i.confidence < 0.7)
+      AND (${organizationId ?? null}::text IS NULL OR i.organization_id = ${organizationId ?? null})
   `;
 
   let matched = 0;
@@ -182,7 +162,9 @@ export async function rematchUnmatchedInvoices(
       continue;
     }
 
-    const result = await matchVendor(signals);
+    // Match gegen die OWN-Org des Kandidaten scopen → nie einen org-fremden
+    // Vendor zuordnen (Cross-Tenant-Schutz, auch im manuellen Global-Lauf).
+    const result = await matchVendor(signals, candidate.organizationId);
     if (result.vendorId && result.vendorId !== candidate.vendorId) {
       await sql`
         UPDATE invoices

@@ -205,7 +205,7 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
 
   const extraction = await extractPdfText(buffer);
   const parsed = parseInvoiceFields(extraction.text, input.originalFilename);
-  const vendor = await matchVendor([input.originalFilename, extraction.text]);
+  const vendor = await matchVendor([input.originalFilename, extraction.text], input.organizationId ?? null);
   // Plausibilitäts-Check: nur zuverlässig erfasste Rechnungen dürfen ungeprüft
   // freigegeben werden. Fehlende Währung, Zukunfts-Datum oder ein absurder
   // Betrag (z. B. gieriger Regex → 350.167.000,00 €) → manuelle Prüfung statt
