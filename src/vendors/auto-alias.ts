@@ -1,4 +1,5 @@
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
+import { isGenericEmailDomain } from "@/vendors/generic-domains";
 
 /**
  * Auto-Alias-Lernen: Wenn der User manuell einem unbekannten Lieferanten
@@ -64,34 +65,8 @@ export async function learnFromManualMatch(
     return { learned: false, reason: "invalid_sender_email" };
   }
 
-  // Blacklist: generische E-Mail-Provider-Domains nicht als Vendor-Alias speichern
-  const GENERIC_DOMAINS = new Set([
-    "gmail.com",
-    "googlemail.com",
-    "outlook.com",
-    "hotmail.com",
-    "yahoo.com",
-    "yahoo.de",
-    "icloud.com",
-    "me.com",
-    "gmx.de",
-    "gmx.net",
-    "gmx.at",
-    "web.de",
-    "t-online.de",
-    "freenet.de",
-    "aol.com",
-    "live.com",
-    "msn.com",
-    "mail.com",
-    "mail.de",
-    "posteo.de",
-    "mailbox.org",
-    "fastmail.com",
-    "proton.me",
-    "protonmail.com",
-  ]);
-  if (GENERIC_DOMAINS.has(domain)) {
+  // Generische E-Mail-Provider-Domains nicht als Vendor-Alias speichern.
+  if (isGenericEmailDomain(domain)) {
     return { learned: false, reason: "generic_email_provider", domain, senderEmail };
   }
 

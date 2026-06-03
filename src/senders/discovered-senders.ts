@@ -1,5 +1,6 @@
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { matchVendor } from "@/vendors/matcher";
+import { isGenericEmailDomain } from "@/vendors/generic-domains";
 
 export type DiscoveredSender = {
   id: number;
@@ -337,6 +338,14 @@ export async function autoAssignSenders(organizationId?: string | null): Promise
     }
 
     if (sender.pdfCount === 0) {
+      skipped++;
+      continue;
+    }
+
+    // Keinen Vendor aus generischen Free-Mail-Domains (gmail.com & Co.) anlegen —
+    // das sind i. d. R. Privatpersonen, kein Lieferant. Ein oben bereits per
+    // Signal gematchter Vendor bleibt davon unberührt.
+    if (isGenericEmailDomain(sender.fromDomain)) {
       skipped++;
       continue;
     }
