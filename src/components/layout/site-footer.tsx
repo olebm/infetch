@@ -24,10 +24,18 @@ export function SiteFooter() {
           className="flex flex-wrap items-center gap-x-5 gap-y-1 md:ml-auto"
           aria-label="Footer-Navigation"
         >
-          <Link href="/agb" className="hover:text-ink">AGB</Link>
-          <Link href="/datenschutz" className="hover:text-ink">Datenschutz</Link>
-          <Link href="/impressum" className="hover:text-ink">Impressum</Link>
-          <Link href="/avv" className="hover:text-ink">AVV (DSGVO)</Link>
+          <Link href="/agb" className="hover:text-ink">
+            AGB
+          </Link>
+          <Link href="/datenschutz" className="hover:text-ink">
+            Datenschutz
+          </Link>
+          <Link href="/impressum" className="hover:text-ink">
+            Impressum
+          </Link>
+          <Link href="/avv" className="hover:text-ink">
+            AVV (DSGVO)
+          </Link>
         </nav>
       </div>
     </footer>

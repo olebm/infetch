@@ -16,8 +16,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   { padding = "md", tone = "default", className = "", ...props },
   ref,
 ) {
-  const bg =
-    tone === "subtle" ? "bg-surface" : tone === "ghost" ? "bg-transparent" : "bg-paper";
+  const bg = tone === "subtle" ? "bg-surface" : tone === "ghost" ? "bg-transparent" : "bg-paper";
   const border = tone === "ghost" ? "" : "border border-line";
   return (
     <div

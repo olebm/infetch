@@ -70,9 +70,7 @@ export function SubjectTemplateCard({ initialValue }: SubjectTemplateCardProps) 
           <button
             key={v.token}
             type="button"
-            onClick={() =>
-              setValue((s) => `${s}${s && !s.endsWith(" ") ? " " : ""}${v.token}`)
-            }
+            onClick={() => setValue((s) => `${s}${s && !s.endsWith(" ") ? " " : ""}${v.token}`)}
             className="inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-0.5 text-[11px] text-ink hover:border-brand hover:text-brand transition-colors"
             title={`${v.label} einfügen (${v.token})`}
           >

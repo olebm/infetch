@@ -30,9 +30,7 @@ export function CopyField({ value, label }: CopyFieldProps) {
 
   return (
     <div>
-      {label && (
-        <div className="mb-1.5 text-sm font-medium text-ink">{label}</div>
-      )}
+      {label && <div className="mb-1.5 text-sm font-medium text-ink">{label}</div>}
       <div className="flex items-stretch gap-2">
         <div className="flex h-10 flex-1 items-center truncate rounded border border-line bg-surface px-3 font-mono text-sm text-ink">
           {value}

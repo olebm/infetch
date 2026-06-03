@@ -4,10 +4,7 @@ import { useActionState, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useSupportModal } from "@/components/support/support-provider";
-import {
-  submitSupportRequestAction,
-  type SupportCategory,
-} from "@/app/(app)/support/actions";
+import { submitSupportRequestAction, type SupportCategory } from "@/app/(app)/support/actions";
 
 // ── Categories ────────────────────────────────────────────────────────────────
 
@@ -16,20 +13,25 @@ const CATEGORIES: {
   label: string;
 }[] = [
   { key: "invoice_not_recognized", label: "Rechnung nicht erkannt" },
-  { key: "mail_connection",        label: "Mail-Verbindung gestört" },
-  { key: "export_problem",         label: "Export-Problem" },
-  { key: "account",                label: "Konto & Zugang" },
-  { key: "feature_request",        label: "Feature-Wunsch" },
-  { key: "other",                  label: "Sonstiges" },
+  { key: "mail_connection", label: "Mail-Verbindung gestört" },
+  { key: "export_problem", label: "Export-Problem" },
+  { key: "account", label: "Konto & Zugang" },
+  { key: "feature_request", label: "Feature-Wunsch" },
+  { key: "other", label: "Sonstiges" },
 ];
 
 const PLACEHOLDERS: Record<SupportCategory, string> = {
-  invoice_not_recognized: 'Z.B.: "Von Shopify kommt eine Rechnung, der Anbieter wird als Unknown erkannt und der Betrag fehlt."',
-  mail_connection:        'Z.B.: "Seit gestern werden keine neuen Mails abgeholt. Die Verbindung bricht nach 30 Sekunden ab."',
-  export_problem:         'Z.B.: "Lexoffice gibt Fehler 403 zurueck, obwohl der API-Key neu gesetzt wurde."',
-  account:                'Z.B.: "Ich habe ein Mitglied eingeladen, aber die Person sieht die Organisation nicht."',
-  feature_request:        'Z.B.: "Ich wuerde mir wuenschen, dass Rechnungen per Drag & Drop hochgeladen werden koennen."',
-  other:                  "Beschreib kurz, womit wir dir helfen koennen.",
+  invoice_not_recognized:
+    'Z.B.: "Von Shopify kommt eine Rechnung, der Anbieter wird als Unknown erkannt und der Betrag fehlt."',
+  mail_connection:
+    'Z.B.: "Seit gestern werden keine neuen Mails abgeholt. Die Verbindung bricht nach 30 Sekunden ab."',
+  export_problem:
+    'Z.B.: "Lexoffice gibt Fehler 403 zurueck, obwohl der API-Key neu gesetzt wurde."',
+  account:
+    'Z.B.: "Ich habe ein Mitglied eingeladen, aber die Person sieht die Organisation nicht."',
+  feature_request:
+    'Z.B.: "Ich wuerde mir wuenschen, dass Rechnungen per Drag & Drop hochgeladen werden koennen."',
+  other: "Beschreib kurz, womit wir dir helfen koennen.",
 };
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -136,7 +138,10 @@ export function SupportModal({ userEmail }: { userEmail?: string }) {
 
           {/* Error */}
           {state.status === "error" && (
-            <p role="alert" className="rounded border border-danger/30 bg-danger-soft px-3 py-2 text-xs text-danger">
+            <p
+              role="alert"
+              className="rounded border border-danger/30 bg-danger-soft px-3 py-2 text-xs text-danger"
+            >
               {state.message}
             </p>
           )}

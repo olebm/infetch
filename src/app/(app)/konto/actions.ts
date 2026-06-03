@@ -131,7 +131,8 @@ export async function removeMemberAction(
   const targetUserId = formData.get("userId") as string | null;
 
   if (!targetUserId) return { status: "error", message: "Kein Nutzer angegeben." };
-  if (targetUserId === callerId) return { status: "error", message: "Du kannst dich nicht selbst entfernen." };
+  if (targetUserId === callerId)
+    return { status: "error", message: "Du kannst dich nicht selbst entfernen." };
 
   try {
     const callerRole = await assertOwnerOrAdmin(orgId, callerId);
@@ -241,7 +242,10 @@ export async function revokeInvitationAction(
 
   if (error) {
     console.error("[revokeInvitationAction]", error);
-    return { status: "error", message: `Einladung konnte nicht zurückgezogen werden: ${error.message}` };
+    return {
+      status: "error",
+      message: `Einladung konnte nicht zurückgezogen werden: ${error.message}`,
+    };
   }
 
   revalidatePath("/konto");
@@ -262,13 +266,19 @@ export async function uploadAvatarAction(
 
   const file = formData.get("avatar") as File | null;
   if (!file || file.size === 0) return { status: "error", message: "Kein Bild ausgewählt." };
-  if (file.size > MAX_AVATAR_BYTES) return { status: "error", message: "Bild zu groß (max. 2 MB)." };
-  if (!ALLOWED_TYPES.includes(file.type)) return { status: "error", message: "Nur JPG, PNG, WebP oder GIF erlaubt." };
+  if (file.size > MAX_AVATAR_BYTES)
+    return { status: "error", message: "Bild zu groß (max. 2 MB)." };
+  if (!ALLOWED_TYPES.includes(file.type))
+    return { status: "error", message: "Nur JPG, PNG, WebP oder GIF erlaubt." };
 
-  const ext = file.type === "image/jpeg" ? "jpg"
-    : file.type === "image/png" ? "png"
-    : file.type === "image/webp" ? "webp"
-    : "gif";
+  const ext =
+    file.type === "image/jpeg"
+      ? "jpg"
+      : file.type === "image/png"
+        ? "png"
+        : file.type === "image/webp"
+          ? "webp"
+          : "gif";
   const key = `${auth.user.id}/avatar.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -282,7 +292,9 @@ export async function uploadAvatarAction(
     return { status: "error", message: "Upload fehlgeschlagen." };
   }
 
-  const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(key);
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("avatars").getPublicUrl(key);
   await updateUserAvatar(auth.user.id, publicUrl);
 
   revalidatePath("/konto");

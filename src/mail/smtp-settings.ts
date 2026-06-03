@@ -16,7 +16,9 @@ export async function getStoredSmtpAccounts(): Promise<Record<string, StoredSmtp
   return readJsonSetting<Record<string, StoredSmtpAccount>>(settingKey, {});
 }
 
-export async function getStoredSmtpAccount(ownerId: SmtpCredentialOwnerId): Promise<StoredSmtpAccount | undefined> {
+export async function getStoredSmtpAccount(
+  ownerId: SmtpCredentialOwnerId,
+): Promise<StoredSmtpAccount | undefined> {
   return (await getStoredSmtpAccounts())[ownerId];
 }
 

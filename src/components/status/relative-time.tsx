@@ -12,7 +12,13 @@ function formatRelative(iso: string): string {
   return ts.toLocaleDateString("de-DE", { dateStyle: "short" });
 }
 
-export function VerifiedAt({ value, prefix = "Zuletzt verifiziert" }: { value: string | null; prefix?: string }) {
+export function VerifiedAt({
+  value,
+  prefix = "Zuletzt verifiziert",
+}: {
+  value: string | null;
+  prefix?: string;
+}) {
   if (!value) return <span className="text-xs text-muted">{prefix}: noch nicht geprüft</span>;
   return (
     <span className="text-xs text-muted" title={value}>

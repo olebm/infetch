@@ -5,7 +5,10 @@ import { recordSyncEvent } from "@/lib/db/events";
 import { hasConfiguredCredential } from "@/lib/secrets/credential-store";
 import { matchVendor } from "@/vendors/matcher";
 import { callAiExtract } from "@/ai/proxy-client";
-import { invoiceExtractionPromptVersion, maxInvoiceExtractionTextChars } from "@/ai/prompt-versions";
+import {
+  invoiceExtractionPromptVersion,
+  maxInvoiceExtractionTextChars,
+} from "@/ai/prompt-versions";
 import { invoiceAiExtractionSchema, type InvoiceAiExtraction } from "@/ai/schemas";
 import { evaluateAutoApproval } from "@/lib/automation/auto-approval";
 import { isExtractionPlausible } from "@/invoices/plausibility";
@@ -147,7 +150,11 @@ export async function runInvoiceAiExtraction(
       eventType: "mistral_extraction_succeeded",
       invoiceId: input.invoiceId,
       message: "Mistral AI Analyse abgeschlossen.",
-      metadata: { inputHash, promptVersion: invoiceExtractionPromptVersion, confidence: extraction.confidence },
+      metadata: {
+        inputHash,
+        promptVersion: invoiceExtractionPromptVersion,
+        confidence: extraction.confidence,
+      },
     });
     return { status: "succeeded", inputHash, extraction };
   } catch (error) {
@@ -261,18 +268,20 @@ async function applyAiExtractionToInvoice(
   organizationId: string | null,
   extraction: InvoiceAiExtraction,
 ): Promise<void> {
-  const currentRows = await sql<{
-    vendorId: number | null;
-    invoiceNumber: string | null;
-    invoiceDate: string | null;
-    servicePeriodStart: string | null;
-    servicePeriodEnd: string | null;
-    amountGross: number | null;
-    amountNet: number | null;
-    vatAmount: number | null;
-    currency: string | null;
-    confidence: number | null;
-  }[]>`
+  const currentRows = await sql<
+    {
+      vendorId: number | null;
+      invoiceNumber: string | null;
+      invoiceDate: string | null;
+      servicePeriodStart: string | null;
+      servicePeriodEnd: string | null;
+      amountGross: number | null;
+      amountNet: number | null;
+      vatAmount: number | null;
+      currency: string | null;
+      confidence: number | null;
+    }[]
+  >`
     SELECT vendor_id AS "vendorId", invoice_number AS "invoiceNumber", invoice_date AS "invoiceDate",
       service_period_start AS "servicePeriodStart", service_period_end AS "servicePeriodEnd",
       amount_gross AS "amountGross", amount_net AS "amountNet", vat_amount AS "vatAmount",
@@ -344,9 +353,11 @@ async function applyAiExtractionToInvoice(
 
   // Map AI document_type → doc_type column (credit_note + receipt are distinct; everything else → invoice)
   const docType =
-    extraction.document_type === "credit_note" ? "credit_note"
-    : extraction.document_type === "receipt"   ? "receipt"
-    : "invoice";
+    extraction.document_type === "credit_note"
+      ? "credit_note"
+      : extraction.document_type === "receipt"
+        ? "receipt"
+        : "invoice";
 
   await sql`
     UPDATE invoices
@@ -383,7 +394,10 @@ async function resolveAiVendorId(
     if (rows[0]) return rows[0].id;
   }
 
-  const match = await matchVendor([extraction.normalized_vendor || "", extraction.vendor || ""], organizationId);
+  const match = await matchVendor(
+    [extraction.normalized_vendor || "", extraction.vendor || ""],
+    organizationId,
+  );
   return match.vendorId;
 }
 
@@ -406,7 +420,8 @@ function collectLocalVsAiMismatches(
   local: { invoiceDate: string | null; amountGross: number | null; currency: string | null },
   ai: InvoiceAiExtraction,
 ): Array<{ field: string; local: string | number | null; ai: string | number | null }> {
-  const out: Array<{ field: string; local: string | number | null; ai: string | number | null }> = [];
+  const out: Array<{ field: string; local: string | number | null; ai: string | number | null }> =
+    [];
   if (
     local.amountGross != null &&
     ai.amount_gross != null &&
@@ -425,9 +440,16 @@ function collectLocalVsAiMismatches(
 
 export function resolveInvoiceStatusFromAi(
   extraction: InvoiceAiExtraction,
-  input: { vendorId: number | null; invoiceDate: string | null; amountGross: number | null; currency: string | null },
+  input: {
+    vendorId: number | null;
+    invoiceDate: string | null;
+    amountGross: number | null;
+    currency: string | null;
+  },
 ) {
-  const isInvoiceLike = ["invoice", "receipt", "payment_confirmation", "credit_note"].includes(extraction.document_type);
+  const isInvoiceLike = ["invoice", "receipt", "payment_confirmation", "credit_note"].includes(
+    extraction.document_type,
+  );
   if (!isInvoiceLike) return "ignored";
   if (extraction.needs_review || extraction.confidence < 0.75) return "needs_review";
   if (!input.vendorId || !input.invoiceDate || input.amountGross === null) return "needs_review";

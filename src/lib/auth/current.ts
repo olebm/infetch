@@ -79,6 +79,8 @@ export async function requireCurrentAuth(): Promise<CurrentAuth> {
 export const SESSION_COOKIE_NAME = "ia_session";
 export async function getSessionId(): Promise<string | null> {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   return user?.id ?? null;
 }

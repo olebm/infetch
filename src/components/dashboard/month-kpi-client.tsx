@@ -66,9 +66,7 @@ export function MonthKpiClient({
             aria-expanded={compareOpen}
           >
             <div className="flex items-baseline gap-1.5 stat-num font-display text-2xl leading-none text-ink">
-              <span className="text-ink/70">
-                {(deltaPercent ?? 0) >= 0 ? "↗" : "↘"}
-              </span>
+              <span className="text-ink/70">{(deltaPercent ?? 0) >= 0 ? "↗" : "↘"}</span>
               <span>
                 {(deltaPercent ?? 0) >= 0 ? "+" : ""}
                 {deltaPercent}&nbsp;%
@@ -77,7 +75,9 @@ export function MonthKpiClient({
             <div className="mt-1.5 text-[11px] text-muted group-hover:text-ink transition-colors stat-num">
               {prevMonthLabel}&nbsp;·&nbsp;{prevTotal}
               {hasOlderMonths && (
-                <>&nbsp;<span className="text-muted/60">{compareOpen ? "▴" : "▾"}</span></>
+                <>
+                  &nbsp;<span className="text-muted/60">{compareOpen ? "▴" : "▾"}</span>
+                </>
               )}
             </div>
           </button>

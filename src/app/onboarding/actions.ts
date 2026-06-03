@@ -37,8 +37,8 @@ export async function completeOnboardingAction(
     const email = String(formData.get("email") || "").trim();
     const password = String(formData.get("password") || "");
     // SMTP may use separate credentials (e.g. relay account); fall back to IMAP credentials
-    const smtpEmail    = String(formData.get("smtpEmail")    || "").trim() || email;
-    const smtpPassword = String(formData.get("smtpPassword") || "")        || password;
+    const smtpEmail = String(formData.get("smtpEmail") || "").trim() || email;
+    const smtpPassword = String(formData.get("smtpPassword") || "") || password;
     const recipientEmail = String(formData.get("recipientEmail") || "").trim();
     const exportTarget = String(formData.get("exportTarget") || "kontist").trim();
 
@@ -46,10 +46,16 @@ export async function completeOnboardingAction(
       return { status: "error", message: "Bitte gib E-Mail und Passwort für dein Postfach ein." };
     }
     if (!recipientEmail) {
-      return { status: "error", message: "Bitte gib die E-Mail-Adresse für deinen Buchhalter ein." };
+      return {
+        status: "error",
+        message: "Bitte gib die E-Mail-Adresse für deinen Buchhalter ein.",
+      };
     }
     if (!isValidEmail(recipientEmail)) {
-      return { status: "error", message: "Die E-Mail-Adresse des Buchhalters ist unvollständig oder ungültig." };
+      return {
+        status: "error",
+        message: "Die E-Mail-Adresse des Buchhalters ist unvollständig oder ungültig.",
+      };
     }
 
     // Manual override from MailboxConnectContent (server fields pre-filled by provider picker)
@@ -65,21 +71,21 @@ export async function completeOnboardingAction(
 
     if (manualImapHost && manualSmtpHost) {
       // Provider-picker already resolved server settings
-      imapHost   = manualImapHost;
-      imapPort   = Number(formData.get("imapPort")  || 993);
+      imapHost = manualImapHost;
+      imapPort = Number(formData.get("imapPort") || 993);
       imapSecure = String(formData.get("imapSecure") || "true") !== "false";
-      smtpHost   = manualSmtpHost;
+      smtpHost = manualSmtpHost;
       // Fallback 587/STARTTLS für unbekannte Domains (siehe wizard/mailbox-connect-content).
-      smtpPort   = Number(formData.get("smtpPort")  || 587);
+      smtpPort = Number(formData.get("smtpPort") || 587);
       smtpSecure = String(formData.get("smtpSecure") || "false") !== "false";
     } else {
       // Fall back to auto-detection from e-mail domain
       const provider = getProviderFromEmail(email);
-      imapHost   = provider?.imap.host   ?? "";
-      imapPort   = provider?.imap.port   ?? 993;
+      imapHost = provider?.imap.host ?? "";
+      imapPort = provider?.imap.port ?? 993;
       imapSecure = provider?.imap.secure ?? true;
-      smtpHost   = provider?.smtp.host   ?? "";
-      smtpPort   = provider?.smtp.port   ?? 587;
+      smtpHost = provider?.smtp.host ?? "";
+      smtpPort = provider?.smtp.port ?? 587;
       smtpSecure = provider?.smtp.secure ?? false;
 
       if (!imapHost || !smtpHost) {
@@ -193,12 +199,12 @@ export async function completeOnboardingAction(
     //    (sinceOverride = undefined → getScanSinceDate).
     const firstScanTier = await getOrgTier(organizationId);
     const firstScanSince =
-      firstScanTier === "free"
-        ? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-        : undefined;
-    runPrimaryImapScan({ limitToOrgId: organizationId, sinceOverride: firstScanSince }).catch(() => {
-      // Ignore — first-scan errors are visible in the activity log
-    });
+      firstScanTier === "free" ? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) : undefined;
+    runPrimaryImapScan({ limitToOrgId: organizationId, sinceOverride: firstScanSince }).catch(
+      () => {
+        // Ignore — first-scan errors are visible in the activity log
+      },
+    );
 
     revalidatePath("/");
     revalidatePath("/audit");
@@ -266,7 +272,15 @@ export async function getOnboardingScanStatusAction(): Promise<OnboardingScanSta
   `;
   const row = rows[0];
   if (!row) {
-    return { state: "none", imported: 0, duplicates: 0, pdfsFound: 0, messagesSeen: 0, messagesProcessed: 0, failed: 0 };
+    return {
+      state: "none",
+      imported: 0,
+      duplicates: 0,
+      pdfsFound: 0,
+      messagesSeen: 0,
+      messagesProcessed: 0,
+      failed: 0,
+    };
   }
 
   let summary: Record<string, unknown> = {};
@@ -300,4 +314,3 @@ export async function getDiscoveredSendersAction(): Promise<DiscoveredSender[]> 
   const auth = await requireCurrentAuth();
   return listDiscoveredSenders(auth.organization?.id ?? null);
 }
-

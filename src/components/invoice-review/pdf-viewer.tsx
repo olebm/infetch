@@ -43,8 +43,7 @@ export function PdfViewer({ src, className = "" }: PdfViewerProps) {
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           // Scale canvas CSS to fill the container width
-          canvas.style.cssText =
-            "width:100%;display:block;background:#fff;";
+          canvas.style.cssText = "width:100%;display:block;background:#fff;";
 
           if (pageNum > 1) {
             const sep = document.createElement("div");
@@ -81,10 +80,7 @@ export function PdfViewer({ src, className = "" }: PdfViewerProps) {
           PDF konnte nicht geladen werden.
         </div>
       )}
-      <div
-        ref={containerRef}
-        className={state === "loading" ? "hidden" : ""}
-      />
+      <div ref={containerRef} className={state === "loading" ? "hidden" : ""} />
     </div>
   );
 }

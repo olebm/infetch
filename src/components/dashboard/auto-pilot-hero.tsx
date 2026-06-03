@@ -147,10 +147,15 @@ function HeroRunning({
       {(inboxEmail || recipientEmail) && (
         <p className="mt-3 max-w-xl text-muted md:mt-6">
           {inboxEmail && (
-            <>Wir scannen <span className="text-ink">{inboxEmail}</span> automatisch. </>
+            <>
+              Wir scannen <span className="text-ink">{inboxEmail}</span> automatisch.{" "}
+            </>
           )}
           {recipientEmail && (
-            <>Sichere Treffer gehen direkt an <span className="text-ink">{recipientEmail}</span>. </>
+            <>
+              Sichere Treffer gehen direkt an <span className="text-ink">{recipientEmail}</span>
+              .{" "}
+            </>
           )}
           Unsichere fragen wir hier.
         </p>
@@ -190,8 +195,8 @@ function HeroReviewWaiting({ needsReview }: { needsReview: number }) {
         <em>auf dein OK.</em>
       </h2>
       <p className="mt-3 max-w-xl text-muted md:mt-6">
-        Wir haben sie aus deinem Postfach geholt und vorbereitet. Prüf sie einmal kurz —
-        danach übernimmt der Auto-Pilot Versand und Ablage automatisch.
+        Wir haben sie aus deinem Postfach geholt und vorbereitet. Prüf sie einmal kurz — danach
+        übernimmt der Auto-Pilot Versand und Ablage automatisch.
       </p>
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Link
@@ -215,11 +220,13 @@ function HeroBlocked({ setup }: { setup: Setup }) {
     <div className="py-2">
       <div className="text-xs text-warn">1 Sache braucht deine Aufmerksamkeit</div>
       <h2 className="mt-3 max-w-3xl font-display text-3xl leading-[0.95] text-ink sm:text-5xl md:text-6xl">
-        <em>Einrichtung</em> nicht<br />
+        <em>Einrichtung</em> nicht
+        <br />
         abgeschlossen.
       </h2>
       <p className="mt-5 max-w-xl text-muted">
-        Es fehlt noch: <span className="text-ink">{missing.join(" und ")}</span>. Danach läuft alles automatisch — du musst hier nichts mehr tun.
+        Es fehlt noch: <span className="text-ink">{missing.join(" und ")}</span>. Danach läuft alles
+        automatisch — du musst hier nichts mehr tun.
       </p>
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Link
@@ -239,13 +246,7 @@ function HeroBlocked({ setup }: { setup: Setup }) {
   );
 }
 
-function HeroFresh({
-  setup,
-  initialPulse,
-}: {
-  setup: Setup;
-  initialPulse: HeroFreshPulse;
-}) {
+function HeroFresh({ setup, initialPulse }: { setup: Setup; initialPulse: HeroFreshPulse }) {
   return (
     <div className="grid items-start gap-12 py-2 md:grid-cols-2">
       <div>
@@ -254,7 +255,8 @@ function HeroFresh({
           Wir warten auf deine <em>erste Rechnung.</em>
         </h2>
         <p className="mt-5 max-w-md text-muted">
-          Infetch scannt dein Postfach automatisch im Hintergrund. Sobald eine Rechnung ankommt, übernehmen wir den Rest.
+          Infetch scannt dein Postfach automatisch im Hintergrund. Sobald eine Rechnung ankommt,
+          übernehmen wir den Rest.
         </p>
         {setup.imapConfigured && (
           <div className="mt-5 space-y-3">
@@ -270,10 +272,20 @@ function HeroFresh({
 
 function FreshChecklist({ setup }: { setup: Setup }) {
   const steps = [
-    { done: true,               label: "Account erstellt",        active: false, href: null },
-    { done: setup.imapConfigured, label: "Postfach verbunden",    active: !setup.imapConfigured, href: "/einstellungen?tab=postfach" },
-    { done: setup.exportTargetActive, label: "Empfänger eingerichtet", active: !setup.exportTargetActive && setup.imapConfigured, href: "/einstellungen?tab=buchhaltung" },
-    { done: false,              label: "Erste Rechnung empfangen", active: false, href: null },
+    { done: true, label: "Account erstellt", active: false, href: null },
+    {
+      done: setup.imapConfigured,
+      label: "Postfach verbunden",
+      active: !setup.imapConfigured,
+      href: "/einstellungen?tab=postfach",
+    },
+    {
+      done: setup.exportTargetActive,
+      label: "Empfänger eingerichtet",
+      active: !setup.exportTargetActive && setup.imapConfigured,
+      href: "/einstellungen?tab=buchhaltung",
+    },
+    { done: false, label: "Erste Rechnung empfangen", active: false, href: null },
   ];
   return (
     <ol className="border-t border-line">

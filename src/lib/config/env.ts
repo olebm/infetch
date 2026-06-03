@@ -47,14 +47,17 @@ export const appConfig = {
     enableCommunityRecipes: process.env.ENABLE_COMMUNITY_RECIPES === "true",
     enableMissingMatrix: process.env.ENABLE_MISSING_MATRIX !== "false",
     autoPilotEnabled: process.env.AUTO_PILOT_ENABLED !== "false",
-    autoApprovalConfidenceThreshold: clampConfidence(process.env.AUTO_APPROVE_CONFIDENCE, 0.90),
+    autoApprovalConfidenceThreshold: clampConfidence(process.env.AUTO_APPROVE_CONFIDENCE, 0.9),
   },
   selfHealing: {
     // Nach N erfolgreichen Imports pro Vendor wird automatisch eine
     // Auto-Approval-Rule angelegt. Bewährter Wert: 3 (genug Signal, früher Effekt).
     selfProvisionMinImports: Math.max(2, Number(process.env.SELF_PROVISION_MIN_IMPORTS || 3)),
     // Rule-Höchstbetrag = max(historischer Betrag) * Multiplier
-    selfProvisionAmountMultiplier: Math.max(1, Number(process.env.SELF_PROVISION_AMOUNT_MULTIPLIER || 1.5)),
+    selfProvisionAmountMultiplier: Math.max(
+      1,
+      Number(process.env.SELF_PROVISION_AMOUNT_MULTIPLIER || 1.5),
+    ),
     // Disk-Files für 'ignored' Rechnungen werden nach X Tagen gelöscht (DB-Row bleibt für Audit).
     cleanupIgnoredAfterDays: Math.max(7, Number(process.env.CLEANUP_IGNORED_AFTER_DAYS || 30)),
     // Rechnungen die zu lange in 'needs_review' hängen → auf 'ignored' eskaliert.

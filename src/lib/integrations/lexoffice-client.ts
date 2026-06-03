@@ -8,7 +8,6 @@
  * Doku: https://developers.lexoffice.io/
  */
 
-
 import { withRetry, isRetryableHttpStatus, TransientHttpError } from "@/lib/retry";
 
 const LEXOFFICE_BASE_URL = "https://api.lexoffice.io/v1";
@@ -50,7 +49,11 @@ export type LexofficeVoucherResponse = {
 };
 
 class LexofficeApiError extends Error {
-  constructor(public status: number, message: string, public body?: unknown) {
+  constructor(
+    public status: number,
+    message: string,
+    public body?: unknown,
+  ) {
     super(message);
     this.name = "LexofficeApiError";
   }
@@ -142,7 +145,11 @@ export async function attachLexofficeVoucherFile(
   filename: string,
 ): Promise<void> {
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }), filename);
+  form.append(
+    "file",
+    new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }),
+    filename,
+  );
   form.append("type", "voucher");
 
   const response = await lexofficeFetch(apiKey, `/vouchers/${voucherId}/files`, {
@@ -170,7 +177,11 @@ export async function uploadLexofficeFileToInbox(
   filename: string,
 ): Promise<{ id: string }> {
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }), filename);
+  form.append(
+    "file",
+    new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }),
+    filename,
+  );
   form.append("type", "voucher");
 
   const response = await lexofficeFetch(apiKey, "/files", {

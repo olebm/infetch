@@ -12,10 +12,7 @@ const TEST_PRICE_BUSINESS = "price_test_business_456";
 // Stripe-kompatible Signatur (t=timestamp,v1=hmac) ohne echten Stripe-Client
 function signStripePayload(payload: string, secret: string): string {
   const timestamp = Math.floor(Date.now() / 1000);
-  const hmac = crypto
-    .createHmac("sha256", secret)
-    .update(`${timestamp}.${payload}`)
-    .digest("hex");
+  const hmac = crypto.createHmac("sha256", secret).update(`${timestamp}.${payload}`).digest("hex");
   return `t=${timestamp},v1=${hmac}`;
 }
 
@@ -41,11 +38,13 @@ function makeSubscriptionEvent(
   });
 }
 
-function makeCheckoutEvent(opts: {
-  orgId: string;
-  customerId?: string;
-  subscription?: string | null;
-} = { orgId: "org-test" }): string {
+function makeCheckoutEvent(
+  opts: {
+    orgId: string;
+    customerId?: string;
+    subscription?: string | null;
+  } = { orgId: "org-test" },
+): string {
   return JSON.stringify({
     id: `evt_test_checkout_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     type: "checkout.session.completed",

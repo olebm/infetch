@@ -3,21 +3,21 @@
 import { useState, useEffect } from "react";
 
 const POOL = [
-  { domain: "datev.de",              label: "DATEV Belegtransfer" },
-  { domain: "xero.com",              label: "Xero"                },
-  { domain: "sevdesk.de",            label: "sevdesk"             },
-  { domain: "quickbooks.com",        label: "QuickBooks"          },
-  { domain: "lexoffice.de",          label: "lexoffice"           },
-  { domain: "sage.com",              label: "Sage"                },
-  { domain: "candis.io",             label: "Candis"              },
-  { domain: "fastbill.com",          label: "FastBill"            },
-  { domain: "billomat.com",          label: "Billomat"            },
-  { domain: "weclapp.com",           label: "weclapp"             },
-  { domain: "easybill.de",           label: "easybill"            },
-  { domain: "getmoss.com",           label: "Moss"                },
-  { domain: "pleo.io",               label: "Pleo"                },
-  { domain: "sumup.com",             label: "SumUp"               },
-  { domain: "buchhaltungsbutler.de", label: "Buchhaltungsbutler"  },
+  { domain: "datev.de", label: "DATEV Belegtransfer" },
+  { domain: "xero.com", label: "Xero" },
+  { domain: "sevdesk.de", label: "sevdesk" },
+  { domain: "quickbooks.com", label: "QuickBooks" },
+  { domain: "lexoffice.de", label: "lexoffice" },
+  { domain: "sage.com", label: "Sage" },
+  { domain: "candis.io", label: "Candis" },
+  { domain: "fastbill.com", label: "FastBill" },
+  { domain: "billomat.com", label: "Billomat" },
+  { domain: "weclapp.com", label: "weclapp" },
+  { domain: "easybill.de", label: "easybill" },
+  { domain: "getmoss.com", label: "Moss" },
+  { domain: "pleo.io", label: "Pleo" },
+  { domain: "sumup.com", label: "SumUp" },
+  { domain: "buchhaltungsbutler.de", label: "Buchhaltungsbutler" },
 ];
 
 const DISPLAY = 7;
@@ -39,7 +39,11 @@ function domainColor(domain: string): string {
 }
 
 function Monogram({ domain, label }: { domain: string; label: string }) {
-  const initials = label.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
+  const initials =
+    label
+      .replace(/[^A-Za-z0-9]/g, "")
+      .slice(0, 2)
+      .toUpperCase() || "?";
   return (
     <span
       className={`flex h-full w-full items-center justify-center rounded-full text-[13px] font-semibold select-none ${domainColor(domain)}`}

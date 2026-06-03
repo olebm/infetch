@@ -19,12 +19,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
+          node-version-file: ".nvmrc"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci
       - name: Run ESLint
         run: npm run lint
+      - name: Check formatting (Prettier)
+        run: npm run format:check
 
   typecheck:
     name: Typecheck
@@ -34,12 +36,12 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
+          node-version-file: ".nvmrc"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci
       - name: Run TypeScript compiler
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
   audit:
     name: Dependency Audit
@@ -49,12 +51,29 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
+          node-version-file: ".nvmrc"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci
       - name: Audit production dependencies (fail on high/critical)
         run: npm audit --omit=dev --audit-level=high
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Production build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
 
   test:
     name: Test
@@ -78,8 +97,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
+          node-version-file: ".nvmrc"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci
       - name: Pre-migration bootstrap (auth.uid + vault stubs for vanilla pg)
@@ -128,8 +147,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
+          node-version-file: ".nvmrc"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci
       - name: Load pre-W5 snapshot (auth/vault stubs + 0001-0018 + orphan invoices)
@@ -224,8 +243,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
+          node-version-file: ".nvmrc"
+          cache: "npm"
       - name: Install dependencies
         run: npm ci
       - name: Install Playwright browsers
@@ -293,4 +312,3 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
-

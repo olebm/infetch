@@ -4,12 +4,14 @@ import { purgeDeadUser, NonEmptyOrgPurgeRefused } from "@/lib/auth/account-teard
 import type { OrganizationRow, UserRow } from "@/lib/auth/session";
 
 function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "user";
+  return (
+    input
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "user"
+  );
 }
 
 export async function findUserByEmail(email: string): Promise<UserRow | null> {

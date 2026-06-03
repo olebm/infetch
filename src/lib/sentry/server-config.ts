@@ -36,8 +36,6 @@ Sentry.init({
 
   // Breadcrumbs deaktivieren — wir brauchen keine Navigate/Click-History
   integrations(integrations) {
-    return integrations.filter(
-      (i) => !["Breadcrumbs", "GlobalHandlers"].includes(i.name),
-    );
+    return integrations.filter((i) => !["Breadcrumbs", "GlobalHandlers"].includes(i.name));
   },
 });

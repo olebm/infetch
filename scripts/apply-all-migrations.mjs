@@ -49,16 +49,20 @@ export function parseArgs(argv) {
     else if (a === "--skip") out.skip.push(argv[++i]);
     else if (a.startsWith("--set=")) out.sets.push(a.slice("--set=".length));
     else if (a === "--set") out.sets.push(argv[++i]);
-    else if (a.startsWith("--snapshot-mode=")) out.snapshotMode = a.slice("--snapshot-mode=".length);
+    else if (a.startsWith("--snapshot-mode="))
+      out.snapshotMode = a.slice("--snapshot-mode=".length);
     else if (a === "--snapshot-mode") out.snapshotMode = argv[++i];
-    else if (a.startsWith("--migrations-dir=")) out.migrationsDir = a.slice("--migrations-dir=".length);
+    else if (a.startsWith("--migrations-dir="))
+      out.migrationsDir = a.slice("--migrations-dir=".length);
     else if (a === "--migrations-dir") out.migrationsDir = argv[++i];
     else if (a.startsWith("postgres://") || a.startsWith("postgresql://")) out.databaseUrl = a;
     else if (a === "--help" || a === "-h") out.help = true;
     else throw new Error(`Unknown argument: ${a}`);
   }
   if (!["ci-fresh", "prod-replay"].includes(out.snapshotMode)) {
-    throw new Error(`Invalid --snapshot-mode: ${out.snapshotMode} (must be ci-fresh or prod-replay)`);
+    throw new Error(
+      `Invalid --snapshot-mode: ${out.snapshotMode} (must be ci-fresh or prod-replay)`,
+    );
   }
   for (const s of out.sets) {
     if (!s.includes("=")) throw new Error(`Invalid --set value (expected key=value): ${s}`);
@@ -201,8 +205,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   const migrationsDir =
-    parsed.migrationsDir ||
-    join(dirname(fileURLToPath(import.meta.url)), "../supabase/migrations");
+    parsed.migrationsDir || join(dirname(fileURLToPath(import.meta.url)), "../supabase/migrations");
 
   const postgres = require("postgres");
   const sql = postgres(url, { prepare: false, max: 1, onnotice: () => {} });

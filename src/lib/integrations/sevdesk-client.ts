@@ -8,7 +8,6 @@
  * Doku: https://api.sevdesk.de/
  */
 
-
 import { withRetry, isRetryableHttpStatus, TransientHttpError } from "@/lib/retry";
 
 const SEVDESK_BASE_URL = "https://my.sevdesk.de/api/v1";
@@ -34,7 +33,11 @@ export type SevdeskVoucherResponse = {
 };
 
 class SevdeskApiError extends Error {
-  constructor(public status: number, message: string, public body?: unknown) {
+  constructor(
+    public status: number,
+    message: string,
+    public body?: unknown,
+  ) {
     super(message);
     this.name = "SevdeskApiError";
   }
@@ -109,7 +112,11 @@ export async function uploadSevdeskTempFile(
   filename: string,
 ): Promise<SevdeskTempFileResponse> {
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }), filename);
+  form.append(
+    "file",
+    new Blob([new Uint8Array(pdfContent)], { type: "application/pdf" }),
+    filename,
+  );
 
   const response = await sevdeskFetch(apiKey, "/Voucher/Factory/uploadTempFile", {
     method: "POST",

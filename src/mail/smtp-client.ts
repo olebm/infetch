@@ -1,5 +1,8 @@
 import nodemailer from "nodemailer";
-import { readCredentialSecret, updateCredentialVerificationStatus } from "@/lib/secrets/credential-store";
+import {
+  readCredentialSecret,
+  updateCredentialVerificationStatus,
+} from "@/lib/secrets/credential-store";
 import { getStoredSmtpAccount } from "@/mail/smtp-settings";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 import { renderSubjectTemplate } from "@/lib/recipients";
@@ -32,7 +35,11 @@ export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<
     throw new Error(`SMTP Postfach "${options.smtpSlot}" ist nicht konfiguriert.`);
   }
 
-  const password = await readCredentialSecret({ scope: "smtp", ownerId: options.smtpSlot, organizationId: options.organizationId });
+  const password = await readCredentialSecret({
+    scope: "smtp",
+    ownerId: options.smtpSlot,
+    organizationId: options.organizationId,
+  });
   if (!password) {
     throw new Error(`Kein Passwort für SMTP Postfach "${options.smtpSlot}" gefunden.`);
   }

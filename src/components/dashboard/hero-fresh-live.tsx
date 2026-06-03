@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  getHeroFreshPulseAction,
-  type HeroFreshPulse,
-} from "@/lib/actions/scan-pulse";
+import { getHeroFreshPulseAction, type HeroFreshPulse } from "@/lib/actions/scan-pulse";
 
 // Client-Island im HeroFresh: zeigt "scannt jetzt"-Puls oder
 // "naechster Scan in X" und pollt alle 5 Sek. Sobald exportedLifetime > 0
@@ -53,11 +50,7 @@ export function HeroFreshLive({ initial }: { initial: HeroFreshPulse }) {
     );
   }
   if (pulse.nextRunSec !== null) {
-    return (
-      <div className="text-xs text-muted">
-        Abruf läuft stündlich automatisch
-      </div>
-    );
+    return <div className="text-xs text-muted">Abruf läuft stündlich automatisch</div>;
   }
   return null;
 }

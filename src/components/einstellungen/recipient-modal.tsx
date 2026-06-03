@@ -1,12 +1,20 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { saveExportTargetAction, type CredentialFormState } from "@/app/(app)/einstellungen/actions";
+import {
+  saveExportTargetAction,
+  type CredentialFormState,
+} from "@/app/(app)/einstellungen/actions";
 import { Modal } from "@/components/ui/modal";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { cn } from "@/lib/utils";
 import { Info, Plus } from "lucide-react";
-import { RECIPIENTS, type Recipient, type TargetSlot, type SmtpAccountOption } from "@/lib/recipients";
+import {
+  RECIPIENTS,
+  type Recipient,
+  type TargetSlot,
+  type SmtpAccountOption,
+} from "@/lib/recipients";
 
 const idle: CredentialFormState = { status: "idle", message: "" };
 
@@ -28,7 +36,13 @@ export function RecipientModal({ open, onClose, smtpOptions = [] }: RecipientMod
   );
 }
 
-function RecipientForm({ onClose, smtpOptions }: { onClose: () => void; smtpOptions: SmtpAccountOption[] }) {
+function RecipientForm({
+  onClose,
+  smtpOptions,
+}: {
+  onClose: () => void;
+  smtpOptions: SmtpAccountOption[];
+}) {
   const [state, formAction, isPending] = useActionState(saveExportTargetAction, idle);
   const [selected, setSelected] = useState<Recipient | null>(null);
   const [email, setEmail] = useState("");
@@ -48,147 +62,167 @@ function RecipientForm({ onClose, smtpOptions }: { onClose: () => void; smtpOpti
   }
 
   return (
-      <form action={formAction} className="space-y-5">
-        <input type="hidden" name="exportTarget" value={slot} />
-        <input type="hidden" name="smtpSlot" value={smtpSlot} />
-        <input type="hidden" name="enabled" value="on" />
-        {/* recipientEmail for fixed-address providers */}
-        {selected && !needsManualEmail && (
-          <input type="hidden" name="recipientEmail" value={email} />
-        )}
+    <form action={formAction} className="space-y-5">
+      <input type="hidden" name="exportTarget" value={slot} />
+      <input type="hidden" name="smtpSlot" value={smtpSlot} />
+      <input type="hidden" name="enabled" value="on" />
+      {/* recipientEmail for fixed-address providers */}
+      {selected && !needsManualEmail && <input type="hidden" name="recipientEmail" value={email} />}
 
-        {/* Provider grid */}
-        <div>
-          <p className="mb-3 text-xs text-muted">
-            Software wählen — bekannte Adressen werden automatisch eingetragen:
-          </p>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {RECIPIENTS.map((r) => {
-              const isActive = selected?.key === r.key;
-              return (
-                <button
-                  key={r.key}
-                  type="button"
-                  onClick={() => pick(r)}
-                  className={cn(
-                    "flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-colors",
-                    isActive
-                      ? "border-brand bg-brand/5"
-                      : "border-line bg-paper hover:border-brand/50 hover:bg-surface",
-                  )}
-                >
-                  {r.domain ? (
-                    <VendorLogo domain={r.domain} name={r.label} size={28} />
-                  ) : (
-                    <div
-                      className="flex shrink-0 items-center justify-center rounded-full font-medium"
-                      style={{ width: 28, height: 28, background: "#dbd8d0", color: "#151a22", fontSize: 12 }}
-                    >
-                      {r.label[0]}
-                    </div>
-                  )}
-                  <span className={cn("text-[11px]", isActive ? "font-medium text-brand" : "text-muted")}>
-                    {r.label}
-                  </span>
-                </button>
-              );
-            })}
-            {/* Custom */}
-            <button
-              type="button"
-              onClick={() => pick({ key: "custom", label: "Eigener", domain: null, email: "", slot: "kontist" })}
-              className={cn(
-                "flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-colors",
-                selected?.key === "custom"
-                  ? "border-brand bg-brand/5"
-                  : "border-dashed border-line bg-paper hover:border-brand/50 hover:bg-surface",
-              )}
-            >
-              <div className="flex h-7 w-7 items-center justify-center rounded border border-line bg-surface text-sm text-muted">
-                +
-              </div>
-              <span className="text-[11px] text-muted">Eigener</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Manual email entry — only shown when provider has no known fixed address */}
-        {needsManualEmail && (
-          <div className="space-y-4">
-            <div>
-              {/* A11Y (INFETCH-104): htmlFor verknüpft Label mit Select */}
-              <label htmlFor="recipient-slot" className="mb-1 block text-xs font-medium text-muted">Empfänger-Platz</label>
-              <select
-                id="recipient-slot"
-                value={slot}
-                onChange={(e) => setSlot(e.target.value as TargetSlot)}
-                className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+      {/* Provider grid */}
+      <div>
+        <p className="mb-3 text-xs text-muted">
+          Software wählen — bekannte Adressen werden automatisch eingetragen:
+        </p>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {RECIPIENTS.map((r) => {
+            const isActive = selected?.key === r.key;
+            return (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => pick(r)}
+                className={cn(
+                  "flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-colors",
+                  isActive
+                    ? "border-brand bg-brand/5"
+                    : "border-line bg-paper hover:border-brand/50 hover:bg-surface",
+                )}
               >
-                <option value="kontist">Primärer Empfänger</option>
-                <option value="accountable">Sekundärer Empfänger</option>
-              </select>
+                {r.domain ? (
+                  <VendorLogo domain={r.domain} name={r.label} size={28} />
+                ) : (
+                  <div
+                    className="flex shrink-0 items-center justify-center rounded-full font-medium"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      background: "#dbd8d0",
+                      color: "#151a22",
+                      fontSize: 12,
+                    }}
+                  >
+                    {r.label[0]}
+                  </div>
+                )}
+                <span
+                  className={cn("text-[11px]", isActive ? "font-medium text-brand" : "text-muted")}
+                >
+                  {r.label}
+                </span>
+              </button>
+            );
+          })}
+          {/* Custom */}
+          <button
+            type="button"
+            onClick={() =>
+              pick({ key: "custom", label: "Eigener", domain: null, email: "", slot: "kontist" })
+            }
+            className={cn(
+              "flex flex-col items-center gap-2 rounded-md border p-3 text-center transition-colors",
+              selected?.key === "custom"
+                ? "border-brand bg-brand/5"
+                : "border-dashed border-line bg-paper hover:border-brand/50 hover:bg-surface",
+            )}
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded border border-line bg-surface text-sm text-muted">
+              +
             </div>
-            <div>
-              <label htmlFor="recipient-email" className="mb-1 block text-xs font-medium text-muted">E-Mail-Adresse</label>
-              <input
-                id="recipient-email"
-                name="recipientEmail"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="buchhaltung@beispiel.de"
-                required
-                autoFocus
-                className="w-full rounded border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
-              />
-              {selected?.hint && (
-                <div className="mt-2 flex items-start gap-2 rounded border border-line bg-surface px-3 py-2 text-xs text-muted">
-                  <Info size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden />
-                  <span>{selected.hint}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+            <span className="text-[11px] text-muted">Eigener</span>
+          </button>
+        </div>
+      </div>
 
-        {smtpOptions.length > 1 && (
+      {/* Manual email entry — only shown when provider has no known fixed address */}
+      {needsManualEmail && (
+        <div className="space-y-4">
           <div>
-            <label htmlFor="recipient-smtp" className="mb-1 block text-xs font-medium text-muted">Absende-Konto</label>
+            {/* A11Y (INFETCH-104): htmlFor verknüpft Label mit Select */}
+            <label htmlFor="recipient-slot" className="mb-1 block text-xs font-medium text-muted">
+              Empfänger-Platz
+            </label>
             <select
-              id="recipient-smtp"
-              value={smtpSlot}
-              onChange={(e) => setSmtpSlot(e.target.value as "primary" | "secondary")}
+              id="recipient-slot"
+              value={slot}
+              onChange={(e) => setSlot(e.target.value as TargetSlot)}
               className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
             >
-              {smtpOptions.map((o, i) => (
-                <option key={o.slot} value={o.slot}>
-                  {o.fromAddress}{i === 0 ? " (Standard)" : ""}
-                </option>
-              ))}
+              <option value="kontist">Primärer Empfänger</option>
+              <option value="accountable">Sekundärer Empfänger</option>
             </select>
-            <p className="mt-1 text-[11px] text-muted">
-              Von dieser Adresse wird an diesen Empfänger gesendet.
-            </p>
           </div>
-        )}
-
-        {state.status === "error" && (
-          <p className="text-xs text-danger">{state.message}</p>
-        )}
-
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="rounded px-4 py-2.5 text-sm text-muted hover:bg-surface">
-            Abbrechen
-          </button>
-          <button
-            type="submit"
-            disabled={isPending || !selected}
-            className={cn("rounded bg-brand px-4 py-2.5 text-sm font-medium text-white", "disabled:cursor-not-allowed disabled:opacity-60")}
-          >
-            {isPending ? "Speichere…" : "Empfänger speichern"}
-          </button>
+          <div>
+            <label htmlFor="recipient-email" className="mb-1 block text-xs font-medium text-muted">
+              E-Mail-Adresse
+            </label>
+            <input
+              id="recipient-email"
+              name="recipientEmail"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="buchhaltung@beispiel.de"
+              required
+              autoFocus
+              className="w-full rounded border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+            />
+            {selected?.hint && (
+              <div className="mt-2 flex items-start gap-2 rounded border border-line bg-surface px-3 py-2 text-xs text-muted">
+                <Info size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+                <span>{selected.hint}</span>
+              </div>
+            )}
+          </div>
         </div>
-      </form>
+      )}
+
+      {smtpOptions.length > 1 && (
+        <div>
+          <label htmlFor="recipient-smtp" className="mb-1 block text-xs font-medium text-muted">
+            Absende-Konto
+          </label>
+          <select
+            id="recipient-smtp"
+            value={smtpSlot}
+            onChange={(e) => setSmtpSlot(e.target.value as "primary" | "secondary")}
+            className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+          >
+            {smtpOptions.map((o, i) => (
+              <option key={o.slot} value={o.slot}>
+                {o.fromAddress}
+                {i === 0 ? " (Standard)" : ""}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-muted">
+            Von dieser Adresse wird an diesen Empfänger gesendet.
+          </p>
+        </div>
+      )}
+
+      {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-4 py-2.5 text-sm text-muted hover:bg-surface"
+        >
+          Abbrechen
+        </button>
+        <button
+          type="submit"
+          disabled={isPending || !selected}
+          className={cn(
+            "rounded bg-brand px-4 py-2.5 text-sm font-medium text-white",
+            "disabled:cursor-not-allowed disabled:opacity-60",
+          )}
+        >
+          {isPending ? "Speichere…" : "Empfänger speichern"}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -258,59 +292,76 @@ function EditRecipientForm({
   }, [state.status, onClose]);
 
   return (
-      <form action={formAction} className="space-y-5">
-        <input type="hidden" name="exportTarget" value={target.target} />
-        <input type="hidden" name="smtpSlot" value={smtpSlot} />
-        <input type="hidden" name="enabled" value="on" />
+    <form action={formAction} className="space-y-5">
+      <input type="hidden" name="exportTarget" value={target.target} />
+      <input type="hidden" name="smtpSlot" value={smtpSlot} />
+      <input type="hidden" name="enabled" value="on" />
 
+      <div>
+        <label htmlFor="edit-recipient-email" className="mb-1 block text-xs font-medium text-muted">
+          E-Mail-Adresse
+        </label>
+        <input
+          id="edit-recipient-email"
+          name="recipientEmail"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="buchhaltung@beispiel.de"
+          required
+          className="w-full rounded border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+        />
+      </div>
+
+      {smtpOptions.length > 1 && (
         <div>
-          <label htmlFor="edit-recipient-email" className="mb-1 block text-xs font-medium text-muted">E-Mail-Adresse</label>
-          <input
-            id="edit-recipient-email"
-            name="recipientEmail"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="buchhaltung@beispiel.de"
-            required
-            className="w-full rounded border border-line bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
-          />
-        </div>
-
-        {smtpOptions.length > 1 && (
-          <div>
-            <label htmlFor="edit-recipient-smtp" className="mb-1 block text-xs font-medium text-muted">Absende-Konto</label>
-            <select
-              id="edit-recipient-smtp"
-              value={smtpSlot}
-              onChange={(e) => setSmtpSlot(e.target.value as "primary" | "secondary")}
-              className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
-            >
-              {smtpOptions.map((o, i) => (
-                <option key={o.slot} value={o.slot}>
-                  {o.fromAddress}{i === 0 ? " (Standard)" : ""}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] text-muted">Von dieser Adresse wird an diesen Empfänger gesendet.</p>
-          </div>
-        )}
-
-        {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
-
-        <div className="flex items-center justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="rounded px-4 py-2.5 text-sm text-muted hover:bg-surface">
-            Abbrechen
-          </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            className={cn("rounded bg-brand px-4 py-2.5 text-sm font-medium text-white", "disabled:cursor-not-allowed disabled:opacity-60")}
+          <label
+            htmlFor="edit-recipient-smtp"
+            className="mb-1 block text-xs font-medium text-muted"
           >
-            {isPending ? "Speichere…" : "Speichern"}
-          </button>
+            Absende-Konto
+          </label>
+          <select
+            id="edit-recipient-smtp"
+            value={smtpSlot}
+            onChange={(e) => setSmtpSlot(e.target.value as "primary" | "secondary")}
+            className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+          >
+            {smtpOptions.map((o, i) => (
+              <option key={o.slot} value={o.slot}>
+                {o.fromAddress}
+                {i === 0 ? " (Standard)" : ""}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-muted">
+            Von dieser Adresse wird an diesen Empfänger gesendet.
+          </p>
         </div>
-      </form>
+      )}
+
+      {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-4 py-2.5 text-sm text-muted hover:bg-surface"
+        >
+          Abbrechen
+        </button>
+        <button
+          type="submit"
+          disabled={isPending}
+          className={cn(
+            "rounded bg-brand px-4 py-2.5 text-sm font-medium text-white",
+            "disabled:cursor-not-allowed disabled:opacity-60",
+          )}
+        >
+          {isPending ? "Speichere…" : "Speichern"}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -331,7 +382,12 @@ export function EditRecipientButton({
       >
         bearbeiten
       </button>
-      <EditRecipientModal open={open} onClose={() => setOpen(false)} target={target} smtpOptions={smtpOptions} />
+      <EditRecipientModal
+        open={open}
+        onClose={() => setOpen(false)}
+        target={target}
+        smtpOptions={smtpOptions}
+      />
     </>
   );
 }

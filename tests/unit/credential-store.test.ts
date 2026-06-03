@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { sql } from "@/lib/db/client";
-import { buildSecretRef, hasConfiguredCredential, maskIdentifier } from "@/lib/secrets/credential-store";
+import {
+  buildSecretRef,
+  hasConfiguredCredential,
+  maskIdentifier,
+} from "@/lib/secrets/credential-store";
 
 // NOTE: hasConfiguredCredential now uses the global postgres sql client.
 // Tests that query credential_refs require a real Postgres connection.

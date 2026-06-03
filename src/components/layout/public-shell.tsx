@@ -6,13 +6,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
  * Minimal shell for public (non-authenticated) pages like legal, changelog, etc.
  * Header: logo → https://infetch.de  ·  Footer: copyright + legal links
  */
-export function PublicShell({
-  title,
-  children,
-}: {
-  title: string;
-  children?: React.ReactNode;
-}) {
+export function PublicShell({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-surface">
       {/* ── Header ────────────────────────────────────────────────────────── */}
@@ -33,12 +27,12 @@ export function PublicShell({
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-[900px] flex-1 px-6 py-16">
-        <h1 className="font-display text-4xl text-ink [hyphens:auto]" lang="de">{title}</h1>
+        <h1 className="font-display text-4xl text-ink [hyphens:auto]" lang="de">
+          {title}
+        </h1>
         {children && <div className="legal-prose mt-10 text-muted">{children}</div>}
         {!children && (
-          <p className="mt-10 text-muted">
-            Dieser Inhalt wird in Kürze veröffentlicht.
-          </p>
+          <p className="mt-10 text-muted">Dieser Inhalt wird in Kürze veröffentlicht.</p>
         )}
       </main>
 

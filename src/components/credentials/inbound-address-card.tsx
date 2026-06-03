@@ -61,9 +61,15 @@ export function InboundAddressCard({ address, receivedCount, lastReceivedAt }: P
           aria-label="Adresse kopieren"
         >
           {copied ? (
-            <><Check className="h-3.5 w-3.5 text-ok" aria-hidden />kopiert</>
+            <>
+              <Check className="h-3.5 w-3.5 text-ok" aria-hidden />
+              kopiert
+            </>
           ) : (
-            <><Copy className="h-3.5 w-3.5" aria-hidden />kopieren</>
+            <>
+              <Copy className="h-3.5 w-3.5" aria-hidden />
+              kopieren
+            </>
           )}
         </button>
       </div>

@@ -20,7 +20,11 @@ export function FetchNowButton({ vendorKey }: { vendorKey: string }) {
         disabled={isPending}
         className="inline-flex items-center gap-1.5 rounded border border-line bg-white px-3 py-2 text-xs font-medium text-ink hover:border-brand/40 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RotateCw className="h-3.5 w-3.5" aria-hidden />}
+        {isPending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        ) : (
+          <RotateCw className="h-3.5 w-3.5" aria-hidden />
+        )}
         {isPending ? "Hole..." : "Jetzt prüfen"}
       </button>
       {state.status !== "idle" && (
@@ -37,7 +41,9 @@ export function RemoveAccountButton({ vendorKey, name }: { vendorKey: string; na
     <form
       action={removeOnlineAccountAction}
       onSubmit={(e) => {
-        if (!confirm(`${name} wirklich entfernen? Wir vergessen Login, Recipe und Browser-Sitzung.`)) {
+        if (
+          !confirm(`${name} wirklich entfernen? Wir vergessen Login, Recipe und Browser-Sitzung.`)
+        ) {
           e.preventDefault();
         }
       }}

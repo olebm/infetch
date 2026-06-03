@@ -52,13 +52,11 @@ async function seedOrg(orgId: string, userId: string) {
   `;
 }
 
-async function seedSuccessfulInvoicesForOrg(
-  orgId: string,
-  vendorId: number,
-  count: number,
-) {
-  const inserts = Array.from({ length: count }, (_, i) =>
-    sql`
+async function seedSuccessfulInvoicesForOrg(orgId: string, vendorId: number, count: number) {
+  const inserts = Array.from(
+    { length: count },
+    (_, i) =>
+      sql`
       INSERT INTO invoices (organization_id, vendor_id, source, status, invoice_number, amount_gross)
       VALUES (${orgId}, ${vendorId}, 'manual', 'exported', ${`${orgId}-inv-${i}`}, ${10 + i})
     `,

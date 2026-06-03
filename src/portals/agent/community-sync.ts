@@ -85,7 +85,12 @@ export async function syncCommunityRecipes(options: { force?: boolean } = {}): P
       }
 
       // Community-Recipe vorhanden — nur sync wenn remote-Version neuer
-      if (local && local.recordedBy === "community" && local.version >= entry.version && !options.force) {
+      if (
+        local &&
+        local.recordedBy === "community" &&
+        local.version >= entry.version &&
+        !options.force
+      ) {
         result.skipped += 1;
         continue;
       }
@@ -124,7 +129,9 @@ export async function getCommunityRecipeStats(): Promise<{
  * Der User submittet manuell — wir oeffnen nur die Vorlage.
  */
 export function buildShareRecipeUrl(vendorKey: string, recipeJson: string): string {
-  const repoEditUrl = process.env.INVOICE_AGENT_RECIPE_REPO_EDIT_URL || "https://github.com/invoice-agent/invoice-agent-recipes/new/main";
+  const repoEditUrl =
+    process.env.INVOICE_AGENT_RECIPE_REPO_EDIT_URL ||
+    "https://github.com/invoice-agent/invoice-agent-recipes/new/main";
   const filename = `recipes/${vendorKey}.json`;
   const body = encodeURIComponent(recipeJson);
   return `${repoEditUrl}?filename=${encodeURIComponent(filename)}&value=${body}`;

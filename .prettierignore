@@ -1,0 +1,22 @@
+# Dependencies & build output
+node_modules
+.next
+coverage
+playwright-report
+test-results
+
+# Generated / vendored — never hand-edited
+next-env.d.ts
+public/pdf.worker.min.mjs
+package-lock.json
+
+# Data, DB dumps, SQL fixtures/migrations (Prettier has no SQL parser anyway)
+data
+*.dump
+supabase/migrations
+tests/fixtures
+
+# Long-form hand-authored docs are prose, not code — deliberately NOT gated by
+# Prettier so the one-time normalize stays focused on code/config. See
+# docs/adr/0000-stufe-und-gates.md ("Bewusst draußen").
+*.md

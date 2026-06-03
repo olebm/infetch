@@ -62,7 +62,8 @@ const nextActionTool = {
             },
             element_id: {
               type: "string",
-              description: "Element ID from the accessibility tree (e.g. 'el-12'). Required for click and fill.",
+              description:
+                "Element ID from the accessibility tree (e.g. 'el-12'). Required for click and fill.",
             },
             value: {
               type: "string",
@@ -79,7 +80,8 @@ const nextActionTool = {
             },
             reason: {
               type: "string",
-              description: "For 'done' or 'needs_vision': why the agent stopped or needs vision fallback.",
+              description:
+                "For 'done' or 'needs_vision': why the agent stopped or needs vision fallback.",
             },
           },
           required: ["type"],
@@ -175,7 +177,8 @@ function normalizeDecision(raw: unknown): AgentDecision | null {
       if (typeof actionRaw.element_id !== "string") return null;
       return { reasoning, action: { type: "click", elementId: actionRaw.element_id } };
     case "fill":
-      if (typeof actionRaw.element_id !== "string" || typeof actionRaw.value !== "string") return null;
+      if (typeof actionRaw.element_id !== "string" || typeof actionRaw.value !== "string")
+        return null;
       return {
         reasoning,
         action: { type: "fill", elementId: actionRaw.element_id, value: actionRaw.value },
@@ -186,17 +189,26 @@ function normalizeDecision(raw: unknown): AgentDecision | null {
     case "wait":
       return {
         reasoning,
-        action: { type: "wait", timeoutMs: typeof actionRaw.timeout_ms === "number" ? actionRaw.timeout_ms : undefined },
+        action: {
+          type: "wait",
+          timeoutMs: typeof actionRaw.timeout_ms === "number" ? actionRaw.timeout_ms : undefined,
+        },
       };
     case "done":
       return {
         reasoning,
-        action: { type: "done", reason: typeof actionRaw.reason === "string" ? actionRaw.reason : "" },
+        action: {
+          type: "done",
+          reason: typeof actionRaw.reason === "string" ? actionRaw.reason : "",
+        },
       };
     case "needs_vision":
       return {
         reasoning,
-        action: { type: "needs_vision", reason: typeof actionRaw.reason === "string" ? actionRaw.reason : "" },
+        action: {
+          type: "needs_vision",
+          reason: typeof actionRaw.reason === "string" ? actionRaw.reason : "",
+        },
       };
     default:
       return null;
@@ -209,7 +221,10 @@ const PRICE_PER_M_TOKENS_CENT: Record<string, { input: number; output: number }>
   "mistral-large-latest": { input: 200, output: 600 },
 };
 
-export function calculateCostCents(usage: { inputTokens: number; outputTokens: number }, model: string): number {
+export function calculateCostCents(
+  usage: { inputTokens: number; outputTokens: number },
+  model: string,
+): number {
   const price = PRICE_PER_M_TOKENS_CENT[model] ?? PRICE_PER_M_TOKENS_CENT[PRIMARY_MODEL];
   const inputCents = (usage.inputTokens / 1_000_000) * price.input;
   const outputCents = (usage.outputTokens / 1_000_000) * price.output;

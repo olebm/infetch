@@ -49,9 +49,9 @@ describe("isLocalExtractionSufficient", () => {
 
   // Plausibilität: implausibel Erfasstes nie lokal durchwinken (KI muss greifen).
   it("returns false when currency is missing", () => {
-    expect(
-      isLocalExtractionSufficient(0.9, { ...fullParsed, currency: null }, clean, 0.96),
-    ).toBe(false);
+    expect(isLocalExtractionSufficient(0.9, { ...fullParsed, currency: null }, clean, 0.96)).toBe(
+      false,
+    );
   });
 
   it("returns false when the amount is implausibly large (> 1 Mio)", () => {

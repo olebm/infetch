@@ -2,7 +2,11 @@ export type VendorSeed = {
   canonicalKey: string;
   name: string;
   category: "hosting" | "ai" | "saas" | "energy" | "hardware" | "telecom";
-  aliases: Array<{ alias: string; matchType?: "exact" | "contains" | "domain" | "regex"; priority?: number }>;
+  aliases: Array<{
+    alias: string;
+    matchType?: "exact" | "contains" | "domain" | "regex";
+    priority?: number;
+  }>;
 };
 
 // PortalDefinition entfernt — Online-Konten werden vom User manuell hinzugefuegt
@@ -70,7 +74,11 @@ export const vendorSeeds: VendorSeed[] = [
     canonicalKey: "enbw",
     name: "EnBW",
     category: "energy",
-    aliases: [{ alias: "enbw" }, { alias: "EnBW mobility+" }, { alias: "EnBW Energie Baden-Wuerttemberg" }],
+    aliases: [
+      { alias: "enbw" },
+      { alias: "EnBW mobility+" },
+      { alias: "EnBW Energie Baden-Wuerttemberg" },
+    ],
   },
   {
     canonicalKey: "mistral",

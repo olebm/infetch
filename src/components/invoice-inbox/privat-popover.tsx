@@ -9,13 +9,7 @@ import {
 
 // ─── "privat" hover button + popover (non-private rows) ───────────────────────
 
-export function PrivatButton({
-  invoiceId,
-  domain,
-}: {
-  invoiceId: number;
-  domain: string | null;
-}) {
+export function PrivatButton({ invoiceId, domain }: { invoiceId: number; domain: string | null }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
@@ -84,7 +78,10 @@ export function PrivatButton({
           <div
             className="fixed inset-0 z-10"
             aria-hidden
-            onClick={(e) => { e.stopPropagation(); closeMenu(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              closeMenu();
+            }}
           />
           {/* A11Y (INFETCH-102): role="menu" + Escape-Taste + Fokus-Rückgabe */}
           <div
@@ -92,10 +89,17 @@ export function PrivatButton({
             id={`privat-menu-${invoiceId}`}
             role="menu"
             aria-label="Als privat markieren"
-            onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); closeMenu(); } }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                closeMenu();
+              }
+            }}
             className="absolute right-0 top-full z-20 mt-1.5 w-64 overflow-hidden rounded-md border border-line bg-white shadow-pop text-left"
           >
-            <div className="px-3 pb-2 pt-3 text-[11px] text-muted" aria-hidden>Als privat markieren</div>
+            <div className="px-3 pb-2 pt-3 text-[11px] text-muted" aria-hidden>
+              Als privat markieren
+            </div>
             <button
               type="button"
               role="menuitem"
@@ -113,8 +117,7 @@ export function PrivatButton({
                 className="w-full border-t border-line px-3 py-2.5 text-left transition-colors hover:bg-line/40 focus-visible:bg-line/40 focus-visible:outline-none"
               >
                 <div className="text-sm text-ink">
-                  Alle künftigen von{" "}
-                  <span className="stat-num">{domain}</span>
+                  Alle künftigen von <span className="stat-num">{domain}</span>
                 </div>
                 <div className="mt-0.5 text-[11px] text-muted">
                   Anbieter wird ignoriert. Rückgängig in Einstellungen.
@@ -124,7 +127,10 @@ export function PrivatButton({
             <button
               type="button"
               role="menuitem"
-              onClick={(e) => { e.stopPropagation(); closeMenu(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeMenu();
+              }}
               className="w-full border-t border-line px-3 py-2 text-left text-[11px] text-muted hover:text-ink focus-visible:bg-line/40 focus-visible:outline-none"
             >
               Abbrechen

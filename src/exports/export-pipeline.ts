@@ -52,11 +52,12 @@ export async function enqueueReadyInvoices(): Promise<number> {
 }
 
 export async function dispatchPendingExports(): Promise<DispatchResult> {
-  return withAdvisoryLock(
-    "export_dispatch",
-    dispatchPendingExportsImpl,
-    () => ({ enqueued: 0, sent: 0, failed: 0, total: 0 }),
-  );
+  return withAdvisoryLock("export_dispatch", dispatchPendingExportsImpl, () => ({
+    enqueued: 0,
+    sent: 0,
+    failed: 0,
+    total: 0,
+  }));
 }
 
 async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
@@ -202,7 +203,9 @@ export async function saveExportTarget(
   `;
 }
 
-export async function getExportStats(): Promise<Array<{ targetLabel: string; status: string; count: number }>> {
+export async function getExportStats(): Promise<
+  Array<{ targetLabel: string; status: string; count: number }>
+> {
   const rows = await sql<Array<{ targetLabel: string; status: string; count: string }>>`
     SELECT export_targets.label AS "targetLabel", exports.status, COUNT(*) AS count
     FROM exports

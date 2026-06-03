@@ -27,7 +27,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const auth = req.headers.get("authorization") ?? "";
     const expected = `Bearer ${cronSecret}`;
     const authHash = crypto.createHash("sha256").update(auth).digest();
-    const expHash  = crypto.createHash("sha256").update(expected).digest();
+    const expHash = crypto.createHash("sha256").update(expected).digest();
     if (!crypto.timingSafeEqual(authHash, expHash)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -36,7 +36,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   // Optional: Monat aus Body überschreiben (für manuelle Test-Trigger)
   let overrideMonth: string | undefined;
   try {
-    const body = await req.json().catch(() => ({})) as { month?: string };
+    const body = (await req.json().catch(() => ({}))) as { month?: string };
     if (body?.month && /^\d{4}-\d{2}$/.test(body.month)) {
       overrideMonth = body.month;
     }

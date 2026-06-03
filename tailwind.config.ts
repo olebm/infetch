@@ -10,27 +10,27 @@ const config: Config = {
     extend: {
       colors: {
         surface: "#fbfaf7",
-        paper:   "#ffffff",
-        ink:     "#1a1a1a",
-        muted:   "#696965",
-        line:    "#e8e6e0",
+        paper: "#ffffff",
+        ink: "#1a1a1a",
+        muted: "#696965",
+        line: "#e8e6e0",
         brand: {
           DEFAULT: "#151a22",
-          soft:    "#eeece6",
-          deep:    "#000000",
+          soft: "#eeece6",
+          deep: "#000000",
         },
         warn: {
           DEFAULT: "#7a5c14",
-          vivid:   "#e8a200",   // kräftiges Gelb für Dots / Status-Indikatoren
-          soft:    "#f5efe1",
+          vivid: "#e8a200", // kräftiges Gelb für Dots / Status-Indikatoren
+          soft: "#f5efe1",
         },
         danger: {
           DEFAULT: "#8a2a1d",
-          soft:    "#f1e3e0",
+          soft: "#f1e3e0",
         },
         ok: {
           DEFAULT: "#3d6948",
-          soft:    "#e6ede7",
+          soft: "#e6ede7",
         },
       },
       boxShadow: {
@@ -49,9 +49,28 @@ const config: Config = {
         "3xl": ["30px", { lineHeight: "38px", letterSpacing: "-0.025em" }],
       },
       fontFamily: {
-        sans:    ['"Söhne"', "var(--font-geist)", "ui-sans-serif", "system-ui", "-apple-system", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
-        serif:   ['"Instrument Serif"', "ui-serif", "Georgia", '"Times New Roman"', "serif"],
-        mono:    ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", '"SF Mono"', "Menlo", "Consolas", "monospace"],
+        sans: [
+          '"Söhne"',
+          "var(--font-geist)",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          '"Segoe UI"',
+          "Roboto",
+          '"Helvetica Neue"',
+          "Arial",
+          "sans-serif",
+        ],
+        serif: ['"Instrument Serif"', "ui-serif", "Georgia", '"Times New Roman"', "serif"],
+        mono: [
+          "var(--font-geist-mono)",
+          "ui-monospace",
+          "SFMono-Regular",
+          '"SF Mono"',
+          "Menlo",
+          "Consolas",
+          "monospace",
+        ],
         display: ['"Söhne"', "var(--font-geist)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       keyframes: {

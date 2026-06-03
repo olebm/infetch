@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "@/lib/db/client";
-import { deleteDbSecret, isDbStoreAvailable, readDbSecret, writeDbSecret } from "@/lib/secrets/encrypted-db-store";
+import {
+  deleteDbSecret,
+  isDbStoreAvailable,
+  readDbSecret,
+  writeDbSecret,
+} from "@/lib/secrets/encrypted-db-store";
 
 // NOTE: These tests exercise the Supabase Vault implementation of encrypted-db-store.
 // The implementation delegates all encryption to vault.create_secret / vault.decrypted_secrets.
@@ -25,8 +30,12 @@ describe("isDbStoreAvailable", () => {
 // ─── Round-trip write / read ──────────────────────────────────────────────────
 
 describe("writeDbSecret / readDbSecret", () => {
-  beforeEach(async () => { await cleanupTestSecrets(); });
-  afterEach(async ()  => { await cleanupTestSecrets(); });
+  beforeEach(async () => {
+    await cleanupTestSecrets();
+  });
+  afterEach(async () => {
+    await cleanupTestSecrets();
+  });
 
   it("stores and retrieves a secret", async () => {
     await writeDbSecret(`${TEST_PREFIX}1`, "super-secret");
@@ -53,8 +62,12 @@ describe("writeDbSecret / readDbSecret", () => {
 // ─── deleteDbSecret ───────────────────────────────────────────────────────────
 
 describe("deleteDbSecret", () => {
-  beforeEach(async () => { await cleanupTestSecrets(); });
-  afterEach(async ()  => { await cleanupTestSecrets(); });
+  beforeEach(async () => {
+    await cleanupTestSecrets();
+  });
+  afterEach(async () => {
+    await cleanupTestSecrets();
+  });
 
   it("removes an existing entry", async () => {
     await writeDbSecret(`${TEST_PREFIX}del:1`, "secret");

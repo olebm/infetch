@@ -30,10 +30,7 @@ export function isDbStoreAvailable(): boolean {
  * Speichert `secret` in Supabase Vault unter dem Schlüssel `secretRef`.
  * Überschreibt einen vorhandenen Eintrag (DELETE then CREATE — Vault hat kein natives Upsert).
  */
-export async function writeDbSecret(
-  secretRef: string,
-  secret: string,
-): Promise<void> {
+export async function writeDbSecret(secretRef: string, secret: string): Promise<void> {
   // Alten Eintrag entfernen (kein Fehler wenn nicht vorhanden)
   await sql`DELETE FROM vault.secrets WHERE name = ${secretRef}`;
   // Neu anlegen — Vault verschlüsselt mit dem projekteigenen pgsodium-Key
@@ -44,9 +41,7 @@ export async function writeDbSecret(
  * Liest und entschlüsselt einen Secret aus Supabase Vault.
  * Gibt null zurück wenn kein Eintrag unter `secretRef` vorhanden ist.
  */
-export async function readDbSecret(
-  secretRef: string,
-): Promise<string | null> {
+export async function readDbSecret(secretRef: string): Promise<string | null> {
   const rows = await sql<{ decryptedSecret: string }[]>`
     SELECT decrypted_secret AS "decryptedSecret"
     FROM vault.decrypted_secrets
@@ -59,8 +54,6 @@ export async function readDbSecret(
 /**
  * Löscht einen Secret aus Supabase Vault. Kein Fehler wenn nicht vorhanden.
  */
-export async function deleteDbSecret(
-  secretRef: string,
-): Promise<void> {
+export async function deleteDbSecret(secretRef: string): Promise<void> {
   await sql`DELETE FROM vault.secrets WHERE name = ${secretRef}`;
 }

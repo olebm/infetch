@@ -11,9 +11,18 @@ import {
   type ConfiguredImapAccount,
   type PrimaryImapAccount,
 } from "@/mail/imap-client";
-import { imapCredentialOwnerIdForLabel, type ImapCredentialOwnerId, type ImapMailAccountLabel } from "@/mail/imap-account-slots";
+import {
+  imapCredentialOwnerIdForLabel,
+  type ImapCredentialOwnerId,
+  type ImapMailAccountLabel,
+} from "@/mail/imap-account-slots";
 import { extractPdfAttachments, bodyStructureHasPdf } from "@/mail/attachment-extractor";
-import { autoAssignSenders, isSenderAutoIgnored, isSenderBlocked, recordSenderObservation } from "@/senders/discovered-senders";
+import {
+  autoAssignSenders,
+  isSenderAutoIgnored,
+  isSenderBlocked,
+  recordSenderObservation,
+} from "@/senders/discovered-senders";
 import { rematchUnmatchedInvoices } from "@/vendors/auto-alias";
 import { matchVendor } from "@/vendors/matcher";
 
@@ -35,7 +44,8 @@ export type ImapScanResult = {
 
 function asConfiguredAccount(account: PrimaryImapAccount): ConfiguredImapAccount {
   const label = (account.label || "Primary IMAP") as ImapMailAccountLabel;
-  const credentialOwnerId = (imapCredentialOwnerIdForLabel(label) || "primary") as ImapCredentialOwnerId;
+  const credentialOwnerId = (imapCredentialOwnerIdForLabel(label) ||
+    "primary") as ImapCredentialOwnerId;
   return { ...account, label, credentialOwnerId };
 }
 
@@ -55,9 +65,7 @@ type RunPrimaryImapScanInput = {
   triggeredBy?: string;
 };
 
-export async function runPrimaryImapScan(
-  input?: RunPrimaryImapScanInput,
-): Promise<ImapScanResult> {
+export async function runPrimaryImapScan(input?: RunPrimaryImapScanInput): Promise<ImapScanResult> {
   // Cross-Prozess-Single-Runner, jetzt PER ORG: verschiedene Orgs scannen
   // parallel (eigener Lock-Key), ein zweiter Trigger DERSELBEN Org skippt.
   // So blockiert ein langsamer Scan einer Org nicht das Onboarding einer
@@ -80,9 +88,7 @@ export async function runPrimaryImapScan(
   );
 }
 
-async function runPrimaryImapScanImpl(
-  input?: RunPrimaryImapScanInput,
-): Promise<ImapScanResult> {
+async function runPrimaryImapScanImpl(input?: RunPrimaryImapScanInput): Promise<ImapScanResult> {
   // sync_runs.triggered_by CHECK erlaubt nur 'user' | 'schedule' | 'system'.
   // Default 'user' (manueller/onboarding Scan); der Auto-Pilot übergibt explizit
   // 'schedule'. Der retroaktive Backscan (bypassQuota) lief vorher als
@@ -115,8 +121,8 @@ async function runPrimaryImapScanImpl(
     let accounts: ConfiguredImapAccount[] = useInjectedAccountClients
       ? input!.accountClients!.map(({ account }) => asConfiguredAccount(account))
       : useInjectedClient
-      ? [asConfiguredAccount(input!.account!)]
-      : await listConfiguredImapAccounts(input?.limitToOrgId);
+        ? [asConfiguredAccount(input!.account!)]
+        : await listConfiguredImapAccounts(input?.limitToOrgId);
 
     // Safety-net: secondary JS filter in case any row slipped through
     // (e.g. the DB-level filter was skipped due to null limitToOrgId).
@@ -139,7 +145,8 @@ async function runPrimaryImapScanImpl(
 
     const scanOne = async (account: ConfiguredImapAccount) => {
       const client = useInjectedAccountClients
-        ? (input!.accountClients!.find((entry) => entry.account.id === account.id)?.client as ImapClientLike)
+        ? (input!.accountClients!.find((entry) => entry.account.id === account.id)
+            ?.client as ImapClientLike)
         : useInjectedClient && input?.client
           ? input.client
           : (await createImapClientForAccount(account)).client;
@@ -183,7 +190,15 @@ async function runPrimaryImapScanImpl(
               { uid: true, envelope: true, source: true },
               { uid: true },
             )) {
-              await processMessage(account.id, account.organizationId ?? null, uidValidity, message, summary, bypassQuota, quotaSignal);
+              await processMessage(
+                account.id,
+                account.organizationId ?? null,
+                uidValidity,
+                message,
+                summary,
+                bypassQuota,
+                quotaSignal,
+              );
               if (quotaSignal.hit) break;
             }
           }
@@ -345,7 +360,10 @@ async function processMessage(
         blockedSkip: true,
       });
     }
-    await markMailMessage(mailMessageId, senderAutoIgnored ? "auto_ignored_sender" : "blocked_sender");
+    await markMailMessage(
+      mailMessageId,
+      senderAutoIgnored ? "auto_ignored_sender" : "blocked_sender",
+    );
     return;
   }
 
@@ -452,12 +470,15 @@ async function upsertMailMessage(input: {
  * (auto-alias/suggestions) über invoice_files → mail_messages benötigt.
  * COALESCE schützt bereits gesetzte Werte (idempotent bei Re-Scan).
  */
-async function attachInvoiceMailMetadata(id: number, input: {
-  messageId: string | null;
-  fromAddress: string | null;
-  subject: string | null;
-  date: string | null;
-}): Promise<void> {
+async function attachInvoiceMailMetadata(
+  id: number,
+  input: {
+    messageId: string | null;
+    fromAddress: string | null;
+    subject: string | null;
+    date: string | null;
+  },
+): Promise<void> {
   await sql`
     UPDATE mail_messages
     SET message_id   = COALESCE(message_id, ${input.messageId}),

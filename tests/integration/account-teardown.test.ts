@@ -241,19 +241,45 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
     expect(await count(sql`SELECT COUNT(*) c FROM users WHERE id = ${USER}`)).toBe(0);
     expect(await count(sql`SELECT COUNT(*) c FROM organizations WHERE id = ${ORG}`)).toBe(0);
     expect(await count(sql`SELECT COUNT(*) c FROM org_members WHERE user_id = ${USER}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM invoices WHERE organization_id = ${ORG}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM invoice_files WHERE invoice_id = ${invoiceId}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM ai_extractions WHERE invoice_id = ${invoiceId}`)).toBe(0);
+    expect(await count(sql`SELECT COUNT(*) c FROM invoices WHERE organization_id = ${ORG}`)).toBe(
+      0,
+    );
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM invoice_files WHERE invoice_id = ${invoiceId}`),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM ai_extractions WHERE invoice_id = ${invoiceId}`),
+    ).toBe(0);
     expect(await count(sql`SELECT COUNT(*) c FROM exports WHERE organization_id = ${ORG}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM export_targets WHERE organization_id = ${ORG}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM mail_accounts WHERE organization_id = ${ORG}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM mail_messages WHERE mail_account_id = ${acctId}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM credential_refs WHERE secret_ref = ${SECRET_REF}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM usage_events WHERE organization_id = ${ORG}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM mail_inbound_addresses WHERE id = ${INBOUND_ID}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM discovered_senders WHERE from_address = ${SENDER_ADDR}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM vendor_month_status WHERE vendor_id = ${orgVendorId}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM vendor_aliases WHERE vendor_id = ${orgVendorId}`)).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM export_targets WHERE organization_id = ${ORG}`),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM mail_accounts WHERE organization_id = ${ORG}`),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM mail_messages WHERE mail_account_id = ${acctId}`),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM credential_refs WHERE secret_ref = ${SECRET_REF}`),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM usage_events WHERE organization_id = ${ORG}`),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM mail_inbound_addresses WHERE id = ${INBOUND_ID}`),
+    ).toBe(0);
+    expect(
+      await count(
+        sql`SELECT COUNT(*) c FROM discovered_senders WHERE from_address = ${SENDER_ADDR}`,
+      ),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM vendor_month_status WHERE vendor_id = ${orgVendorId}`),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM vendor_aliases WHERE vendor_id = ${orgVendorId}`),
+    ).toBe(0);
     expect(await count(sql`SELECT COUNT(*) c FROM vendors WHERE id = ${orgVendorId}`)).toBe(0);
   });
 
@@ -261,18 +287,38 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
     await hardDeleteAccount(USER, ORG);
 
     // Verschlüsseltes Passwort für die gelöschte Org → weg.
-    expect(await count(sql`SELECT COUNT(*) c FROM encrypted_secrets WHERE secret_ref = ${SECRET_REF}`)).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM encrypted_secrets WHERE secret_ref = ${SECRET_REF}`),
+    ).toBe(0);
     // Ein fremder Ciphertext (nicht der Org zugeordnet) muss BLEIBEN —
     // wir löschen nur die secret_refs der gelöschten Org.
-    expect(await count(sql`SELECT COUNT(*) c FROM encrypted_secrets WHERE secret_ref = ${SECRET_REF_ORPHAN}`)).toBe(1);
+    expect(
+      await count(
+        sql`SELECT COUNT(*) c FROM encrypted_secrets WHERE secret_ref = ${SECRET_REF_ORPHAN}`,
+      ),
+    ).toBe(1);
 
     // Portal-Spuren des org-eigenen Vendors → weg.
-    expect(await count(sql`SELECT COUNT(*) c FROM portal_browser_sessions WHERE vendor_key = ${ORG_VENDOR_KEY}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM portal_run_logs WHERE vendor_key = ${ORG_VENDOR_KEY}`)).toBe(0);
+    expect(
+      await count(
+        sql`SELECT COUNT(*) c FROM portal_browser_sessions WHERE vendor_key = ${ORG_VENDOR_KEY}`,
+      ),
+    ).toBe(0);
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM portal_run_logs WHERE vendor_key = ${ORG_VENDOR_KEY}`),
+    ).toBe(0);
 
     // Portal-Spuren des globalen Vendors → bleiben.
-    expect(await count(sql`SELECT COUNT(*) c FROM portal_browser_sessions WHERE vendor_key = ${GLOBAL_VENDOR_KEY}`)).toBe(1);
-    expect(await count(sql`SELECT COUNT(*) c FROM portal_run_logs WHERE vendor_key = ${GLOBAL_VENDOR_KEY}`)).toBe(1);
+    expect(
+      await count(
+        sql`SELECT COUNT(*) c FROM portal_browser_sessions WHERE vendor_key = ${GLOBAL_VENDOR_KEY}`,
+      ),
+    ).toBe(1);
+    expect(
+      await count(
+        sql`SELECT COUNT(*) c FROM portal_run_logs WHERE vendor_key = ${GLOBAL_VENDOR_KEY}`,
+      ),
+    ).toBe(1);
   });
 
   it("hardDeleteOrgData leaves global vendor and a foreign tenant untouched", async () => {
@@ -311,9 +357,9 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
       "vendor_month_status",
       "invoice_files",
       "auto_approval_rules",
-      "portal_recipes",   // org_id seit 0025+ — org-direkter Cleanup
-      "portal_run_logs",  // org_id seit 0025+ — zusätzlich zum vendor_key-Pfad
-      "sync_runs",        // org_id seit 0030 — Scan-Runs pro Org
+      "portal_recipes", // org_id seit 0025+ — org-direkter Cleanup
+      "portal_run_logs", // org_id seit 0025+ — zusätzlich zum vendor_key-Pfad
+      "sync_runs", // org_id seit 0030 — Scan-Runs pro Org
     ]);
 
     const rows = await sql<{ tableName: string }[]>`
@@ -338,8 +384,12 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
     // Guard greift VOR jeder Transaktion → alles muss noch da sein.
     expect(await count(sql`SELECT COUNT(*) c FROM users WHERE id = ${USER}`)).toBe(1);
     expect(await count(sql`SELECT COUNT(*) c FROM organizations WHERE id = ${ORG}`)).toBe(1);
-    expect(await count(sql`SELECT COUNT(*) c FROM invoices WHERE organization_id = ${ORG}`)).toBe(1);
-    expect(await count(sql`SELECT COUNT(*) c FROM mail_accounts WHERE organization_id = ${ORG}`)).toBe(1);
+    expect(await count(sql`SELECT COUNT(*) c FROM invoices WHERE organization_id = ${ORG}`)).toBe(
+      1,
+    );
+    expect(
+      await count(sql`SELECT COUNT(*) c FROM mail_accounts WHERE organization_id = ${ORG}`),
+    ).toBe(1);
   });
 
   it("purgeDeadUser purges a truly empty leftover", async () => {
@@ -347,6 +397,8 @@ describe.skipIf(!hasDb)("account teardown — hard delete", () => {
 
     expect(await count(sql`SELECT COUNT(*) c FROM users WHERE id = ${EMPTY_USER}`)).toBe(0);
     expect(await count(sql`SELECT COUNT(*) c FROM organizations WHERE id = ${EMPTY_ORG}`)).toBe(0);
-    expect(await count(sql`SELECT COUNT(*) c FROM org_members WHERE user_id = ${EMPTY_USER}`)).toBe(0);
+    expect(await count(sql`SELECT COUNT(*) c FROM org_members WHERE user_id = ${EMPTY_USER}`)).toBe(
+      0,
+    );
   });
 });

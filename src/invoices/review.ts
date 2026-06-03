@@ -1,7 +1,15 @@
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { recordSyncEvent } from "@/lib/db/events";
 
-const reviewStatuses = ["new", "needs_review", "ready", "ignored", "duplicate", "exported", "failed"] as const;
+const reviewStatuses = [
+  "new",
+  "needs_review",
+  "ready",
+  "ignored",
+  "duplicate",
+  "exported",
+  "failed",
+] as const;
 
 export type ReviewStatus = (typeof reviewStatuses)[number];
 
@@ -28,7 +36,9 @@ export async function updateInvoiceReview(input: InvoiceReviewInput): Promise<vo
   if (!input.organizationId) {
     throw new Error("Keine Organisation zugeordnet.");
   }
-  const currentRows = await sql<{ id: number; vendorId: number | null; invoiceDate: string | null; status: string }[]>`
+  const currentRows = await sql<
+    { id: number; vendorId: number | null; invoiceDate: string | null; status: string }[]
+  >`
     SELECT id, vendor_id AS "vendorId", invoice_date AS "invoiceDate", status
     FROM invoices
     WHERE id = ${input.invoiceId}
@@ -48,7 +58,11 @@ export async function updateInvoiceReview(input: InvoiceReviewInput): Promise<vo
   assertOptionalDate(input.servicePeriodStart, "Leistungszeitraum Start");
   assertOptionalDate(input.servicePeriodEnd, "Leistungszeitraum Ende");
 
-  if (input.servicePeriodStart && input.servicePeriodEnd && input.servicePeriodEnd < input.servicePeriodStart) {
+  if (
+    input.servicePeriodStart &&
+    input.servicePeriodEnd &&
+    input.servicePeriodEnd < input.servicePeriodStart
+  ) {
     throw new Error("Leistungszeitraum Ende darf nicht vor dem Start liegen.");
   }
 

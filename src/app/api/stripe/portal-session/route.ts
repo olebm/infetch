@@ -23,11 +23,9 @@ function getBaseUrl(request: NextRequest): string {
   if (configured) return configured.replace(/\/$/, "");
 
   const proto = (request.headers.get("x-forwarded-proto") ?? "https").split(",")[0]!.trim();
-  const rawHost = (
-    request.headers.get("x-forwarded-host") ??
-    request.headers.get("host") ??
-    ""
-  ).split(",")[0]!.trim();
+  const rawHost = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "")
+    .split(",")[0]!
+    .trim();
 
   // SECURITY: URL-Parser benutzen — split(":")[0] würde
   // `app.infetch.de:80@malicious.com` als "app.infetch.de" akzeptieren,

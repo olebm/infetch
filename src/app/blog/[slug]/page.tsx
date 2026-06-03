@@ -31,11 +31,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function BlogPostPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const post = getPost(slug);
   if (!post) notFound();
@@ -46,7 +42,12 @@ export default async function BlogPostPage({
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Startseite", item: "https://infetch.de" },
       { "@type": "ListItem", position: 2, name: "Blog", item: "https://infetch.de/blog" },
-      { "@type": "ListItem", position: 3, name: post.title, item: `https://infetch.de/blog/${post.slug}` },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: post.title,
+        item: `https://infetch.de/blog/${post.slug}`,
+      },
     ],
   };
 
@@ -91,11 +92,7 @@ export default async function BlogPostPage({
           </time>
         </p>
         {post.body.map((block, i) =>
-          block.startsWith("## ") ? (
-            <h2 key={i}>{block.slice(3)}</h2>
-          ) : (
-            <p key={i}>{block}</p>
-          ),
+          block.startsWith("## ") ? <h2 key={i}>{block.slice(3)}</h2> : <p key={i}>{block}</p>,
         )}
       </div>
     </PublicShell>

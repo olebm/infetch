@@ -9,16 +9,19 @@ interface ContactModalProps {
 }
 
 export function ContactModal({ open, onClose }: ContactModalProps) {
-  const [name,    setName]    = useState("");
-  const [email,   setEmail]   = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [done,    setDone]    = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function reset() {
-    setName(""); setEmail(""); setMessage("");
-    setDone(false); setError(null);
+    setName("");
+    setEmail("");
+    setMessage("");
+    setDone(false);
+    setError(null);
   }
 
   function handleClose() {
@@ -77,7 +80,9 @@ export function ContactModal({ open, onClose }: ContactModalProps) {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">E-Mail <span className="text-warn">*</span></label>
+            <label className="text-xs text-muted">
+              E-Mail <span className="text-warn">*</span>
+            </label>
             <input
               type="email"
               required
@@ -88,7 +93,9 @@ export function ContactModal({ open, onClose }: ContactModalProps) {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">Nachricht <span className="text-warn">*</span></label>
+            <label className="text-xs text-muted">
+              Nachricht <span className="text-warn">*</span>
+            </label>
             <textarea
               required
               rows={5}
@@ -99,9 +106,7 @@ export function ContactModal({ open, onClose }: ContactModalProps) {
             />
           </div>
 
-          {error && (
-            <p className="text-xs text-warn">{error}</p>
-          )}
+          {error && <p className="text-xs text-warn">{error}</p>}
 
           <div className="flex items-center justify-between pt-1">
             <span className="text-xs text-muted">hallo@infetch.de</span>

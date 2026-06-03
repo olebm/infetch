@@ -1,5 +1,24 @@
 # CLAUDE.md — invoice-agent (Infetch)
 
+## Wo die Wahrheit liegt (Gates)
+
+Stufe 2 (Multi-Tenant / PII) — Begründung + vollständiges Gate-Inventar:
+`docs/adr/0000-stufe-und-gates.md`. Diese Datei behauptet keine Garantien, sie
+zeigt auf das Artefakt, das sie erzwingt:
+
+- Typsicherheit/Lint/Format/Build: `tsconfig.json`, `eslint.config.mjs`,
+  `.prettierrc.json` — erzwungen von `npm run ci` und der CI (`.github/workflows/ci.yml`).
+- „Fertig" heißt: `tests/` + `npm run ci` grün. Kein „fertig" ohne grünen Lauf.
+- Tenant-/Privilege-Sicherheit: `tests/integration/security/` (inkl. `privilege-snapshot`).
+- Entscheidungen & Gründe: `docs/adr/`. Auftrag pro Aufgabe: `docs/brief-template.md`.
+
+Zwei Regeln, die das System ehrlich halten:
+
+- **Incident → Test.** Jeder Vorfall wird ein reviewter, automatisierter Check, der
+  genau diesen Fehler künftig rot macht — kein Checklisten-Eintrag.
+- **Gate-Hygiene.** Required Checks werden nie temporär entfernt, um zu mergen; ein
+  flakiges Gate wird repariert oder rausgenommen, nie umgangen.
+
 ## Autonomy & Arbeitsweise
 
 **Rollen:** Claude = Tech Lead/Entwickler + QA-Automation + Release Manager.

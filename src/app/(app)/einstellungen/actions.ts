@@ -26,10 +26,7 @@ import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
 import { getOptionalOrgColumns, hardDeleteOrgData } from "@/lib/auth/account-teardown";
 import { updateUserProfile, invalidateAllOtherSessions } from "@/lib/auth/session";
 import { canExport, getOrgTier, getLimits } from "@/lib/tier";
-import {
-  createSupabaseAdminClient,
-  createSupabaseServerClient,
-} from "@/lib/supabase/server";
+import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { cancelSubscriptionImmediately } from "@/lib/stripe";
 import { BUCKETS, deleteFromStorage } from "@/lib/supabase/storage";
 import { unsafeGlobalSql } from "@/lib/db/unsafe-global";
@@ -97,7 +94,8 @@ export async function saveImapCredentialAction(
     }
 
     const organizationId = auth.organization?.id ?? null;
-    const credentialLabel = slot.label === "Primary IMAP" ? "Primary IMAP Password" : "Secondary IMAP Password";
+    const credentialLabel =
+      slot.label === "Primary IMAP" ? "Primary IMAP Password" : "Secondary IMAP Password";
 
     let credentialRefId: number | null = null;
 
@@ -114,7 +112,10 @@ export async function saveImapCredentialAction(
       `;
       credentialRefId = credRows[0]?.id ?? null;
     } else if (!(await hasStoredCredentialRef("imap", slot.ownerId, organizationId))) {
-      return { status: "error", message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert)." };
+      return {
+        status: "error",
+        message: "Bitte ein Passwort eingeben (noch kein Passwort gespeichert).",
+      };
     } else {
       // SECURITY: Lookup scoped auf Organisation — verhindert Cross-Tenant-Match
       const existingRows = await scopedSql<{ credential_ref_id: number | null }[]>`
@@ -165,7 +166,6 @@ export async function saveImapCredentialAction(
   }
 }
 
-
 type PersistOutcome = { ok: true } | { ok: false; message: string };
 
 /**
@@ -176,10 +176,16 @@ async function persistImapAccount(
   scopedSql: ScopedSql,
   organizationId: string | null,
   mailSlot: "primary" | "secondary",
-  args: { email: string; password: string; imapHost: string; imapPort: number; imapSecure: boolean },
+  args: {
+    email: string;
+    password: string;
+    imapHost: string;
+    imapPort: number;
+    imapSecure: boolean;
+  },
 ): Promise<PersistOutcome> {
   const slotLabel = mailSlot === "secondary" ? "Secondary IMAP" : "Primary IMAP";
-  const slotPwd   = mailSlot === "secondary" ? "Secondary IMAP Password" : "Primary IMAP Password";
+  const slotPwd = mailSlot === "secondary" ? "Secondary IMAP Password" : "Primary IMAP Password";
   const { email, password, imapHost, imapPort, imapSecure } = args;
 
   let imapCredRefId: number | null = null;
@@ -261,9 +267,16 @@ async function persistImapAccount(
 async function persistSmtpAccount(
   organizationId: string | null,
   mailSlot: "primary" | "secondary",
-  args: { smtpEmail: string; smtpPassword: string; smtpHost: string; smtpPort: number; smtpSecure: boolean },
+  args: {
+    smtpEmail: string;
+    smtpPassword: string;
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+  },
 ): Promise<PersistOutcome> {
-  const slotSmtpPwd = mailSlot === "secondary" ? "Secondary SMTP Password" : "Primary SMTP Password";
+  const slotSmtpPwd =
+    mailSlot === "secondary" ? "Secondary SMTP Password" : "Primary SMTP Password";
   const { smtpEmail, smtpPassword, smtpHost, smtpPort, smtpSecure } = args;
 
   if (smtpPassword.trim()) {
@@ -275,13 +288,19 @@ async function persistSmtpAccount(
       secret: smtpPassword,
     });
   } else if (!(await hasStoredCredentialRef("smtp", mailSlot, organizationId))) {
-    return { ok: false, message: "Bitte ein Passwort eingeben (noch kein SMTP-Passwort gespeichert)." };
+    return {
+      ok: false,
+      message: "Bitte ein Passwort eingeben (noch kein SMTP-Passwort gespeichert).",
+    };
   }
 
-  await saveStoredSmtpAccount(
-    mailSlot,
-    { host: smtpHost, port: smtpPort, secure: smtpSecure, username: smtpEmail, fromAddress: smtpEmail },
-  );
+  await saveStoredSmtpAccount(mailSlot, {
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    username: smtpEmail,
+    fromAddress: smtpEmail,
+  });
   return { ok: true };
 }
 
@@ -304,29 +323,44 @@ export async function saveMailboxCredentialsAction(
 
   try {
     const mailSlot = parseMailSlot(formData);
-    const email    = String(formData.get("mailEmail")    || "").trim();
+    const email = String(formData.get("mailEmail") || "").trim();
     const password = String(formData.get("mailPassword") || "");
     // Separate SMTP credentials (optional — fall back to IMAP credentials)
-    const smtpEmail    = String(formData.get("smtpEmail")    || "").trim() || email;
-    const smtpPassword = String(formData.get("smtpPassword") || "")        || password;
-    const imapHost  = String(formData.get("imapHost")  || "").trim();
-    const imapPort  = Number(formData.get("imapPort")  || 993);
+    const smtpEmail = String(formData.get("smtpEmail") || "").trim() || email;
+    const smtpPassword = String(formData.get("smtpPassword") || "") || password;
+    const imapHost = String(formData.get("imapHost") || "").trim();
+    const imapPort = Number(formData.get("imapPort") || 993);
     const imapSecure = String(formData.get("imapSecure") || "true") !== "false";
-    const smtpHost  = String(formData.get("smtpHost")  || "").trim();
-    const smtpPort  = Number(formData.get("smtpPort")  || 465);
+    const smtpHost = String(formData.get("smtpHost") || "").trim();
+    const smtpPort = Number(formData.get("smtpPort") || 465);
     const smtpSecure = String(formData.get("smtpSecure") || "true") !== "false";
 
     if (!email) return { status: "error", message: "Bitte eine E-Mail-Adresse eingeben." };
-    if (!imapHost || !smtpHost) return { status: "error", message: "Server-Daten fehlen — bitte einen Anbieter wählen." };
-    if (!Number.isInteger(imapPort) || imapPort <= 0) return { status: "error", message: "Ungültiger IMAP-Port." };
-    if (!Number.isInteger(smtpPort) || smtpPort <= 0) return { status: "error", message: "Ungültiger SMTP-Port." };
+    if (!imapHost || !smtpHost)
+      return { status: "error", message: "Server-Daten fehlen — bitte einen Anbieter wählen." };
+    if (!Number.isInteger(imapPort) || imapPort <= 0)
+      return { status: "error", message: "Ungültiger IMAP-Port." };
+    if (!Number.isInteger(smtpPort) || smtpPort <= 0)
+      return { status: "error", message: "Ungültiger SMTP-Port." };
 
     const organizationId = auth.organization?.id ?? null;
 
-    const imapResult = await persistImapAccount(scopedSql, organizationId, mailSlot, { email, password, imapHost, imapPort, imapSecure });
+    const imapResult = await persistImapAccount(scopedSql, organizationId, mailSlot, {
+      email,
+      password,
+      imapHost,
+      imapPort,
+      imapSecure,
+    });
     if (!imapResult.ok) return { status: "error", message: imapResult.message };
 
-    const smtpResult = await persistSmtpAccount(organizationId, mailSlot, { smtpEmail, smtpPassword, smtpHost, smtpPort, smtpSecure });
+    const smtpResult = await persistSmtpAccount(organizationId, mailSlot, {
+      smtpEmail,
+      smtpPassword,
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+    });
     if (!smtpResult.ok) return { status: "error", message: smtpResult.message };
 
     revalidatePath("/");
@@ -350,19 +384,27 @@ export async function saveImapMailboxAction(
   const scopedSql = auth.scopedSql!;
 
   try {
-    const mailSlot   = parseMailSlot(formData);
-    const email      = String(formData.get("mailEmail")    || "").trim();
-    const password   = String(formData.get("mailPassword") || "");
-    const imapHost   = String(formData.get("imapHost")  || "").trim();
-    const imapPort   = Number(formData.get("imapPort")  || 993);
+    const mailSlot = parseMailSlot(formData);
+    const email = String(formData.get("mailEmail") || "").trim();
+    const password = String(formData.get("mailPassword") || "");
+    const imapHost = String(formData.get("imapHost") || "").trim();
+    const imapPort = Number(formData.get("imapPort") || 993);
     const imapSecure = String(formData.get("imapSecure") || "true") !== "false";
 
     if (!email) return { status: "error", message: "Bitte eine E-Mail-Adresse eingeben." };
-    if (!imapHost) return { status: "error", message: "Server-Daten fehlen — bitte einen Anbieter wählen." };
-    if (!Number.isInteger(imapPort) || imapPort <= 0) return { status: "error", message: "Ungültiger IMAP-Port." };
+    if (!imapHost)
+      return { status: "error", message: "Server-Daten fehlen — bitte einen Anbieter wählen." };
+    if (!Number.isInteger(imapPort) || imapPort <= 0)
+      return { status: "error", message: "Ungültiger IMAP-Port." };
 
     const organizationId = auth.organization?.id ?? null;
-    const result = await persistImapAccount(scopedSql, organizationId, mailSlot, { email, password, imapHost, imapPort, imapSecure });
+    const result = await persistImapAccount(scopedSql, organizationId, mailSlot, {
+      email,
+      password,
+      imapHost,
+      imapPort,
+      imapSecure,
+    });
     if (!result.ok) return { status: "error", message: result.message };
 
     revalidatePath("/");
@@ -385,19 +427,27 @@ export async function saveSmtpMailboxAction(
   const auth = await requireCurrentAuth();
 
   try {
-    const mailSlot     = parseMailSlot(formData);
-    const smtpEmail    = String(formData.get("smtpEmail") || formData.get("mailEmail") || "").trim();
+    const mailSlot = parseMailSlot(formData);
+    const smtpEmail = String(formData.get("smtpEmail") || formData.get("mailEmail") || "").trim();
     const smtpPassword = String(formData.get("smtpPassword") || formData.get("mailPassword") || "");
-    const smtpHost     = String(formData.get("smtpHost")  || "").trim();
-    const smtpPort     = Number(formData.get("smtpPort")  || 587);
-    const smtpSecure   = String(formData.get("smtpSecure") || "false") !== "false";
+    const smtpHost = String(formData.get("smtpHost") || "").trim();
+    const smtpPort = Number(formData.get("smtpPort") || 587);
+    const smtpSecure = String(formData.get("smtpSecure") || "false") !== "false";
 
     if (!smtpEmail) return { status: "error", message: "Bitte eine E-Mail-Adresse eingeben." };
-    if (!smtpHost) return { status: "error", message: "Server-Daten fehlen — bitte einen Anbieter wählen." };
-    if (!Number.isInteger(smtpPort) || smtpPort <= 0) return { status: "error", message: "Ungültiger SMTP-Port." };
+    if (!smtpHost)
+      return { status: "error", message: "Server-Daten fehlen — bitte einen Anbieter wählen." };
+    if (!Number.isInteger(smtpPort) || smtpPort <= 0)
+      return { status: "error", message: "Ungültiger SMTP-Port." };
 
     const organizationId = auth.organization?.id ?? null;
-    const result = await persistSmtpAccount(organizationId, mailSlot, { smtpEmail, smtpPassword, smtpHost, smtpPort, smtpSecure });
+    const result = await persistSmtpAccount(organizationId, mailSlot, {
+      smtpEmail,
+      smtpPassword,
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+    });
     if (!result.ok) return { status: "error", message: result.message };
 
     revalidatePath("/");
@@ -408,7 +458,9 @@ export async function saveSmtpMailboxAction(
   }
 }
 
-export async function runImapScanAction(_previousState: CredentialFormState): Promise<CredentialFormState> {
+export async function runImapScanAction(
+  _previousState: CredentialFormState,
+): Promise<CredentialFormState> {
   void _previousState;
 
   const auth = await requireCurrentAuth();
@@ -425,7 +477,8 @@ export async function runImapScanAction(_previousState: CredentialFormState): Pr
     const mailboxLabel =
       result.accountsScanned === 1 ? "1 Postfach" : `${result.accountsScanned} Postfächer`;
 
-    const blockedSuffix = result.blockedSenders > 0 ? `, ${result.blockedSenders} blockierte Sender übersprungen` : "";
+    const blockedSuffix =
+      result.blockedSenders > 0 ? `, ${result.blockedSenders} blockierte Sender übersprungen` : "";
     return {
       status: "success",
       message: `${result.messagesSeen} Mails geprüft (${mailboxLabel}), ${result.imported} PDFs importiert, ${result.duplicates} Dubletten${blockedSuffix}.`,
@@ -512,7 +565,10 @@ export async function saveExportTargetAction(
     // Format pruefen wenn eine Adresse angegeben ist (null = Empfaenger leeren,
     // bleibt erlaubt). Faengt Tippfehler ab bevor Rechnungen ins Leere gehen.
     if (recipientEmail && !isValidEmail(recipientEmail)) {
-      return { status: "error", message: "Die Empfänger-E-Mail-Adresse ist unvollständig oder ungültig." };
+      return {
+        status: "error",
+        message: "Die Empfänger-E-Mail-Adresse ist unvollständig oder ungültig.",
+      };
     }
 
     await saveExportTarget(auth.organization.id, target, recipientEmail, smtpSlot.ownerId, enabled);
@@ -531,7 +587,8 @@ export async function saveExportTargetAction(
 }
 
 function sanitizeCredentialError(error: unknown) {
-  const message = error instanceof Error ? error.message : "Credential konnte nicht gespeichert werden.";
+  const message =
+    error instanceof Error ? error.message : "Credential konnte nicht gespeichert werden.";
   if (
     message.includes("Secret Store") ||
     message.includes("fehl") ||
@@ -644,7 +701,11 @@ export async function saveLexofficeApiKeyAction(
     const auth = await getCurrentAuth();
     const exportAllowed = await canExport(auth?.organization?.id ?? null);
     if (!exportAllowed) {
-      return { status: "error", message: "Integrationen sind nur im Pro-Plan verfügbar.", provider: "lexoffice" };
+      return {
+        status: "error",
+        message: "Integrationen sind nur im Pro-Plan verfügbar.",
+        provider: "lexoffice",
+      };
     }
 
     const apiKey = String(formData.get("apiKey") || "").trim();
@@ -686,7 +747,8 @@ export async function saveLexofficeApiKeyAction(
       provider: "lexoffice",
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Konnte lexoffice-API-Key nicht speichern.";
+    const message =
+      error instanceof Error ? error.message : "Konnte lexoffice-API-Key nicht speichern.";
     return { status: "error", message, provider: "lexoffice" };
   }
 }
@@ -700,7 +762,11 @@ export async function saveSevdeskApiKeyAction(
     const auth = await getCurrentAuth();
     const exportAllowed = await canExport(auth?.organization?.id ?? null);
     if (!exportAllowed) {
-      return { status: "error", message: "Integrationen sind nur im Pro-Plan verfügbar.", provider: "sevdesk" };
+      return {
+        status: "error",
+        message: "Integrationen sind nur im Pro-Plan verfügbar.",
+        provider: "sevdesk",
+      };
     }
 
     const apiKey = String(formData.get("apiKey") || "").trim();
@@ -743,7 +809,8 @@ export async function saveSevdeskApiKeyAction(
       provider: "sevdesk",
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Konnte sevDesk-API-Key nicht speichern.";
+    const message =
+      error instanceof Error ? error.message : "Konnte sevDesk-API-Key nicht speichern.";
     return { status: "error", message, provider: "sevdesk" };
   }
 }
@@ -789,7 +856,9 @@ export async function updateInvoiceSubjectTemplateAction(
   void _previousState;
   const auth = await requireCurrentAuth();
   try {
-    const raw = String(formData.get("subjectTemplate") || "").replace(/[\r\n]+/g, " ").trim();
+    const raw = String(formData.get("subjectTemplate") || "")
+      .replace(/[\r\n]+/g, " ")
+      .trim();
     if (raw.length > 200) {
       return { status: "error", message: "Betreff-Schema ist zu lang (max. 200 Zeichen)." };
     }
@@ -842,10 +911,15 @@ export async function updateProfileAction(
 
     const name = String(formData.get("name") || "").trim();
     if (!name) return { status: "error", message: "Name darf nicht leer sein." };
-    if (name.length > 120) return { status: "error", message: "Name ist zu lang (max. 120 Zeichen)." };
+    if (name.length > 120)
+      return { status: "error", message: "Name ist zu lang (max. 120 Zeichen)." };
 
-    const companyName = String(formData.get("companyName") || "").trim().slice(0, 200);
-    const vatId = String(formData.get("vatId") || "").trim().slice(0, 50);
+    const companyName = String(formData.get("companyName") || "")
+      .trim()
+      .slice(0, 200);
+    const vatId = String(formData.get("vatId") || "")
+      .trim()
+      .slice(0, 50);
 
     await updateUserProfile(auth.user.id, { name, companyName, vatId });
     revalidatePath("/konto");
@@ -876,7 +950,9 @@ export async function invalidateAllOtherSessionsAction(
 
     const { createSupabaseServerClient } = await import("@/lib/supabase/server");
     const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     const jwt = session?.access_token;
     if (!jwt) return { status: "error", message: "Keine aktive Session gefunden." };
 
@@ -1026,8 +1102,7 @@ export async function deleteAccountAction(
   if (confirm !== email) {
     return {
       status: "error",
-      message:
-        "Bitte gib zur Bestätigung deine E-Mail-Adresse exakt ein.",
+      message: "Bitte gib zur Bestätigung deine E-Mail-Adresse exakt ein.",
     };
   }
 
@@ -1067,8 +1142,7 @@ export async function deleteAccountAction(
 
   // Für jede Org: Bin ich der maßgebliche Inhaber? Gibt es ANDERE Mitglieder?
   const owned = connections.filter((c) => c.ownerUserId === userId);
-  const otherMembers = (c: OrgConnectionRow) =>
-    c.memberCount - (c.isMember ? 1 : 0);
+  const otherMembers = (c: OrgConnectionRow) => c.memberCount - (c.isMember ? 1 : 0);
 
   // Guard: maßgeblicher Inhaber, aber weitere Mitglieder → blockieren
   // (keine Inhaberschafts-Übertragung implementiert).
@@ -1128,8 +1202,7 @@ export async function deleteAccountAction(
     console.error("[deleteAccountAction] storage path collection failed:", error);
     return {
       status: "error",
-      message:
-        "Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.",
+      message: "Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.",
     };
   }
 
@@ -1143,8 +1216,7 @@ export async function deleteAccountAction(
     console.error("[deleteAccountAction] column probe failed:", error);
     return {
       status: "error",
-      message:
-        "Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.",
+      message: "Konto konnte nicht gelöscht werden. Bitte später erneut versuchen.",
     };
   }
 
@@ -1178,8 +1250,7 @@ export async function deleteAccountAction(
     console.error("[deleteAccountAction] DB teardown failed:", error);
     return {
       status: "error",
-      message:
-        "Konto konnte nicht vollständig gelöscht werden. Bitte Support kontaktieren.",
+      message: "Konto konnte nicht vollständig gelöscht werden. Bitte Support kontaktieren.",
     };
   }
 
@@ -1200,13 +1271,9 @@ export async function deleteAccountAction(
   // Avatar (Bucket "avatars", Schlüssel "{userId}/avatar.{ext}").
   try {
     const admin = createSupabaseAdminClient();
-    const { data: avatarFiles } = await admin.storage
-      .from("avatars")
-      .list(userId);
+    const { data: avatarFiles } = await admin.storage.from("avatars").list(userId);
     if (avatarFiles && avatarFiles.length > 0) {
-      await admin.storage
-        .from("avatars")
-        .remove(avatarFiles.map((f) => `${userId}/${f.name}`));
+      await admin.storage.from("avatars").remove(avatarFiles.map((f) => `${userId}/${f.name}`));
     }
   } catch (error) {
     console.error("[deleteAccountAction] avatar purge failed:", error);

@@ -19,7 +19,9 @@ if (!process.env.DATABASE_URL) {
       const m = line.match(/^([A-Z_]+)=(.+)$/);
       if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
     }
-  } catch { /* .env.local not found */ }
+  } catch {
+    /* .env.local not found */
+  }
 }
 
 const require = createRequire(import.meta.url);

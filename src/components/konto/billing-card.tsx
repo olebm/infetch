@@ -7,12 +7,7 @@ import { Card } from "@/components/ui/card";
 import type { Tier, TierLimits } from "@/lib/tier";
 
 const PLAN_FEATURES: Record<Tier, string[]> = {
-  free: [
-    "30 Rechnungen / Monat",
-    "1 Postfach (IMAP)",
-    "500 MB Speicher",
-    "Auto-Approve",
-  ],
+  free: ["30 Rechnungen / Monat", "1 Postfach (IMAP)", "500 MB Speicher", "Auto-Approve"],
   pro: [
     "150 Rechnungen / Monat",
     "3 Postfächer (IMAP)",
@@ -131,9 +126,7 @@ export function BillingCard({ tier, limits, hasStripeCustomer = false }: Props) 
       </ul>
 
       {portalError && (
-        <div className="border-t border-line px-5 py-3 text-xs text-danger">
-          {portalError}
-        </div>
+        <div className="border-t border-line px-5 py-3 text-xs text-danger">{portalError}</div>
       )}
 
       {/* Free → Pro nudge */}

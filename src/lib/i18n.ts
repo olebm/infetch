@@ -31,21 +31,20 @@ export async function getMessages(): Promise<typeof de> {
  *   t("nav.overview")                          // "Übersicht"
  *   t("tier.limitReached", { current: 2, max: 3 })
  */
-export type Translator = (
-  path: string,
-  vars?: Record<string, string | number>,
-) => string;
+export type Translator = (path: string, vars?: Record<string, string | number>) => string;
 
 export async function getTranslator(): Promise<Translator> {
   const messages = await getMessages();
   return (path, vars) => {
-    const value = path.split(".").reduce<unknown>(
-      (acc, key) =>
-        acc && typeof acc === "object" && key in acc
-          ? (acc as Record<string, unknown>)[key]
-          : undefined,
-      messages,
-    );
+    const value = path
+      .split(".")
+      .reduce<unknown>(
+        (acc, key) =>
+          acc && typeof acc === "object" && key in acc
+            ? (acc as Record<string, unknown>)[key]
+            : undefined,
+        messages,
+      );
     if (typeof value !== "string") return path;
     if (!vars) return value;
     return value.replace(/\{(\w+)\}/g, (_, key: string) =>

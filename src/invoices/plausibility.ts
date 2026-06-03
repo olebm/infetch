@@ -48,10 +48,7 @@ export function describeImplausibility(
   return null;
 }
 
-export function isExtractionPlausible(
-  input: PlausibilityInput,
-  now: Date = new Date(),
-): boolean {
+export function isExtractionPlausible(input: PlausibilityInput, now: Date = new Date()): boolean {
   return describeImplausibility(input, now) === null;
 }
 

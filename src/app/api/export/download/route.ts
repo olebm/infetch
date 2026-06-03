@@ -84,13 +84,13 @@ function buildCsv(rows: InvoiceRow[]): string {
   ];
 
   const statusLabel: Record<string, string> = {
-    exported:     "versendet",
+    exported: "versendet",
     needs_review: "zu prüfen",
-    ready:        "bereit",
-    new:          "neu",
-    ignored:      "ignoriert",
-    duplicate:    "Duplikat",
-    failed:       "Fehler",
+    ready: "bereit",
+    new: "neu",
+    ignored: "ignoriert",
+    duplicate: "Duplikat",
+    failed: "Fehler",
   };
 
   const lines = [
@@ -133,8 +133,11 @@ export async function GET(request: NextRequest) {
   const year = rawYear;
 
   const rawVendor = searchParams.get("vendorId") ?? null;
-  const vendorId  = rawVendor ? Number(rawVendor) : null;
-  if (rawVendor !== null && (vendorId === null || isNaN(vendorId) || !Number.isInteger(vendorId) || vendorId <= 0)) {
+  const vendorId = rawVendor ? Number(rawVendor) : null;
+  if (
+    rawVendor !== null &&
+    (vendorId === null || isNaN(vendorId) || !Number.isInteger(vendorId) || vendorId <= 0)
+  ) {
     return new Response("Ungültiger vendorId-Parameter.", { status: 400 });
   }
 
@@ -152,7 +155,10 @@ export async function GET(request: NextRequest) {
     const bulkAllowed = await canBulkDownload(orgId);
     if (!bulkAllowed) {
       return new Response(
-        JSON.stringify({ error: "bulk_download_not_allowed", message: "Bulk-Export ist nur im Pro-Plan verfügbar. Nutze den Download pro Anbieter." }),
+        JSON.stringify({
+          error: "bulk_download_not_allowed",
+          message: "Bulk-Export ist nur im Pro-Plan verfügbar. Nutze den Download pro Anbieter.",
+        }),
         { status: 403, headers: { "content-type": "application/json" } },
       );
     }
@@ -189,10 +195,10 @@ export async function GET(request: NextRequest) {
   `;
 
   if (rows.length === 0) {
-    return new Response(
-      "Keine Rechnungen für diesen Zeitraum gefunden.",
-      { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } },
-    );
+    return new Response("Keine Rechnungen für diesen Zeitraum gefunden.", {
+      status: 404,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
   }
 
   // Filename label
@@ -227,10 +233,7 @@ export async function GET(request: NextRequest) {
       try {
         const buffer = await downloadFromStorage(BUCKETS.INVOICES, row.storedPath);
         const folder = safeZipSegment(row.vendorKey ?? "", "unbekannt");
-        const name = safeZipSegment(
-          row.originalFilename ?? "",
-          `rechnung-${row.invoiceId}.pdf`,
-        );
+        const name = safeZipSegment(row.originalFilename ?? "", `rechnung-${row.invoiceId}.pdf`);
         archive.append(buffer, { name: `${folder}/${name}` });
       } catch {
         // skip unreadable file — still included in CSV
@@ -249,9 +252,9 @@ export async function GET(request: NextRequest) {
 
   return new Response(webStream, {
     headers: {
-      "content-type":        "application/zip",
+      "content-type": "application/zip",
       "content-disposition": `attachment; filename="${filename}"`,
-      "cache-control":       "no-store",
+      "cache-control": "no-store",
       // Kein content-length — Stream ist unbekannte Größe; Browser fallen
       // automatisch auf chunked transfer encoding zurück.
     },

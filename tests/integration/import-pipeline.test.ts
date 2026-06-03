@@ -41,11 +41,13 @@ async function cleanup() {
 }
 
 // Shared helper: importiert einen PDF-Buffer mit Test-Prefix als dedupe_key
-async function importTestPdf(opts: {
-  buffer?: Buffer;
-  filename?: string;
-  bypassQuota?: boolean;
-} = {}) {
+async function importTestPdf(
+  opts: {
+    buffer?: Buffer;
+    filename?: string;
+    bypassQuota?: boolean;
+  } = {},
+) {
   const buffer = opts.buffer ?? makePdfBuffer(PREFIX + Math.random());
   return importPdfBuffer({
     buffer,

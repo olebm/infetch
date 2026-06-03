@@ -43,7 +43,11 @@ export async function POST(_req: NextRequest) {
   try {
     const existing = await findUserByEmail(STUB_EMAIL);
     if (!existing) {
-      await createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, userId: supabaseUserId });
+      await createUserWithDefaultOrg({
+        email: STUB_EMAIL,
+        name: STUB_NAME,
+        userId: supabaseUserId,
+      });
     }
 
     // Onboarding-Gate (layout.tsx): seit PR #33 prüft getSetupSnapshot()

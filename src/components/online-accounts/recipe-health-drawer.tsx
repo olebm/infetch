@@ -34,10 +34,12 @@ export function RecipeHealthButton({ info }: { info: RecipeHealthInfo }) {
 function RecipeHealthDrawer({ info, onClose }: { info: RecipeHealthInfo; onClose: () => void }) {
   const total = info.successCount + info.failureCount;
   const successRate = total > 0 ? Math.round((info.successCount / total) * 100) : null;
-  const canShare = info.recipeRecordedBy === "local" && info.recipeJson && successRate !== null && successRate >= 80;
-  const shareUrl = canShare
-    ? buildShareUrlClient(info.vendorKey, info.recipeJson!)
-    : null;
+  const canShare =
+    info.recipeRecordedBy === "local" &&
+    info.recipeJson &&
+    successRate !== null &&
+    successRate >= 80;
+  const shareUrl = canShare ? buildShareUrlClient(info.vendorKey, info.recipeJson!) : null;
 
   const rateTone =
     successRate === null
@@ -57,7 +59,10 @@ function RecipeHealthDrawer({ info, onClose }: { info: RecipeHealthInfo; onClose
           : "Funktioniert nicht stabil";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
       <div
         className="max-h-[85vh] w-full max-w-xl overflow-hidden rounded-lg bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -92,12 +97,10 @@ function RecipeHealthDrawer({ info, onClose }: { info: RecipeHealthInfo; onClose
               <div className="flex items-start gap-3">
                 <Share2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-hidden />
                 <div className="flex-1">
-                  <div className="font-medium text-ok">
-                    Mit Community teilen?
-                  </div>
+                  <div className="font-medium text-ok">Mit Community teilen?</div>
                   <p className="mt-1 text-xs text-ok">
-                    Diese Recipe läuft stabil bei dir. Andere Nutzer von {info.vendorName} sparen sich das Lernen.
-                    Nur Selektoren werden geteilt — keine Credentials.
+                    Diese Recipe läuft stabil bei dir. Andere Nutzer von {info.vendorName} sparen
+                    sich das Lernen. Nur Selektoren werden geteilt — keine Credentials.
                   </p>
                   <a
                     href={shareUrl}
@@ -151,4 +154,3 @@ function buildShareUrlClient(vendorKey: string, recipeJson: string): string {
   const body = encodeURIComponent(recipeJson);
   return `https://github.com/invoice-agent/invoice-agent-recipes/new/main?filename=${encodeURIComponent(filename)}&value=${body}`;
 }
-

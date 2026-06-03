@@ -49,7 +49,9 @@ test.describe("Manueller PDF-Upload", () => {
     const statusMsg = page.locator(".bg-ok-soft, .bg-violet-50");
     const invoiceInList = page.locator('a[href*="/audit/"]');
     await Promise.race([
-      expect(statusMsg).toBeVisible({ timeout: 15_000 }).catch(() => {}),
+      expect(statusMsg)
+        .toBeVisible({ timeout: 15_000 })
+        .catch(() => {}),
       expect(invoiceInList.first()).toBeVisible({ timeout: 15_000 }),
     ]);
   });
@@ -65,7 +67,10 @@ test.describe("Manueller PDF-Upload", () => {
     await page.waitForTimeout(3_000);
 
     // Panel ggf. nach Seiten-Refresh erneut öffnen
-    const panelOpen = await page.locator("#invoicePdf").isVisible().catch(() => false);
+    const panelOpen = await page
+      .locator("#invoicePdf")
+      .isVisible()
+      .catch(() => false);
     if (!panelOpen) {
       await page.getByRole("button", { name: /PDF manuell hochladen/i }).click();
       await expect(page.locator("#invoicePdf")).toBeVisible();

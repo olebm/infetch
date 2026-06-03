@@ -23,9 +23,11 @@ export function QuickActions() {
           disabled={scanPending}
           className="inline-flex items-center gap-1.5 rounded border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink transition hover:border-brand/40 hover:text-brand disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {scanPending
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-            : <MailSearch className="h-3.5 w-3.5" aria-hidden />}
+          {scanPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <MailSearch className="h-3.5 w-3.5" aria-hidden />
+          )}
           {scanPending ? "Hole..." : "Jetzt holen"}
         </button>
       </form>

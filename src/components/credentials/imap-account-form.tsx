@@ -62,7 +62,9 @@ export function ImapAccountForm({
 
       <div className="mb-4">
         <h3 className="text-sm font-semibold">{heading}</h3>
-        <p className="mt-0.5 text-sm text-muted">{state.status !== "idle" ? state.message : initialState.message}</p>
+        <p className="mt-0.5 text-sm text-muted">
+          {state.status !== "idle" ? state.message : initialState.message}
+        </p>
       </div>
 
       {/* Provider-Presets */}
@@ -155,7 +157,9 @@ export function ImapAccountForm({
           {testState.status === "idle" ? "Prüfen, ob wir uns einloggen können." : testState.message}
         </div>
         {secretOnFile && (
-          <VerifiedAt value={testState.status === "success" ? new Date().toISOString() : lastVerifiedAt} />
+          <VerifiedAt
+            value={testState.status === "success" ? new Date().toISOString() : lastVerifiedAt}
+          />
         )}
       </div>
     </form>

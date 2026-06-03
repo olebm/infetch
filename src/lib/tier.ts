@@ -50,46 +50,46 @@ const GB = 1024 * MB;
 
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
   free: {
-    maxInvoicesPerMonth:   30,
-    maxMailAccounts:       1,
-    maxUsers:              1,
-    maxStorageBytes:       500 * MB,
-    maxOnlineAccounts:     0,
-    autoApprovalEnabled:   true,
-    exportEnabled:         false,
-    datevExportEnabled:    false,
-    bulkDownloadEnabled:     false,
-    retroactiveScanEnabled:  false,
-    label:                   "Free",
-    priceMonthlyEur:       0,
+    maxInvoicesPerMonth: 30,
+    maxMailAccounts: 1,
+    maxUsers: 1,
+    maxStorageBytes: 500 * MB,
+    maxOnlineAccounts: 0,
+    autoApprovalEnabled: true,
+    exportEnabled: false,
+    datevExportEnabled: false,
+    bulkDownloadEnabled: false,
+    retroactiveScanEnabled: false,
+    label: "Free",
+    priceMonthlyEur: 0,
   },
   pro: {
-    maxInvoicesPerMonth:   150,
-    maxMailAccounts:       3,
-    maxUsers:              3,
-    maxStorageBytes:       2 * GB,
-    maxOnlineAccounts:     5,
-    autoApprovalEnabled:   true,
-    exportEnabled:         true,
-    datevExportEnabled:    false,
-    bulkDownloadEnabled:     true,
-    retroactiveScanEnabled:  true,
-    label:                   "Pro",
-    priceMonthlyEur:       19,
+    maxInvoicesPerMonth: 150,
+    maxMailAccounts: 3,
+    maxUsers: 3,
+    maxStorageBytes: 2 * GB,
+    maxOnlineAccounts: 5,
+    autoApprovalEnabled: true,
+    exportEnabled: true,
+    datevExportEnabled: false,
+    bulkDownloadEnabled: true,
+    retroactiveScanEnabled: true,
+    label: "Pro",
+    priceMonthlyEur: 19,
   },
   business: {
-    maxInvoicesPerMonth:   Number.POSITIVE_INFINITY,
-    maxMailAccounts:       Number.POSITIVE_INFINITY,
-    maxUsers:              Number.POSITIVE_INFINITY,
-    maxStorageBytes:       20 * GB,
-    maxOnlineAccounts:     20,
-    autoApprovalEnabled:   true,
-    exportEnabled:         true,
-    datevExportEnabled:    true,
-    bulkDownloadEnabled:     true,
-    retroactiveScanEnabled:  true,
-    label:                   "Business",
-    priceMonthlyEur:       49,
+    maxInvoicesPerMonth: Number.POSITIVE_INFINITY,
+    maxMailAccounts: Number.POSITIVE_INFINITY,
+    maxUsers: Number.POSITIVE_INFINITY,
+    maxStorageBytes: 20 * GB,
+    maxOnlineAccounts: 20,
+    autoApprovalEnabled: true,
+    exportEnabled: true,
+    datevExportEnabled: true,
+    bulkDownloadEnabled: true,
+    retroactiveScanEnabled: true,
+    label: "Business",
+    priceMonthlyEur: 49,
   },
 };
 
@@ -138,8 +138,8 @@ export function getLimits(tier: Tier): TierLimits {
 export async function canImportInvoice(
   organizationId: string | null | undefined,
 ): Promise<{ allowed: boolean; current: number; max: number; tier: Tier }> {
-  const tier  = await getOrgTier(organizationId);
-  const max   = TIER_LIMITS[tier].maxInvoicesPerMonth;
+  const tier = await getOrgTier(organizationId);
+  const max = TIER_LIMITS[tier].maxInvoicesPerMonth;
 
   if (!Number.isFinite(max)) {
     return { allowed: true, current: 0, max, tier };
@@ -186,7 +186,7 @@ export async function canStoreFile(
   organizationId: string | null | undefined,
   fileSizeBytes: number,
 ): Promise<{ allowed: boolean; usedBytes: number; maxBytes: number; tier: Tier }> {
-  const tier     = await getOrgTier(organizationId);
+  const tier = await getOrgTier(organizationId);
   const maxBytes = TIER_LIMITS[tier].maxStorageBytes;
   const usedBytes = await getStorageUsageBytes(organizationId);
   return {
@@ -202,9 +202,7 @@ export async function canStoreFile(
  * erlaubt ist. SMTP-Forward an einen E-Mail-Empfänger ist tier-unabhängig
  * erlaubt und läuft NICHT durch diesen Gate (siehe export-pipeline.ts).
  */
-export async function canExport(
-  organizationId: string | null | undefined,
-): Promise<boolean> {
+export async function canExport(organizationId: string | null | undefined): Promise<boolean> {
   const tier = await getOrgTier(organizationId);
   return TIER_LIMITS[tier].exportEnabled;
 }
@@ -214,9 +212,7 @@ export async function canExport(
  * Nur Business-Tier (Free = false, Pro = false, Business = true).
  * Wird akut sobald DATEV-API-Client implementiert ist (INFETCH-108).
  */
-export async function canDatevExport(
-  organizationId: string | null | undefined,
-): Promise<boolean> {
+export async function canDatevExport(organizationId: string | null | undefined): Promise<boolean> {
   const tier = await getOrgTier(organizationId);
   return TIER_LIMITS[tier].datevExportEnabled;
 }
@@ -226,9 +222,7 @@ export async function canDatevExport(
  * Free = nur Download mit vendorId-Filter erlaubt.
  * Pro/Business = ungefilterter ZIP-Download erlaubt.
  */
-export async function canBulkDownload(
-  organizationId: string | null | undefined,
-): Promise<boolean> {
+export async function canBulkDownload(organizationId: string | null | undefined): Promise<boolean> {
   const tier = await getOrgTier(organizationId);
   return TIER_LIMITS[tier].bulkDownloadEnabled;
 }
@@ -270,8 +264,8 @@ export async function canRetroactiveScan(
 export async function isNearInvoiceLimit(
   organizationId: string | null | undefined,
 ): Promise<boolean> {
-  const tier  = await getOrgTier(organizationId);
-  const max   = TIER_LIMITS[tier].maxInvoicesPerMonth;
+  const tier = await getOrgTier(organizationId);
+  const max = TIER_LIMITS[tier].maxInvoicesPerMonth;
   if (!Number.isFinite(max)) return false;
   const current = await getMonthlyImportCount(organizationId);
   return current >= Math.floor(max * 0.8);

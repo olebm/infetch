@@ -16,7 +16,11 @@ export function AutoAssignSendersButton() {
         disabled={isPending}
         className="inline-flex items-center justify-center gap-2 rounded border border-ink bg-ink px-4 py-2 text-sm font-medium text-paper hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Wand2 className="h-4 w-4" aria-hidden />}
+        {isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        ) : (
+          <Wand2 className="h-4 w-4" aria-hidden />
+        )}
         {isPending ? "Wird zugeordnet..." : "Auto-Zuordnen"}
       </button>
       {state.status !== "idle" && state.message && (

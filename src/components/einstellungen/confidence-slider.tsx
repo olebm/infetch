@@ -61,16 +61,12 @@ export function ConfidenceSlider({ initialValue }: ConfidenceSliderProps) {
       </div>
 
       <p className="text-xs text-muted">
-        Ist die KI mindestens <strong>{displayValue}%</strong> sicher, versendet sie die Rechnung automatisch — sonst landet sie im Review.
+        Ist die KI mindestens <strong>{displayValue}%</strong> sicher, versendet sie die Rechnung
+        automatisch — sonst landet sie im Review.
       </p>
 
       {state.status !== "idle" && (
-        <p
-          className={cn(
-            "text-xs",
-            state.status === "error" ? "text-danger" : "text-ok",
-          )}
-        >
+        <p className={cn("text-xs", state.status === "error" ? "text-danger" : "text-ok")}>
           {isPending ? "Speichere…" : state.message}
         </p>
       )}

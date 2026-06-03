@@ -8,10 +8,14 @@ import { VendorLogo } from "@/components/ui/vendor-logo";
 
 function formatAmount(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
-  return amount.toLocaleString("de-DE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + " " + (!currency || currency === "EUR" ? "€" : currency);
+  return (
+    amount.toLocaleString("de-DE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) +
+    " " +
+    (!currency || currency === "EUR" ? "€" : currency)
+  );
 }
 
 function formatSentAt(iso: string | null): string {
@@ -30,7 +34,7 @@ function formatSentAt(iso: string | null): string {
 export async function ExportQueueView() {
   const all = await getExportQueue();
 
-  const queue   = all.filter((e) => ["pending", "retry", "failed"].includes(e.status));
+  const queue = all.filter((e) => ["pending", "retry", "failed"].includes(e.status));
   const history = all.filter((e) => e.status === "sent");
 
   return (
@@ -44,7 +48,9 @@ export async function ExportQueueView() {
       {/* ── Warteschlange ─────────────────────────────────────────────────── */}
       <section className="mt-2 mb-14">
         <div className="flex items-baseline justify-between border-b border-line pb-3">
-          <div className="font-display text-xl leading-none text-ink sm:text-3xl">Warteschlange</div>
+          <div className="font-display text-xl leading-none text-ink sm:text-3xl">
+            Warteschlange
+          </div>
           <div className="text-xs text-muted">
             {queue.length === 0 ? "nichts wartet" : `${queue.length} offen`}
           </div>
@@ -106,11 +112,12 @@ export async function ExportQueueView() {
             ).map((group) => {
               const first = group[0];
               const targets = group.map((g) => g.targetLabel).join(", ");
-              const latestSentAt = group
-                .map((g) => g.sentAt)
-                .filter(Boolean)
-                .sort()
-                .at(-1) ?? null;
+              const latestSentAt =
+                group
+                  .map((g) => g.sentAt)
+                  .filter(Boolean)
+                  .sort()
+                  .at(-1) ?? null;
               return (
                 <li
                   key={first.invoiceId}
@@ -140,9 +147,15 @@ export async function ExportQueueView() {
 
         {history.length > 0 && (
           <div className="py-3 text-xs text-muted">
-            {Object.keys(
-              history.reduce<Record<number, true>>((acc, i) => { acc[i.invoiceId] = true; return acc; }, {}),
-            ).length} versendet
+            {
+              Object.keys(
+                history.reduce<Record<number, true>>((acc, i) => {
+                  acc[i.invoiceId] = true;
+                  return acc;
+                }, {}),
+              ).length
+            }{" "}
+            versendet
           </div>
         )}
       </section>

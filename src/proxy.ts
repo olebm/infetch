@@ -29,15 +29,15 @@ const APP_HOSTNAME = "app.infetch.de";
 // Pfade, die auch auf der Landing-Domain ausgeliefert werden
 const LANDING_ALLOWED_PREFIXES = [
   "/landingpage",
-  "/blog",            // Blog — öffentlich, muss same-origin bleiben (RSC-Navigation)
+  "/blog", // Blog — öffentlich, muss same-origin bleiben (RSC-Navigation)
   "/agb",
   "/datenschutz",
   "/impressum",
   "/avv",
   "/changelog",
   "/ueber-uns",
-  "/auth",            // /auth/callback — falls Magic Link auf infetch.de landet
-  "/api/csp-report",  // Browser postet CSP-Violations — kein Redirect bei POST erlaubt
+  "/auth", // /auth/callback — falls Magic Link auf infetch.de landet
+  "/api/csp-report", // Browser postet CSP-Violations — kein Redirect bei POST erlaubt
 ];
 
 // ── App-Domain: öffentliche Pfade (kein Auth nötig) ───────────────────────────
@@ -67,9 +67,7 @@ function isPublicAppPath(pathname: string): boolean {
 }
 
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {
-  return prefixes.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 export async function proxy(request: NextRequest) {
@@ -81,9 +79,7 @@ export async function proxy(request: NextRequest) {
   // local/dev or proxied non-443 setups); hostname is the port-stripped,
   // lowercased form used only for domain-class comparison.
   const forwardedHost =
-    request.headers.get("x-forwarded-host") ??
-    request.headers.get("host") ??
-    request.nextUrl.host;
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? request.nextUrl.host;
   const hostname = forwardedHost.split(":")[0].toLowerCase();
 
   // ── Landing-Domain Routing ─────────────────────────────────────────────────
@@ -164,7 +160,5 @@ export const config = {
   //   - statische Assets (_next/*)
   //   - PDF-Preview-iframe (api/invoice-files)
   //   - AI-Proxy-Endpoint (api/ai/*) — hat eigene Bearer-Auth
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/invoice-files|api/ai).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/invoice-files|api/ai).*)"],
 };

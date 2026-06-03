@@ -10,7 +10,10 @@ const initialVendorState: PortalActionState = {
 };
 
 export function RunVendorPortalForm({ vendorKey }: { vendorKey: string }) {
-  const [state, formAction, isPending] = useActionState(runVendorRequiredPortalAction, initialVendorState);
+  const [state, formAction, isPending] = useActionState(
+    runVendorRequiredPortalAction,
+    initialVendorState,
+  );
 
   return (
     <form action={formAction}>

@@ -60,7 +60,10 @@ function AddOnlineAccountModal({
     (mode === "existing" && existingKey) || (mode === "new" && newName.trim().length >= 2);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
       <div
         className="max-h-[90vh] w-full max-w-xl overflow-hidden rounded-lg bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -80,10 +83,16 @@ function AddOnlineAccountModal({
             <h2 className="text-base font-semibold">
               {step === "vendor" && "Lieferant wählen"}
               {step === "credentials" && "Online-Konto verbinden"}
-              {step === "result" && (state.status === "success" ? "Verbunden!" : "Verbindung fehlgeschlagen")}
+              {step === "result" &&
+                (state.status === "success" ? "Verbunden!" : "Verbindung fehlgeschlagen")}
             </h2>
           </div>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink" aria-label="Schließen">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted hover:text-ink"
+            aria-label="Schließen"
+          >
             <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
@@ -173,7 +182,9 @@ function AddOnlineAccountModal({
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-muted">Benutzername / E-Mail</span>
+              <span className="mb-1 block text-xs font-medium text-muted">
+                Benutzername / E-Mail
+              </span>
               <input
                 name="username"
                 type="text"
@@ -195,7 +206,9 @@ function AddOnlineAccountModal({
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-muted">Kategorie (optional)</span>
+              <span className="mb-1 block text-xs font-medium text-muted">
+                Kategorie (optional)
+              </span>
               <select
                 name="category"
                 defaultValue=""
@@ -213,12 +226,13 @@ function AddOnlineAccountModal({
             <TotpField />
 
             <div className="rounded border border-line bg-surface px-3 py-2 text-xs text-muted">
-              Dein Passwort wird sicher im Schlüssel-Bund deines Macs gespeichert. Wir schicken es niemals weiter.
+              Dein Passwort wird sicher im Schlüssel-Bund deines Macs gespeichert. Wir schicken es
+              niemals weiter.
             </div>
 
             <div className="rounded border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn">
-              Beim ersten Mal kann der Abruf 30–60 Sekunden dauern, weil wir uns merken, wie das Portal funktioniert.
-              Spätere Abrufe sind in wenigen Sekunden fertig.
+              Beim ersten Mal kann der Abruf 30–60 Sekunden dauern, weil wir uns merken, wie das
+              Portal funktioniert. Spätere Abrufe sind in wenigen Sekunden fertig.
             </div>
 
             <div className="flex justify-end gap-2 border-t border-line pt-4">
@@ -254,8 +268,8 @@ function AddOnlineAccountModal({
                 <CheckCircle2 className="mx-auto h-12 w-12 text-ok" aria-hidden />
                 <h3 className="text-lg font-semibold">{state.message}</h3>
                 <p className="text-sm text-muted">
-                  Die Rechnungen liegen jetzt in deinem Posteingang. Ab jetzt holen wir neue Rechnungen automatisch
-                  im Hintergrund.
+                  Die Rechnungen liegen jetzt in deinem Posteingang. Ab jetzt holen wir neue
+                  Rechnungen automatisch im Hintergrund.
                 </p>
               </>
             ) : (
@@ -293,8 +307,8 @@ function TotpField() {
         <div className="flex-1">
           <div className="font-medium">Zwei-Faktor-Authentifizierung (TOTP)</div>
           <div className="mt-0.5 text-xs text-muted">
-            Wenn dein Konto einen 6-stelligen Code aus einer Authenticator-App fordert, hinterleg hier
-            den Schlüssel. Wir generieren den Code dann automatisch.
+            Wenn dein Konto einen 6-stelligen Code aus einer Authenticator-App fordert, hinterleg
+            hier den Schlüssel. Wir generieren den Code dann automatisch.
           </div>
         </div>
       </label>
@@ -308,9 +322,9 @@ function TotpField() {
             className="w-full rounded border border-line bg-white px-3 py-2 font-mono text-sm tracking-wider"
           />
           <p className="text-xs text-muted">
-            Das ist der gleiche Schlüssel, den deine Authenticator-App (z. B. 1Password, Authy, Google
-            Authenticator) beim Einrichten gespeichert hat. Bei den meisten Portalen kannst du ihn unter
-            „2FA-Einstellungen → Schlüssel manuell eingeben“ anzeigen lassen.
+            Das ist der gleiche Schlüssel, den deine Authenticator-App (z. B. 1Password, Authy,
+            Google Authenticator) beim Einrichten gespeichert hat. Bei den meisten Portalen kannst
+            du ihn unter „2FA-Einstellungen → Schlüssel manuell eingeben“ anzeigen lassen.
           </p>
         </div>
       )}

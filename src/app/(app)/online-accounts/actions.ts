@@ -4,10 +4,7 @@ import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { saveCredentialSecret } from "@/lib/secrets/credential-store";
-import {
-  savePortalCredentialMeta,
-  resetPortalCredentialMeta,
-} from "@/portals/credential-meta";
+import { savePortalCredentialMeta, resetPortalCredentialMeta } from "@/portals/credential-meta";
 import { runAgentForVendor } from "@/portals/agent/agent-connector";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { invalidateBrowserSession } from "@/portals/agent/session-store";
@@ -48,7 +45,8 @@ export async function connectOnlineAccountAction(
       if (!/^[A-Z2-7]{16,}$/.test(cleaned)) {
         return {
           status: "error",
-          message: "Der TOTP-Schlüssel sieht ungültig aus. Er sollte aus Base32-Zeichen bestehen (A-Z, 2-7, mind. 16 Zeichen).",
+          message:
+            "Der TOTP-Schlüssel sieht ungültig aus. Er sollte aus Base32-Zeichen bestehen (A-Z, 2-7, mind. 16 Zeichen).",
         };
       }
     }
@@ -237,7 +235,8 @@ export async function syncCommunityRecipesAction(
     const errorSuffix = result.errors.length > 0 ? ` (${result.errors.length} Fehler)` : "";
     return {
       status: "success",
-      message: parts.length > 0 ? parts.join(", ") + "." + errorSuffix : "Keine neuen Recipes verfügbar.",
+      message:
+        parts.length > 0 ? parts.join(", ") + "." + errorSuffix : "Keine neuen Recipes verfügbar.",
     };
   } catch (error) {
     return {
@@ -314,13 +313,15 @@ async function generateCanonicalKey(name: string): Promise<string> {
 }
 
 function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 50) || "lieferant";
+  return (
+    value
+      .toLowerCase()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 50) || "lieferant"
+  );
 }

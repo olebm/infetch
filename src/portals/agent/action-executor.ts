@@ -35,7 +35,9 @@ export async function executeAction(
       return { step: null, finished: false, needsVision: true, reason: action.reason };
 
     case "wait": {
-      await page.waitForLoadState("domcontentloaded", { timeout: action.timeoutMs ?? 5_000 }).catch(() => {});
+      await page
+        .waitForLoadState("domcontentloaded", { timeout: action.timeoutMs ?? 5_000 })
+        .catch(() => {});
       return { step: null, finished: false, needsVision: false };
     }
 
@@ -46,8 +48,11 @@ export async function executeAction(
     }
 
     case "click": {
-      if (!locator) return { step: null, finished: false, needsVision: false, reason: "locator missing" };
-      const playwrightLocator = page.getByRole(locator.role as never, { name: locator.name }).first();
+      if (!locator)
+        return { step: null, finished: false, needsVision: false, reason: "locator missing" };
+      const playwrightLocator = page
+        .getByRole(locator.role as never, { name: locator.name })
+        .first();
       await playwrightLocator.click({ timeout: STEP_TIMEOUT_MS });
       const selector = deriveSelector(locator);
       const step: RecipeStep = { type: "click", selector };
@@ -55,9 +60,12 @@ export async function executeAction(
     }
 
     case "fill": {
-      if (!locator) return { step: null, finished: false, needsVision: false, reason: "locator missing" };
+      if (!locator)
+        return { step: null, finished: false, needsVision: false, reason: "locator missing" };
       const value = await resolveCredentialValue(action.value, credentials);
-      const playwrightLocator = page.getByRole(locator.role as never, { name: locator.name }).first();
+      const playwrightLocator = page
+        .getByRole(locator.role as never, { name: locator.name })
+        .first();
       await playwrightLocator.fill(value, { timeout: STEP_TIMEOUT_MS });
       const selector = deriveSelector(locator);
       const valueFrom = classifyValueSource(action.value);
@@ -77,7 +85,10 @@ function escapeName(value: string): string {
   return value.replace(/"/g, '\\"');
 }
 
-async function resolveCredentialValue(value: string, credentials: AgentCredentials): Promise<string> {
+async function resolveCredentialValue(
+  value: string,
+  credentials: AgentCredentials,
+): Promise<string> {
   if (value === "credential.username") return credentials.username;
   if (value === "credential.password") return credentials.password;
   if (value === "totp") {
@@ -88,7 +99,9 @@ async function resolveCredentialValue(value: string, credentials: AgentCredentia
   return value;
 }
 
-function classifyValueSource(value: string): "credential.username" | "credential.password" | "totp" {
+function classifyValueSource(
+  value: string,
+): "credential.username" | "credential.password" | "totp" {
   if (value === "credential.password") return "credential.password";
   if (value === "totp") return "totp";
   return "credential.username"; // Default — fuer literale Werte gehen wir vom Username aus

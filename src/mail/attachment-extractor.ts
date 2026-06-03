@@ -40,7 +40,9 @@ export async function extractPdfAttachments(source: Buffer): Promise<ParsedMailF
   const pdfAttachments = parsed.attachments
     .filter((attachment) => {
       const filename = attachment.filename || "";
-      return attachment.contentType === "application/pdf" || filename.toLowerCase().endsWith(".pdf");
+      return (
+        attachment.contentType === "application/pdf" || filename.toLowerCase().endsWith(".pdf")
+      );
     })
     .map((attachment, index) => ({
       filename: normalizePdfFilename(attachment.filename, parsed.messageId, index),
@@ -79,8 +81,14 @@ export function bodyStructureHasPdf(node: BodyStructureNode | null | undefined):
   return (node.childNodes || []).some(bodyStructureHasPdf);
 }
 
-function normalizePdfFilename(filename: string | undefined, messageId: string | undefined, index: number) {
+function normalizePdfFilename(
+  filename: string | undefined,
+  messageId: string | undefined,
+  index: number,
+) {
   if (filename?.toLowerCase().endsWith(".pdf")) return filename;
-  const source = messageId ? messageId.replace(/[^a-z0-9]+/gi, "-").slice(0, 60) : `mail-attachment-${index + 1}`;
+  const source = messageId
+    ? messageId.replace(/[^a-z0-9]+/gi, "-").slice(0, 60)
+    : `mail-attachment-${index + 1}`;
   return `${source || "mail-attachment"}.pdf`;
 }

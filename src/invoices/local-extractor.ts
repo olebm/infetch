@@ -1,4 +1,6 @@
-export async function extractPdfText(buffer: Buffer): Promise<{ text: string; error: string | null }> {
+export async function extractPdfText(
+  buffer: Buffer,
+): Promise<{ text: string; error: string | null }> {
   try {
     const pdfParse = (await import("pdf-parse")).default;
     const parsed = await pdfParse(buffer);

@@ -9,7 +9,7 @@ import { logout } from "@/app/login/actions";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/",      label: "Übersicht",   key: "dashboard" },
+  { href: "/", label: "Übersicht", key: "dashboard" },
   { href: "/audit", label: "Posteingang", key: "inbox" },
 ] as const;
 
@@ -112,12 +112,7 @@ export function TopBar({
                     {reviewCount > 99 ? "99+" : reviewCount}
                   </span>
                 )}
-                {active && (
-                  <span
-                    className="absolute inset-x-3 bottom-0 h-px bg-ink"
-                    aria-hidden
-                  />
-                )}
+                {active && <span className="absolute inset-x-3 bottom-0 h-px bg-ink" aria-hidden />}
               </Link>
             );
           })}
@@ -148,7 +143,11 @@ export function TopBar({
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-ink text-[11px] font-medium text-white overflow-hidden">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt={userName || "Profilbild"} className="h-full w-full object-cover" />
+                  <img
+                    src={avatarUrl}
+                    alt={userName || "Profilbild"}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   initials || "·"
                 )}
@@ -173,9 +172,7 @@ export function TopBar({
               >
                 <div className="border-b border-line px-4 py-3" aria-hidden>
                   <div className="text-sm font-medium text-ink">{userName || "—"}</div>
-                  {userEmail && (
-                    <div className="truncate text-xs text-muted">{userEmail}</div>
-                  )}
+                  {userEmail && <div className="truncate text-xs text-muted">{userEmail}</div>}
                 </div>
                 <div className="py-1">
                   <Link
@@ -238,10 +235,11 @@ export function TopBar({
               strokeWidth="2"
               aria-hidden
             >
-              {mobileOpen
-                ? <path d="M6 6l12 12M6 18L18 6" />
-                : <path d="M3 12h18M3 6h18M3 18h18" />
-              }
+              {mobileOpen ? (
+                <path d="M6 6l12 12M6 18L18 6" />
+              ) : (
+                <path d="M3 12h18M3 6h18M3 18h18" />
+              )}
             </svg>
           </button>
         </div>
@@ -253,7 +251,10 @@ export function TopBar({
           className="border-t border-line md:hidden"
           style={{ backgroundColor: "rgb(251, 250, 247)" }}
         >
-          <nav className="flex flex-col px-4 py-2 overscroll-contain" aria-label="Mobile Navigation">
+          <nav
+            className="flex flex-col px-4 py-2 overscroll-contain"
+            aria-label="Mobile Navigation"
+          >
             {autoPilotEnabled && (
               <div className="flex h-10 items-center gap-2 px-2 text-sm text-muted">
                 <span className="h-1.5 w-1.5 rounded-full bg-ok ap-pulse" aria-hidden />
@@ -282,8 +283,8 @@ export function TopBar({
             })}
             <div className="mt-1 border-t border-line pt-1">
               {[
-                { href: "/konto",         label: "Mein Konto" },
-                { href: "/senders",       label: "Anbieter" },
+                { href: "/konto", label: "Mein Konto" },
+                { href: "/senders", label: "Anbieter" },
                 { href: "/einstellungen", label: "Einstellungen" },
               ].map(({ href, label }) => (
                 <Link

@@ -128,9 +128,7 @@ describe.skipIf(!hasDb)("tenant-fuzz — every org-scoped table is leak-free", (
     const dbTables = rows.map((r) => r.table_name);
 
     const registryTables = new Set(ORG_SCOPED_TABLES.map((e) => e.table));
-    const { CROSS_ORG_INTENTIONAL, ORG_SCOPED_DEFERRED } = await import(
-      "./endpoint-registry"
-    );
+    const { CROSS_ORG_INTENTIONAL, ORG_SCOPED_DEFERRED } = await import("./endpoint-registry");
     const intentional = new Set(CROSS_ORG_INTENTIONAL);
     const deferred = new Set(ORG_SCOPED_DEFERRED);
 
@@ -138,6 +136,9 @@ describe.skipIf(!hasDb)("tenant-fuzz — every org-scoped table is leak-free", (
       (t) => !registryTables.has(t) && !intentional.has(t) && !deferred.has(t),
     );
 
-    expect(unaccounted, `Tables with organization_id not in registry or CROSS_ORG_INTENTIONAL: ${unaccounted.join(", ")}`).toEqual([]);
+    expect(
+      unaccounted,
+      `Tables with organization_id not in registry or CROSS_ORG_INTENTIONAL: ${unaccounted.join(", ")}`,
+    ).toEqual([]);
   });
 });

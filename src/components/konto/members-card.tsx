@@ -143,10 +143,10 @@ function MemberRow({
           {isMe && <span className="ml-2 text-xs text-muted">(du)</span>}
         </div>
         <div className="truncate text-xs text-muted">{member.email}</div>
-        {(removeState.status === "error") && (
+        {removeState.status === "error" && (
           <div className="mt-1 text-xs text-danger">{removeState.message}</div>
         )}
-        {(roleState.status === "error") && (
+        {roleState.status === "error" && (
           <div className="mt-1 text-xs text-danger">{roleState.message}</div>
         )}
       </div>
@@ -218,9 +218,7 @@ function PendingInviteRow({ invite, canRevoke }: { invite: PendingInvite; canRev
       {/* Info */}
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm text-muted font-mono">{invite.email}</div>
-        <div className="text-xs text-muted">
-          Einladung ausstehend · {roleLabel(invite.role)}
-        </div>
+        <div className="text-xs text-muted">Einladung ausstehend · {roleLabel(invite.role)}</div>
         {state.status === "error" && (
           <div className="mt-1 text-xs text-danger">{state.message}</div>
         )}
@@ -246,7 +244,15 @@ function PendingInviteRow({ invite, canRevoke }: { invite: PendingInvite; canRev
 
 // ── Main Card ─────────────────────────────────────────────────────────────────
 
-export function MembersCard({ members, pendingInvitations, currentUserId, currentUserRole, orgName, maxUsers, isPro }: Props) {
+export function MembersCard({
+  members,
+  pendingInvitations,
+  currentUserId,
+  currentUserRole,
+  orgName,
+  maxUsers,
+  isPro,
+}: Props) {
   const [showInviteForm, setShowInviteForm] = useState(false);
   const { openModal, proEnabled } = useUpgrade();
 
@@ -260,7 +266,9 @@ export function MembersCard({ members, pendingInvitations, currentUserId, curren
         <div>
           <div className="text-sm font-medium text-ink">
             Mitglieder{orgName ? ` · ${orgName}` : ""}{" "}
-            <span className="text-xs font-normal text-muted">({members.length}/{maxUsers})</span>
+            <span className="text-xs font-normal text-muted">
+              ({members.length}/{maxUsers})
+            </span>
           </div>
           <div className="text-xs text-muted">
             Wer sieht und bearbeitet Rechnungen in diesem Arbeitsbereich.
@@ -278,7 +286,9 @@ export function MembersCard({ members, pendingInvitations, currentUserId, curren
           </button>
         )}
         {canInvite && atLimit && isPro && (
-          <span className="text-xs text-muted">Limit erreicht ({maxUsers}/{maxUsers})</span>
+          <span className="text-xs text-muted">
+            Limit erreicht ({maxUsers}/{maxUsers})
+          </span>
         )}
       </div>
 

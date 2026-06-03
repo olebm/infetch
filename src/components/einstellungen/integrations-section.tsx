@@ -47,7 +47,13 @@ export function IntegrationsSection({
   );
 }
 
-function LexofficeIntegrationCard({ status, isPro }: { status?: IntegrationStatus; isPro: boolean }) {
+function LexofficeIntegrationCard({
+  status,
+  isPro,
+}: {
+  status?: IntegrationStatus;
+  isPro: boolean;
+}) {
   const isConnected = status?.enabled === true;
 
   return (
@@ -112,7 +118,13 @@ function SevdeskIntegrationCard({ status, isPro }: { status?: IntegrationStatus;
               </span>
             )}
           </div>
-          {isConnected ? <DisconnectForm provider="sevdesk" /> : isPro ? <SevdeskApiKeyForm /> : <ProOnlyHint feature="sevDesk-Integration" />}
+          {isConnected ? (
+            <DisconnectForm provider="sevdesk" />
+          ) : isPro ? (
+            <SevdeskApiKeyForm />
+          ) : (
+            <ProOnlyHint feature="sevDesk-Integration" />
+          )}
         </div>
       </div>
     </div>
@@ -137,8 +149,8 @@ function SevdeskApiKeyForm() {
       </label>
       {showHelp && (
         <div className="rounded border border-brand/30 bg-brand-soft px-3 py-2 text-xs text-brand-deep">
-          Generiere den Token in sevDesk unter{" "}
-          <strong>Mein Profil → API-Token</strong>. Im Gegensatz zu lexoffice in allen sevDesk-Plänen verfügbar.
+          Generiere den Token in sevDesk unter <strong>Mein Profil → API-Token</strong>. Im
+          Gegensatz zu lexoffice in allen sevDesk-Plänen verfügbar.
         </div>
       )}
       <input

@@ -46,7 +46,8 @@ export function ManualImportForm() {
       {open && (
         <div className="border-t border-line px-4 pb-4 pt-3">
           <p className="mb-3 text-xs text-muted">
-            Wir speichern sie lokal, erkennen Doppelte und lesen Daten automatisch aus, falls KI-Erkennung aktiv ist.
+            Wir speichern sie lokal, erkennen Doppelte und lesen Daten automatisch aus, falls
+            KI-Erkennung aktiv ist.
           </p>
           <form action={formAction} className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <input

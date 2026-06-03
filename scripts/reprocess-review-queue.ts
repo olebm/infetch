@@ -2,7 +2,9 @@ import { sql } from "../src/lib/db/client";
 import { evaluateAutoApproval } from "../src/lib/automation/auto-approval";
 import type { InvoiceAiExtraction } from "../src/ai/schemas";
 
-const beforeRows = await sql<{ c: string }[]>`SELECT COUNT(*) AS c FROM invoices WHERE status = 'needs_review'`;
+const beforeRows = await sql<
+  { c: string }[]
+>`SELECT COUNT(*) AS c FROM invoices WHERE status = 'needs_review'`;
 const beforeCount = Number(beforeRows[0].c);
 console.log(`Vorher in needs_review: ${beforeCount}\n`);
 
@@ -64,7 +66,9 @@ for (const row of rows) {
   }
 }
 
-const afterRows = await sql<{ c: string }[]>`SELECT COUNT(*) AS c FROM invoices WHERE status = 'needs_review'`;
+const afterRows = await sql<
+  { c: string }[]
+>`SELECT COUNT(*) AS c FROM invoices WHERE status = 'needs_review'`;
 const afterCount = Number(afterRows[0].c);
 
 console.log(`Verarbeitet: ${rows.length}`);

@@ -30,9 +30,7 @@ export function NavLinks({ variant }: { variant: "sidebar" | "mobile" }) {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={`flex h-10 items-center gap-2.5 rounded px-3 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-brand-soft text-brand-deep"
-                  : "text-ink hover:bg-surface"
+                active ? "bg-brand-soft text-brand-deep" : "text-ink hover:bg-surface"
               }`}
             >
               <Icon

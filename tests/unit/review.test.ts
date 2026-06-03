@@ -19,7 +19,9 @@ beforeAll(async () => {
 
 async function getVendorId(canonicalKey: string): Promise<number | undefined> {
   // Globale Built-in-Vendors (organization_id IS NULL) sind für jede Org sichtbar.
-  const rows = await sql<{ id: number }[]>`SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}`;
+  const rows = await sql<
+    { id: number }[]
+  >`SELECT id FROM vendors WHERE canonical_key = ${canonicalKey}`;
   return rows[0]?.id;
 }
 
@@ -63,14 +65,16 @@ describe("invoice review", () => {
       preferredExportTargetId: null,
     });
 
-    const rows = await sql<{
-      vendorId: number | null;
-      status: string;
-      invoiceNumber: string | null;
-      invoiceDate: string | null;
-      servicePeriodStart: string | null;
-      duplicateOfInvoiceId: number | null;
-    }[]>`
+    const rows = await sql<
+      {
+        vendorId: number | null;
+        status: string;
+        invoiceNumber: string | null;
+        invoiceDate: string | null;
+        servicePeriodStart: string | null;
+        duplicateOfInvoiceId: number | null;
+      }[]
+    >`
       SELECT vendor_id AS "vendorId", status, invoice_number AS "invoiceNumber",
         invoice_date AS "invoiceDate",
         service_period_start AS "servicePeriodStart",
@@ -121,23 +125,25 @@ describe("invoice review", () => {
   it("requires a target invoice when marking an invoice as duplicate", async () => {
     const invoiceId = await insertInvoice();
 
-    await expect(updateInvoiceReview({
-      organizationId: TEST_ORG_ID,
-      invoiceId,
-      vendorId: null,
-      invoiceNumber: null,
-      invoiceDate: null,
-      servicePeriodStart: null,
-      servicePeriodEnd: null,
-      amountGross: null,
-      amountNet: null,
-      vatAmount: null,
-      currency: null,
-      status: "duplicate",
-      duplicateOfInvoiceId: null,
-      vatRate: null,
-      docType: null,
-      preferredExportTargetId: null,
-    })).rejects.toThrow("Bitte eine Zielrechnung für die Dublette auswählen.");
+    await expect(
+      updateInvoiceReview({
+        organizationId: TEST_ORG_ID,
+        invoiceId,
+        vendorId: null,
+        invoiceNumber: null,
+        invoiceDate: null,
+        servicePeriodStart: null,
+        servicePeriodEnd: null,
+        amountGross: null,
+        amountNet: null,
+        vatAmount: null,
+        currency: null,
+        status: "duplicate",
+        duplicateOfInvoiceId: null,
+        vatRate: null,
+        docType: null,
+        preferredExportTargetId: null,
+      }),
+    ).rejects.toThrow("Bitte eine Zielrechnung für die Dublette auswählen.");
   });
 });

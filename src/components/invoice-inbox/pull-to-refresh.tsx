@@ -3,14 +3,11 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
-import {
-  runImapScanAction,
-  type CredentialFormState,
-} from "@/app/(app)/einstellungen/actions";
+import { runImapScanAction, type CredentialFormState } from "@/app/(app)/einstellungen/actions";
 
 // ─── Konstanten ────────────────────────────────────────────────────────────────
-const THRESHOLD = 64;  // px Zugdistanz bis Auslösen
-const DAMPING   = 0.45; // Dämpfung: 1:1-Zug fühlt sich zu schwer an
+const THRESHOLD = 64; // px Zugdistanz bis Auslösen
+const DAMPING = 0.45; // Dämpfung: 1:1-Zug fühlt sich zu schwer an
 const IDLE: CredentialFormState = { status: "idle", message: "" };
 
 // ─── Komponente ────────────────────────────────────────────────────────────────
@@ -31,13 +28,13 @@ export function PullToRefresh() {
 
   const startYRef = useRef(0);
   const activeRef = useRef(false);
-  const firedRef  = useRef(false);
+  const firedRef = useRef(false);
 
   useEffect(() => {
     function onStart(e: TouchEvent) {
       if (window.scrollY > 4) return; // nur am Seitenanfang
       activeRef.current = true;
-      firedRef.current  = false;
+      firedRef.current = false;
       startYRef.current = e.touches[0].clientY;
     }
 
@@ -64,21 +61,21 @@ export function PullToRefresh() {
       });
     }
 
-    window.addEventListener("touchstart",  onStart, { passive: true });
-    window.addEventListener("touchmove",   onMove,  { passive: true });
-    window.addEventListener("touchend",    onEnd);
+    window.addEventListener("touchstart", onStart, { passive: true });
+    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("touchend", onEnd);
     window.addEventListener("touchcancel", onEnd);
 
     return () => {
-      window.removeEventListener("touchstart",  onStart);
-      window.removeEventListener("touchmove",   onMove);
-      window.removeEventListener("touchend",    onEnd);
+      window.removeEventListener("touchstart", onStart);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
       window.removeEventListener("touchcancel", onEnd);
     };
   }, [router, startTransition]);
 
   const progress = Math.min(pullY / THRESHOLD, 1);
-  const ready    = progress >= 1;
+  const ready = progress >= 1;
 
   // Unsichtbar solange kein Zug und kein laufender Fetch
   if (pullY === 0 && !isPending) return null;
@@ -93,17 +90,9 @@ export function PullToRefresh() {
     >
       <RefreshCw
         size={14}
-        className={
-          isPending
-            ? "animate-spin text-brand"
-            : ready
-              ? "text-brand"
-              : "text-muted"
-        }
+        className={isPending ? "animate-spin text-brand" : ready ? "text-brand" : "text-muted"}
         style={
-          isPending
-            ? undefined
-            : { transform: `rotate(${progress * 360}deg)`, opacity: progress }
+          isPending ? undefined : { transform: `rotate(${progress * 360}deg)`, opacity: progress }
         }
         aria-hidden
       />

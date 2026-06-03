@@ -25,10 +25,7 @@ function createClient(): postgres.Sql {
     // DATABASE_URL — build never queries, and integration tests without DB fail
     // at query-time (individual test failure) rather than at module-load time
     // (which would crash the entire test file before any test can run).
-    if (
-      process.env.NEXT_PHASE === "phase-production-build" ||
-      process.env.VITEST !== undefined
-    ) {
+    if (process.env.NEXT_PHASE === "phase-production-build" || process.env.VITEST !== undefined) {
       return postgres("postgresql://localhost/build", { prepare: false });
     }
     throw new Error(
@@ -63,8 +60,7 @@ function createClient(): postgres.Sql {
   });
 }
 
-export const sql: postgres.Sql =
-  globalThis.__pgSql ?? (globalThis.__pgSql = createClient());
+export const sql: postgres.Sql = globalThis.__pgSql ?? (globalThis.__pgSql = createClient());
 
 /**
  * @deprecated Verwende `sql` direkt. Diese Funktion existiert nur für die

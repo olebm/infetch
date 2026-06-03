@@ -36,7 +36,10 @@ export function YearSelector({ years, selectedYear, currentStatus }: YearSelecto
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-0 h-3 w-3 text-muted" aria-hidden />
+      <ChevronDown
+        className="pointer-events-none absolute right-0 h-3 w-3 text-muted"
+        aria-hidden
+      />
     </div>
   );
 }

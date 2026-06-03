@@ -27,28 +27,21 @@ type UsageBarProps = {
 };
 
 function UsageBar({ label, current, max, formatCurrent, formatMax, unit }: UsageBarProps) {
-  const pct     = Math.min(100, Math.round((current / max) * 100));
-  const isWarn  = pct >= 80 && pct < 100;
-  const isFull  = pct >= 100;
+  const pct = Math.min(100, Math.round((current / max) * 100));
+  const isWarn = pct >= 80 && pct < 100;
+  const isFull = pct >= 100;
 
-  const barColor = isFull
-    ? "bg-danger"
-    : isWarn
-    ? "bg-warn"
-    : "bg-brand";
+  const barColor = isFull ? "bg-danger" : isWarn ? "bg-warn" : "bg-brand";
 
-  const textColor = isFull
-    ? "text-danger"
-    : isWarn
-    ? "text-warn"
-    : "text-muted";
+  const textColor = isFull ? "text-danger" : isWarn ? "text-warn" : "text-muted";
 
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-xs font-medium text-ink">{label}</span>
         <span className={`text-xs font-mono ${textColor}`}>
-          {formatCurrent(current)}/{formatMax(max)}{unit ? ` ${unit}` : ""}
+          {formatCurrent(current)}/{formatMax(max)}
+          {unit ? ` ${unit}` : ""}
         </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-line">
@@ -63,9 +56,7 @@ function UsageBar({ label, current, max, formatCurrent, formatMax, unit }: Usage
         </p>
       )}
       {isWarn && (
-        <p className="mt-1 text-[11px] text-warn">
-          Fast voll — {100 - pct}% verbleibend.
-        </p>
+        <p className="mt-1 text-[11px] text-warn">Fast voll — {100 - pct}% verbleibend.</p>
       )}
     </div>
   );
@@ -78,7 +69,7 @@ type Props = {
 };
 
 export async function UsageCard({ organizationId }: Props) {
-  const tier   = await getOrgTier(organizationId);
+  const tier = await getOrgTier(organizationId);
   const limits = getLimits(tier);
 
   const [invoiceCount, storageBytes] = await Promise.all([
@@ -92,7 +83,9 @@ export async function UsageCard({ organizationId }: Props) {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="text-sm font-medium text-ink">Nutzung diesen Monat</div>
-          <div className="text-xs text-muted">Paket: {limits.label} · €{limits.priceMonthlyEur}/Monat</div>
+          <div className="text-xs text-muted">
+            Paket: {limits.label} · €{limits.priceMonthlyEur}/Monat
+          </div>
         </div>
         {tier !== "free" && (
           <span className="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-deep">
@@ -125,28 +118,28 @@ export async function UsageCard({ organizationId }: Props) {
         <div className="mt-6 border-t border-line pt-5">
           <div className="mb-3 text-xs font-medium text-ink">Paketvergleich</div>
           <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr>
-                <th className="pb-2 text-left font-medium text-muted w-1/2"></th>
-                <th className="pb-2 text-center font-medium text-muted w-1/4">Free</th>
-                <th className="pb-2 text-center font-semibold text-brand w-1/4">
-                  Pro · €19/Monat
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              <PlanRow label="Rechnungen / Monat" free="30" pro="150" />
-              <PlanRow label="Speicher" free="500 MB" pro="2 GB" />
-              <PlanRow label="Postfächer (IMAP)" free="1" pro="3" />
-              <PlanRow label="Nutzer" free="1" pro="3" />
-              <PlanRow label="Auto-Approve" freeOk pro="✓" />
-              <PlanRow label="Download: einzeln / pro Anbieter" freeOk pro="✓" />
-              <PlanRow label="Download: alle Rechnungen (Bulk)" freeNo proOk />
-              <PlanRow label="Retroaktiver Scan (12 Mo.)" freeNo proOk />
-              <PlanRow label="Export (lexoffice / sevDesk)" freeNo proOk />
-            </tbody>
-          </table>
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="pb-2 text-left font-medium text-muted w-1/2"></th>
+                  <th className="pb-2 text-center font-medium text-muted w-1/4">Free</th>
+                  <th className="pb-2 text-center font-semibold text-brand w-1/4">
+                    Pro · €19/Monat
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                <PlanRow label="Rechnungen / Monat" free="30" pro="150" />
+                <PlanRow label="Speicher" free="500 MB" pro="2 GB" />
+                <PlanRow label="Postfächer (IMAP)" free="1" pro="3" />
+                <PlanRow label="Nutzer" free="1" pro="3" />
+                <PlanRow label="Auto-Approve" freeOk pro="✓" />
+                <PlanRow label="Download: einzeln / pro Anbieter" freeOk pro="✓" />
+                <PlanRow label="Download: alle Rechnungen (Bulk)" freeNo proOk />
+                <PlanRow label="Retroaktiver Scan (12 Mo.)" freeNo proOk />
+                <PlanRow label="Export (lexoffice / sevDesk)" freeNo proOk />
+              </tbody>
+            </table>
           </div>
           <div className="mt-4">
             <form action="/api/stripe/checkout" method="post">

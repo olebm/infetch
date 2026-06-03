@@ -4,9 +4,9 @@
       "command": "npx",
       "args": ["-y", "@makeplane/plane-mcp-server"],
       "env": {
-        "PLANE_API_KEY": "${INFETCH_PLANE_API_KEY}",
-        "PLANE_WORKSPACE_SLUG": "betaform",
-        "PLANE_API_HOST_URL": "https://plane.betaform.io"
+        "PLANE_API_KEY": "${BETAFORM_PLANE_API_KEY}",
+        "PLANE_WORKSPACE_SLUG": "${BETAFORM_PLANE_WORKSPACE}",
+        "PLANE_API_HOST_URL": "${BETAFORM_PLANE_URL}"
       }
     }
   }

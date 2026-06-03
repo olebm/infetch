@@ -51,9 +51,11 @@ export type AutoAliasResult = {
  *   2. discovered_senders.matched_vendor_id auf den neuen Vendor setzen
  *      (falls vorhanden)
  */
-export async function learnFromManualMatch(
-  input: { invoiceId: number; vendorId: number; organizationId: string | null },
-): Promise<AutoAliasResult> {
+export async function learnFromManualMatch(input: {
+  invoiceId: number;
+  vendorId: number;
+  organizationId: string | null;
+}): Promise<AutoAliasResult> {
   const sender = await getSenderFromInvoice(input.invoiceId);
   const senderEmail = sender.fromAddress;
   if (!senderEmail) {
@@ -121,7 +123,10 @@ export type RematchSummary = {
 };
 
 export async function rematchUnmatchedInvoices(
-  matchVendor: (signals: string[], organizationId?: string | null) => Promise<{
+  matchVendor: (
+    signals: string[],
+    organizationId?: string | null,
+  ) => Promise<{
     vendorId: number | null;
     canonicalKey: string | null;
     confidence: number;
@@ -131,14 +136,16 @@ export async function rematchUnmatchedInvoices(
   // Kandidaten: Rechnungen ohne vendor_id ODER mit niedrigem Confidence-Score.
   // Optional auf EINE Org begrenzt (Auto-Lever nach Scan); ohne Arg global
   // (manueller Senders-Button / Script) — abwärtskompatibel.
-  const candidates = await sql<Array<{
-    id: number;
-    organizationId: string | null;
-    vendorId: number | null;
-    filename: string | null;
-    fromAddress: string | null;
-    rawTextPath: string | null;
-  }>>`
+  const candidates = await sql<
+    Array<{
+      id: number;
+      organizationId: string | null;
+      vendorId: number | null;
+      filename: string | null;
+      fromAddress: string | null;
+      rawTextPath: string | null;
+    }>
+  >`
     SELECT i.id AS id, i.organization_id AS "organizationId", i.vendor_id AS "vendorId",
            (SELECT inf.original_filename FROM invoice_files inf
             WHERE inf.invoice_id = i.id ORDER BY inf.created_at DESC LIMIT 1) AS filename,

@@ -24,8 +24,18 @@ import { getCurrentAuth } from "@/lib/auth/current";
 import { canImportInvoice } from "@/lib/tier";
 
 const MONTHS_DE = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "Dezember",
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
 ];
 
 function currencyEUR(amount: number) {
@@ -49,7 +59,10 @@ function formatDate(iso: string | null): string {
 
 function formatAmount(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
-  const value = amount.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const value = amount.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   const sym = !currency || currency === "EUR" ? "€" : currency;
   return `${value} ${sym}`;
 }
@@ -124,7 +137,8 @@ export async function DashboardView() {
   const recentInvoices = recentInvoicesRaw.filter((inv) => !!inv.vendorName).slice(0, 5);
   const statusCounts = new Map(statusCountsRaw.map((c) => [c.status, Number(c.count)]));
   const reviewCount = ["needs_review", "new", "failed"].reduce(
-    (acc, s) => acc + (statusCounts.get(s) ?? 0), 0,
+    (acc, s) => acc + (statusCounts.get(s) ?? 0),
+    0,
   );
 
   const now = new Date();
@@ -133,7 +147,20 @@ export async function DashboardView() {
   const monthEndLabel = `${monthEnd.getDate()}. ${MONTHS_DE[now.getMonth()]}`;
 
   // "seit …" label — erster Scan-Zeitpunkt aus erster Rechnung
-  const MONTHS_SHORT = ["Jan","Feb","März","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+  const MONTHS_SHORT = [
+    "Jan",
+    "Feb",
+    "März",
+    "Apr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Dez",
+  ];
   const obsLabel = obsStart
     ? (() => {
         const d = new Date(obsStart);
@@ -181,8 +208,9 @@ export async function DashboardView() {
   // Relativ-Label fuer Banner (analoge Logik, kein Tier-Fallback noetig).
   const lastScanFailureRelative = lastScanFailure
     ? (() => {
-        // eslint-disable-next-line react-hooks/purity -- server component
-        const diffMin = Math.round((Date.now() - new Date(lastScanFailure.failedAt).getTime()) / 60_000);
+        // eslint-disable-next-line react-hooks/purity -- server component, evaluated once at render
+        const now = Date.now();
+        const diffMin = Math.round((now - new Date(lastScanFailure.failedAt).getTime()) / 60_000);
         if (diffMin < 2) return "gerade eben";
         if (diffMin < 60) return `vor ${diffMin} Min`;
         const diffH = Math.round(diffMin / 60);
@@ -205,7 +233,8 @@ export async function DashboardView() {
       : "Alles läuft. Du musst hier nichts tun.";
 
   // Build anomaly list
-  const anomalies: Array<{ vendor: string; domain: string | null; reason: string; href: string }> = [];
+  const anomalies: Array<{ vendor: string; domain: string | null; reason: string; href: string }> =
+    [];
   // Falsch-„überfällig"-Guard: „seit N Tagen keine Rechnung" ist erst aussagekräftig,
   // wenn wir den Account lange genug beobachten. Direkt nach dem Onboarding-Backscan
   // ist obsStart (= MIN(created_at)) ≈ heute, obwohl alt-datierte Dokumente importiert
@@ -243,7 +272,9 @@ export async function DashboardView() {
       className="inline-flex items-center gap-1.5 rounded-full border border-warn/30 bg-warn-soft/40 px-2.5 py-1 text-xs font-medium text-ink"
     >
       <AlertTriangle size={13} className="shrink-0 text-warn" aria-hidden />
-      <span className="stat-num">{quota.current}/{quota.max}</span>
+      <span className="stat-num">
+        {quota.current}/{quota.max}
+      </span>
       <span className="font-normal text-muted">Limit erreicht</span>
     </span>
   ) : quotaNearLimit ? (
@@ -251,7 +282,9 @@ export async function DashboardView() {
       title={`Du näherst dich dem Monatslimit (${quota.current}/${quota.max} Rechnungen).`}
       className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-muted"
     >
-      <span className="stat-num text-ink">{quota.current}/{quota.max}</span>
+      <span className="stat-num text-ink">
+        {quota.current}/{quota.max}
+      </span>
       Monatslimit
     </span>
   ) : null;
@@ -292,7 +325,6 @@ export async function DashboardView() {
       {/* ── MOBILE DASHBOARD ────────────────────────────────────────────────── */}
       {!isFresh && (
         <div className="md:hidden mt-3">
-
           {/* Kompakte Monatszeile — nur wenn schon etwas versendet wurde, damit
               direkt nach dem Onboarding kein "0 €" erscheint, während dispatchPendingExports
               noch läuft (Rechnungen sind 'ready', aber noch nicht 'exported'). */}
@@ -396,9 +428,14 @@ export async function DashboardView() {
             {/* Auto-Pilot days without manual intervention */}
             <div className="md:border-r md:border-line md:pr-6">
               <div className="font-display text-xl text-ink sm:text-2xl stat-num sm:text-3xl">
-                {secondary.daysSinceLastIntervention != null
-                  ? <>{secondary.daysSinceLastIntervention} <span className="text-lg text-muted">Tage</span></>
-                  : "—"}
+                {secondary.daysSinceLastIntervention != null ? (
+                  <>
+                    {secondary.daysSinceLastIntervention}{" "}
+                    <span className="text-lg text-muted">Tage</span>
+                  </>
+                ) : (
+                  "—"
+                )}
               </div>
               <div className="mt-1 text-xs text-muted">Auto-Pilot ohne Eingriff</div>
             </div>
@@ -418,7 +455,8 @@ export async function DashboardView() {
                 title="Spam, Newsletter, Duplikate — nicht weitergeleitet."
               >
                 <div className="font-display text-xl text-ink sm:text-2xl stat-num sm:text-3xl">
-                  {secondary.filteredThisMonth} <span className="text-lg text-muted">gefiltert</span>
+                  {secondary.filteredThisMonth}{" "}
+                  <span className="text-lg text-muted">gefiltert</span>
                 </div>
                 <div className="mt-1 text-xs text-muted">Spam · Duplikate · Newsletter</div>
               </div>
@@ -486,7 +524,8 @@ export async function DashboardView() {
           <ul className="mt-6 grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-5">
             {topVendors.slice(0, 5).map((v) => {
               const trend = v.deltaPrevMonth > 0 ? "↗" : v.deltaPrevMonth < 0 ? "↘" : "→";
-              const deltaLabel = v.deltaPrevMonth > 0 ? `+${v.deltaPrevMonth}` : v.deltaPrevMonth.toString();
+              const deltaLabel =
+                v.deltaPrevMonth > 0 ? `+${v.deltaPrevMonth}` : v.deltaPrevMonth.toString();
               return (
                 <li key={v.vendorName}>
                   <Link href="/senders" className="group flex flex-col gap-3">
@@ -533,7 +572,9 @@ export async function DashboardView() {
               <dd className="mt-0.5 stat-num text-ink">
                 {stats.daysActive !== null
                   ? `${stats.daysActive} ${stats.daysActive === 1 ? "Tag" : "Tagen"}`
-                  : setup.imapConfigured ? "aktiv" : "—"}
+                  : setup.imapConfigured
+                    ? "aktiv"
+                    : "—"}
               </dd>
             </div>
             <div>
@@ -552,4 +593,3 @@ export async function DashboardView() {
     </div>
   );
 }
-

@@ -5,8 +5,8 @@ import { contactGlobalLimiter, contactIpLimiter } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 // ── Limits gegen Spam ─────────────────────────────────────────────────────────
-const MAX_NAME_LENGTH    = 200;
-const MAX_EMAIL_LENGTH   = 320;   // RFC 5321
+const MAX_NAME_LENGTH = 200;
+const MAX_EMAIL_LENGTH = 320; // RFC 5321
 const MAX_MESSAGE_LENGTH = 5_000;
 
 function getClientIp(request: NextRequest): string {
@@ -23,7 +23,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!ipCheck.ok) {
     return NextResponse.json(
       { error: "Zu viele Anfragen. Bitte kurz warten." },
-      { status: 429, headers: { "retry-after": String(Math.ceil((ipCheck.resetAt - Date.now()) / 1000)) } },
+      {
+        status: 429,
+        headers: { "retry-after": String(Math.ceil((ipCheck.resetAt - Date.now()) / 1000)) },
+      },
     );
   }
   const globalCheck = contactGlobalLimiter.check("global");
@@ -48,15 +51,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true });
   }
 
-  const name    = (body.name    ?? "").trim().slice(0, MAX_NAME_LENGTH);
-  const email   = (body.email   ?? "").trim().slice(0, MAX_EMAIL_LENGTH);
+  const name = (body.name ?? "").trim().slice(0, MAX_NAME_LENGTH);
+  const email = (body.email ?? "").trim().slice(0, MAX_EMAIL_LENGTH);
   const message = (body.message ?? "").trim().slice(0, MAX_MESSAGE_LENGTH);
 
   if (!email || !message) {
-    return NextResponse.json(
-      { error: "E-Mail und Nachricht sind erforderlich." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "E-Mail und Nachricht sind erforderlich." }, { status: 400 });
   }
   if (message.length < 5) {
     return NextResponse.json({ error: "Nachricht zu kurz." }, { status: 400 });
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const ok = await sendContactEmail({
-    fromName:  name || email,
+    fromName: name || email,
     fromEmail: email,
     message,
   });

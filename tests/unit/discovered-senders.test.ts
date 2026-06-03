@@ -124,7 +124,9 @@ describe("block and link helpers", () => {
     await blockSender(sender.id, "Werbung", TEST_ORG_ID);
     expect(await isSenderBlocked("OPS@VENDOR-TEST.COM", TEST_ORG_ID)).toBe(true);
     const allAfterBlock = await listDiscoveredSenders(TEST_ORG_ID);
-    expect(allAfterBlock.find((s) => s.fromAddress === "ops@vendor-test.com")?.blockedReason).toBe("Werbung");
+    expect(allAfterBlock.find((s) => s.fromAddress === "ops@vendor-test.com")?.blockedReason).toBe(
+      "Werbung",
+    );
 
     await unblockSender(sender.id, TEST_ORG_ID);
     expect(await isSenderBlocked("ops@vendor-test.com", TEST_ORG_ID)).toBe(false);

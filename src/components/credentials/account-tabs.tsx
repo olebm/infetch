@@ -26,7 +26,9 @@ export function AccountTabs({ tabs, defaultTab }: { tabs: Tab[]; defaultTab?: st
               aria-selected={isActive}
               onClick={() => setActive(tab.key)}
               className={`inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm transition ${
-                isActive ? "bg-white font-semibold text-ink shadow-soft" : "text-muted hover:text-ink"
+                isActive
+                  ? "bg-white font-semibold text-ink shadow-soft"
+                  : "text-muted hover:text-ink"
               }`}
             >
               <span>{tab.label}</span>

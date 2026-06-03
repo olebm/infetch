@@ -1,5 +1,11 @@
 import { appConfig } from "@/lib/config/env";
-import { getPrimaryMailAccount, getSecondaryMailAccount, getPrimarySmtpAccount, getSecondarySmtpAccount, listIntegrationTargets } from "@/lib/db/queries";
+import {
+  getPrimaryMailAccount,
+  getSecondaryMailAccount,
+  getPrimarySmtpAccount,
+  getSecondarySmtpAccount,
+  listIntegrationTargets,
+} from "@/lib/db/queries";
 import {
   hasConfiguredCredential,
   hasStoredCredentialRef,
@@ -8,10 +14,19 @@ import {
 import { getProviderFromEmail } from "@/lib/mail-providers";
 import { getExportTargets } from "@/exports/export-pipeline";
 import { readOrgJsonSetting } from "@/lib/db/settings-store";
-import { MailboxConnectCard, type MailboxSlot } from "@/components/credentials/mailbox-connect-card";
-import { SmtpAccountsSection, type SmtpAccountSlot } from "@/components/einstellungen/smtp-accounts-section";
+import {
+  MailboxConnectCard,
+  type MailboxSlot,
+} from "@/components/credentials/mailbox-connect-card";
+import {
+  SmtpAccountsSection,
+  type SmtpAccountSlot,
+} from "@/components/einstellungen/smtp-accounts-section";
 import { StatusBadge } from "@/components/status/status-badge";
-import { AddRecipientButton, EditRecipientButton } from "@/components/einstellungen/recipient-modal";
+import {
+  AddRecipientButton,
+  EditRecipientButton,
+} from "@/components/einstellungen/recipient-modal";
 import { RemoveTargetButton } from "@/components/einstellungen/remove-target-button";
 import { ConfidenceSlider } from "@/components/einstellungen/confidence-slider";
 import { SubjectTemplateCard } from "@/components/einstellungen/subject-template-card";
@@ -19,10 +34,12 @@ import { Tabs, type TabItem } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { getCurrentAuth } from "@/lib/auth/current";
-import { IntegrationsSection, type IntegrationStatus } from "@/components/einstellungen/integrations-section";
+import {
+  IntegrationsSection,
+  type IntegrationStatus,
+} from "@/components/einstellungen/integrations-section";
 import { ScanHistoryCard } from "@/components/einstellungen/scan-history-card";
 import { getOrgTier } from "@/lib/tier";
-
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +65,11 @@ export default async function SetupPage() {
     smtpSecondaryHasRef,
   ] = await Promise.all([
     getExportTargets(auth?.organization?.id ?? null),
-    readOrgJsonSetting<number>("auto_approve_confidence", auth?.organization?.id ?? null, appConfig.features.autoApprovalConfidenceThreshold),
+    readOrgJsonSetting<number>(
+      "auto_approve_confidence",
+      auth?.organization?.id ?? null,
+      appConfig.features.autoApprovalConfidenceThreshold,
+    ),
     readOrgJsonSetting<string>("invoice_subject_template", auth?.organization?.id ?? null, ""),
     getPrimaryMailAccount(auth?.organization?.id ?? null),
     getSecondaryMailAccount(auth?.organization?.id ?? null),
@@ -80,29 +101,39 @@ export default async function SetupPage() {
       key: "primary",
       isConnected: primaryHasCredential || primaryHasRef,
       email: imapPrimary?.username ?? null,
-      providerDomain: imapPrimary?.username ? (getProviderFromEmail(imapPrimary.username)?.domain ?? null) : null,
-      servers: imapPrimary || smtpPrimary ? {
-        imapHost: imapPrimary?.host,
-        imapPort: imapPrimary?.port,
-        imapSecure: imapPrimary ? Boolean(imapPrimary.secure) : undefined,
-        smtpHost: smtpPrimary?.host,
-        smtpPort: smtpPrimary?.port,
-        smtpSecure: smtpPrimary?.secure,
-      } : undefined,
+      providerDomain: imapPrimary?.username
+        ? (getProviderFromEmail(imapPrimary.username)?.domain ?? null)
+        : null,
+      servers:
+        imapPrimary || smtpPrimary
+          ? {
+              imapHost: imapPrimary?.host,
+              imapPort: imapPrimary?.port,
+              imapSecure: imapPrimary ? Boolean(imapPrimary.secure) : undefined,
+              smtpHost: smtpPrimary?.host,
+              smtpPort: smtpPrimary?.port,
+              smtpSecure: smtpPrimary?.secure,
+            }
+          : undefined,
     },
     {
       key: "secondary",
       isConnected: secondaryHasCredential || secondaryHasRef,
       email: imapSecondary?.username ?? null,
-      providerDomain: imapSecondary?.username ? (getProviderFromEmail(imapSecondary.username)?.domain ?? null) : null,
-      servers: imapSecondary || smtpSecondary ? {
-        imapHost: imapSecondary?.host,
-        imapPort: imapSecondary?.port,
-        imapSecure: imapSecondary ? Boolean(imapSecondary.secure) : undefined,
-        smtpHost: smtpSecondary?.host,
-        smtpPort: smtpSecondary?.port,
-        smtpSecure: smtpSecondary?.secure,
-      } : undefined,
+      providerDomain: imapSecondary?.username
+        ? (getProviderFromEmail(imapSecondary.username)?.domain ?? null)
+        : null,
+      servers:
+        imapSecondary || smtpSecondary
+          ? {
+              imapHost: imapSecondary?.host,
+              imapPort: imapSecondary?.port,
+              imapSecure: imapSecondary ? Boolean(imapSecondary.secure) : undefined,
+              smtpHost: smtpSecondary?.host,
+              smtpPort: smtpSecondary?.port,
+              smtpSecure: smtpSecondary?.secure,
+            }
+          : undefined,
     },
   ];
 
@@ -113,15 +144,27 @@ export default async function SetupPage() {
       slot: "primary",
       fromAddress: smtpPrimary?.fromAddress ?? null,
       configured: Boolean(smtpPrimary),
-      providerDomain: smtpPrimary?.fromAddress ? (getProviderFromEmail(smtpPrimary.fromAddress)?.domain ?? null) : null,
-      servers: smtpPrimary ? { smtpHost: smtpPrimary.host, smtpPort: smtpPrimary.port, smtpSecure: smtpPrimary.secure } : undefined,
+      providerDomain: smtpPrimary?.fromAddress
+        ? (getProviderFromEmail(smtpPrimary.fromAddress)?.domain ?? null)
+        : null,
+      servers: smtpPrimary
+        ? { smtpHost: smtpPrimary.host, smtpPort: smtpPrimary.port, smtpSecure: smtpPrimary.secure }
+        : undefined,
     },
     {
       slot: "secondary",
       fromAddress: smtpSecondary?.fromAddress ?? null,
       configured: Boolean(smtpSecondary) && (smtpSecondaryHasCredential || smtpSecondaryHasRef),
-      providerDomain: smtpSecondary?.fromAddress ? (getProviderFromEmail(smtpSecondary.fromAddress)?.domain ?? null) : null,
-      servers: smtpSecondary ? { smtpHost: smtpSecondary.host, smtpPort: smtpSecondary.port, smtpSecure: smtpSecondary.secure } : undefined,
+      providerDomain: smtpSecondary?.fromAddress
+        ? (getProviderFromEmail(smtpSecondary.fromAddress)?.domain ?? null)
+        : null,
+      servers: smtpSecondary
+        ? {
+            smtpHost: smtpSecondary.host,
+            smtpPort: smtpSecondary.port,
+            smtpSecure: smtpSecondary.secure,
+          }
+        : undefined,
     },
   ];
 
@@ -133,10 +176,7 @@ export default async function SetupPage() {
   if (!keychainAvailable) {
     return (
       <div className="screen-enter screen-enter-active">
-        <PageHeader
-          title="Einstellungen"
-          subline="Postfächer, Empfänger, Auto-Pilot und System."
-        />
+        <PageHeader title="Einstellungen" subline="Postfächer, Empfänger, Auto-Pilot und System." />
         <div className="rounded-md border border-warn/20 bg-warn-soft p-4 text-sm text-ink">
           Sichere Eingabe ist auf diesem System nicht verfügbar. Nutze{" "}
           <code className="font-mono">.env.local</code>.
@@ -154,9 +194,9 @@ export default async function SetupPage() {
           <div className="mb-4">
             <div className="text-sm font-medium text-ink">Absende-Konten (SMTP)</div>
             <div className="text-xs text-muted">
-              Von dieser Adresse leiten wir deine Rechnungen weiter. Manche
-              Buchhaltungs-Apps erkennen dich am Absender — für zwei Empfänger
-              kannst du zwei Absende-Konten hinterlegen.
+              Von dieser Adresse leiten wir deine Rechnungen weiter. Manche Buchhaltungs-Apps
+              erkennen dich am Absender — für zwei Empfänger kannst du zwei Absende-Konten
+              hinterlegen.
             </div>
           </div>
           <SmtpAccountsSection slots={smtpAccountSlots} />
@@ -175,33 +215,43 @@ export default async function SetupPage() {
         </div>
         {exportTargets.filter((t) => t.recipientEmail).length > 0 ? (
           <div className="divide-y divide-line border-t border-line">
-            {exportTargets.filter((t) => t.recipientEmail).map((t, idx) => {
-              const sendFrom = smtpAccountSlots.find((s) => s.slot === t.smtpSlot && s.configured)?.fromAddress ?? null;
-              return (
-              <div key={t.id} className="flex items-center gap-3 px-5 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink truncate">{t.label}</div>
-                  <div className="text-xs text-muted font-mono truncate">
-                    {t.recipientEmail}
-                  </div>
-                  {sendFrom && (
-                    <div className="text-[11px] text-muted truncate">
-                      sendet von: <span className="font-mono">{sendFrom}</span>
+            {exportTargets
+              .filter((t) => t.recipientEmail)
+              .map((t, idx) => {
+                const sendFrom =
+                  smtpAccountSlots.find((s) => s.slot === t.smtpSlot && s.configured)
+                    ?.fromAddress ?? null;
+                return (
+                  <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-ink truncate">{t.label}</div>
+                      <div className="text-xs text-muted font-mono truncate">
+                        {t.recipientEmail}
+                      </div>
+                      {sendFrom && (
+                        <div className="text-[11px] text-muted truncate">
+                          sendet von: <span className="font-mono">{sendFrom}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <StatusBadge
-                  status={t.enabled ? "configured" : "disabled"}
-                  label={idx === 0 ? "Primär" : "Sekundär"}
-                />
-                <EditRecipientButton
-                  target={{ target: t.target, label: t.label, recipientEmail: t.recipientEmail, smtpSlot: t.smtpSlot, enabled: t.enabled }}
-                  smtpOptions={smtpOptions}
-                />
-                <RemoveTargetButton targetId={String(t.id)} />
-              </div>
-              );
-            })}
+                    <StatusBadge
+                      status={t.enabled ? "configured" : "disabled"}
+                      label={idx === 0 ? "Primär" : "Sekundär"}
+                    />
+                    <EditRecipientButton
+                      target={{
+                        target: t.target,
+                        label: t.label,
+                        recipientEmail: t.recipientEmail,
+                        smtpSlot: t.smtpSlot,
+                        enabled: t.enabled,
+                      }}
+                      smtpOptions={smtpOptions}
+                    />
+                    <RemoveTargetButton targetId={String(t.id)} />
+                  </div>
+                );
+              })}
           </div>
         ) : (
           <div className="border-t border-line px-5 py-4 text-sm text-muted">
@@ -214,12 +264,12 @@ export default async function SetupPage() {
         <div className="p-5">
           <div className="mb-1 text-sm font-medium text-ink">Betreff der Weiterleitung</div>
           <div className="mb-4 text-xs text-muted">
-            Gilt für alle Empfänger. Platzhalter werden pro Rechnung ersetzt; leer = interner Standard.
+            Gilt für alle Empfänger. Platzhalter werden pro Rechnung ersetzt; leer = interner
+            Standard.
           </div>
           <SubjectTemplateCard initialValue={invoiceSubjectTemplate} />
         </div>
       </Card>
-
     </div>
   );
 
@@ -275,9 +325,7 @@ export default async function SetupPage() {
 
       <Card padding="lg">
         <div className="text-sm font-medium text-ink">KI</div>
-        <div className="mb-4 mt-0.5 text-xs text-muted">
-          Inklusive. Kein eigener Key nötig.
-        </div>
+        <div className="mb-4 mt-0.5 text-xs text-muted">Inklusive. Kein eigener Key nötig.</div>
         <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-3">
           <div className="rounded border border-line p-3">
             <div className="text-muted">Status</div>
@@ -310,22 +358,19 @@ export default async function SetupPage() {
   );
 
   const tabs: TabItem[] = [
-    { key: "postfach",      label: "Postfächer",      content: postfachTab      },
-    { key: "buchhaltung",   label: "Buchhaltung",    content: buchhaltungTab   },
+    { key: "postfach", label: "Postfächer", content: postfachTab },
+    { key: "buchhaltung", label: "Buchhaltung", content: buchhaltungTab },
     // Integrationen (lexoffice/sevDesk) erst einblenden, wenn der Pro-Tarif
     // aktiviert ist — im Free-only-Launch ausgeblendet.
     ...(appConfig.billing.proEnabled
       ? [{ key: "integrationen", label: "Integrationen", content: integrationsTab }]
       : []),
-    { key: "ki",            label: "Auto-Pilot", content: aiTab            },
+    { key: "ki", label: "Auto-Pilot", content: aiTab },
   ];
 
   return (
     <div className="screen-enter screen-enter-active">
-      <PageHeader
-        title="Einstellungen"
-        subline="Postfächer, Empfänger und Auto-Pilot."
-      />
+      <PageHeader title="Einstellungen" subline="Postfächer, Empfänger und Auto-Pilot." />
       <Tabs tabs={tabs} defaultKey="postfach" />
     </div>
   );

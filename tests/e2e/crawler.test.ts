@@ -30,16 +30,10 @@ const PUBLIC_ROUTES = [
 // Authentifizierte App-Routen (Storage-State aus dem Setup-Projekt).
 // /online-accounts ist bewusst NICHT enthalten: die Seite ruft notFound()
 // wenn ENABLE_PORTALS aus ist (Prod-Default — Portal-Agent zurückgestellt).
-const APP_ROUTES = [
-  "/",
-  "/audit",
-  "/einstellungen",
-  "/konto",
-  "/fehlt",
-  "/senders",
-];
+const APP_ROUTES = ["/", "/audit", "/einstellungen", "/konto", "/fehlt", "/senders"];
 
-const ERROR_BOUNDARY = /Application error|Internal Server Error|Unhandled Runtime Error|This page could not be found|client-side exception/i;
+const ERROR_BOUNDARY =
+  /Application error|Internal Server Error|Unhandled Runtime Error|This page could not be found|client-side exception/i;
 
 /** Navigiert zu route und prüft den Grundgesundheitszustand der Seite. */
 async function assertHealthy(page: Page, route: string): Promise<void> {
@@ -55,11 +49,14 @@ async function assertHealthy(page: Page, route: string): Promise<void> {
 
   await page.waitForLoadState("networkidle").catch(() => {});
 
-  const bodyText = (await page.locator("body").innerText().catch(() => "")) ?? "";
-  expect(
-    ERROR_BOUNDARY.test(bodyText),
-    `${route} zeigt eine Error-Boundary/Fehlerseite`,
-  ).toBe(false);
+  const bodyText =
+    (await page
+      .locator("body")
+      .innerText()
+      .catch(() => "")) ?? "";
+  expect(ERROR_BOUNDARY.test(bodyText), `${route} zeigt eine Error-Boundary/Fehlerseite`).toBe(
+    false,
+  );
 
   expect(
     pageErrors,
@@ -100,9 +97,9 @@ test.describe("Link-Crawler — interne Links der Seed-Seiten", () => {
 
     for (const seed of SEED_PAGES) {
       await page.goto(seed, { waitUntil: "domcontentloaded", timeout: 30_000 });
-      const hrefs = await page.locator("a[href]").evaluateAll((els) =>
-        els.map((e) => (e as HTMLAnchorElement).getAttribute("href") ?? ""),
-      );
+      const hrefs = await page
+        .locator("a[href]")
+        .evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).getAttribute("href") ?? ""));
       for (const href of hrefs) {
         if (!href || href.startsWith("#")) continue;
         if (/^(mailto:|tel:|javascript:)/i.test(href)) continue;
@@ -138,7 +135,11 @@ test.describe("Link-Crawler — interne Links der Seed-Seiten", () => {
         failures.push(`${path} → HTTP ${resp.status()}`);
         continue;
       }
-      const bodyText = (await page.locator("body").innerText().catch(() => "")) ?? "";
+      const bodyText =
+        (await page
+          .locator("body")
+          .innerText()
+          .catch(() => "")) ?? "";
       if (ERROR_BOUNDARY.test(bodyText)) {
         failures.push(`${path} → Error-Boundary`);
       }
@@ -159,20 +160,19 @@ test.describe("Button-Audit — zugängliche Namen", () => {
       await page.goto(route, { waitUntil: "domcontentloaded" });
       await page.waitForLoadState("networkidle").catch(() => {});
 
-      const unlabeled = await page
-        .locator("button:visible")
-        .evaluateAll((btns) =>
-          btns
-            .map((b, i) => {
-              const name =
-                (b.getAttribute("aria-label") ??
-                  b.getAttribute("title") ??
-                  b.textContent ??
-                  "").trim();
-              return name.length === 0 ? `Button #${i} (${b.outerHTML.slice(0, 80)})` : null;
-            })
-            .filter((x): x is string => x !== null),
-        );
+      const unlabeled = await page.locator("button:visible").evaluateAll((btns) =>
+        btns
+          .map((b, i) => {
+            const name = (
+              b.getAttribute("aria-label") ??
+              b.getAttribute("title") ??
+              b.textContent ??
+              ""
+            ).trim();
+            return name.length === 0 ? `Button #${i} (${b.outerHTML.slice(0, 80)})` : null;
+          })
+          .filter((x): x is string => x !== null),
+      );
 
       expect(
         unlabeled,

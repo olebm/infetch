@@ -32,7 +32,11 @@ export function NotifyWeeklyCard({ initialValue }: { initialValue: boolean }) {
         <button
           type="submit"
           disabled={isPending}
-          aria-label={optimisticValue ? "Wöchentliche Zusammenfassung deaktivieren" : "Wöchentliche Zusammenfassung aktivieren"}
+          aria-label={
+            optimisticValue
+              ? "Wöchentliche Zusammenfassung deaktivieren"
+              : "Wöchentliche Zusammenfassung aktivieren"
+          }
           className={`
             relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent
             transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2

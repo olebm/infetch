@@ -51,28 +51,88 @@ const jobs: Record<JobName, JobState> = {
   // Stündlich zur Minute :30 — zeitversetzt zum mailScan (:00), damit Abruf und
   // Versand nicht kollidieren und die Last über die Stunde verteilt ist. Bei
   // Freigabe (Onboarding-Abschluss / Review) wird zusätzlich sofort gedispatcht.
-  exportDispatch: { cron: "30 * * * *", task: null, lastRunAt: null, lastError: null, running: false },
-  portalFetch: { cron: "0 */4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
-  communitySync: { cron: "0 4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  exportDispatch: {
+    cron: "30 * * * *",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
+  portalFetch: {
+    cron: "0 */4 * * *",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
+  communitySync: {
+    cron: "0 4 * * *",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
   // Selbstheilungs-Jobs — laufen in dieser Reihenfolge nachts:
   // 1) Rules provisionieren basierend auf Bestand,
   // 2) Review-Queue mit neuen Rules erneut evaluieren,
   // 3) Disk-Müll aufräumen (wöchentlich).
-  provisionRules: { cron: "0 3 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  provisionRules: {
+    cron: "0 3 * * *",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
   reevalQueue: { cron: "0 5 * * *", task: null, lastRunAt: null, lastError: null, running: false },
-  cleanupIgnored: { cron: "0 2 * * 0", task: null, lastRunAt: null, lastError: null, running: false },
+  cleanupIgnored: {
+    cron: "0 2 * * 0",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
   // Stuck-Eskalation: täglich 1 Uhr — Rechnungen die zu lange im Review hängen → 'ignored'.
-  escalateStuck: { cron: "0 1 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  escalateStuck: {
+    cron: "0 1 * * *",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
   // Alias-Backfill: täglich 4 Uhr — Domain-Aliase für Vendors die nur contains haben.
-  backfillAliases: { cron: "0 4 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  backfillAliases: {
+    cron: "0 4 * * *",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
   // Monatlicher Report: am 1. jeden Monats um 8 Uhr — Zusammenfassung des Vormonats.
-  monthlyReport: { cron: "0 8 1 * *", task: null, lastRunAt: null, lastError: null, running: false },
+  monthlyReport: {
+    cron: "0 8 1 * *",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
   // Wöchentlicher Digest: montags um 8 Uhr — Zusammenfassung der letzten 7 Tage.
   weeklyDigest: { cron: "0 8 * * 1", task: null, lastRunAt: null, lastError: null, running: false },
   // Reaktivierungs-Check: sonntags um 9 Uhr — Nudge bei > 30 Tage Inaktivität.
-  reactivationCheck: { cron: "0 9 * * 0", task: null, lastRunAt: null, lastError: null, running: false },
+  reactivationCheck: {
+    cron: "0 9 * * 0",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
   // Welcome-Nudge: alle 6h — Drop-outs ~24h nach Sign-Up einmalig erinnern.
-  welcomeNudge: { cron: "0 */6 * * *", task: null, lastRunAt: null, lastError: null, running: false },
+  welcomeNudge: {
+    cron: "0 */6 * * *",
+    task: null,
+    lastRunAt: null,
+    lastError: null,
+    running: false,
+  },
 };
 
 let started = false;

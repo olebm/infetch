@@ -84,9 +84,7 @@ export async function loadUser(userId: string): Promise<UserRow | null> {
   return rows[0] ?? null;
 }
 
-export async function loadOrganization(
-  organizationId: string,
-): Promise<OrganizationRow | null> {
+export async function loadOrganization(organizationId: string): Promise<OrganizationRow | null> {
   const rows = await sql<OrganizationRow[]>`
     SELECT id, name, slug, tier, owner_user_id AS "ownerUserId"
     FROM organizations
@@ -141,9 +139,7 @@ export async function loadActiveSessions(userId: string): Promise<SessionSummary
  * Erfordert das JWT der laufenden Session (scope='others' lässt diese bestehen).
  * Gibt true zurück wenn die Admin-API erfolgreich war.
  */
-export async function invalidateAllOtherSessions(
-  currentJwt: string,
-): Promise<boolean> {
+export async function invalidateAllOtherSessions(currentJwt: string): Promise<boolean> {
   const { createSupabaseAdminClient } = await import("@/lib/supabase/server");
   const admin = createSupabaseAdminClient();
   const { error } = await admin.auth.admin.signOut(currentJwt, "others");
@@ -171,10 +167,20 @@ export async function updateUserProfile(
   `;
 }
 
-export async function getUserProfileFields(
-  userId: string,
-): Promise<{ companyName: string | null; vatId: string | null; avatarUrl: string | null; notifyWeekly: boolean }> {
-  const rows = await sql<{ company_name: string | null; vat_id: string | null; avatar_url: string | null; notify_weekly: boolean }[]>`
+export async function getUserProfileFields(userId: string): Promise<{
+  companyName: string | null;
+  vatId: string | null;
+  avatarUrl: string | null;
+  notifyWeekly: boolean;
+}> {
+  const rows = await sql<
+    {
+      company_name: string | null;
+      vat_id: string | null;
+      avatar_url: string | null;
+      notify_weekly: boolean;
+    }[]
+  >`
     SELECT company_name, vat_id, avatar_url, notify_weekly FROM users WHERE id = ${userId}
   `;
   const row = rows[0];
@@ -216,7 +222,9 @@ export type PendingInvitation = {
  */
 export async function loadPendingInvitations(orgId: string): Promise<PendingInvitation[]> {
   try {
-    const rows = await sql<{ id: string; email: string; raw_user_meta_data: unknown; invited_at: string | null }[]>`
+    const rows = await sql<
+      { id: string; email: string; raw_user_meta_data: unknown; invited_at: string | null }[]
+    >`
       SELECT id, email, raw_user_meta_data, invited_at
       FROM auth.users
       WHERE email_confirmed_at IS NULL

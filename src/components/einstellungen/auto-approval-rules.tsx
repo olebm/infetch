@@ -34,7 +34,8 @@ export function AutoApprovalRulesPanel({
     <div className="space-y-3">
       {rules.length === 0 ? (
         <div className="rounded border border-dashed border-line bg-surface px-4 py-6 text-center text-sm text-muted">
-          Noch keine Auto-Approval-Regeln. Lege eine an, damit sichere Rechnungen automatisch durchgewunken werden.
+          Noch keine Auto-Approval-Regeln. Lege eine an, damit sichere Rechnungen automatisch
+          durchgewunken werden.
         </div>
       ) : (
         <div className="overflow-hidden rounded border border-line bg-white">
@@ -58,15 +59,21 @@ export function AutoApprovalRulesPanel({
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    {rule.maxAmountCents === null
-                      ? <span className="text-muted">unbegrenzt</span>
-                      : `${(rule.maxAmountCents / 100).toFixed(2)} €`}
+                    {rule.maxAmountCents === null ? (
+                      <span className="text-muted">unbegrenzt</span>
+                    ) : (
+                      `${(rule.maxAmountCents / 100).toFixed(2)} €`
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     {rule.enabled ? (
-                      <span className="rounded bg-ok-soft px-1.5 py-0.5 text-xs text-ok">aktiv</span>
+                      <span className="rounded bg-ok-soft px-1.5 py-0.5 text-xs text-ok">
+                        aktiv
+                      </span>
                     ) : (
-                      <span className="rounded bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600">pausiert</span>
+                      <span className="rounded bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600">
+                        pausiert
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -130,10 +137,13 @@ function RuleEditor({
   return (
     <div className="rounded border border-brand/30 bg-white p-4 shadow-soft">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">
-          {existing ? "Regel bearbeiten" : "Neue Regel"}
-        </h3>
-        <button type="button" onClick={onClose} className="text-muted hover:text-ink" aria-label="Abbrechen">
+        <h3 className="text-sm font-semibold">{existing ? "Regel bearbeiten" : "Neue Regel"}</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-muted hover:text-ink"
+          aria-label="Abbrechen"
+        >
           <X className="h-4 w-4" aria-hidden />
         </button>
       </div>
@@ -160,7 +170,9 @@ function RuleEditor({
         {mode === "vendor" ? (
           <div>
             {/* A11Y (INFETCH-104): htmlFor verknüpft Label mit Select */}
-            <label htmlFor="aa-vendorId" className="mb-1 block text-xs text-muted">Lieferant</label>
+            <label htmlFor="aa-vendorId" className="mb-1 block text-xs text-muted">
+              Lieferant
+            </label>
             <select
               id="aa-vendorId"
               name="vendorId"
@@ -169,7 +181,9 @@ function RuleEditor({
             >
               <option value="">— bitte wählen —</option>
               {vendors.map((v) => (
-                <option key={v.id} value={v.id}>{v.name}</option>
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
               ))}
             </select>
             <input type="hidden" name="vendorPattern" value="" />

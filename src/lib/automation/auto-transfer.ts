@@ -64,7 +64,12 @@ async function loadInvoiceFile(invoiceId: number): Promise<InvoiceFileRef | null
 export async function attemptAutoTransfer(
   invoiceId: number,
   organizationId?: string | null,
-): Promise<{ pushed: boolean; provider?: IntegrationProvider; externalRef?: string; reason?: string }> {
+): Promise<{
+  pushed: boolean;
+  provider?: IntegrationProvider;
+  externalRef?: string;
+  reason?: string;
+}> {
   if (!appConfig.features.enableApiIntegrations) {
     return { pushed: false, reason: "api integrations disabled" };
   }
@@ -120,7 +125,9 @@ export async function attemptAutoTransfer(
       const tempFile = await uploadSevdeskTempFile(apiKey, pdfContent, filename);
       const voucher = await createSevdeskVoucherFromTempFile(apiKey, tempFile, {
         voucherDate: invoice.invoiceDate,
-        description: invoice.vendorName ? `Import: ${invoice.vendorName}` : "Auto-Import via Infetch",
+        description: invoice.vendorName
+          ? `Import: ${invoice.vendorName}`
+          : "Auto-Import via Infetch",
       });
       externalId = voucher.id;
     } else {

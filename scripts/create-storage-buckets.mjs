@@ -16,7 +16,9 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.+)$/);
       if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
     }
-  } catch { /* .env.local not found */ }
+  } catch {
+    /* .env.local not found */
+  }
 }
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,8 +34,8 @@ for (const name of BUCKETS) {
   const res = await fetch(`${url}/storage/v1/bucket`, {
     method: "POST",
     headers: {
-      "apikey": key,
-      "Authorization": `Bearer ${key}`,
+      apikey: key,
+      Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ id: name, name, public: false }),

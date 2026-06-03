@@ -37,7 +37,13 @@ describe("evaluateAutoApproval", () => {
   it("auto-approves via high_confidence when all fields exceed threshold (no rule needed)", async () => {
     const decision = await evaluateAutoApproval(
       buildExtraction({ vendor_confidence: 0.95, date_confidence: 0.95, amount_confidence: 0.95 }),
-      { organizationId: null, vendorId: VENDOR_ID, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
+      {
+        organizationId: null,
+        vendorId: VENDOR_ID,
+        vendorName: "OpenAI",
+        amountGross: 29,
+        invoiceDate: "2026-05-01",
+      },
     );
 
     expect(decision.autoApproved).toBe(true);
@@ -48,19 +54,25 @@ describe("evaluateAutoApproval", () => {
   });
 
   it("rejects when one per-field confidence dips below the auto-pilot threshold and no rule exists", async () => {
-    const decision = await evaluateAutoApproval(
-      buildExtraction({ amount_confidence: 0.8 }),
-      { organizationId: null, vendorId: VENDOR_ID, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
-    );
+    const decision = await evaluateAutoApproval(buildExtraction({ amount_confidence: 0.8 }), {
+      organizationId: null,
+      vendorId: VENDOR_ID,
+      vendorName: "OpenAI",
+      amountGross: 29,
+      invoiceDate: "2026-05-01",
+    });
 
     expect(decision.autoApproved).toBe(false);
   });
 
   it("rejects when mistral flagged needs_review even at high confidence", async () => {
-    const decision = await evaluateAutoApproval(
-      buildExtraction({ needs_review: true }),
-      { organizationId: null, vendorId: VENDOR_ID, vendorName: "OpenAI", amountGross: 29, invoiceDate: "2026-05-01" },
-    );
+    const decision = await evaluateAutoApproval(buildExtraction({ needs_review: true }), {
+      organizationId: null,
+      vendorId: VENDOR_ID,
+      vendorName: "OpenAI",
+      amountGross: 29,
+      invoiceDate: "2026-05-01",
+    });
 
     expect(decision.autoApproved).toBe(false);
     if (!decision.autoApproved) {
@@ -69,10 +81,13 @@ describe("evaluateAutoApproval", () => {
   });
 
   it("rejects when core fields are missing", async () => {
-    const decision = await evaluateAutoApproval(
-      buildExtraction({}),
-      { organizationId: null, vendorId: VENDOR_ID, vendorName: "OpenAI", amountGross: null, invoiceDate: "2026-05-01" },
-    );
+    const decision = await evaluateAutoApproval(buildExtraction({}), {
+      organizationId: null,
+      vendorId: VENDOR_ID,
+      vendorName: "OpenAI",
+      amountGross: null,
+      invoiceDate: "2026-05-01",
+    });
 
     expect(decision.autoApproved).toBe(false);
   });

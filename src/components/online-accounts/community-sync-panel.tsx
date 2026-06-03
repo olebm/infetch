@@ -34,9 +34,7 @@ export function CommunitySyncButton({
         </button>
       </form>
       {state.status !== "idle" && (
-        <span
-          className={`text-xs ${state.status === "error" ? "text-danger" : "text-ok"}`}
-        >
+        <span className={`text-xs ${state.status === "error" ? "text-danger" : "text-ok"}`}>
           {state.message}
         </span>
       )}

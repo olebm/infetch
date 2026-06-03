@@ -55,7 +55,11 @@ export async function loginAsTestUser(formData: FormData) {
   try {
     const existing = await findUserByEmail(STUB_EMAIL);
     if (!existing) {
-      await createUserWithDefaultOrg({ email: STUB_EMAIL, name: STUB_NAME, userId: supabaseUserId });
+      await createUserWithDefaultOrg({
+        email: STUB_EMAIL,
+        name: STUB_NAME,
+        userId: supabaseUserId,
+      });
     }
   } catch {
     // Non-fatal

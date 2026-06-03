@@ -54,7 +54,10 @@ export function UpgradeProvider({
           setFeature(f ?? null);
           setOpen(true);
         },
-        closeModal: () => { setOpen(false); setFeature(null); },
+        closeModal: () => {
+          setOpen(false);
+          setFeature(null);
+        },
       }}
     >
       {children}

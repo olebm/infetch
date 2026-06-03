@@ -28,13 +28,15 @@ function parseSenderId(formData: FormData): number {
 }
 
 async function getSenderRow(id: number, organizationId: string | null) {
-  const rows = await sql<Array<{
-    id: number;
-    fromAddress: string;
-    fromDomain: string;
-    displayName: string | null;
-    matchedVendorId: number | null;
-  }>>`
+  const rows = await sql<
+    Array<{
+      id: number;
+      fromAddress: string;
+      fromDomain: string;
+      displayName: string | null;
+      matchedVendorId: number | null;
+    }>
+  >`
     SELECT id, from_address AS "fromAddress", from_domain AS "fromDomain",
       display_name AS "displayName", matched_vendor_id AS "matchedVendorId"
     FROM discovered_senders
@@ -68,7 +70,10 @@ export async function blockSenderAction(
       message: `${sender.fromAddress} blockiert. Neue Mails dieses Senders werden übersprungen.`,
     };
   } catch (error) {
-    return { status: "error", message: error instanceof Error ? error.message : "Block fehlgeschlagen." };
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Block fehlgeschlagen.",
+    };
   }
 }
 
@@ -146,7 +151,11 @@ export async function createVendorFromSenderAction(
     const sender = await getSenderRow(senderId, orgId);
     if (!sender) return { status: "error", message: "Sender nicht gefunden." };
 
-    const name = (String(formData.get("vendorName") || "").trim() || sender.displayName || sender.fromDomain).trim();
+    const name = (
+      String(formData.get("vendorName") || "").trim() ||
+      sender.displayName ||
+      sender.fromDomain
+    ).trim();
     if (!name) return { status: "error", message: "Bitte einen Vendor-Namen angeben." };
 
     const category = String(formData.get("category") || "service").trim() || "service";
