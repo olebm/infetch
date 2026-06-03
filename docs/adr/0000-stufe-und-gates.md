@@ -81,12 +81,17 @@ dreifach gegated ist.
 
 ## Findings / Follow-ups
 
+- **Landingpage prerenderte mit DB-Zugriff (vom Build-Gate gefangen, behoben).** `<LogoStrip/>`
+  liest Live-Vendor-Daten aus Postgres; beim statischen Prerender im `next build` traf das den
+  No-op-Build-DB-Client und brach den Build ab — vorher unbemerkt, weil Build nie gegated war.
+  Behoben: `src/app/landingpage/page.tsx` ist `force-dynamic` (rendert pro Request statt zur
+  Build-Zeit). Erster Treffer des neuen Build-Gates.
 - **RLS rekursiert unter Nicht-Superuser-Rolle.** Ein `SELECT` auf eine org-scoped Tabelle
   als Rolle `authenticated` wirft `infinite recursion detected in policy for relation
   "org_members"` (die `org_members`-Policy liest `org_members`). In Prod nie sichtbar, weil
   die App als Superuser verbindet und RLS umgeht (so dokumentiert in `0026`). Heißt aber:
   die „Defense-in-Depth"-RLS würde unter einer echten Rolle **fehlern statt nur zu
-  verweigern**. → Folge-Issue (RLS unter Nicht-Superuser lauffähig machen, z. B.
+  verweigern**. → **INFETCH-235** (RLS unter Nicht-Superuser lauffähig machen, z. B.
   `org_members`-Lookup via SECURITY-DEFINER-Helper).
 - **Live-Prod-Schema-Drift fehlt im Nightly.** Echter Repo-vs-Prod-Vergleich braucht ein
   read-only Prod-DSN-Secret. → Folge-Issue, wenn das Secret bereitsteht.
