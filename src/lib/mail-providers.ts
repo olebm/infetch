@@ -152,53 +152,6 @@ export const MAIL_PROVIDERS: MailProvider[] = [
 ];
 
 /**
- * Backend-Vorlagen für benutzerdefinierte Domains (z. B. @company.com).
- * Wenn die E-Mail-Domain nicht automatisch erkannt wird, kann der User
- * hier seinen Dienst wählen — die Server-Daten werden dann vorausgefüllt.
- */
-export type MailBackend = Omit<MailProvider, "domains">;
-
-export const MAIL_BACKENDS: MailBackend[] = [
-  {
-    id: "google-workspace",
-    name: "Google Workspace",
-    domain: "google.com",
-    hint: "Google Workspace erfordert ein App-Passwort — kein normales Google-Passwort.",
-    appPasswordUrl: "https://myaccount.google.com/apppasswords",
-    imap: { host: "imap.gmail.com", port: 993, secure: true },
-    smtp: { host: "smtp.gmail.com", port: 587, secure: false },
-  },
-  {
-    id: "microsoft-365",
-    name: "Microsoft 365",
-    domain: "microsoft.com",
-    imap: { host: "outlook.office365.com", port: 993, secure: true },
-    smtp: { host: "smtp-mail.outlook.com", port: 587, secure: false },
-  },
-  {
-    id: "ionos-hosting",
-    name: "IONOS Hosting",
-    domain: "ionos.de",
-    imap: { host: "imap.ionos.de", port: 993, secure: true },
-    smtp: { host: "smtp.ionos.de", port: 587, secure: false },
-  },
-  {
-    id: "strato-hosting",
-    name: "Strato Hosting",
-    domain: "strato.de",
-    imap: { host: "imap.strato.de", port: 993, secure: true },
-    smtp: { host: "smtp.strato.de", port: 587, secure: false },
-  },
-  {
-    id: "zoho-hosting",
-    name: "Zoho Mail",
-    domain: "zoho.com",
-    imap: { host: "imap.zoho.eu", port: 993, secure: true },
-    smtp: { host: "smtp.zoho.eu", port: 587, secure: false },
-  },
-];
-
-/**
  * Erkennt den Mail-Provider anhand der E-Mail-Domain.
  * Gibt null zurück wenn kein bekannter Anbieter — dann müssen Server manuell eingetragen werden.
  */
