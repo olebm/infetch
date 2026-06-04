@@ -27,6 +27,9 @@ vi.mock("@/lib/auth/current", () => ({
 vi.mock("@/lib/supabase/storage", () => ({
   BUCKETS: { INVOICES: "invoices", RAW_TEXT: "raw-text", PORTAL_SESSIONS: "portal-sessions" },
   downloadFromStorage: async () => Buffer.from("%PDF-1.7 stub"),
+  // Inhalts-Integrität ist hier nicht Gegenstand (Org-Isolation wird getestet);
+  // das sha256-Gate ist separat in storage-key.test.ts abgedeckt.
+  pdfContentMatches: () => true,
 }));
 
 import { GET } from "@/app/api/invoice-files/[fileId]/route";
