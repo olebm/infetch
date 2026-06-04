@@ -19,8 +19,10 @@ export async function testMailConnectionAction(
   const imapUser = String(formData.get("tcImapUser") || "");
   const imapPass = String(formData.get("tcImapPass") || "");
   const smtpHost = String(formData.get("tcSmtpHost") || "");
-  const smtpPort = Number(formData.get("tcSmtpPort") || 465);
-  const smtpSecure = String(formData.get("tcSmtpSecure") || "true") !== "false";
+  // Fallback 587/STARTTLS (nicht 465/SSL) — Port 465 wird von vielen
+  // Server-Umgebungen ausgehend gesperrt (u. a. Hetzner, wo Infetch läuft).
+  const smtpPort = Number(formData.get("tcSmtpPort") || 587);
+  const smtpSecure = String(formData.get("tcSmtpSecure") || "false") !== "false";
   const smtpUser = String(formData.get("tcSmtpUser") || "");
   const smtpPass = String(formData.get("tcSmtpPass") || "");
 

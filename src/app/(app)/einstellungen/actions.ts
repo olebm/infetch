@@ -336,8 +336,10 @@ export async function saveMailboxCredentialsAction(
     const imapPort = Number(formData.get("imapPort") || 993);
     const imapSecure = String(formData.get("imapSecure") || "true") !== "false";
     const smtpHost = String(formData.get("smtpHost") || "").trim();
-    const smtpPort = Number(formData.get("smtpPort") || 465);
-    const smtpSecure = String(formData.get("smtpSecure") || "true") !== "false";
+    // Fallback 587/STARTTLS (nicht 465/SSL) — Port 465 wird von vielen
+    // Server-Umgebungen ausgehend gesperrt (u. a. Hetzner, wo Infetch läuft).
+    const smtpPort = Number(formData.get("smtpPort") || 587);
+    const smtpSecure = String(formData.get("smtpSecure") || "false") !== "false";
 
     if (!email) return { status: "error", message: "Bitte eine E-Mail-Adresse eingeben." };
     if (!imapHost || !smtpHost)
