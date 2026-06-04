@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { IMAP_MAIL_ACCOUNT_SLOTS } from "@/mail/imap-account-slots";
 import { SMTP_ACCOUNT_SLOTS } from "@/mail/smtp-account-slots";
-import { saveStoredSmtpAccount } from "@/mail/smtp-settings";
-import { saveCredentialSecret, hasStoredCredentialRef } from "@/lib/secrets/credential-store";
+import { saveStoredSmtpAccount, removeStoredSmtpAccount } from "@/mail/smtp-settings";
+import {
+  saveCredentialSecret,
+  hasStoredCredentialRef,
+  deleteCredentialSecret,
+} from "@/lib/secrets/credential-store";
 import { verifyMistralConnection } from "@/ai/mistral-client";
 import { verifyImapAccountConnection } from "@/mail/imap-client";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
@@ -456,6 +460,39 @@ export async function saveSmtpMailboxAction(
   } catch (error) {
     return { status: "error", message: sanitizeCredentialError(error) };
   }
+}
+
+/**
+ * Löscht das 2. Absende-Konto (secondary). Konto 1 (primary) ist das
+ * Pflicht-Versandkonto und kann NICHT gelöscht werden — der Guard lehnt jeden
+ * anderen Slot still ab. Empfänger, die auf das gelöschte Konto zeigten, fallen
+ * org-scoped auf Konto 1 (primary) zurück, damit kein Versand ins Leere läuft.
+ */
+export async function deleteSmtpAccountAction(formData: FormData): Promise<void> {
+  // SECURITY: Auth + Org-Scope wie clearExportTargetAction — Credential und
+  // export_targets sind pro Mandant getrennt.
+  const auth = await requireCurrentAuth();
+  if (!auth.organization) return;
+  const scopedSql = auth.scopedSql!;
+
+  // Nur das optionale 2. Konto ist löschbar; Pflichtkonto schützen.
+  if (parseMailSlot(formData) !== "secondary") return;
+
+  const organizationId = auth.organization.id;
+
+  // 1) Empfänger, die auf Konto 2 zeigen, auf Konto 1 zurücksetzen.
+  await scopedSql`
+    UPDATE export_targets
+    SET smtp_slot = 'primary', updated_at = CURRENT_TIMESTAMP
+    WHERE organization_id = ${organizationId} AND smtp_slot = 'secondary'
+  `;
+
+  // 2) Credential (org-scoped) und 3) gespeichertes Konto entfernen.
+  await deleteCredentialSecret({ scope: "smtp", ownerId: "secondary", organizationId });
+  await removeStoredSmtpAccount("secondary");
+
+  revalidatePath("/");
+  revalidatePath("/einstellungen");
 }
 
 export async function runImapScanAction(

@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/modal";
 import { MailboxConnectContent } from "@/components/credentials/mailbox-connect-content";
 import { StatusBadge } from "@/components/status/status-badge";
 import { VendorLogo } from "@/components/ui/vendor-logo";
+import { DeleteSmtpAccountButton } from "@/components/einstellungen/delete-smtp-account-button";
 
 export interface SmtpAccountSlot {
   slot: "primary" | "secondary";
@@ -56,6 +57,8 @@ export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
         >
           Ändern
         </button>
+        {/* Nur das optionale 2. Konto ist löschbar; Konto 1 ist Pflicht. */}
+        {acc.slot === "secondary" && <DeleteSmtpAccountButton />}
       </div>
     );
   }
