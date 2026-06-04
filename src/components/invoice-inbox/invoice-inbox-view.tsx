@@ -6,7 +6,7 @@ import {
   getPrivateInvoices,
   getPrivateInvoiceCount,
   getInvoiceStatusCounts,
-  getDashboardStats,
+  getMissingItems,
 } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { StatusBadge } from "@/components/status/status-badge";
@@ -130,12 +130,17 @@ export async function InvoiceInboxView({
   const auth = await getCurrentAuth();
   const orgId = auth?.organization?.id ?? null;
 
-  const [statusCountsRaw, privatCount, stats] = await Promise.all([
+  const [statusCountsRaw, privatCount, missingItems] = await Promise.all([
     getInvoiceStatusCounts(orgId),
     getPrivateInvoiceCount(orgId),
-    getDashboardStats(orgId),
+    getMissingItems(orgId),
   ]);
   const counts = new Map(statusCountsRaw.map((c) => [c.status, Number(c.count)]));
+  // Das "Fehlt"-Badge MUSS mit dem Tab-Inhalt (MissingListView → getMissingItems)
+  // übereinstimmen. Früher zählte es rohe vendor_month_status-Zellen (missing +
+  // action_required aus getDashboardStats) OHNE die Evidenz-/Fälligkeits-Gates
+  // der Liste → Badge zeigte z. B. "10" trotz leerer Liste (INFETCH-246).
+  const fehltCount = missingItems.length;
   const activeYear = year ?? null;
 
   const reviewCount = ["needs_review", "new", "failed"].reduce(
@@ -222,13 +227,11 @@ export async function InvoiceInboxView({
           <nav className="no-scrollbar flex gap-0 overflow-x-auto" aria-label="Filter">
             {TABS.filter((tabItem) => {
               // Leere Tabs ausblenden — der gerade aktive Tab bleibt immer sichtbar.
-              if (tabItem.key === "fehlt")
-                return stats.missing + stats.actionRequired > 0 || activeTab === "fehlt";
+              if (tabItem.key === "fehlt") return fehltCount > 0 || activeTab === "fehlt";
               if (tabItem.key === "review") return reviewCount > 0 || activeTab === "review";
               return true;
             }).map((tabItem) => {
               const isActive = activeTab === tabItem.key;
-              const fehltCount = stats.missing + stats.actionRequired;
               const count =
                 tabItem.key === "review"
                   ? reviewCount
