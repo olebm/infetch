@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { createScopedSql } from "@/lib/db/scoped-query";
-import { downloadFromStorage, BUCKETS } from "@/lib/supabase/storage";
+import { downloadFromStorage, BUCKETS, pdfContentMatches } from "@/lib/supabase/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +28,10 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ fi
 
   // SECURITY: strikt nach organization_id filtern.
   // Vorher: "OR i.organization_id IS NULL" leakte Legacy-Daten an jeden authentifizierten User.
-  const rows = await scopedSql<{ storedPath: string; originalFilename: string }[]>`
-    SELECT f.stored_path AS "storedPath", f.original_filename AS "originalFilename"
+  const rows = await scopedSql<
+    { storedPath: string; originalFilename: string; sha256: string | null }[]
+  >`
+    SELECT f.stored_path AS "storedPath", f.original_filename AS "originalFilename", f.sha256 AS "sha256"
     FROM invoice_files f
     INNER JOIN invoices i ON i.id = f.invoice_id
     WHERE f.id = ${id}
@@ -44,6 +46,15 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ fi
 
   try {
     const buffer = await downloadFromStorage(BUCKETS.INVOICES, row.storedPath);
+    // Fail-closed (INFETCH-243): lieber KEIN PDF als ein FALSCHES. Alte, nicht
+    // eindeutige Storage-Keys konnten via upsert überschrieben werden — passt
+    // der Inhalt nicht zum erwarteten sha256 dieser Datei, NICHT ausliefern.
+    if (!pdfContentMatches(buffer, row.sha256)) {
+      console.warn(
+        `[invoice-files] sha256-Mismatch für file ${id} (überschriebener Storage-Key?) — PDF wird NICHT ausgeliefert.`,
+      );
+      return NextResponse.json({ error: "file integrity mismatch" }, { status: 404 });
+    }
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "content-type": "application/pdf",

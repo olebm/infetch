@@ -260,6 +260,9 @@ export async function importPdfBuffer(input: ImportPdfBufferInput): Promise<Impo
     productLabel,
     invoiceDate: parsed.invoiceDate,
     fallbackDate: new Date().toISOString().slice(0, 10),
+    // Eindeutigkeit pro Inhalt — verhindert Key-Kollision + upsert-Überschreiben
+    // (INFETCH-243). sha256 ist oben aus dem Buffer berechnet.
+    sha256,
   });
   const rawTextKey = `${sha256}.txt`;
   await uploadToStorage(BUCKETS.INVOICES, storageKey, buffer, { contentType: "application/pdf" });

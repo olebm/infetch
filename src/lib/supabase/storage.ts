@@ -2,6 +2,7 @@
  * Supabase Storage helpers — server-side only.
  * Uses service role key (bypasses RLS). Never call from browser.
  */
+import crypto from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { decryptBuffer, encryptBuffer, getStorageKey } from "@/lib/secrets/storage-crypto";
 
@@ -58,6 +59,13 @@ export function buildInvoiceStorageKey(input: {
   productLabel: string | null;
   invoiceDate: string | null;
   fallbackDate?: string | null;
+  /**
+   * sha256 des PDF-Inhalts — Pflicht. Macht den Key pro Inhalt eindeutig.
+   * Ohne ihn kollidierten mehrere Belege gleichen Vendor/Produkt/Datums (v. a.
+   * unknown-vendor) auf EINEN Key, und uploadToStorage(upsert:true) überschrieb
+   * sie gegenseitig → falsches PDF auf der Detailseite (INFETCH-243).
+   */
+  sha256: string;
 }): string {
   const effectiveDate = input.invoiceDate || input.fallbackDate || "unknown-date";
   const yearMonth = effectiveDate.slice(0, 7) || "unknown-month";
@@ -66,7 +74,20 @@ export function buildInvoiceStorageKey(input: {
   const product = sanitizeKeyPart(input.productLabel || "unknown-product");
   const datePart = /^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ? effectiveDate : "unknown-date";
   const orgSegment = input.orgId ? input.orgId : "default";
-  return `${orgSegment}/${year}/${yearMonth}/${vendor}/${vendor}_${product}_${datePart}.pdf`;
+  const content = sanitizeKeyPart(input.sha256);
+  return `${orgSegment}/${year}/${yearMonth}/${vendor}/${vendor}_${product}_${datePart}_${content}.pdf`;
+}
+
+/**
+ * Integritäts-Gate: stimmt der heruntergeladene PDF-Inhalt mit dem beim Import
+ * gespeicherten sha256 überein? Schützt davor, ein FALSCHES PDF auszuliefern,
+ * falls ein alter (nicht-eindeutiger) Storage-Key überschrieben wurde
+ * (INFETCH-243). Ohne erwarteten Hash (Legacy-Zeilen) → true (nicht prüfbar →
+ * ausliefern, kein Regress für Altbestand ohne sha256).
+ */
+export function pdfContentMatches(buffer: Buffer, expectedSha256: string | null): boolean {
+  if (!expectedSha256) return true;
+  return crypto.createHash("sha256").update(buffer).digest("hex") === expectedSha256;
 }
 
 export function sanitizeKeyPart(value: string): string {
