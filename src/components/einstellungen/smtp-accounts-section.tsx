@@ -57,8 +57,6 @@ export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
         >
           Ändern
         </button>
-        {/* Nur das optionale 2. Konto ist löschbar; Konto 1 ist Pflicht. */}
-        {acc.slot === "secondary" && <DeleteSmtpAccountButton />}
       </div>
     );
   }
@@ -125,6 +123,15 @@ export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
             initialServers={editing?.servers}
             onSuccess={() => setOpenSlot(null)}
           />
+        )}
+        {/* Löschen nur fürs konfigurierte 2. Konto; Konto 1 ist Pflicht. */}
+        {openSlot === "secondary" && secondary?.configured && (
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-line pt-4">
+            <p className="text-xs text-muted">
+              Konto entfernen. Empfänger, die es nutzen, senden danach über Konto 1.
+            </p>
+            <DeleteSmtpAccountButton onDeleted={() => setOpenSlot(null)} />
+          </div>
         )}
       </Modal>
     </>
