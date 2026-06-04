@@ -33,3 +33,14 @@ export async function saveStoredSmtpAccount(
   };
   await writeJsonSetting(settingKey, accounts);
 }
+
+/**
+ * Entfernt ein gespeichertes Absende-Konto (Gegenstück zu
+ * {@link saveStoredSmtpAccount}). No-op, wenn der Slot nicht existiert.
+ */
+export async function removeStoredSmtpAccount(ownerId: SmtpCredentialOwnerId): Promise<void> {
+  const accounts = await getStoredSmtpAccounts();
+  if (!(ownerId in accounts)) return;
+  delete accounts[ownerId];
+  await writeJsonSetting(settingKey, accounts);
+}
