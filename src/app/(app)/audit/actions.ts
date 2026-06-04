@@ -128,7 +128,12 @@ export async function updateInvoiceReviewAction(
       }
     }
 
-    await runMissingInvoiceCheck();
+    // Die "Fehlt"-Matrix ist ein abgeleiteter Cache (stündlicher Cron ist das
+    // Sicherheitsnetz). Der Voll-Recompute (alle Orgs × Vendoren × Monate,
+    // ~130 sequentielle Queries) BLOCKIERTE die Freigabe sonst um 5-6 s, bis die
+    // Erfolgsmeldung kam. Hintergrund-Fire (langlebiger Node-Prozess) → der
+    // Button reagiert sofort; die Matrix zieht Sekunden später nach.
+    void runMissingInvoiceCheck().catch(() => {});
 
     revalidatePath("/");
     revalidatePath("/audit");
