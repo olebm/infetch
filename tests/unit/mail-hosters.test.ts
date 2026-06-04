@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectHoster } from "@/lib/mail-hosters";
+import { detectHoster, MAIL_HOSTERS } from "@/lib/mail-hosters";
 
 // Verifiziert die MX-basierte Hoster-Erkennung + Server-Ableitung (pure Logik).
 
@@ -11,7 +11,7 @@ describe("detectHoster — feste Server", () => {
       expect(d?.imapHost).toBe("imap.ionos.de");
       expect(d?.smtpHost).toBe("smtp.ionos.de");
       expect(d?.imapPort).toBe(993);
-      expect(d?.smtpSecure).toBe(true);
+      expect(d?.smtpSecure).toBe(false); // 587/STARTTLS
     }
   });
 
@@ -50,7 +50,7 @@ describe("detectHoster — Server = MX-Ziel", () => {
     expect(d?.hosterId).toBe("webgo");
     expect(d?.imapHost).toBe("s66.goserver.host");
     expect(d?.smtpHost).toBe("s66.goserver.host");
-    expect(d?.smtpPort).toBe(465);
+    expect(d?.smtpPort).toBe(587);
   });
 
   it("webgo auch via webgo24.de", () => {
@@ -114,5 +114,24 @@ describe("detectHoster — Sonderfälle", () => {
 
   it("leere MX-Liste → null", () => {
     expect(detectHoster([], "firma.de")).toBeNull();
+  });
+});
+
+describe("SMTP-Port-Regression (Incident: Hetzner sperrt ausgehend 465)", () => {
+  // webgo schlug fehl, weil der App-Server (Hetzner) ausgehend Port 465 sperrt,
+  // 587 aber offen ist. Alle Hoster müssen daher SMTP über 587/STARTTLS fahren,
+  // nicht über das oft gesperrte 465. Dieser Test macht ein Zurückfallen rot.
+  it("nutzt für SMTP überall 587/STARTTLS, nie 465", () => {
+    for (const h of MAIL_HOSTERS) {
+      expect(h.smtp.port, `${h.name} SMTP-Port`).toBe(587);
+      expect(h.smtp.secure, `${h.name} SMTP secure`).toBe(false);
+    }
+  });
+
+  it("IMAP bleibt 993 (impliziertes SSL/TLS, ausgehend offen)", () => {
+    for (const h of MAIL_HOSTERS) {
+      expect(h.imap.port, `${h.name} IMAP-Port`).toBe(993);
+      expect(h.imap.secure, `${h.name} IMAP secure`).toBe(true);
+    }
   });
 });

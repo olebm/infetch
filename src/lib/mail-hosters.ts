@@ -8,8 +8,10 @@
  * Erkennung im Hintergrund — der User wählt keinen Anbieter mehr aus.
  *
  * Alle Werte gegen die offizielle Hoster-Doku verifiziert (Stand 2026-06).
- * Default-Verschlüsselung durchgängig implizites SSL/TLS (IMAP 993, SMTP 465) —
- * von allen gelisteten Hostern unterstützt und die sicherste Variante.
+ * IMAP: 993 (implizites SSL/TLS). SMTP: 587 (STARTTLS) — NICHT 465 (SSL), weil
+ * viele Server-Umgebungen Port 465 ausgehend sperren (u. a. Hetzner, wo Infetch
+ * läuft: 587 offen, 465 blockiert). 587 ist der Standard-Submission-Port und
+ * wird von allen gelisteten Hostern unterstützt.
  *
  * hostSource bestimmt, woher der konkrete Server-Hostname kommt:
  *  - "fixed"    → fester Server für alle Kunden (steht in imap/smtp.host)
@@ -49,7 +51,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["ionos.", "1and1.com"],
     hostSource: "fixed",
     imap: { host: "imap.ionos.de", port: 993, secure: true },
-    smtp: { host: "smtp.ionos.de", port: 465, secure: true },
+    smtp: { host: "smtp.ionos.de", port: 587, secure: false },
   },
   {
     id: "strato-hosting",
@@ -58,7 +60,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["rzone.de"], // Strato-MX = mailin.rzone.de (NICHT strato.de)
     hostSource: "fixed",
     imap: { host: "imap.strato.de", port: 993, secure: true },
-    smtp: { host: "smtp.strato.de", port: 465, secure: true },
+    smtp: { host: "smtp.strato.de", port: 587, secure: false },
   },
   {
     id: "hetzner",
@@ -67,7 +69,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["your-server.de"],
     hostSource: "fixed", // Client-Host fest = mail.your-server.de (≠ MX-Ziel!)
     imap: { host: "mail.your-server.de", port: 993, secure: true },
-    smtp: { host: "mail.your-server.de", port: 465, secure: true },
+    smtp: { host: "mail.your-server.de", port: 587, secure: false },
   },
   {
     id: "domainfactory",
@@ -76,7 +78,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["ispgateway.de"], // MX = mx*.ispgateway.de (nicht df.eu — zu unspezifisch als Substring)
     hostSource: "fixed",
     imap: { host: "sslin.df.eu", port: 993, secure: true },
-    smtp: { host: "sslout.df.eu", port: 465, secure: true },
+    smtp: { host: "sslout.df.eu", port: 587, secure: false },
   },
   {
     id: "mittwald",
@@ -85,7 +87,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["agenturserver.de"],
     hostSource: "fixed",
     imap: { host: "mail.agenturserver.de", port: 993, secure: true },
-    smtp: { host: "mail.agenturserver.de", port: 465, secure: true },
+    smtp: { host: "mail.agenturserver.de", port: 587, secure: false },
   },
   {
     id: "1blu",
@@ -94,7 +96,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["1blu.de"],
     hostSource: "fixed",
     imap: { host: "imap.1blu.de", port: 993, secure: true },
-    smtp: { host: "smtp.1blu.de", port: 465, secure: true },
+    smtp: { host: "smtp.1blu.de", port: 587, secure: false },
   },
   {
     id: "google-workspace",
@@ -103,7 +105,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["aspmx.l.google.com", "googlemail.com"],
     hostSource: "fixed",
     imap: { host: "imap.gmail.com", port: 993, secure: true },
-    smtp: { host: "smtp.gmail.com", port: 465, secure: true },
+    smtp: { host: "smtp.gmail.com", port: 587, secure: false },
     hint: "Google verlangt ein App-Passwort (nicht dein normales Passwort) bei aktiver 2-Faktor-Anmeldung.",
     appPasswordUrl: "https://myaccount.google.com/apppasswords",
   },
@@ -114,7 +116,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["zoho.eu"],
     hostSource: "fixed",
     imap: { host: "imappro.zoho.eu", port: 993, secure: true },
-    smtp: { host: "smtppro.zoho.eu", port: 465, secure: true },
+    smtp: { host: "smtppro.zoho.eu", port: 587, secure: false },
     hint: "Zoho verlangt bei aktiver 2-Faktor-Anmeldung ein anwendungsspezifisches Passwort.",
     appPasswordUrl: "https://accounts.zoho.eu/home#security/security_pwd",
   },
@@ -126,7 +128,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["netcup.net"],
     hostSource: "domain",
     imap: { port: 993, secure: true },
-    smtp: { port: 465, secure: true },
+    smtp: { port: 587, secure: false },
   },
   // ── Server = MX-Ziel: App liest ihn aus, User gibt nur das Passwort ─────────
   {
@@ -136,7 +138,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["goserver.host", "webgo24.de"],
     hostSource: "mxTarget",
     imap: { port: 993, secure: true },
-    smtp: { port: 465, secure: true },
+    smtp: { port: 587, secure: false },
   },
   {
     id: "all-inkl",
@@ -145,7 +147,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["kasserver.com"],
     hostSource: "mxTarget",
     imap: { port: 993, secure: true },
-    smtp: { port: 465, secure: true },
+    smtp: { port: 587, secure: false },
   },
   // ── Kundenspezifischer Server: App setzt Ports, User trägt den Server ein ───
   {
@@ -155,7 +157,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["hosteurope.de", "server-he.de"],
     hostSource: "user",
     imap: { port: 993, secure: true },
-    smtp: { port: 465, secure: true },
+    smtp: { port: 587, secure: false },
     hint: "Deinen Server findest du in der KIS-Verwaltung: Empfang wpXXXXXXX.mail.server-he.de, Versand wpXXXXXXX.mailout.server-he.de.",
   },
   {
@@ -165,7 +167,7 @@ export const MAIL_HOSTERS: MailHoster[] = [
     mxPatterns: ["alfahosting", "secure-mailgate.com"], // Default-Spamfilter-MX
     hostSource: "user",
     imap: { port: 993, secure: true },
-    smtp: { port: 465, secure: true },
+    smtp: { port: 587, secure: false },
     hint: "Deinen Server (webXX.alfahosting-server.de) findest du im Kundencenter unter Server-Info.",
   },
   // ── Erkannt, aber Passwort-Login abgeschaltet → ehrlich warnen ──────────────
