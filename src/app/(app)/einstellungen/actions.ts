@@ -13,7 +13,11 @@ import {
 import { verifyMistralConnection } from "@/ai/mistral-client";
 import { verifyImapAccountConnection } from "@/mail/imap-client";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
-import { saveExportTarget } from "@/exports/export-pipeline";
+import {
+  saveExportTarget,
+  skipExistingInvoicesForTarget,
+  getExportTargets,
+} from "@/exports/export-pipeline";
 import { isValidEmail } from "@/lib/validation/email";
 import {
   deleteAutoApprovalRule,
@@ -606,6 +610,7 @@ export async function saveExportTargetAction(
       return { status: "error", message: "Ungültiges SMTP-Postfach ausgewählt." };
     }
     const enabled = formData.get("enabled") === "on";
+    const includeExisting = formData.get("includeExisting") === "on";
 
     // Format pruefen wenn eine Adresse angegeben ist (null = Empfaenger leeren,
     // bleibt erlaubt). Faengt Tippfehler ab bevor Rechnungen ins Leere gehen.
@@ -616,7 +621,18 @@ export async function saveExportTargetAction(
       };
     }
 
+    // War dieser Empfänger schon konfiguriert? Nur beim ERSTMALIGEN Anlegen
+    // entscheiden wir über bestehende Rechnungen (beim Bearbeiten nicht).
+    const existingTargets = await getExportTargets(auth.organization.id);
+    const isNewRecipient = !existingTargets.some((t) => t.target === target && t.recipientEmail);
+
     await saveExportTarget(auth.organization.id, target, recipientEmail, smtpSlot.ownerId, enabled);
+
+    // Neuer Empfänger + User will bestehende NICHT mitschicken (Default):
+    // Alt-Rechnungen als 'skipped' vor-markieren, damit nur künftige laufen.
+    if (isNewRecipient && recipientEmail && !includeExisting) {
+      await skipExistingInvoicesForTarget(auth.organization.id, target);
+    }
 
     revalidatePath("/einstellungen");
     revalidatePath("/exports");
