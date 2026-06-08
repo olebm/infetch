@@ -529,6 +529,31 @@ export function MailboxConnectContent({
 
       {showAdv && (
         <div className="rounded border border-line/60 bg-surface p-4 space-y-4">
+          {/* Login-Name, falls abweichend von der E-Mail (älteres webgo-Postfach
+              web000p1, Mittwald pXXXXXXpX). Absende-Konto (smtp-only). Steht vor
+              dem Server, weil er zu den Anmeldedaten gehört, nicht zur Technik. */}
+          {smtpOnly && (
+            <div>
+              <div className="mb-1 text-xs font-medium text-muted">
+                Benutzername{" "}
+                <span className="font-normal text-muted/70">
+                  — nur falls abweichend von der E-Mail
+                </span>
+              </div>
+              <input
+                value={smtpUsername}
+                onChange={(e) => setSmtpUsername(e.target.value)}
+                placeholder={email || "z. B. web000p1"}
+                autoComplete="off"
+                className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+              />
+              <p className="mt-1 text-[11px] text-muted">
+                Manche Anbieter (ältere webgo-Postfächer, Mittwald) verlangen einen Postfach-Namen
+                statt der E-Mail als Benutzernamen.
+              </p>
+            </div>
+          )}
+
           {/*
             Port + TLS-Modus nur bei UNBEKANNTEM Hoster anzeigen — dort sind die
             Werte offen. Bei erkanntem Provider/Hoster liefern Preset bzw.
@@ -602,30 +627,6 @@ export function MailboxConnectContent({
               </div>
             );
           })()}
-
-          {/* Login-Name, falls abweichend von der E-Mail (älteres webgo-Postfach
-              web000p1, Mittwald pXXXXXXpX). Absende-Konto (smtp-only). */}
-          {smtpOnly && (
-            <div>
-              <div className="mb-1 text-xs font-medium text-muted">
-                Benutzername{" "}
-                <span className="font-normal text-muted/70">
-                  — nur falls abweichend von der E-Mail
-                </span>
-              </div>
-              <input
-                value={smtpUsername}
-                onChange={(e) => setSmtpUsername(e.target.value)}
-                placeholder={email || "z. B. web000p1"}
-                autoComplete="off"
-                className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
-              />
-              <p className="mt-1 text-[11px] text-muted">
-                Manche Anbieter (ältere webgo-Postfächer, Mittwald) verlangen einen Postfach-Namen
-                statt der E-Mail als Benutzernamen.
-              </p>
-            </div>
-          )}
 
           {/* Separate SMTP credentials — Advanced-Option, im Onboarding
               ausgeblendet (verwirrt mehr als sie hilft); nur im FULL-Modus
