@@ -62,8 +62,9 @@ export async function enqueueReadyInvoices(): Promise<number> {
 export async function skipExistingInvoicesForTarget(
   orgId: string,
   target: string,
+  db: typeof sql = sql,
 ): Promise<number> {
-  const result = await sql`
+  const result = await db`
     INSERT INTO exports (invoice_id, export_target_id, status, organization_id)
     SELECT invoices.id, export_targets.id, 'skipped', invoices.organization_id
     FROM invoices
@@ -235,19 +236,30 @@ export async function saveExportTarget(
   recipientEmail: string | null,
   smtpSlot: SmtpCredentialOwnerId,
   enabled: boolean,
+  skipExisting = false,
 ): Promise<void> {
   // UPSERT — pro (org, target) max. 1 Row (siehe uniq_export_targets_org_target).
   // Label = target ist ein Fallback, falls die Row noch nicht existiert; bei
   // bestehender Row bleibt das ursprüngliche Label erhalten.
-  await sql`
-    INSERT INTO export_targets (organization_id, target, label, recipient_email, smtp_slot, enabled)
-    VALUES (${orgId}, ${target}, ${target}, ${recipientEmail || null}, ${smtpSlot}, ${enabled})
-    ON CONFLICT (organization_id, target) DO UPDATE SET
-      recipient_email = excluded.recipient_email,
-      smtp_slot = excluded.smtp_slot,
-      enabled = excluded.enabled,
-      updated_at = CURRENT_TIMESTAMP
-  `;
+  //
+  // Aktivieren + (optionaler) Skip laufen ATOMAR in einer Transaktion: Sonst
+  // könnte enqueueReadyInvoices zwischen "Target enabled" und "Skip gesetzt"
+  // die Alt-Rechnungen enqueuen — der "nur neue"-Default würde unterlaufen.
+  await sql.begin(async (tx) => {
+    const db = tx as unknown as typeof sql;
+    await db`
+      INSERT INTO export_targets (organization_id, target, label, recipient_email, smtp_slot, enabled)
+      VALUES (${orgId}, ${target}, ${target}, ${recipientEmail || null}, ${smtpSlot}, ${enabled})
+      ON CONFLICT (organization_id, target) DO UPDATE SET
+        recipient_email = excluded.recipient_email,
+        smtp_slot = excluded.smtp_slot,
+        enabled = excluded.enabled,
+        updated_at = CURRENT_TIMESTAMP
+    `;
+    if (skipExisting) {
+      await skipExistingInvoicesForTarget(orgId, target, db);
+    }
+  });
 }
 
 export async function getExportStats(): Promise<
