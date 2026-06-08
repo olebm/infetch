@@ -352,6 +352,23 @@ function EditRecipientForm({
         </div>
       )}
 
+      {/* Absende-Konto gewechselt → anbieten, Alt-Rechnungen mit der neuen
+          Adresse erneut zu senden (Buchhaltungs-Matching läuft über den Absender). */}
+      {smtpSlot !== target.smtpSlot && (
+        <label className="flex cursor-pointer items-start gap-2 rounded border border-warn/30 bg-warn/5 px-3 py-2.5 text-xs text-muted select-none">
+          <input type="checkbox" name="resendExisting" className="mt-0.5" />
+          <span>
+            <span className="font-medium text-ink">
+              Bisherige Rechnungen mit der neuen Adresse erneut senden
+            </span>
+            <br />
+            Buchhaltungs-Apps (Kontist, sevDesk) ordnen Rechnungen über den Absender zu. Aktivieren,
+            damit bereits versendete Rechnungen über die neue Absende-Adresse erneut zugestellt
+            werden.
+          </span>
+        </label>
+      )}
+
       {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
 
       <div className="flex items-center justify-end gap-2 pt-1">

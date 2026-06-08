@@ -16,7 +16,9 @@ import { runPrimaryImapScan } from "@/mail/mail-scanner";
 import {
   saveExportTarget,
   skipExistingInvoicesForTarget,
+  resendSentInvoicesForTarget,
   getExportTargets,
+  dispatchPendingExports,
 } from "@/exports/export-pipeline";
 import { isValidEmail } from "@/lib/validation/email";
 import {
@@ -611,6 +613,7 @@ export async function saveExportTargetAction(
     }
     const enabled = formData.get("enabled") === "on";
     const includeExisting = formData.get("includeExisting") === "on";
+    const resendExisting = formData.get("resendExisting") === "on";
 
     // Format pruefen wenn eine Adresse angegeben ist (null = Empfaenger leeren,
     // bleibt erlaubt). Faengt Tippfehler ab bevor Rechnungen ins Leere gehen.
@@ -634,12 +637,24 @@ export async function saveExportTargetAction(
       await skipExistingInvoicesForTarget(auth.organization.id, target);
     }
 
+    // Bestehender Empfänger auf eine andere Absende-Adresse umgestellt + "erneut
+    // senden" gewählt: bereits versendete Rechnungen über die neue Verbindung neu
+    // zustellen (Buchhaltungs-Apps matchen über den Absender).
+    let resentNote = "";
+    if (!isNewRecipient && recipientEmail && resendExisting) {
+      const count = await resendSentInvoicesForTarget(auth.organization.id, target);
+      if (count > 0) {
+        void dispatchPendingExports().catch(() => {});
+        resentNote = ` ${count} bisherige ${count === 1 ? "Rechnung wird" : "Rechnungen werden"} über die neue Adresse erneut gesendet.`;
+      }
+    }
+
     revalidatePath("/einstellungen");
     revalidatePath("/exports");
     const label = target === "kontist" ? "Kontist" : "Accountable";
     return {
       status: "success",
-      message: `${label}: Export-Ziel gespeichert${enabled ? " und aktiviert" : " (deaktiviert)"}.`,
+      message: `${label}: Export-Ziel gespeichert${enabled ? " und aktiviert" : " (deaktiviert)"}.${resentNote}`,
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unbekannter Fehler.";
