@@ -277,11 +277,13 @@ async function persistSmtpAccount(
     smtpHost: string;
     smtpPort: number;
     smtpSecure: boolean;
+    /** Abweichender Login-Name (z. B. webgo-Postfachname web000p1); leer = E-Mail. */
+    smtpUsername?: string;
   },
 ): Promise<PersistOutcome> {
   const slotSmtpPwd =
     mailSlot === "secondary" ? "Secondary SMTP Password" : "Primary SMTP Password";
-  const { smtpEmail, smtpPassword, smtpHost, smtpPort, smtpSecure } = args;
+  const { smtpEmail, smtpPassword, smtpHost, smtpPort, smtpSecure, smtpUsername } = args;
 
   if (smtpPassword.trim()) {
     await saveCredentialSecret({
@@ -302,7 +304,9 @@ async function persistSmtpAccount(
     host: smtpHost,
     port: smtpPort,
     secure: smtpSecure,
-    username: smtpEmail,
+    // Login-Name: abweichender Benutzername (z. B. älteres webgo-Postfach) oder
+    // E-Mail als Default. fromAddress bleibt immer die Absende-Adresse.
+    username: smtpUsername?.trim() || smtpEmail,
     fromAddress: smtpEmail,
   });
   return { ok: true };
@@ -439,6 +443,7 @@ export async function saveSmtpMailboxAction(
     const smtpHost = String(formData.get("smtpHost") || "").trim();
     const smtpPort = Number(formData.get("smtpPort") || 587);
     const smtpSecure = String(formData.get("smtpSecure") || "false") !== "false";
+    const smtpUsername = String(formData.get("smtpUsername") || "").trim();
 
     if (!smtpEmail) return { status: "error", message: "Bitte eine E-Mail-Adresse eingeben." };
     if (!smtpHost)
@@ -453,6 +458,7 @@ export async function saveSmtpMailboxAction(
       smtpHost,
       smtpPort,
       smtpSecure,
+      smtpUsername,
     });
     if (!result.ok) return { status: "error", message: result.message };
 

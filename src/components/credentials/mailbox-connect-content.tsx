@@ -52,6 +52,8 @@ interface MailboxConnectContentProps {
   mode: "settings" | "onboarding";
   slot?: "primary" | "secondary";
   initialEmail?: string;
+  /** Vorbefüllter Login-Name, falls abweichend von der E-Mail (z. B. webgo-Postfachname). */
+  initialUsername?: string;
   /**
    * Optional vorausgefüllte Server-Werte — z. B. wenn der Wizard
    * nach Back-Navigation diese Komponente neu mountet und der
@@ -91,6 +93,7 @@ export function MailboxConnectContent({
   mode,
   slot = "primary",
   initialEmail,
+  initialUsername,
   initialServers,
   onDataChange,
   onSuccess,
@@ -131,6 +134,11 @@ export function MailboxConnectContent({
   const [separateSmtp, setSeparateSmtp] = useState(false);
   const [smtpEmail, setSmtpEmail] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
+  // Abweichender Login-Name (z. B. älteres webgo-Postfach web000p1). Leer = E-Mail
+  // als Benutzername. Vorbelegt nur, wenn er sich von der E-Mail unterscheidet.
+  const [smtpUsername, setSmtpUsername] = useState(
+    initialUsername && initialUsername !== initialEmail ? initialUsername : "",
+  );
 
   type SettingsTestPhase = "idle" | "testing" | "success" | "error";
   const [settingsTestPhase, setSettingsTestPhase] = useState<SettingsTestPhase>("idle");
@@ -303,7 +311,7 @@ export function MailboxConnectContent({
         fd.set("tcSmtpHost", smtpHost);
         fd.set("tcSmtpPort", String(smtpPort));
         fd.set("tcSmtpSecure", String(smtpSecure));
-        fd.set("tcSmtpUser", separateSmtp ? smtpEmail : email);
+        fd.set("tcSmtpUser", smtpUsername.trim() || (separateSmtp ? smtpEmail : email));
         fd.set("tcSmtpPass", separateSmtp ? smtpPassword : password);
         const r = await testSmtpOnlyConnectionAction(null, fd);
         smtpOk = r.ok;
@@ -319,6 +327,9 @@ export function MailboxConnectContent({
       } else {
         setSettingsTestPhase("error");
         setSettingsTestErrors({ imap: imapErr, smtp: smtpErr });
+        // Auth-Fehler? Server-Details aufklappen — manche Anbieter (z. B. ältere
+        // webgo-Postfächer) verlangen einen separaten Benutzernamen statt der E-Mail.
+        if (/passwort|auth/i.test(`${imapErr ?? ""} ${smtpErr ?? ""}`)) setShowAdv(true);
       }
     } catch (err) {
       setSettingsTestPhase("error");
@@ -592,6 +603,30 @@ export function MailboxConnectContent({
             );
           })()}
 
+          {/* Login-Name, falls abweichend von der E-Mail (älteres webgo-Postfach
+              web000p1, Mittwald pXXXXXXpX). Absende-Konto (smtp-only). */}
+          {smtpOnly && (
+            <div>
+              <div className="mb-1 text-xs font-medium text-muted">
+                Benutzername{" "}
+                <span className="font-normal text-muted/70">
+                  — nur falls abweichend von der E-Mail
+                </span>
+              </div>
+              <input
+                value={smtpUsername}
+                onChange={(e) => setSmtpUsername(e.target.value)}
+                placeholder={email || "z. B. web000p1"}
+                autoComplete="off"
+                className="h-8 w-full rounded border border-line bg-white px-2 font-mono text-xs outline-none focus:border-brand"
+              />
+              <p className="mt-1 text-[11px] text-muted">
+                Manche Anbieter (ältere webgo-Postfächer, Mittwald) verlangen einen Postfach-Namen
+                statt der E-Mail als Benutzernamen.
+              </p>
+            </div>
+          )}
+
           {/* Separate SMTP credentials — Advanced-Option, im Onboarding
               ausgeblendet (verwirrt mehr als sie hilft); nur im FULL-Modus
               relevant (imap-only/smtp-only konfigurieren je nur ein Protokoll). */}
@@ -646,6 +681,7 @@ export function MailboxConnectContent({
       <input type="hidden" name="smtpHost" value={smtpHost} readOnly />
       <input type="hidden" name="smtpPort" value={smtpPort} readOnly />
       <input type="hidden" name="smtpSecure" value={String(smtpSecure)} readOnly />
+      {smtpOnly && <input type="hidden" name="smtpUsername" value={smtpUsername} readOnly />}
       {!separateSmtp && <input type="hidden" name="smtpEmail" value={email} readOnly />}
       {!separateSmtp && <input type="hidden" name="smtpPassword" value={password} readOnly />}
 

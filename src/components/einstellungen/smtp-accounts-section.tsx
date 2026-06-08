@@ -19,6 +19,8 @@ import { DeleteSmtpAccountButton } from "@/components/einstellungen/delete-smtp-
 export interface SmtpAccountSlot {
   slot: "primary" | "secondary";
   fromAddress: string | null;
+  /** Login-Name, falls abweichend von fromAddress (z. B. webgo-Postfachname). */
+  username: string | null;
   configured: boolean;
   providerDomain: string | null;
   servers?: { smtpHost?: string; smtpPort?: number; smtpSecure?: boolean };
@@ -120,6 +122,7 @@ export function SmtpAccountsSection({ slots }: { slots: SmtpAccountSlot[] }) {
             purpose="smtp-only"
             slot={openSlot}
             initialEmail={editing?.fromAddress ?? undefined}
+            initialUsername={editing?.username ?? undefined}
             initialServers={editing?.servers}
             onSuccess={() => setOpenSlot(null)}
           />
