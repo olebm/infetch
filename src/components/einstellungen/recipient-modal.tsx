@@ -201,6 +201,18 @@ function RecipientForm({
         </div>
       )}
 
+      {selected && (
+        <label className="flex cursor-pointer items-start gap-2 rounded border border-line bg-surface px-3 py-2.5 text-xs text-muted select-none">
+          <input type="checkbox" name="includeExisting" className="mt-0.5" />
+          <span>
+            <span className="font-medium text-ink">Bestehende Rechnungen auch senden</span>
+            <br />
+            Standardmäßig bekommt dieser Empfänger nur künftige Rechnungen. Aktivieren, um auch alle
+            bisherigen einmalig nachzuschicken.
+          </span>
+        </label>
+      )}
+
       {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
 
       <div className="flex items-center justify-end gap-2 pt-1">

@@ -51,6 +51,30 @@ export async function enqueueReadyInvoices(): Promise<number> {
   return result.count;
 }
 
+/**
+ * Markiert alle AKTUELL bestehenden Rechnungen einer Org als 'skipped' für das
+ * angegebene Target. Genutzt beim erstmaligen Anlegen eines Empfängers mit
+ * Default "nur neue": So überspringt enqueueReadyInvoices (ON CONFLICT) die
+ * Alt-Rechnungen dauerhaft, künftige Rechnungen laufen normal. Bewusst über
+ * ALLE Status (nicht nur ready/exported), damit auch später freigegebene
+ * Alt-Rechnungen übersprungen bleiben. Gibt die Zahl der markierten zurück.
+ */
+export async function skipExistingInvoicesForTarget(
+  orgId: string,
+  target: string,
+): Promise<number> {
+  const result = await sql`
+    INSERT INTO exports (invoice_id, export_target_id, status, organization_id)
+    SELECT invoices.id, export_targets.id, 'skipped', invoices.organization_id
+    FROM invoices
+    JOIN export_targets ON export_targets.organization_id = invoices.organization_id
+      AND export_targets.target = ${target}
+    WHERE invoices.organization_id = ${orgId}
+    ON CONFLICT DO NOTHING
+  `;
+  return result.count;
+}
+
 export async function dispatchPendingExports(): Promise<DispatchResult> {
   return withAdvisoryLock("export_dispatch", dispatchPendingExportsImpl, () => ({
     enqueued: 0,
