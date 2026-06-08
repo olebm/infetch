@@ -18,6 +18,38 @@ import {
 
 const idle: CredentialFormState = { status: "idle", message: "" };
 
+/** Kompakte Toggle-Zeile (Titel + kurzer Hinweis links, Switch rechts). */
+function ToggleRow({
+  name,
+  title,
+  hint,
+  tone = "default",
+}: {
+  name: string;
+  title: string;
+  hint: string;
+  tone?: "default" | "warn";
+}) {
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer items-center justify-between gap-3 rounded border px-3 py-2.5 select-none",
+        tone === "warn" ? "border-warn/30 bg-warn/5" : "border-line bg-surface",
+      )}
+    >
+      <span className="text-xs text-muted">
+        <span className="block font-medium text-ink">{title}</span>
+        {hint}
+      </span>
+      <span className="relative inline-flex h-5 w-9 shrink-0 items-center">
+        <input type="checkbox" name={name} className="peer sr-only" />
+        <span className="absolute inset-0 rounded-full bg-line transition-colors peer-checked:bg-brand" />
+        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+      </span>
+    </label>
+  );
+}
+
 interface RecipientModalProps {
   open: boolean;
   onClose: () => void;
@@ -202,15 +234,11 @@ function RecipientForm({
       )}
 
       {selected && (
-        <label className="flex cursor-pointer items-start gap-2 rounded border border-line bg-surface px-3 py-2.5 text-xs text-muted select-none">
-          <input type="checkbox" name="includeExisting" className="mt-0.5" />
-          <span>
-            <span className="font-medium text-ink">Bestehende Rechnungen auch senden</span>
-            <br />
-            Standardmäßig bekommt dieser Empfänger nur künftige Rechnungen. Aktivieren, um auch alle
-            bisherigen einmalig nachzuschicken.
-          </span>
-        </label>
+        <ToggleRow
+          name="includeExisting"
+          title="Bestehende Rechnungen mitschicken"
+          hint="Standard: nur künftige."
+        />
       )}
 
       {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
@@ -355,18 +383,12 @@ function EditRecipientForm({
       {/* Absende-Konto gewechselt → anbieten, Alt-Rechnungen mit der neuen
           Adresse erneut zu senden (Buchhaltungs-Matching läuft über den Absender). */}
       {smtpSlot !== target.smtpSlot && (
-        <label className="flex cursor-pointer items-start gap-2 rounded border border-warn/30 bg-warn/5 px-3 py-2.5 text-xs text-muted select-none">
-          <input type="checkbox" name="resendExisting" className="mt-0.5" />
-          <span>
-            <span className="font-medium text-ink">
-              Bisherige Rechnungen mit der neuen Adresse erneut senden
-            </span>
-            <br />
-            Buchhaltungs-Apps (Kontist, sevDesk) ordnen Rechnungen über den Absender zu. Aktivieren,
-            damit bereits versendete Rechnungen über die neue Absende-Adresse erneut zugestellt
-            werden.
-          </span>
-        </label>
+        <ToggleRow
+          name="resendExisting"
+          tone="warn"
+          title="Bisherige Rechnungen erneut senden"
+          hint="Über die neue Absende-Adresse — fürs Buchhaltungs-Matching."
+        />
       )}
 
       {state.status === "error" && <p className="text-xs text-danger">{state.message}</p>}
