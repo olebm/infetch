@@ -143,6 +143,7 @@ export default async function SetupPage() {
     {
       slot: "primary",
       fromAddress: smtpPrimary?.fromAddress ?? null,
+      username: smtpPrimary?.username ?? null,
       configured: Boolean(smtpPrimary),
       providerDomain: smtpPrimary?.fromAddress
         ? (getProviderFromEmail(smtpPrimary.fromAddress)?.domain ?? null)
@@ -154,6 +155,7 @@ export default async function SetupPage() {
     {
       slot: "secondary",
       fromAddress: smtpSecondary?.fromAddress ?? null,
+      username: smtpSecondary?.username ?? null,
       configured: Boolean(smtpSecondary) && (smtpSecondaryHasCredential || smtpSecondaryHasRef),
       providerDomain: smtpSecondary?.fromAddress
         ? (getProviderFromEmail(smtpSecondary.fromAddress)?.domain ?? null)
