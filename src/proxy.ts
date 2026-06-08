@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSupabaseSession } from "@/lib/supabase/middleware";
+import { syncLoginHintCookie } from "@/lib/auth/login-hint";
 import { apiIpLimiter, clientIpFromHeaders } from "@/lib/rate-limit";
 
 // Endpunkte mit eigener Auth bzw. eigenem Limiter — vom globalen API-Limit
@@ -135,6 +136,10 @@ export async function proxy(request: NextRequest) {
   }
   const { response, userId } = sessionResult;
 
+  // Login-Hinweis für die Marketing-Domain (infetch.de) synchron zur echten
+  // Session halten — nicht-sensibles Flag, kein Token. Siehe login-hint.ts.
+  syncLoginHintCookie(response, hostname, userId);
+
   if (isPublicAppPath(pathname)) {
     return response;
   }
@@ -149,7 +154,10 @@ export async function proxy(request: NextRequest) {
     if (pathname !== "/") {
       loginUrl.searchParams.set("next", `${pathname}${search}`);
     }
-    return NextResponse.redirect(loginUrl);
+    // Redirect ist eine neue Response — Hinweis-Cookie hier ebenfalls löschen.
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    syncLoginHintCookie(redirectResponse, hostname, null);
+    return redirectResponse;
   }
 
   return response;

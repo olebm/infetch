@@ -5,7 +5,9 @@ import { VendorLogo } from "@/components/ui/vendor-logo";
 import { LogoStrip } from "./logo-strip";
 import { ContactController } from "./contact-controller";
 import { MobileNav } from "./mobile-nav";
+import { cookies } from "next/headers";
 import { appConfig } from "@/lib/config/env";
+import { LOGIN_HINT_COOKIE } from "@/lib/auth/login-hint";
 
 // ─── Tooltip helper ───────────────────────────────────────────────────────────
 
@@ -26,6 +28,27 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+// ─── Header-CTA ───────────────────────────────────────────────────────────────
+// Eingeloggte Besucher sehen „Übersicht", sonst „Anmelden". Der Login-Status
+// kommt aus dem domainübergreifenden Hinweis-Cookie (login-hint.ts) und greift
+// daher auch auf der Marketing-Domain infetch.de.
+//
+// Beide Ziele sind absolute App-URLs (wie schon der Anmelden-Link): Auf
+// infetch.de ist „/" die Landingpage selbst (Proxy-Rewrite) — „Übersicht" muss
+// deshalb explizit auf app.infetch.de zeigen, nicht relativ auf „/".
+
+function HeaderCta({ isLoggedIn, className }: { isLoggedIn: boolean; className: string }) {
+  return isLoggedIn ? (
+    <Link href="https://app.infetch.de/" className={className}>
+      Übersicht
+    </Link>
+  ) : (
+    <Link href="https://app.infetch.de/login" className={className}>
+      Anmelden
+    </Link>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function fmtHeroTimestamp(): string {
@@ -40,10 +63,14 @@ function fmtHeroTimestamp(): string {
 // the CI build gate — see docs/adr/0000-stufe-und-gates.md "Findings").
 export const dynamic = "force-dynamic";
 
-export default function LandingPage() {
+export default async function LandingPage() {
   // Free-only Launch: kein Preis-/Pro-Marketing auf der Landingpage.
   const proEnabled = appConfig.billing.proEnabled;
   const heroTimestamp = fmtHeroTimestamp();
+  // Login-Status aus dem domainübergreifenden Hinweis-Cookie (login-hint.ts) —
+  // nur ein Cookie-Read, kein DB-/Auth-Call. So erkennt auch die Marketing-
+  // Domain infetch.de den App-Login (die echte Session liegt auf app.infetch.de).
+  const isLoggedIn = (await cookies()).get(LOGIN_HINT_COOKIE)?.value === "1";
   return (
     <div className="overflow-x-hidden">
       {/* ================================================================== */}
@@ -79,21 +106,17 @@ export default function LandingPage() {
             </a>
           </nav>
           <div className="hidden md:flex items-center gap-2 ml-auto">
-            <Link
-              href="https://app.infetch.de/login"
+            <HeaderCta
+              isLoggedIn={isLoggedIn}
               className="inline-flex h-9 px-4 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90"
-            >
-              Anmelden
-            </Link>
+            />
           </div>
-          {/* Mobile: Anmelden + Hamburger */}
+          {/* Mobile: CTA + Hamburger */}
           <div className="md:hidden flex items-center gap-2 ml-auto">
-            <Link
-              href="https://app.infetch.de/login"
+            <HeaderCta
+              isLoggedIn={isLoggedIn}
               className="inline-flex h-9 px-3 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90"
-            >
-              Anmelden
-            </Link>
+            />
             <MobileNav />
           </div>
         </div>
