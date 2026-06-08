@@ -15,7 +15,6 @@ import { verifyImapAccountConnection } from "@/mail/imap-client";
 import { runPrimaryImapScan } from "@/mail/mail-scanner";
 import {
   saveExportTarget,
-  skipExistingInvoicesForTarget,
   resendSentInvoicesForTarget,
   getExportTargets,
   dispatchPendingExports,
@@ -629,13 +628,18 @@ export async function saveExportTargetAction(
     const existingTargets = await getExportTargets(auth.organization.id);
     const isNewRecipient = !existingTargets.some((t) => t.target === target && t.recipientEmail);
 
-    await saveExportTarget(auth.organization.id, target, recipientEmail, smtpSlot.ownerId, enabled);
-
-    // Neuer Empfänger + User will bestehende NICHT mitschicken (Default):
-    // Alt-Rechnungen als 'skipped' vor-markieren, damit nur künftige laufen.
-    if (isNewRecipient && recipientEmail && !includeExisting) {
-      await skipExistingInvoicesForTarget(auth.organization.id, target);
-    }
+    // Neuer Empfänger + User will bestehende NICHT mitschicken (Default): Alt-
+    // Rechnungen atomar mit dem Aktivieren als 'skipped' markieren, sodass nur
+    // künftige laufen (atomar → kein Enqueue-Race mit dem Versand-Cron).
+    const skipExisting = isNewRecipient && Boolean(recipientEmail) && !includeExisting;
+    await saveExportTarget(
+      auth.organization.id,
+      target,
+      recipientEmail,
+      smtpSlot.ownerId,
+      enabled,
+      skipExisting,
+    );
 
     // Bestehender Empfänger auf eine andere Absende-Adresse umgestellt + "erneut
     // senden" gewählt: bereits versendete Rechnungen über die neue Verbindung neu
