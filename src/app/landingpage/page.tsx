@@ -29,7 +29,7 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 // ─── Header-CTA ───────────────────────────────────────────────────────────────
-// Eingeloggte Besucher sehen „Übersicht", sonst „Anmelden". Der Login-Status
+// Eingeloggte Besucher sehen „Deine Übersicht", sonst „Anmelden". Der Login-Status
 // kommt aus dem domainübergreifenden Hinweis-Cookie (login-hint.ts) und greift
 // daher auch auf der Marketing-Domain infetch.de.
 //
@@ -40,7 +40,7 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 function HeaderCta({ isLoggedIn, className }: { isLoggedIn: boolean; className: string }) {
   return isLoggedIn ? (
     <Link href="https://app.infetch.de/" className={className}>
-      Übersicht
+      Deine Übersicht
     </Link>
   ) : (
     <Link href="https://app.infetch.de/login" className={className}>
@@ -117,7 +117,7 @@ export default async function LandingPage() {
               isLoggedIn={isLoggedIn}
               className="inline-flex h-9 px-3 text-sm font-medium items-center rounded bg-ink text-white hover:opacity-90"
             />
-            <MobileNav />
+            <MobileNav isLoggedIn={isLoggedIn} />
           </div>
         </div>
       </header>
