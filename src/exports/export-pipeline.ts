@@ -75,6 +75,29 @@ export async function skipExistingInvoicesForTarget(
   return result.count;
 }
 
+/**
+ * Setzt alle bereits VERSENDETEN Exports eines Empfängers zurück auf 'pending',
+ * sodass dispatchPendingExports sie erneut verschickt — über das AKTUELLE
+ * Absende-Konto (smtp_slot) des Targets. Use-Case: Empfänger wurde auf eine
+ * andere Absende-Adresse umgestellt; Buchhaltungs-Apps (Kontist, sevDesk)
+ * matchen über den Absender, daher müssen Alt-Rechnungen mit der neuen Adresse
+ * erneut zugestellt werden. Nur 'sent' wird zurückgesetzt (nicht 'skipped' /
+ * 'failed'). Gibt die Zahl der zum Neuversand markierten Exports zurück.
+ */
+export async function resendSentInvoicesForTarget(orgId: string, target: string): Promise<number> {
+  const result = await sql`
+    UPDATE exports
+    SET status = 'pending', updated_at = CURRENT_TIMESTAMP
+    WHERE organization_id = ${orgId}
+      AND status = 'sent'
+      AND export_target_id IN (
+        SELECT id FROM export_targets
+        WHERE organization_id = ${orgId} AND target = ${target}
+      )
+  `;
+  return result.count;
+}
+
 export async function dispatchPendingExports(): Promise<DispatchResult> {
   return withAdvisoryLock("export_dispatch", dispatchPendingExportsImpl, () => ({
     enqueued: 0,
