@@ -11,7 +11,7 @@ const LINKS = [
   { href: "#faq", label: "FAQ" },
 ];
 
-export function MobileNav() {
+export function MobileNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [open, setOpen] = useState(false);
 
   // Free-only Launch: "Preise" ausblenden (NEXT_PUBLIC_ ist im Browser inlined).
@@ -66,12 +66,15 @@ export function MobileNav() {
               </a>
             ))}
             <div className="mt-3 pt-3 border-t border-line">
+              {/* Eingeloggte Besucher sehen „Deine Übersicht" (→ App), sonst
+                  „Kostenlos starten" — konsistent zum HeaderCta in page.tsx. Beide
+                  Ziele sind absolute App-URLs, weil „/" auf infetch.de die Landingpage ist. */}
               <Link
-                href="https://app.infetch.de/login"
+                href={isLoggedIn ? "https://app.infetch.de/" : "https://app.infetch.de/login"}
                 className="inline-flex h-10 w-full items-center justify-center rounded bg-ink text-white text-sm font-medium hover:opacity-90"
                 onClick={() => setOpen(false)}
               >
-                Kostenlos starten
+                {isLoggedIn ? "Deine Übersicht" : "Kostenlos starten"}
               </Link>
             </div>
           </nav>
