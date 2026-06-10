@@ -11,6 +11,7 @@ import { invalidateBrowserSession } from "@/portals/agent/session-store";
 import { findVendorByCanonicalKey, upsertVendor } from "@/lib/db/queries";
 import { syncCommunityRecipes } from "@/portals/agent/community-sync";
 import { canAddOnlineAccount, getLimits, type Tier } from "@/lib/tier";
+import { isUsableTotpSecret } from "@/portals/totp";
 import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type ConnectState = {
@@ -60,11 +61,15 @@ export async function connectOnlineAccountAction(
     }
     if (totpSecret) {
       const cleaned = totpSecret.replace(/\s+/g, "").toUpperCase();
-      if (!/^[A-Z2-7]{16,}$/.test(cleaned)) {
+      // Base32-Charset UND otplib-Verwendbarkeit prüfen. Ein 16-stelliges Secret
+      // (10 Byte) bestand früher die reine Zeichen-Regex, crashte aber im Lauf,
+      // weil otplib ≥ 16 Byte verlangt (INFETCH-260). isUsableTotpSecret testet
+      // gegen otplibs echte Regeln statt einer Längen-Heuristik.
+      if (!/^[A-Z2-7]+$/.test(cleaned) || !(await isUsableTotpSecret(cleaned))) {
         return {
           status: "error",
           message:
-            "Der TOTP-Schlüssel sieht ungültig aus. Er sollte aus Base32-Zeichen bestehen (A-Z, 2-7, mind. 16 Zeichen).",
+            "Der TOTP-Schlüssel ist ungültig oder zu kurz. Die meisten Portale nutzen einen 32-stelligen Base32-Schlüssel (A–Z, 2–7).",
         };
       }
     }
