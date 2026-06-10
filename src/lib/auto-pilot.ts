@@ -153,7 +153,11 @@ async function runPortalFetch() {
   const entitled = await filterEntitledPortalAccounts(accounts);
   if (entitled.length === 0) return;
 
-  const { chromium } = await import("playwright");
+  // Patchright (gepatchtes Chromium) statt Playwright — gleiche API, weniger
+  // Bot-Detection. Lazy import, damit der Browser nur bei aktiven Portalen lädt.
+  // Runtime aus patchright, Typen aus playwright → lokaler Cast (s. agent-connector).
+  const { chromium: patchrightChromium } = await import("patchright");
+  const chromium = patchrightChromium as unknown as typeof import("playwright").chromium;
   const sharedBrowser = await chromium.launch({
     headless: true,
     args: ["--disable-blink-features=AutomationControlled", "--disable-dev-shm-usage"],

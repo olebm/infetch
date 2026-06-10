@@ -14,7 +14,14 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+// Patchright ist ein API-kompatibler Playwright-Drop-in mit gepatchtem Chromium,
+// das gängige Bot-Detection (navigator.webdriver, CDP-Leaks) maskiert. Runtime
+// kommt aus patchright; projektweit bleiben die playwright-Typen — daher der
+// lokale Cast am Import-Boundary (beide sind strukturell playwright-core).
+import { chromium as patchrightChromium } from "patchright";
+import type { Browser, BrowserContext, Page } from "playwright";
+
+const chromium = patchrightChromium as unknown as typeof import("playwright").chromium;
 import { appConfig } from "@/lib/config/env";
 import { readPortalCredential, getPortalAccountOrg } from "@/portals/credential-meta";
 import { findVendorByCanonicalKey } from "@/lib/db/queries";
@@ -109,8 +116,9 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
       locale: "de-DE",
       timezoneId: "Europe/Berlin",
       viewport: { width: 1280, height: 800 },
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      // Kein hartkodierter userAgent — patchright/Chromium nutzt die zur echten
+      // Browser-Version + OS passende UA (eine fixe Mac-UA im Linux-Container wäre
+      // selbst ein Detection-Tell).
     });
     page = await context.newPage();
 
@@ -137,8 +145,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
           locale: "de-DE",
           timezoneId: "Europe/Berlin",
           viewport: { width: 1280, height: 800 },
-          userAgent:
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+          // siehe oben: native UA von patchright, kein hartkodierter Wert.
         });
         page = await context.newPage();
         playResult = await playRecipe(page, recipe, credentials, {
