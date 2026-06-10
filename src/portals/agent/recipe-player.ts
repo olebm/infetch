@@ -100,92 +100,113 @@ export async function playRecipe(
       return { ok: false, status: friction.status, message: friction.message, downloads };
     }
 
-    if (
-      /timeout|selector .* not found|locator .* not found|getByRole|element.*not found/i.test(
-        message,
-      )
-    ) {
-      return { ok: false, status: "recipe_broken", message: shortMessage(message), downloads };
-    }
-    return { ok: false, status: "failed", message: shortMessage(message), downloads };
+    return {
+      ok: false,
+      status: classifyPlayError(message),
+      message: shortMessage(message),
+      downloads,
+    };
   }
 }
 
-type FrictionResult = {
+/**
+ * Unterscheidet einen "broken recipe" (Selector/Locator passt nicht mehr → Re-Record
+ * sinnvoll) von einem sonstigen Fehler (failed). Rein und in Vitest testbar.
+ */
+export function classifyPlayError(message: string): "recipe_broken" | "failed" {
+  return /timeout|selector .* not found|locator .* not found|getByRole|element.*not found/i.test(
+    message,
+  )
+    ? "recipe_broken"
+    : "failed";
+}
+
+export type FrictionResult = {
   status: "login_required" | "two_factor" | "captcha";
   message: string;
 };
 
+// Browser-unabhängiger Snapshot des Seiten-Zustands — wird von detectFriction aus
+// der echten Seite befüllt und von classifyFriction (rein, ohne Playwright und
+// daher in Vitest testbar) bewertet.
+export type FrictionSnapshot = {
+  url: string;
+  hasCaptchaIframe: boolean;
+  bodyTextLower: string;
+  hasShortCodeInput: boolean;
+  hasPasswordField: boolean;
+  hasEmailField: boolean;
+};
+
 /**
- * Erkennt typische Friktionspunkte am aktuellen Seiten-Zustand:
- *  - CAPTCHA (reCaptcha-iFrame, hCaptcha-Marker)
- *  - 2FA (Code-Eingabefeld, "Verifizierungs"-Wortlaut)
- *  - Login-Wall (Login-URL-Pattern ODER Password-Feld + Email-Feld noch sichtbar)
+ * Reine Friktions-Klassifikation aus einem Seiten-Snapshot:
+ *  - CAPTCHA (reCaptcha-iFrame/hCaptcha-Marker oder Wortlaut)
+ *  - 2FA (Code-Eingabefeld + "Verifizierungs"-Wortlaut)
+ *  - Login-Wall (Login-URL-Pattern ODER Password- + Email-Feld sichtbar)
  *
  * Reihenfolge wichtig: CAPTCHA > 2FA > Login-Wall.
  */
-async function detectFriction(page: Page): Promise<FrictionResult | null> {
-  try {
-    const url = page.url();
-    const hasCaptcha = await page
-      .evaluate(() => {
-        const hosts = ["recaptcha", "captcha", "hcaptcha", "challenges.cloudflare"];
-        for (const frame of Array.from(document.querySelectorAll("iframe"))) {
-          const src = frame.getAttribute("src") ?? "";
-          if (hosts.some((h) => src.includes(h))) return true;
-        }
-        const text = document.body.innerText.slice(0, 5000).toLowerCase();
-        return /captcha|i'm not a robot|ich bin kein roboter/i.test(text);
-      })
-      .catch(() => false);
-    if (hasCaptcha) {
-      return {
-        status: "captcha",
-        message: "Portal verlangt ein CAPTCHA — bitte einmal manuell anmelden.",
-      };
-    }
-
-    const twoFactor = await page
-      .evaluate(() => {
-        const text = document.body.innerText.slice(0, 5000).toLowerCase();
-        if (/(2fa|two[- ]?factor|verifizierungs?code|bestätigungscode|authenticator)/i.test(text)) {
-          // Plausibilität: ein Eingabefeld mit kurzer Pattern-Länge
-          const inputs = Array.from(document.querySelectorAll("input"));
-          return inputs.some((i) => {
-            const m = i.maxLength;
-            return m > 0 && m <= 8;
-          });
-        }
-        return false;
-      })
-      .catch(() => false);
-    if (twoFactor) {
-      return {
-        status: "two_factor",
-        message:
-          "Portal fordert einen 2FA-Code. Wenn du einen TOTP-Schlüssel hinterlegt hast, lernen wir das beim nächsten Recording.",
-      };
-    }
-
-    if (looksLikeLoginRedirect(url)) {
-      return { status: "login_required", message: "Login abgelaufen — Session erneuern nötig." };
-    }
-    const stillOnLoginForm = await page
-      .evaluate(() => {
-        const hasPassword = !!document.querySelector("input[type='password']");
-        const hasEmail = !!document.querySelector(
-          "input[type='email'], input[name*='user' i], input[autocomplete='username']",
-        );
-        return hasPassword && hasEmail;
-      })
-      .catch(() => false);
-    if (stillOnLoginForm) {
-      return { status: "login_required", message: "Wir sind noch auf einer Anmeldeseite." };
-    }
-  } catch {
-    // Friktions-Check soll nie throwen
+export function classifyFriction(s: FrictionSnapshot): FrictionResult | null {
+  if (s.hasCaptchaIframe || /captcha|i'm not a robot|ich bin kein roboter/i.test(s.bodyTextLower)) {
+    return {
+      status: "captcha",
+      message: "Portal verlangt ein CAPTCHA — bitte einmal manuell anmelden.",
+    };
+  }
+  if (
+    /(2fa|two[- ]?factor|verifizierungs?code|bestätigungscode|authenticator)/i.test(
+      s.bodyTextLower,
+    ) &&
+    s.hasShortCodeInput
+  ) {
+    return {
+      status: "two_factor",
+      message:
+        "Portal fordert einen 2FA-Code. Wenn du einen TOTP-Schlüssel hinterlegt hast, lernen wir das beim nächsten Recording.",
+    };
+  }
+  if (looksLikeLoginRedirect(s.url)) {
+    return { status: "login_required", message: "Login abgelaufen — Session erneuern nötig." };
+  }
+  if (s.hasPasswordField && s.hasEmailField) {
+    return { status: "login_required", message: "Wir sind noch auf einer Anmeldeseite." };
   }
   return null;
+}
+
+/**
+ * Liest den Friktions-Snapshot aus der echten Seite und delegiert die Bewertung an
+ * classifyFriction. Soll nie throwen.
+ */
+async function detectFriction(page: Page): Promise<FrictionResult | null> {
+  try {
+    const snapshot = await page.evaluate(() => {
+      const hosts = ["recaptcha", "captcha", "hcaptcha", "challenges.cloudflare"];
+      const hasCaptchaIframe = Array.from(document.querySelectorAll("iframe")).some((frame) =>
+        hosts.some((h) => (frame.getAttribute("src") ?? "").includes(h)),
+      );
+      const bodyTextLower = (document.body?.innerText ?? "").slice(0, 5000).toLowerCase();
+      const hasShortCodeInput = Array.from(document.querySelectorAll("input")).some((i) => {
+        const m = (i as HTMLInputElement).maxLength;
+        return m > 0 && m <= 8;
+      });
+      const hasPasswordField = !!document.querySelector("input[type='password']");
+      const hasEmailField = !!document.querySelector(
+        "input[type='email'], input[name*='user' i], input[autocomplete='username']",
+      );
+      return {
+        hasCaptchaIframe,
+        bodyTextLower,
+        hasShortCodeInput,
+        hasPasswordField,
+        hasEmailField,
+      };
+    });
+    return classifyFriction({ url: page.url(), ...snapshot });
+  } catch {
+    // Friktions-Check soll nie throwen
+    return null;
+  }
 }
 
 async function executeStep(page: Page, step: RecipeStep, credentials: AgentCredentials) {
@@ -216,7 +237,7 @@ async function executeStep(page: Page, step: RecipeStep, credentials: AgentCrede
   }
 }
 
-async function resolveValueFrom(
+export async function resolveValueFrom(
   source: "credential.username" | "credential.password" | "totp",
   creds: AgentCredentials,
 ): Promise<string> {
@@ -255,7 +276,7 @@ async function extractRowDate(
   }
 }
 
-function normalizeDate(value: string): string | null {
+export function normalizeDate(value: string): string | null {
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
   const ger = /^(\d{2})\.(\d{2})\.(\d{4})/.exec(value);
