@@ -80,5 +80,7 @@ describe("missing invoice check", () => {
     });
     expect(Number(requiredRows[0].count)).toBeGreaterThan(0);
     expect(syncRunRows[0].status).toBe("succeeded");
-  });
+    // DB-schwerer Integrationstest (~4-5s) — höheres Timeout, damit er unter
+    // voller Suite-Last nicht am 5s-Default flaket (Gate-Hygiene, vorbestehend).
+  }, 15000);
 });
