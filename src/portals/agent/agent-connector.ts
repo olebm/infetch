@@ -16,8 +16,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { appConfig } from "@/lib/config/env";
-import { readPortalCredential } from "@/portals/credential-meta";
+import { readPortalCredential, getPortalAccountOrg } from "@/portals/credential-meta";
 import { findVendorByCanonicalKey } from "@/lib/db/queries";
+import { canRecordPortalRecipe } from "@/lib/tier";
 import { playRecipe, type PlayResult } from "@/portals/agent/recipe-player";
 import { recordRecipe } from "@/portals/agent/recipe-recorder";
 import {
@@ -51,6 +52,8 @@ const RECIPE_FAILURES_BEFORE_RECORD = 2;
 
 export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult> {
   const start = Date.now();
+  // Besitzende Org auflösen (für Kostenbremse + org-attribuierte Run-Logs).
+  const organizationId = await getPortalAccountOrg(input.vendorKey);
   const credentials = await loadCredentials(input.vendorKey);
 
   let recipeRow = await getActiveRecipe(input.vendorKey);
@@ -77,6 +80,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
       Date.now() - start,
       0,
       0,
+      organizationId,
     );
   }
 
@@ -157,7 +161,18 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
     const shouldRerecord =
       !recipe || (playResult?.status === "recipe_broken" && !playResult.ok && recipeIsBroken);
 
-    if (shouldRerecord) {
+    // Kostenbremse: Recording macht Mistral-Calls. Vor dem Recorder das
+    // Monats-Budget der Org prüfen — bei Erschöpfung abbrechen OHNE LLM-Call.
+    const budget = shouldRerecord ? await canRecordPortalRecipe(organizationId) : null;
+    if (shouldRerecord && budget && !budget.allowed) {
+      playResult = {
+        ok: false,
+        status: "failed",
+        message: `Recording-Budget erschöpft (${budget.current}/${budget.max} Aufnahmen diesen Monat). Neue Aufnahmen ab dem Folgemonat — oder Tarif anheben.`,
+        downloads: playResult?.downloads ?? [],
+      };
+      // mode bleibt "replay" — es fand kein Recording statt.
+    } else if (shouldRerecord) {
       mode = playResult ? "replay_then_record" : "record";
       const loginUrl = recipe?.loginUrl ?? (await deriveLoginUrl(input.vendorKey));
 
@@ -239,6 +254,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
       errorMessage: message,
       llmCalls,
       llmCostCents,
+      organizationId,
     });
 
     return {
@@ -293,6 +309,7 @@ async function failureResult(
   durationMs: number,
   llmCalls: number,
   llmCostCents: number,
+  organizationId: string | null,
 ): Promise<RunResult> {
   await logRun({
     vendorKey,
@@ -304,6 +321,7 @@ async function failureResult(
     errorMessage: message,
     llmCalls,
     llmCostCents,
+    organizationId,
   });
   return {
     vendorKey,
