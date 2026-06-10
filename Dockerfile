@@ -1,8 +1,9 @@
 # Infetch — Docker image
 #
-# Base: node:20-bookworm-slim (no Playwright/Chromium since ENABLE_PORTALS=false).
-# If you re-enable portals, switch to mcr.microsoft.com/playwright:v1.50.1-jammy
-# and add `RUN npx playwright install --with-deps chromium` before the build step.
+# Base: node:20-bookworm-slim. Der Portal-Agent (ENABLE_PORTALS=true) braucht einen
+# Browser; patchright lädt sein gepatchtes Chromium + die System-Libs im
+# `patchright install`-Schritt unten. Für Nicht-Portal-Deploys lässt sich der
+# Browser via Build-ARG INSTALL_BROWSER=false weglassen (schlankes Image).
 
 FROM node:20-bookworm-slim
 
@@ -16,6 +17,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Install ALL dependencies (including devDeps needed for the build).
 COPY package.json package-lock.json ./
 RUN npm ci
+
+# Portal-Agent-Browser: patchrights gepatchtes Chromium + System-Abhängigkeiten.
+# Default an (Portale sind das Feature); INSTALL_BROWSER=false überspringt es.
+ARG INSTALL_BROWSER=true
+RUN if [ "$INSTALL_BROWSER" != "false" ]; then npx patchright install --with-deps chromium; fi
 
 # Sentry Source Maps upload during build (optional — skipped if ARGs not set).
 # ARG statt ENV: Werte sind nur während `next build` verfügbar, nicht im finalen Image.

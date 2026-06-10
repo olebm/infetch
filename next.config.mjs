@@ -73,7 +73,7 @@ function buildCsp() {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["playwright"],
+  serverExternalPackages: ["playwright", "patchright", "patchright-core"],
   outputFileTracingRoot: __dirname,
   // Moderne Bildformate: Next liefert große Quell-Bilder automatisch als
   // AVIF/WebP aus (deutlich kleiner als PNG/JPEG) — wichtig für LCP/CWV.

@@ -43,6 +43,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.7",
     "otplib": "^13.4.0",
+    "patchright": "^1.60.2",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^4.10.38",
     "playwright": "^1.50.1",
