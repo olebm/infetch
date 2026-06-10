@@ -75,6 +75,22 @@ export async function readPortalCredential(vendorKey: string) {
 }
 
 /**
+ * Ermittelt die besitzende Organisation eines Portal-Kontos über credential_refs
+ * (org-scoped, autoritativ). Wird vom Cron-Gating gebraucht, weil die globale
+ * credential-meta-Map (Username) keine Org-Zuordnung trägt.
+ */
+export async function getPortalAccountOrg(vendorKey: string): Promise<string | null> {
+  const rows = await sql<{ organization_id: string | null }[]>`
+    SELECT organization_id FROM credential_refs
+    WHERE scope = 'portal' AND secret_ref LIKE ${`%:${vendorKey}:%`}
+      AND organization_id IS NOT NULL
+    ORDER BY created_at ASC
+    LIMIT 1
+  `;
+  return rows[0]?.organization_id ?? null;
+}
+
+/**
  * Listet alle Vendors auf, die ein konfiguriertes Online-Konto haben:
  * - Eintrag in der credential-meta-Map (Username vorhanden)
  * - Login-URL in der vendors-Tabelle gesetzt

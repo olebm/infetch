@@ -12,19 +12,19 @@ import { FetchNowButton, RemoveAccountButton } from "@/components/online-account
 import { RecipeHealthButton } from "@/components/online-accounts/recipe-health-drawer";
 import { CommunitySyncButton } from "@/components/online-accounts/community-sync-panel";
 import { UpgradeCard } from "@/components/online-accounts/upgrade-card";
-import { canAddOnlineAccount, getTier } from "@/lib/tier";
+import { canAddOnlineAccount } from "@/lib/tier";
 
 export async function OnlineAccountsView() {
   const auth = await getCurrentAuth();
   const orgId = auth?.organization?.id ?? null;
-  const [accounts, recipes, allVendors, communityStats, tier] = await Promise.all([
+  const [accounts, recipes, allVendors, communityStats, accountLimit] = await Promise.all([
     listOnlineAccounts(),
     listRecipes(),
     getVendors(orgId),
     getCommunityRecipeStats(),
-    getTier(),
+    canAddOnlineAccount(orgId),
   ]);
-  const accountLimit = await canAddOnlineAccount(tier);
+  const tier = accountLimit.tier;
 
   // Vendoren ohne Online-Konto (kommen aus Mail-Pipeline) — Kandidaten fuer "Online-Konto hinzufuegen"
   const vendorsWithoutAccount = allVendors.filter(

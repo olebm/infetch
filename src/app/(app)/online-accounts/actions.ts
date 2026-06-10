@@ -10,7 +10,7 @@ import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { invalidateBrowserSession } from "@/portals/agent/session-store";
 import { findVendorByCanonicalKey, upsertVendor } from "@/lib/db/queries";
 import { syncCommunityRecipes } from "@/portals/agent/community-sync";
-import { canAddOnlineAccount, getLimits, getTier } from "@/lib/tier";
+import { canAddOnlineAccount, getLimits, type Tier } from "@/lib/tier";
 import { requireCurrentAuth } from "@/lib/auth/current";
 
 export type ConnectState = {
@@ -19,6 +19,22 @@ export type ConnectState = {
   vendorKey?: string;
   invoicesFound?: number;
 };
+
+/**
+ * Tier-bewusste Meldung, wenn kein weiteres Online-Konto erlaubt ist.
+ * Free (max 0) → Pro-Upgrade-Hinweis; bezahlte Tiers am Limit → entfernen/höher.
+ */
+function onlineAccountLimitMessage(limit: { current: number; max: number; tier: Tier }): string {
+  if (limit.max === 0) {
+    const pro = getLimits("pro");
+    return `Portal-Scan ist ein Pro-Feature. Mit Pro verbindest du bis zu ${pro.maxOnlineAccounts} Online-Konten (${pro.priceMonthlyEur} €/Monat).`;
+  }
+  const businessHint =
+    limit.tier === "pro"
+      ? ` Mit Business sind bis zu ${getLimits("business").maxOnlineAccounts} möglich.`
+      : "";
+  return `Limit erreicht: ${limit.current} von ${limit.max} Online-Konten verbunden.${businessHint} Entferne ein Konto, um ein neues zu verbinden.`;
+}
 
 export async function connectOnlineAccountAction(
   _prev: ConnectState,
@@ -53,14 +69,9 @@ export async function connectOnlineAccountAction(
       }
     }
 
-    const tier = await getTier();
-    const limit = await canAddOnlineAccount(tier);
+    const limit = await canAddOnlineAccount(orgId);
     if (!limit.allowed) {
-      const proPrice = getLimits("pro").priceMonthlyEur;
-      return {
-        status: "error",
-        message: `Im Free-Tier sind ${limit.max} Online-Konten möglich (${limit.current} verbunden). Auf Pro upgraden (${proPrice} €/Monat) oder ein bestehendes Konto entfernen.`,
-      };
+      return { status: "error", message: onlineAccountLimitMessage(limit) };
     }
 
     let vendorName: string;

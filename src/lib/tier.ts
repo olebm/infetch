@@ -271,16 +271,35 @@ export async function isNearInvoiceLimit(
   return current >= Math.floor(max * 0.8);
 }
 
-// ── Legacy-Compat (wird von online-accounts verwendet) ────────────────────────
+// ── Online-Konten (Portal-Agent) ──────────────────────────────────────────────
 
-/** @deprecated Portale sind deaktiviert — immer { allowed: false, current: 0, max: 0 } */
-export async function canAddOnlineAccount(
-  _tier?: Tier,
-): Promise<{ allowed: boolean; current: number; max: number }> {
-  return { allowed: false, current: 0, max: 0 };
+/**
+ * Zählt die konfigurierten Online-/Portal-Konten einer Organisation.
+ * Autoritative Quelle ist credential_refs (org-scoped, scope='portal') — die
+ * credential-meta-Map (Username) ist global und taugt nicht zur Org-Zählung.
+ */
+export async function getOnlineAccountCount(
+  organizationId: string | null | undefined,
+): Promise<number> {
+  if (!organizationId) return 0;
+  const rows = await sql<{ count: string }[]>`
+    SELECT COUNT(*) AS count FROM credential_refs
+    WHERE scope = 'portal' AND organization_id = ${organizationId}
+  `;
+  return Number(rows[0]?.count ?? 0);
 }
 
-/** @deprecated Nutze getOrgTier() */
-export function getTier(): Tier {
-  return getEnvTier();
+/**
+ * Prüft, ob die Organisation ein weiteres Online-Konto verbinden darf.
+ * Limits: Free 0 / Pro 5 / Business 20 (TIER_LIMITS.maxOnlineAccounts). Solange
+ * proEnabled false ist, klemmt getOrgTier auf "free" → max 0 (Feature gesperrt).
+ */
+export async function canAddOnlineAccount(
+  organizationId: string | null | undefined,
+): Promise<{ allowed: boolean; current: number; max: number; tier: Tier }> {
+  const tier = await getOrgTier(organizationId);
+  const max = getLimits(tier).maxOnlineAccounts;
+  if (!Number.isFinite(max)) return { allowed: true, current: 0, max, tier };
+  const current = await getOnlineAccountCount(organizationId);
+  return { allowed: current < max, current, max, tier };
 }
