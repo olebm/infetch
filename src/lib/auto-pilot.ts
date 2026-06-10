@@ -8,7 +8,8 @@ import { dispatchPendingExports } from "@/exports/export-pipeline";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { runAgentForVendor } from "@/portals/agent/agent-connector";
 import { syncCommunityRecipes } from "@/portals/agent/community-sync";
-import { getPortalCredentialMetaList } from "@/portals/credential-meta";
+import { getPortalCredentialMetaList, getPortalAccountOrg } from "@/portals/credential-meta";
+import { getOrgTier, getLimits } from "@/lib/tier";
 import { hasConfiguredCredential } from "@/lib/secrets/credential-store";
 import { provisionAutoApprovalRules } from "@/lib/automation/self-provisioning";
 import { reevaluateReviewQueue } from "@/lib/automation/reeval-queue";
@@ -148,6 +149,10 @@ async function runPortalFetch() {
   const accounts = accountsWithCreds.filter((a) => a.ok).map((a) => a.entry);
   if (accounts.length === 0) return;
 
+  // Tier-Gating: nur Konten berechtigter Orgs innerhalb ihres Limits abrufen.
+  const entitled = await filterEntitledPortalAccounts(accounts);
+  if (entitled.length === 0) return;
+
   const { chromium } = await import("playwright");
   const sharedBrowser = await chromium.launch({
     headless: true,
@@ -155,7 +160,7 @@ async function runPortalFetch() {
   });
 
   try {
-    for (const account of accounts) {
+    for (const account of entitled) {
       try {
         const result = await runAgentForVendor({
           vendorKey: account.vendorKey,
@@ -185,6 +190,35 @@ async function runPortalFetch() {
       // ignore
     }
   }
+}
+
+/**
+ * Filtert Portal-Konten auf die, deren besitzende Org berechtigt ist und die
+ * innerhalb ihres Online-Konten-Limits liegen (Free 0 / Pro 5 / Business 20).
+ * Pro Org wird stabil nach updatedAt (älteste zuerst) sortiert; die ersten `max`
+ * gelten als aktiv, der Rest wird übersprungen. So werden überzählige Konten nach
+ * einem Downgrade automatisch nicht mehr abgerufen (Daten/Credentials bleiben).
+ */
+export async function filterEntitledPortalAccounts<
+  T extends { vendorKey: string; updatedAt: string | null },
+>(accounts: T[]): Promise<T[]> {
+  const byOrg = new Map<string, T[]>();
+  for (const account of accounts) {
+    const orgId = await getPortalAccountOrg(account.vendorKey);
+    if (!orgId) continue; // verwaistes Konto ohne Org → kein Abruf
+    const list = byOrg.get(orgId) ?? [];
+    list.push(account);
+    byOrg.set(orgId, list);
+  }
+
+  const entitled: T[] = [];
+  for (const [orgId, list] of byOrg) {
+    const max = getLimits(await getOrgTier(orgId)).maxOnlineAccounts;
+    if (max <= 0) continue; // keine Berechtigung (Free / nach Downgrade)
+    const sorted = [...list].sort((a, b) => (a.updatedAt ?? "").localeCompare(b.updatedAt ?? ""));
+    entitled.push(...sorted.slice(0, Number.isFinite(max) ? max : list.length));
+  }
+  return entitled;
 }
 
 // Multi-tenant Mail-Scan: pro Org mit konfiguriertem Postfach EIN eigener
