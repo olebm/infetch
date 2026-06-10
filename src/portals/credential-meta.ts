@@ -1,14 +1,18 @@
 /**
- * Portal-Credential-Meta: Username pro Vendor.
- * Quelle ist die vendors-Tabelle (vendor.canonical_key) plus eine settings-JSON-Map fuer
- * den Benutzernamen. Passwoerter liegen im OS-Keychain (scope='portal', ownerId=vendorKey).
+ * Portal-Credential-Meta: Username pro Vendor — ORG-SCOPED (INFETCH-261).
  *
- * Es gibt keine kuratierte Liste mehr — Vendors entstehen organisch aus Mails oder werden
- * vom User manuell hinzugefuegt.
+ * Speicherung in der settings-JSON-Map unter `portal_credentials_meta:${orgId}`
+ * (via readOrgJsonSetting/writeOrgJsonSetting). Vor 261 lag die Map global, wodurch
+ * Org B die Online-Konten (Usernames, Vendoren) von Org A sah — ein Cross-Tenant-Leak
+ * auf Meta-Ebene. Passwörter liegen org-eindeutig im Credential-Store
+ * (scope='portal', ownerId=vendorKey; vendorKeys sind seit INFETCH-236 global eindeutig).
+ *
+ * Es gibt keine kuratierte Liste mehr — Vendors entstehen organisch aus Mails oder
+ * werden vom User manuell hinzugefuegt.
  */
 
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
-import { readJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
+import { readOrgJsonSetting, writeOrgJsonSetting } from "@/lib/db/settings-store";
 import { readCredentialSecret } from "@/lib/secrets/credential-store";
 
 export type PortalCredentialMeta = {
@@ -19,47 +23,41 @@ export type PortalCredentialMeta = {
 
 const settingKey = "portal_credentials_meta";
 
-export async function getPortalCredentialMetaMap(): Promise<Record<string, PortalCredentialMeta>> {
-  return readJsonSetting<Record<string, PortalCredentialMeta>>(settingKey, {});
-}
-
-export async function getPortalCredentialMetaList(): Promise<
-  Array<{
-    vendorKey: string;
-    username: string;
-    updatedAt: string | null;
-  }>
-> {
-  const meta = await getPortalCredentialMetaMap();
-  return Object.values(meta).map((entry) => ({
-    vendorKey: entry.vendorKey,
-    username: entry.username,
-    updatedAt: entry.updatedAt ?? null,
-  }));
+export async function getPortalCredentialMetaMap(
+  organizationId: string | null | undefined,
+): Promise<Record<string, PortalCredentialMeta>> {
+  return readOrgJsonSetting<Record<string, PortalCredentialMeta>>(settingKey, organizationId, {});
 }
 
 export async function savePortalCredentialMeta(input: {
   vendorKey: string;
   username: string;
+  organizationId: string | null | undefined;
 }): Promise<void> {
-  const meta = await getPortalCredentialMetaMap();
+  const meta = await getPortalCredentialMetaMap(input.organizationId);
   meta[input.vendorKey] = {
     vendorKey: input.vendorKey,
     username: input.username,
     updatedAt: new Date().toISOString(),
   };
-  await writeJsonSetting(settingKey, meta);
+  await writeOrgJsonSetting(settingKey, input.organizationId, meta);
 }
 
-export async function resetPortalCredentialMeta(vendorKey: string): Promise<void> {
-  const meta = await getPortalCredentialMetaMap();
+export async function resetPortalCredentialMeta(
+  vendorKey: string,
+  organizationId: string | null | undefined,
+): Promise<void> {
+  const meta = await getPortalCredentialMetaMap(organizationId);
   if (!meta[vendorKey]) return;
   delete meta[vendorKey];
-  await writeJsonSetting(settingKey, meta);
+  await writeOrgJsonSetting(settingKey, organizationId, meta);
 }
 
-export async function readPortalCredential(vendorKey: string) {
-  const meta = (await getPortalCredentialMetaMap())[vendorKey];
+export async function readPortalCredential(
+  vendorKey: string,
+  organizationId: string | null | undefined,
+) {
+  const meta = (await getPortalCredentialMetaMap(organizationId))[vendorKey];
   if (!meta?.username) return null;
 
   const password = await readCredentialSecret({
@@ -76,8 +74,7 @@ export async function readPortalCredential(vendorKey: string) {
 
 /**
  * Ermittelt die besitzende Organisation eines Portal-Kontos über credential_refs
- * (org-scoped, autoritativ). Wird vom Cron-Gating gebraucht, weil die globale
- * credential-meta-Map (Username) keine Org-Zuordnung trägt.
+ * (org-scoped, autoritativ). Bridge von vendorKey → Org für Agent + Cron-Gating.
  */
 export async function getPortalAccountOrg(vendorKey: string): Promise<string | null> {
   const rows = await sql<{ organization_id: string | null }[]>`
@@ -91,9 +88,27 @@ export async function getPortalAccountOrg(vendorKey: string): Promise<string | n
 }
 
 /**
- * Listet alle Vendors auf, die ein konfiguriertes Online-Konto haben:
- * - Eintrag in der credential-meta-Map (Username vorhanden)
- * - Login-URL in der vendors-Tabelle gesetzt
+ * Enumeriert die Portal-Konten ALLER Orgs für den Cron — aus credential_refs
+ * (org-autoritativ), nicht aus der jetzt org-scoped Meta-Map (die kein
+ * org-übergreifendes Lesen mehr erlaubt). created_at dient als stabile
+ * Reihenfolge fürs Tier-Limit-Gating (älteste zuerst).
+ */
+export async function listPortalVendorKeysForCron(): Promise<
+  Array<{ vendorKey: string; updatedAt: string | null }>
+> {
+  const rows = await sql<{ vendorKey: string; createdAt: string | null }[]>`
+    SELECT owner_id AS "vendorKey", MIN(created_at) AS "createdAt"
+    FROM credential_refs
+    WHERE scope = 'portal' AND organization_id IS NOT NULL AND owner_id IS NOT NULL
+    GROUP BY owner_id
+  `;
+  return rows.map((r) => ({ vendorKey: r.vendorKey, updatedAt: r.createdAt }));
+}
+
+/**
+ * Listet die Online-Konten EINER Org auf:
+ * - Eintrag in der org-eigenen credential-meta-Map (Username vorhanden)
+ * - zugehörige Vendor-Stammdaten (Login-URL, Kategorie)
  */
 export type OnlineAccount = {
   vendorId: number;
@@ -105,8 +120,10 @@ export type OnlineAccount = {
   updatedAt: string | null;
 };
 
-export async function listOnlineAccounts(): Promise<OnlineAccount[]> {
-  const meta = await getPortalCredentialMetaMap();
+export async function listOnlineAccounts(
+  organizationId: string | null | undefined,
+): Promise<OnlineAccount[]> {
+  const meta = await getPortalCredentialMetaMap(organizationId);
   const vendorKeys = Object.keys(meta);
   if (vendorKeys.length === 0) return [];
 

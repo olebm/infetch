@@ -61,7 +61,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
   const start = Date.now();
   // Besitzende Org auflösen (für Kostenbremse + org-attribuierte Run-Logs).
   const organizationId = await getPortalAccountOrg(input.vendorKey);
-  const credentials = await loadCredentials(input.vendorKey);
+  const credentials = await loadCredentials(input.vendorKey, organizationId);
 
   let recipeRow = await getActiveRecipe(input.vendorKey);
   let recipe: Recipe | null = recipeRow?.recipe ?? null;
@@ -292,8 +292,11 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
   }
 }
 
-async function loadCredentials(vendorKey: string): Promise<AgentCredentials | null> {
-  const meta = await readPortalCredential(vendorKey);
+async function loadCredentials(
+  vendorKey: string,
+  organizationId: string | null,
+): Promise<AgentCredentials | null> {
+  const meta = await readPortalCredential(vendorKey, organizationId);
   if (!meta) return null;
   const { readCredentialSecret } = await import("@/lib/secrets/credential-store");
   const totpSecret =
