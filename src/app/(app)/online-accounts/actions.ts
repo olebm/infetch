@@ -123,7 +123,11 @@ export async function connectOnlineAccountAction(
       label: `${vendor.name} Online-Konto`,
       secret: password,
     });
-    await savePortalCredentialMeta({ vendorKey: vendor.canonicalKey, username });
+    await savePortalCredentialMeta({
+      vendorKey: vendor.canonicalKey,
+      username,
+      organizationId: orgId,
+    });
 
     // Optionaler TOTP-Schlüssel
     if (totpSecret) {
@@ -296,7 +300,7 @@ export async function removeOnlineAccountAction(formData: FormData): Promise<voi
     WHERE canonical_key = ${vendorKey} AND organization_id = ${orgId}
   `;
   await invalidateBrowserSession(vendorKey);
-  await resetPortalCredentialMeta(vendorKey);
+  await resetPortalCredentialMeta(vendorKey, orgId);
   revalidatePath("/einstellungen");
 }
 

@@ -8,7 +8,7 @@ import { dispatchPendingExports } from "@/exports/export-pipeline";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { runAgentForVendor } from "@/portals/agent/agent-connector";
 import { syncCommunityRecipes } from "@/portals/agent/community-sync";
-import { getPortalCredentialMetaList, getPortalAccountOrg } from "@/portals/credential-meta";
+import { listPortalVendorKeysForCron, getPortalAccountOrg } from "@/portals/credential-meta";
 import { getOrgTier, getLimits } from "@/lib/tier";
 import { hasConfiguredCredential } from "@/lib/secrets/credential-store";
 import { provisionAutoApprovalRules } from "@/lib/automation/self-provisioning";
@@ -139,11 +139,13 @@ const jobs: Record<JobName, JobState> = {
 let started = false;
 
 async function runPortalFetch() {
-  const allAccounts = await getPortalCredentialMetaList();
+  // Org-übergreifende Enumeration aus credential_refs (die Meta-Map ist seit 261
+  // org-scoped). Die Org-Zuordnung + das Tier-Gating erledigt filterEntitledPortalAccounts.
+  const allAccounts = await listPortalVendorKeysForCron();
   const accountsWithCreds = await Promise.all(
     allAccounts.map(async (entry) => ({
       entry,
-      ok: Boolean(entry.username) && (await hasConfiguredCredential("portal", entry.vendorKey)),
+      ok: await hasConfiguredCredential("portal", entry.vendorKey),
     })),
   );
   const accounts = accountsWithCreds.filter((a) => a.ok).map((a) => a.entry);

@@ -18,7 +18,7 @@ export async function OnlineAccountsView() {
   const auth = await getCurrentAuth();
   const orgId = auth?.organization?.id ?? null;
   const [accounts, recipes, allVendors, communityStats, accountLimit] = await Promise.all([
-    listOnlineAccounts(),
+    listOnlineAccounts(orgId),
     listRecipes(),
     getVendors(orgId),
     getCommunityRecipeStats(),
