@@ -24,8 +24,10 @@ export type TierLimits = {
   maxUsers: number;
   /** Maximaler Speicherplatz in Bytes (invoice_files.size_bytes summiert). */
   maxStorageBytes: number;
-  /** Maximale Portal-/Online-Konten (Portal-Agent, aktuell deaktiviert). */
+  /** Maximale Portal-/Online-Konten (Portal-Agent). */
   maxOnlineAccounts: number;
+  /** Maximale LLM-Recordings (Portal-Agent) pro Kalendermonat. Kostenbremse. */
+  maxPortalRecordingsPerMonth: number;
   /** Auto-Approval (regelbasiert + lernend) verfügbar. */
   autoApprovalEnabled: boolean;
   /**
@@ -55,6 +57,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     maxUsers: 1,
     maxStorageBytes: 500 * MB,
     maxOnlineAccounts: 0,
+    maxPortalRecordingsPerMonth: 0,
     autoApprovalEnabled: true,
     exportEnabled: false,
     datevExportEnabled: false,
@@ -69,6 +72,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     maxUsers: 3,
     maxStorageBytes: 2 * GB,
     maxOnlineAccounts: 5,
+    maxPortalRecordingsPerMonth: 10,
     autoApprovalEnabled: true,
     exportEnabled: true,
     datevExportEnabled: false,
@@ -83,6 +87,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     maxUsers: Number.POSITIVE_INFINITY,
     maxStorageBytes: 20 * GB,
     maxOnlineAccounts: 20,
+    maxPortalRecordingsPerMonth: 40,
     autoApprovalEnabled: true,
     exportEnabled: true,
     datevExportEnabled: true,
@@ -301,5 +306,39 @@ export async function canAddOnlineAccount(
   const max = getLimits(tier).maxOnlineAccounts;
   if (!Number.isFinite(max)) return { allowed: true, current: 0, max, tier };
   const current = await getOnlineAccountCount(organizationId);
+  return { allowed: current < max, current, max, tier };
+}
+
+/**
+ * Zählt die LLM-Recordings (Portal-Agent) einer Org im laufenden Kalendermonat.
+ * Recording-Läufe sind mode 'record' oder 'replay_then_record' in portal_run_logs.
+ * finished_at ist TEXT → Monatsvergleich per TO_CHAR (Repo-Konvention).
+ */
+export async function getMonthlyPortalRecordingCount(
+  organizationId: string | null | undefined,
+): Promise<number> {
+  if (!organizationId) return 0;
+  const rows = await sql<{ count: string }[]>`
+    SELECT COUNT(*) AS count FROM portal_run_logs
+    WHERE organization_id = ${organizationId}
+      AND mode IN ('record', 'replay_then_record')
+      AND finished_at >= TO_CHAR(DATE_TRUNC('month', NOW()), 'YYYY-MM-DD')
+  `;
+  return Number(rows[0]?.count ?? 0);
+}
+
+/**
+ * Kostenbremse: Prüft, ob die Org diesen Monat noch ein LLM-Recording machen darf.
+ * Limits: Free 0 / Pro 10 / Business 40 (TIER_LIMITS.maxPortalRecordingsPerMonth).
+ * Wird VOR dem Recorder aufgerufen, damit ein dauerbrechendes Portal nicht
+ * unbegrenzt Mistral-Kosten erzeugt.
+ */
+export async function canRecordPortalRecipe(
+  organizationId: string | null | undefined,
+): Promise<{ allowed: boolean; current: number; max: number; tier: Tier }> {
+  const tier = await getOrgTier(organizationId);
+  const max = getLimits(tier).maxPortalRecordingsPerMonth;
+  if (!Number.isFinite(max)) return { allowed: true, current: 0, max, tier };
+  const current = await getMonthlyPortalRecordingCount(organizationId);
   return { allowed: current < max, current, max, tier };
 }

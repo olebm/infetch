@@ -120,15 +120,16 @@ export async function logRun(input: {
   errorMessage?: string | null;
   llmCalls?: number;
   llmCostCents?: number;
+  organizationId?: string | null;
 }): Promise<void> {
   await sql`
     INSERT INTO portal_run_logs (vendor_key, recipe_id, mode, status, invoices_found, duration_ms,
-       error_message, llm_calls, llm_cost_cents, finished_at)
+       error_message, llm_calls, llm_cost_cents, organization_id, finished_at)
     VALUES (
       ${input.vendorKey}, ${input.recipeId}, ${input.mode}, ${input.status},
       ${input.invoicesFound}, ${input.durationMs},
       ${input.errorMessage ?? null}, ${input.llmCalls ?? 0}, ${input.llmCostCents ?? 0},
-      CURRENT_TIMESTAMP
+      ${input.organizationId ?? null}, CURRENT_TIMESTAMP
     )
   `;
 }
