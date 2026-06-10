@@ -845,6 +845,9 @@ export type VendorRow = {
   hidden: number;
   portalLoginUrl: string | null;
   portalCategory: string | null;
+  // null = globaler Built-in (Seed-Katalog), sonst die besitzende Org. Wird für
+  // die Org-Scope-Entscheidung im Portal-Connect-Pfad gebraucht (INFETCH-236).
+  organizationId: string | null;
 };
 
 // Lieferanten sind hybrid: globaler Seed-Katalog (organization_id IS NULL,
@@ -857,31 +860,63 @@ export type VendorRow = {
 export async function getVendors(organizationId: string | null): Promise<VendorRow[]> {
   return await sql<VendorRow[]>`
     SELECT id, name, canonical_key AS "canonicalKey", category, portal_enabled AS "portalEnabled", hidden,
-      portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory"
+      portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory",
+      organization_id AS "organizationId"
     FROM vendors
     WHERE organization_id IS NULL
        OR organization_id IS NOT DISTINCT FROM ${organizationId}
     ORDER BY name`;
 }
 
-export async function findVendorByCanonicalKey(canonicalKey: string): Promise<VendorRow | null> {
-  const row = (
-    await sql<VendorRow[]>`
-    SELECT id, name, canonical_key AS "canonicalKey", category, portal_enabled AS "portalEnabled", hidden,
-      portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory"
-    FROM vendors WHERE canonical_key = ${canonicalKey} LIMIT 1`
-  )[0];
-  return row ?? null;
+export async function findVendorByCanonicalKey(
+  canonicalKey: string,
+  organizationId?: string | null,
+): Promise<VendorRow | null> {
+  // organizationId weggelassen → System-/Cron-Kontext: canonical_key ist global
+  // eindeutig, daher Match per Key allein (der Portal-Agent kennt nur den Key).
+  // Mit organizationId → strikt org-scoped: nur die eigene Org-Zeile ODER ein
+  // globaler Built-in (organization_id IS NULL), niemals der Vendor einer fremden
+  // Org (Cross-Tenant-Schutz, INFETCH-236).
+  const rows =
+    organizationId === undefined
+      ? await sql<VendorRow[]>`
+          SELECT id, name, canonical_key AS "canonicalKey", category, portal_enabled AS "portalEnabled", hidden,
+            portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory",
+            organization_id AS "organizationId"
+          FROM vendors WHERE canonical_key = ${canonicalKey} LIMIT 1`
+      : await sql<VendorRow[]>`
+          SELECT id, name, canonical_key AS "canonicalKey", category, portal_enabled AS "portalEnabled", hidden,
+            portal_login_url AS "portalLoginUrl", portal_category AS "portalCategory",
+            organization_id AS "organizationId"
+          FROM vendors
+          WHERE canonical_key = ${canonicalKey}
+            AND (organization_id IS NULL OR organization_id IS NOT DISTINCT FROM ${organizationId})
+          ORDER BY organization_id NULLS LAST
+          LIMIT 1`;
+  return rows[0] ?? null;
 }
 
 export async function upsertVendor(input: {
   name: string;
   canonicalKey: string;
+  organizationId: string;
   category?: string;
   portalLoginUrl?: string | null;
   portalCategory?: string | null;
 }): Promise<VendorRow> {
-  const existing = await findVendorByCanonicalKey(input.canonicalKey);
+  // Portal-Connect ist immer org-scoped: wir legen ausschließlich die ORG-EIGENE
+  // Vendor-Zeile an bzw. aktualisieren sie. Ein globaler Built-in (organization_id
+  // IS NULL) wird NIE mutiert — sonst würde die Portal-Konfig (Name, Login-URL)
+  // einer Org global sichtbar (Cross-Tenant-Leak, INFETCH-236). Der canonical_key
+  // bleibt global eindeutig (generateCanonicalKey im Aufrufer), daher kollidiert
+  // der INSERT nicht mit fremden oder globalen Zeilen.
+  const existing = (
+    await sql<{ id: number }[]>`
+      SELECT id FROM vendors
+      WHERE canonical_key = ${input.canonicalKey}
+        AND organization_id IS NOT DISTINCT FROM ${input.organizationId}
+      LIMIT 1`
+  )[0];
   if (existing) {
     await sql`
       UPDATE vendors SET name = ${input.name}, category = COALESCE(${input.category ?? null}, category),
@@ -891,10 +926,10 @@ export async function upsertVendor(input: {
       WHERE id = ${existing.id}`;
   } else {
     await sql`
-      INSERT INTO vendors (name, canonical_key, category, portal_enabled, portal_login_url, portal_category)
-      VALUES (${input.name}, ${input.canonicalKey}, ${input.category ?? "unknown"}, 0, ${input.portalLoginUrl ?? null}, ${input.portalCategory ?? null})`;
+      INSERT INTO vendors (name, canonical_key, category, portal_enabled, portal_login_url, portal_category, organization_id)
+      VALUES (${input.name}, ${input.canonicalKey}, ${input.category ?? "unknown"}, 0, ${input.portalLoginUrl ?? null}, ${input.portalCategory ?? null}, ${input.organizationId})`;
   }
-  return (await findVendorByCanonicalKey(input.canonicalKey))!;
+  return (await findVendorByCanonicalKey(input.canonicalKey, input.organizationId))!;
 }
 
 export type MissingItem = {

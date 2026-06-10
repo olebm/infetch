@@ -25,7 +25,9 @@ export async function connectOnlineAccountAction(
   formData: FormData,
 ): Promise<ConnectState> {
   void _prev;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id;
+  if (!orgId) return { status: "error", message: "Keine Organisation zugeordnet." };
   try {
     const mode = String(formData.get("mode") || "").trim();
     const username = String(formData.get("username") || "").trim();
@@ -66,12 +68,18 @@ export async function connectOnlineAccountAction(
 
     if (mode === "existing") {
       const existingKey = String(formData.get("vendorKey") || "").trim();
-      const vendor = await findVendorByCanonicalKey(existingKey);
+      const vendor = await findVendorByCanonicalKey(existingKey, orgId);
       if (!vendor) {
         return { status: "error", message: "Lieferant nicht gefunden." };
       }
       vendorName = vendor.name;
-      canonicalKey = vendor.canonicalKey;
+      // Globale Built-ins (organization_id NULL) werden nicht mit der Portal-Konfig
+      // dieser Org überschrieben — wir legen eine org-eigene Kopie mit frischem,
+      // global eindeutigem Key an. Eigene Org-Vendoren werden direkt wiederverwendet.
+      canonicalKey =
+        vendor.organizationId === null
+          ? await generateCanonicalKey(vendor.name)
+          : vendor.canonicalKey;
     } else if (mode === "new") {
       const newName = String(formData.get("vendorName") || "").trim();
       if (newName.length < 2) {
@@ -83,10 +91,11 @@ export async function connectOnlineAccountAction(
       return { status: "error", message: "Ungültiger Modus." };
     }
 
-    // Vendor anlegen oder aktualisieren mit URL + Kategorie
+    // Vendor anlegen oder aktualisieren mit URL + Kategorie — strikt org-scoped.
     const vendor = await upsertVendor({
       name: vendorName,
       canonicalKey,
+      organizationId: orgId,
       portalLoginUrl: loginUrl,
       portalCategory: category,
     });
