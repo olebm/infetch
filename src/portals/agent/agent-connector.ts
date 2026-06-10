@@ -30,6 +30,7 @@ import { playRecipe, type PlayResult } from "@/portals/agent/recipe-player";
 import { recordRecipe } from "@/portals/agent/recipe-recorder";
 import {
   getActiveRecipe,
+  getLastSuccessfulRunAt,
   logRun,
   markRecipeFailure,
   markRecipeSuccess,
@@ -62,6 +63,9 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
   // Besitzende Org auflösen (für Kostenbremse + org-attribuierte Run-Logs).
   const organizationId = await getPortalAccountOrg(input.vendorKey);
   const credentials = await loadCredentials(input.vendorKey, organizationId);
+  // since-Filter (INFETCH-52): nur Rechnungen ab dem letzten erfolgreichen Lauf
+  // holen. Beim Erstlauf (kein Erfolg) ist es undefined → Voll-Scan.
+  const since = (await getLastSuccessfulRunAt(input.vendorKey, organizationId)) ?? undefined;
 
   let recipeRow = await getActiveRecipe(input.vendorKey);
   let recipe: Recipe | null = recipeRow?.recipe ?? null;
@@ -131,6 +135,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
     if (recipe) {
       playResult = await playRecipe(page, recipe, credentials, {
         targetYearMonth: input.targetYearMonth,
+        since,
       });
 
       // Session-Recovery: bei login_required einmal Session leeren + neu versuchen
@@ -150,6 +155,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
         page = await context.newPage();
         playResult = await playRecipe(page, recipe, credentials, {
           targetYearMonth: input.targetYearMonth,
+          since,
         });
       }
 
@@ -207,6 +213,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
         recipeRow = saved;
         playResult = await playRecipe(page, recorded.recipe, credentials, {
           targetYearMonth: input.targetYearMonth,
+          since,
         });
         if (playResult.ok) await markRecipeSuccess(saved.id);
         else await markRecipeFailure(saved.id);

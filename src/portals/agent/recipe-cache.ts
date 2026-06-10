@@ -110,6 +110,23 @@ export async function markRecipeFailure(recipeId: number): Promise<void> {
   `;
 }
 
+/**
+ * Datum (YYYY-MM-DD) des letzten erfolgreichen Portal-Laufs für Vendor+Org.
+ * Quelle für den since-Filter (INFETCH-52); null = noch kein Erfolg → Voll-Scan.
+ */
+export async function getLastSuccessfulRunAt(
+  vendorKey: string,
+  organizationId: string | null,
+): Promise<string | null> {
+  const rows = await sql<{ finishedAt: string | null }[]>`
+    SELECT MAX(finished_at) AS "finishedAt" FROM portal_run_logs
+    WHERE vendor_key = ${vendorKey} AND status = 'success'
+      AND organization_id IS NOT DISTINCT FROM ${organizationId}
+  `;
+  const ts = rows[0]?.finishedAt;
+  return ts ? ts.slice(0, 10) : null;
+}
+
 export async function logRun(input: {
   vendorKey: string;
   recipeId: number | null;

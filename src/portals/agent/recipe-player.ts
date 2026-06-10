@@ -32,7 +32,7 @@ export async function playRecipe(
   page: Page,
   recipe: Recipe,
   credentials: AgentCredentials,
-  options: { targetYearMonth?: string } = {},
+  options: { targetYearMonth?: string; since?: string } = {},
 ): Promise<PlayResult> {
   const downloads: PlayDownload[] = [];
   try {
@@ -62,9 +62,7 @@ export async function playRecipe(
 
     for (const row of rows) {
       const rowDate = await extractRowDate(row, recipe.invoiceList);
-      if (options.targetYearMonth && rowDate && !rowDate.startsWith(options.targetYearMonth)) {
-        continue;
-      }
+      if (!shouldFetchRow(rowDate, options)) continue;
       const downloadEl = await row.$(recipe.invoiceList.downloadSelector);
       if (!downloadEl) continue;
 
@@ -274,6 +272,24 @@ async function extractRowDate(
   } catch {
     return null;
   }
+}
+
+/**
+ * Reine Entscheidung, ob eine Rechnungs-Zeile geladen werden soll.
+ *  - targetYearMonth: nur Zeilen dieses Monats (YYYY-MM).
+ *  - since (INFETCH-52): nur Zeilen ab diesem Datum (YYYY-MM-DD) — der letzte
+ *    erfolgreiche Lauf; ältere gelten als bereits geholt. ISO-Datumsstrings
+ *    vergleichen sich lexikografisch korrekt.
+ * Ohne rowDate wird konservativ geladen (lieber laden + dedupen als verpassen).
+ */
+export function shouldFetchRow(
+  rowDate: string | null,
+  options: { targetYearMonth?: string; since?: string },
+): boolean {
+  if (rowDate === null) return true;
+  if (options.targetYearMonth && !rowDate.startsWith(options.targetYearMonth)) return false;
+  if (options.since && rowDate < options.since) return false;
+  return true;
 }
 
 export function normalizeDate(value: string): string | null {
