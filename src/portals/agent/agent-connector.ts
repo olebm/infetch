@@ -28,6 +28,8 @@ import { findVendorByCanonicalKey } from "@/lib/db/queries";
 import { canRecordPortalRecipe } from "@/lib/tier";
 import { playRecipe, type PlayResult } from "@/portals/agent/recipe-player";
 import { recordRecipe } from "@/portals/agent/recipe-recorder";
+import { maskSensitiveInputs } from "@/portals/agent/screenshot-redaction";
+import { pruneFailureArtifacts } from "@/portals/agent/failure-artifacts";
 import {
   getActiveRecipe,
   getLastSuccessfulRunAt,
@@ -256,14 +258,21 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
       try {
         const debugDir = path.join(appConfig.logStoragePath, "portal-failures");
         await fs.mkdir(debugDir, { recursive: true });
+        // Retention: alte Debug-Artefakte best-effort entfernen (AC3).
+        await pruneFailureArtifacts(debugDir, Date.now());
+        // INFETCH-266: Eingabefelder maskieren, BEVOR der Screenshot entsteht.
+        // Fail-closed — schlaegt das Masking fehl, springt der catch und es
+        // wird KEIN (unmaskierter) Screenshot gespeichert.
+        await page.evaluate(maskSensitiveInputs);
         const stamp = new Date().toISOString().replace(/[:.]/g, "-");
         const screenshotPath = path.join(debugDir, `${input.vendorKey}-${stamp}.png`);
         await page.screenshot({ path: screenshotPath, fullPage: true });
         if (appConfig.portalAgent.verbose) {
-          console.log(`[portal-agent] failure screenshot saved: ${screenshotPath}`);
+          console.log(`[portal-agent] failure screenshot saved (redacted): ${screenshotPath}`);
         }
       } catch {
-        // Screenshot ist Best-Effort — Fehler hier sind unkritisch.
+        // Screenshot ist Best-Effort — Fehler hier sind unkritisch (inkl.
+        // fehlgeschlagenem Masking: dann bewusst KEIN Screenshot).
       }
     }
 
