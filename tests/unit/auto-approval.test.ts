@@ -96,9 +96,11 @@ describe("evaluateAutoApproval", () => {
     expect(decision.autoApproved).toBe(false);
   });
 
-  // INFETCH-272: High-Confidence darf einen Großbetrag nicht selbst freigeben,
-  // selbst wenn das (ggf. injizierte) Modell-Output volle Confidence behauptet.
-  it("rejects high_confidence above the amount cap even for a known vendor", async () => {
+  // INFETCH-272: Der High-Confidence-SHORTCUT darf einen Großbetrag nicht selbst
+  // freigeben, selbst wenn das (ggf. injizierte) Modell-Output volle Confidence
+  // behauptet. Ein expliziter Per-Vendor-Rule-Treffer (via "rule", eigener Cap)
+  // bliebe legitim — geprüft wird gezielt, dass der ungecappte Shortcut nicht greift.
+  it("does not auto-approve via high_confidence above the amount cap (known vendor)", async () => {
     const decision = await evaluateAutoApproval(buildExtraction({ amount_gross: 999_999 }), {
       organizationId: null,
       vendorId: VENDOR_ID,
@@ -108,12 +110,13 @@ describe("evaluateAutoApproval", () => {
       vendorKnown: true,
     });
 
-    expect(decision.autoApproved).toBe(false);
+    expect(decision.autoApproved && decision.via === "high_confidence").toBe(false);
   });
 
   // INFETCH-272: Ein unbekannter Anbieter (keine Org-Historie) qualifiziert nicht
-  // für den High-Confidence-Pfad — schützt vor frisch erfundenen Vendors.
-  it("rejects high_confidence for an unknown vendor even under the cap", async () => {
+  // für den High-Confidence-Shortcut — schützt vor frisch erfundenen Vendors.
+  // (Eine explizite Per-Vendor-Rule darf weiterhin via "rule" greifen.)
+  it("does not auto-approve via high_confidence for an unknown vendor under the cap", async () => {
     const decision = await evaluateAutoApproval(
       buildExtraction({ vendor_confidence: 0.99, date_confidence: 0.99, amount_confidence: 0.99 }),
       {
@@ -126,6 +129,6 @@ describe("evaluateAutoApproval", () => {
       },
     );
 
-    expect(decision.autoApproved).toBe(false);
+    expect(decision.autoApproved && decision.via === "high_confidence").toBe(false);
   });
 });
