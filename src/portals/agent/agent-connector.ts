@@ -81,6 +81,12 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
     }
   }
 
+  // Egress-Allowlist (INFETCH-265): die vertrauenswürdige Vendor-Domain kommt aus
+  // den vom Kunden gespeicherten Vendor-Stammdaten (portalLoginUrl) — NICHT aus dem
+  // evtl. aus der Community stammenden Recipe. Replay darf nur dorthin navigieren.
+  const trustedVendor = await findVendorByCanonicalKey(input.vendorKey);
+  const allowedVendorUrl = trustedVendor?.portalLoginUrl ?? recipe?.loginUrl ?? null;
+
   if (!credentials) {
     return await failureResult(
       input.vendorKey,
@@ -136,6 +142,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
       playResult = await playRecipe(page, recipe, credentials, {
         targetYearMonth: input.targetYearMonth,
         since,
+        allowedVendorUrl,
       });
 
       // Session-Recovery: bei login_required einmal Session leeren + neu versuchen
@@ -156,6 +163,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
         playResult = await playRecipe(page, recipe, credentials, {
           targetYearMonth: input.targetYearMonth,
           since,
+          allowedVendorUrl,
         });
       }
 
@@ -214,6 +222,7 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
         playResult = await playRecipe(page, recorded.recipe, credentials, {
           targetYearMonth: input.targetYearMonth,
           since,
+          allowedVendorUrl,
         });
         if (playResult.ok) await markRecipeSuccess(saved.id);
         else await markRecipeFailure(saved.id);
