@@ -226,6 +226,7 @@ export async function syncCommunityRecipesAction(
     if (result.installed > 0) parts.push(`${result.installed} neu installiert`);
     if (result.updated > 0) parts.push(`${result.updated} aktualisiert`);
     if (result.skipped > 0) parts.push(`${result.skipped} übersprungen`);
+    if (result.rejected > 0) parts.push(`${result.rejected} abgelehnt (Sicherheit)`);
     const errorSuffix = result.errors.length > 0 ? ` (${result.errors.length} Fehler)` : "";
     return {
       status: "success",
