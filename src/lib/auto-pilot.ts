@@ -145,7 +145,7 @@ async function runPortalFetch() {
   const accountsWithCreds = await Promise.all(
     allAccounts.map(async (entry) => ({
       entry,
-      ok: await hasConfiguredCredential("portal", entry.vendorKey),
+      ok: await hasConfiguredCredential("portal", entry.vendorKey, entry.organizationId),
     })),
   );
   const accounts = accountsWithCreds.filter((a) => a.ok).map((a) => a.entry);

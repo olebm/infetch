@@ -16,6 +16,8 @@ vi.mock("@/lib/config/env", async (importOriginal) => {
 import { sql } from "@/lib/db/client";
 import { canAddOnlineAccount, getOnlineAccountCount } from "@/lib/tier";
 import { filterEntitledPortalAccounts } from "@/lib/auto-pilot";
+import { getPortalAccountOrg } from "@/portals/credential-meta";
+import { buildSecretRef } from "@/lib/secrets/credential-store";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const SUFFIX = `${Date.now()}`;
@@ -31,10 +33,13 @@ async function seedOrg(id: string, tier: "free" | "pro" | "business") {
 }
 
 async function seedPortalAccount(orgId: string, vendorKey: string) {
-  // secret_ref enthält ':vendorKey:' → getPortalAccountOrg matcht per LIKE.
+  // Realistischer secret_ref via buildSecretRef — GEHASHT, enthält den vendorKey
+  // NICHT im Klartext (wie in Prod). owner_id trägt den Klartext-vendorKey. So
+  // fängt der Test eine Rückkehr zu secret_ref-LIKE (INFETCH-262).
+  const secretRef = buildSecretRef("portal", vendorKey, orgId);
   await sql`
     INSERT INTO credential_refs (scope, owner_id, label, secret_store, secret_ref, status, organization_id)
-    VALUES ('portal', ${vendorKey}, ${`${vendorKey} portal`}, 'encrypted_db', ${`portal:${vendorKey}:enc`}, 'configured', ${orgId})
+    VALUES ('portal', ${vendorKey}, ${`${vendorKey} portal`}, 'encrypted_db', ${secretRef}, 'configured', ${orgId})
   `;
 }
 
@@ -85,6 +90,13 @@ describe.skipIf(!hasDb)("portal tier gating (INFETCH-252)", () => {
     expect(await getOnlineAccountCount(ORG_PRO)).toBe(2);
     expect(await getOnlineAccountCount(ORG_BIZ)).toBe(1);
     expect(await getOnlineAccountCount(ORG_FREE)).toBe(0);
+  });
+
+  it("getPortalAccountOrg löst über owner_id auf (secret_ref ist gehasht — INFETCH-262)", async () => {
+    const vk = `resolve-${SUFFIX}`;
+    await seedPortalAccount(ORG_PRO, vk);
+    expect(await getPortalAccountOrg(vk)).toBe(ORG_PRO);
+    expect(await getPortalAccountOrg(`nope-${SUFFIX}`)).toBeNull();
   });
 
   describe("filterEntitledPortalAccounts (Cron-Gating)", () => {
