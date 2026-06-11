@@ -6,6 +6,7 @@ import { getCurrentAuth } from "@/lib/auth/current";
 import { updateUserAvatar } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getLimits, getOrgTier } from "@/lib/tier";
+import { writeJsonSetting } from "@/lib/db/settings-store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -325,6 +326,52 @@ export async function updateNotifyWeeklyAction(
       ? "Wöchentliche Zusammenfassung aktiviert."
       : "Wöchentliche Zusammenfassung deaktiviert.",
   };
+}
+
+// ── Locale Settings ───────────────────────────────────────────────────────────
+
+export type LocaleActionState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
+const ALLOWED_LANGUAGES = ["de", "en"] as const;
+type Language = (typeof ALLOWED_LANGUAGES)[number];
+
+/**
+ * Speichert ui_language und timezone in der globalen settings-Tabelle.
+ * Die Werte werden für zukünftige i18n-Basis und Datumsformatierung genutzt.
+ */
+export async function saveLocaleSettingsAction(
+  _prev: LocaleActionState,
+  formData: FormData,
+): Promise<LocaleActionState> {
+  const auth = await getCurrentAuth();
+  if (!auth?.user) {
+    return { status: "error", message: "Nicht angemeldet." };
+  }
+
+  const lang = (formData.get("language") as string | null) ?? "";
+  const tz = (formData.get("timezone") as string | null) ?? "";
+
+  if (!ALLOWED_LANGUAGES.includes(lang as Language)) {
+    return { status: "error", message: "Ungültige Sprache." };
+  }
+
+  // IANA-Zeitzone grob validieren: muss Region/Ort-Format haben oder UTC/GMT sein.
+  if (!/^[A-Za-z_]+\/[A-Za-z_/+-]+$|^UTC$|^GMT$/.test(tz)) {
+    return { status: "error", message: "Ungültige Zeitzone." };
+  }
+
+  try {
+    await Promise.all([writeJsonSetting("ui_language", lang), writeJsonSetting("timezone", tz)]);
+  } catch (err) {
+    console.error("[saveLocaleSettingsAction]", err);
+    return { status: "error", message: "Einstellungen konnten nicht gespeichert werden." };
+  }
+
+  revalidatePath("/konto");
+  return { status: "success", message: "Einstellungen gespeichert." };
 }
 
 // idle is intentionally not exported — "use server" files may only export async functions.

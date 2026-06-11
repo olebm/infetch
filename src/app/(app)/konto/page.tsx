@@ -13,11 +13,13 @@ import { ProfilForm } from "@/components/einstellungen/profil-form";
 import { SwitchOrgButton } from "@/components/einstellungen/sessions-section";
 import { MembersCard } from "@/components/konto/members-card";
 import { BillingCard } from "@/components/konto/billing-card";
+import { LocaleSettingsCard } from "@/components/konto/locale-settings-card";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/status/status-badge";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { unsafeGlobalSql } from "@/lib/db/unsafe-global";
+import { readJsonSetting } from "@/lib/db/settings-store";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +41,8 @@ export default async function KontoPage() {
     profileFields,
     tier,
     orgRow,
+    uiLanguage,
+    timezone,
   ] = await Promise.all([
     getInvoiceYears(orgId),
     getVendors(orgId),
@@ -54,6 +58,8 @@ export default async function KontoPage() {
           () => [] as { stripe_customer_id: string | null }[],
         )
       : Promise.resolve([] as { stripe_customer_id: string | null }[]),
+    readJsonSetting<string>("ui_language", "de"),
+    readJsonSetting<string>("timezone", "Europe/Berlin"),
   ]);
 
   const hasStripeCustomer = Boolean(
@@ -86,7 +92,12 @@ export default async function KontoPage() {
         {/* 1b ── Nutzung diesen Monat (unter „Dein Profil") ─────────────────── */}
         <UsageCard organizationId={orgId} />
 
-        {/* 2 ── Arbeitsbereich — nur bei Business (Multi-Org) oder tatsächlich mehreren Orgs */}
+        {/* 2 ── Sprache & Zeitzone ──────────────────────────────────────────── */}
+        <Card padding="lg">
+          <LocaleSettingsCard initialLanguage={uiLanguage} initialTimezone={timezone} />
+        </Card>
+
+        {/* 3 ── Arbeitsbereich — nur bei Business (Multi-Org) oder tatsächlich mehreren Orgs */}
         {(tier === "business" || userOrgs.length > 1) && (
           <Card padding="none">
             <div className="flex items-start justify-between gap-4 p-5">
@@ -128,7 +139,7 @@ export default async function KontoPage() {
           </Card>
         )}
 
-        {/* 3 ── Mitglieder — nur Pro/Business (Free = Einzelnutzer) ──────────── */}
+        {/* 4 ── Mitglieder — nur Pro/Business (Free = Einzelnutzer) ──────────── */}
         {isPro && (
           <Card padding="none">
             <MembersCard
@@ -143,10 +154,10 @@ export default async function KontoPage() {
           </Card>
         )}
 
-        {/* 4 ── Paket ──────────────────────────────────────────────────────── */}
+        {/* 5 ── Paket ──────────────────────────────────────────────────────── */}
         <BillingCard tier={tier} limits={limits} hasStripeCustomer={hasStripeCustomer} />
 
-        {/* 5 ── Daten & Konto ───────────────────────────────────────────────── */}
+        {/* 6 ── Daten & Konto ───────────────────────────────────────────────── */}
         <ExportDownloadCard
           years={invoiceYears}
           vendors={vendors.map((v) => ({ id: v.id, name: v.name }))}
