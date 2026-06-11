@@ -15,6 +15,8 @@
  */
 
 import { getActiveRecipe, listRecipes, saveRecipe } from "@/portals/agent/recipe-cache";
+import { findVendorByCanonicalKey } from "@/lib/db/queries";
+import { validateRecipeDomains } from "@/portals/agent/recipe-validate";
 import type { Recipe } from "@/portals/agent/types";
 
 const DEFAULT_META_URL =
@@ -45,6 +47,7 @@ export type SyncResult = {
   installed: number;
   updated: number;
   skipped: number;
+  rejected: number;
   errors: string[];
 };
 
@@ -56,6 +59,7 @@ export async function syncCommunityRecipes(options: { force?: boolean } = {}): P
     installed: 0,
     updated: 0,
     skipped: 0,
+    rejected: 0,
     errors: [],
   };
 
@@ -96,6 +100,22 @@ export async function syncCommunityRecipes(options: { force?: boolean } = {}): P
       }
 
       const recipe = await fetchJson<Recipe>(`${DEFAULT_RECIPE_BASE_URL}${entry.vendor}.json`);
+
+      // INFETCH-268: Domain-Allowlist beim Install. Ein Recipe, dessen loginUrl
+      // oder goto-Schritte eine fremde Domain ansteuern, wird abgelehnt — nicht
+      // aktiviert (Defense-in-Depth zur Laufzeit-Prüfung #139). Anker ist die
+      // vertrauenswürdige Vendor-URL; fehlt sie, gilt Selbst-Konsistenz zur
+      // recipe-eigenen loginUrl.
+      const vendor = await findVendorByCanonicalKey(entry.vendor);
+      const domainCheck = validateRecipeDomains(recipe, vendor?.portalLoginUrl ?? null);
+      if (!domainCheck.ok) {
+        result.rejected += 1;
+        result.errors.push(
+          `${entry.vendor}: abgelehnt — Navigation auf fremde Domain (${domainCheck.violations.join(", ")})`,
+        );
+        continue;
+      }
+
       await saveRecipe({ vendorKey: entry.vendor, recipe, recordedBy: "community" });
 
       if (!local) result.installed += 1;
