@@ -10,12 +10,16 @@
  *   { alias, text, attachments: [{ title, title_link, color, fields }] }
  */
 
+import crypto from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 const ERROR_LOG = join(process.cwd(), "data", "sentry-errors.jsonl");
 const MAX_ENTRIES = 50;
+const MAX_BODY_BYTES = 64 * 1024; // Glitchtip-Alerts sind klein — Schutz gegen Disk-Fill/RAM-Abuse
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -86,7 +90,28 @@ function appendEntry(entry: ErrorEntry) {
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
+  // SECURITY (INFETCH-274): Shared-Secret prüfen. Glitchtip ruft eine feste URL
+  // auf → Secret als Query-Param (?token=...), timing-safe verglichen. Ohne
+  // konfiguriertes Secret nur in lokaler Entwicklung offen (wie die Cron-Routen).
+  const secret = process.env.SENTRY_WEBHOOK_SECRET?.trim();
+  if (!secret) {
+    if ((process.env.NODE_ENV as string) !== "development") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } else {
+    const provided = new URL(request.url).searchParams.get("token") ?? "";
+    const provHash = crypto.createHash("sha256").update(provided).digest();
+    const expHash = crypto.createHash("sha256").update(secret).digest();
+    if (!crypto.timingSafeEqual(provHash, expHash)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const rawBody = await request.text();
+  // SECURITY (INFETCH-274): Größenlimit vor dem Parsen/Schreiben (unauth-naher Pfad).
+  if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Payload zu groß." }, { status: 413 });
+  }
 
   let payload: GlitchtipPayload;
   try {
