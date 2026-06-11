@@ -5,6 +5,7 @@ import { getVendors } from "@/lib/db/queries";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { hasStoredCredentialRef } from "@/lib/secrets/credential-store";
 import { listRecipes } from "@/portals/agent/recipe-cache";
+import { describeRecipeSteps } from "@/portals/agent/recipe-describe";
 import { getCommunityRecipeStats } from "@/portals/agent/community-sync";
 import { PORTAL_CATEGORIES, type PortalCategoryKey } from "@/vendors/registry";
 import { AddOnlineAccountTrigger } from "@/components/online-accounts/add-online-account-trigger";
@@ -175,9 +176,12 @@ export async function OnlineAccountsView() {
                         vendorName: account.vendorName,
                         recipeVersion: recipe?.version ?? null,
                         recipeJson: recipe ? JSON.stringify(recipe.recipe, null, 2) : null,
+                        recipeSteps: recipe ? describeRecipeSteps(recipe.recipe) : null,
                         recipeRecordedBy: recipe?.recordedBy ?? null,
                         successCount,
                         failureCount,
+                        invoiceCount,
+                        lastRunAt: lastRun?.startedAt ?? null,
                         lastError: lastRun?.errorMessage ?? null,
                       }}
                     />

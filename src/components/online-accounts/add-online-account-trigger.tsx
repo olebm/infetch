@@ -1,7 +1,17 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Plus, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Lightbulb,
+  Loader2,
+  Lock,
+  Plus,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { connectOnlineAccountAction, type ConnectState } from "@/app/(app)/online-accounts/actions";
 import { PORTAL_CATEGORIES } from "@/vendors/registry";
 import { VendorCombobox, type VendorOption } from "@/components/online-accounts/vendor-combobox";
@@ -225,9 +235,28 @@ function AddOnlineAccountModal({
 
             <TotpField />
 
-            <div className="rounded border border-line bg-surface px-3 py-2 text-xs text-muted">
-              Dein Passwort wird sicher im Schlüssel-Bund deines Macs gespeichert. Wir schicken es
-              niemals weiter.
+            <div className="space-y-2 rounded border border-ok/30 bg-ok-soft p-3 text-xs text-ink">
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-hidden />
+                <span>
+                  Wir loggen uns <strong>ausschließlich zum Rechnungs-Download</strong> ein — keine
+                  Zahlungen, keine Einstellungsänderungen.
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-hidden />
+                <span>
+                  Dein Zugang wird <strong>verschlüsselt im EU-Vault</strong> gespeichert
+                  (server-seitig, kein US-Sub-Prozessor). Wir geben ihn niemals weiter.
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden />
+                <span className="text-muted">
+                  Tipp: Wenn dein Portal es erlaubt, leg einen separaten
+                  Read-only-/Buchhaltungs-Login an und hinterleg ihn hier.
+                </span>
+              </div>
             </div>
 
             <div className="rounded border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn">

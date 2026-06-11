@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Code2, Share2, X } from "lucide-react";
+import { Code2, ListChecks, Share2, X } from "lucide-react";
 
 type RecipeHealthInfo = {
   vendorKey: string;
   vendorName: string;
   recipeVersion: number | null;
   recipeJson: string | null;
+  recipeSteps: string[] | null;
   recipeRecordedBy: "local" | "community" | null;
   successCount: number;
   failureCount: number;
+  invoiceCount: number;
+  lastRunAt: string | null;
   lastError: string | null;
 };
 
@@ -86,6 +89,43 @@ function RecipeHealthDrawer({ info, onClose }: { info: RecipeHealthInfo; onClose
             <div className="mt-1 text-sm text-muted">{rateLabel}</div>
           </div>
 
+          {info.recipeSteps && info.recipeSteps.length > 0 && (
+            <div className="rounded border border-line bg-surface p-4">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <ListChecks className="h-4 w-4 text-brand" aria-hidden />
+                Was wir bei {info.vendorName} tun
+              </div>
+              <ol className="space-y-1.5 text-sm text-ink">
+                {info.recipeSteps.map((stepLabel, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-muted">{i + 1}.</span>
+                    <span>{stepLabel}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-3 text-xs text-muted">
+                Diese Schritte — mehr nicht. Keine Zahlungen, keine Einstellungsänderungen.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="rounded border border-line bg-surface p-2">
+              <div className="text-base font-semibold text-ink">{info.invoiceCount}</div>
+              <div className="text-muted">Rechnungen geladen</div>
+            </div>
+            <div className="rounded border border-line bg-surface p-2">
+              <div className="text-base font-semibold text-ink">{total > 0 ? total : "—"}</div>
+              <div className="text-muted">Läufe gesamt</div>
+            </div>
+            <div className="rounded border border-line bg-surface p-2">
+              <div className="text-base font-semibold text-ink">
+                {info.lastRunAt ? formatDate(info.lastRunAt) : "—"}
+              </div>
+              <div className="text-muted">Zuletzt</div>
+            </div>
+          </div>
+
           {info.lastError && (
             <div className="rounded border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
               <strong>Letzter Fehler:</strong> {info.lastError}
@@ -153,4 +193,10 @@ function buildShareUrlClient(vendorKey: string, recipeJson: string): string {
   const filename = `recipes/${vendorKey}.json`;
   const body = encodeURIComponent(recipeJson);
   return `https://github.com/invoice-agent/invoice-agent-recipes/new/main?filename=${encodeURIComponent(filename)}&value=${body}`;
+}
+
+function formatDate(value: string): string {
+  const ts = new Date(value.includes("T") ? value : value.replace(" ", "T") + "Z");
+  if (Number.isNaN(ts.getTime())) return "—";
+  return ts.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
