@@ -158,6 +158,50 @@ async function tombstoneUserEmail(deadUserId: string): Promise<void> {
 }
 
 /**
+ * Entscheidet rein (ohne DB), ob ein frisch zu provisionierender User einer
+ * EINGELADENEN Org beitritt und mit welcher Rolle.
+ *
+ * SECURITY (INFETCH-270): invited_org_id/invited_role stammen aus user_metadata,
+ * das ein Self-Signup via supabase.auth.signInWithOtp({ options: { data } }) mit
+ * dem öffentlichen Anon-Key FREI setzen kann. Einem Join wird daher nur vertraut,
+ * wenn `genuineInvite` server-seitig belegt ist (auth.users.invited_at, siehe
+ * hasAdminInviteFor). "owner" wird NIE aus Metadata akzeptiert — Invites vergeben
+ * ausschließlich admin/member (siehe inviteMemberAction). Rein → Vitest-gegatet.
+ */
+export function resolveInviteJoin(
+  meta: Record<string, unknown>,
+  genuineInvite: boolean,
+): { join: false } | { join: true; organizationId: string; role: "admin" | "member" } {
+  const orgId = typeof meta.invited_org_id === "string" ? meta.invited_org_id : "";
+  if (!genuineInvite || orgId.length === 0) return { join: false };
+  const role = meta.invited_role === "admin" ? "admin" : "member";
+  return { join: true, organizationId: orgId, role };
+}
+
+/**
+ * Belegt ein invited_org_id einen ECHTEN, server-seitig erzeugten Invite?
+ * auth.users.invited_at wird ausschließlich von der Admin-inviteUserByEmail-API
+ * gesetzt; ein Self-Signup via signInWithOtp(options.data) kann zwar
+ * invited_org_id in seine eigene user_metadata schreiben, aber niemals
+ * invited_at. Fail-closed: ist auth.users nicht erreichbar (z. B. CI ohne
+ * Supabase-Schema), gilt der Invite als unbelegt → kein Fremd-Join.
+ */
+async function hasAdminInviteFor(userId: string, orgId: string): Promise<boolean> {
+  try {
+    const rows = await sql<{ id: string }[]>`
+      SELECT id FROM auth.users
+      WHERE id = ${userId}
+        AND invited_at IS NOT NULL
+        AND raw_user_meta_data->>'invited_org_id' = ${orgId}
+      LIMIT 1
+    `;
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Stellt sicher, dass ein Postgres-Profil für den authentifizierten
  * Supabase-User existiert. Wird vom Magic-Link-Callback UND vom
  * OTP-Code-Login aufgerufen — beide Pfade müssen den Bridge-User anlegen,
@@ -174,23 +218,24 @@ export async function ensureUserProvisioned(supabaseUser: {
   const email = supabaseUser.email.toLowerCase();
 
   const meta = supabaseUser.user_metadata ?? {};
-  const invitedOrgId = meta.invited_org_id as string | undefined;
-  const invitedRole = (meta.invited_role as string | undefined) ?? "member";
-  const validRole = (["owner", "admin", "member"] as const).includes(
-    invitedRole as "owner" | "admin" | "member",
-  )
-    ? (invitedRole as "owner" | "admin" | "member")
-    : "member";
   const name = (meta.full_name as string | undefined) ?? null;
 
+  // SECURITY (INFETCH-270): user_metadata ist beim Signup client-kontrolliert
+  // (signInWithOtp options.data). Einem invited_org_id nur trauen, wenn ein
+  // echter Admin-Invite server-seitig belegt ist (auth.users.invited_at).
+  const invitedOrgId = typeof meta.invited_org_id === "string" ? meta.invited_org_id : "";
+  const genuineInvite =
+    invitedOrgId.length > 0 && (await hasAdminInviteFor(supabaseUser.id, invitedOrgId));
+  const inviteJoin = resolveInviteJoin(meta, genuineInvite);
+
   async function provisionFresh(): Promise<void> {
-    if (invitedOrgId) {
+    if (inviteJoin.join) {
       await createUserAndJoinOrg({
         email: supabaseUser.email,
         name,
         userId: supabaseUser.id,
-        organizationId: invitedOrgId,
-        role: validRole,
+        organizationId: inviteJoin.organizationId,
+        role: inviteJoin.role,
       });
     } else {
       await createUserWithDefaultOrg({
