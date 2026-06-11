@@ -142,53 +142,16 @@ export async function connectOnlineAccountAction(
       });
     }
 
-    // Erstabruf (kann beim Recording 30-60 Sek dauern)
-    const result = await runAgentForVendor({ vendorKey: vendor.canonicalKey });
-    await importDownloads(result.downloads, vendor.canonicalKey);
-
+    // Kein synchroner Erstabruf im Web-Request (INFETCH-264): der Agent — und
+    // damit die Credential-Entschlüsselung — läuft ausschließlich im isolierten
+    // Worker. Der portalFetch-Cron holt das neu verbundene Konto beim nächsten
+    // Lauf. So braucht der Web-Prozess keine Decrypt-Rechte auf die Zugangsdaten.
     revalidatePath("/einstellungen");
-    revalidatePath("/audit");
     revalidatePath("/");
 
-    if (result.status === "success") {
-      return {
-        status: "success",
-        message: `${vendor.name} verbunden. ${result.invoicesFound} Rechnung${result.invoicesFound === 1 ? "" : "en"} geholt.`,
-        vendorKey: vendor.canonicalKey,
-        invoicesFound: result.invoicesFound,
-      };
-    }
-    if (result.status === "no_invoices") {
-      return {
-        status: "success",
-        message: `${vendor.name} verbunden. Aktuell keine Rechnungen gefunden — wir prüfen ab jetzt automatisch.`,
-        vendorKey: vendor.canonicalKey,
-      };
-    }
-    if (result.status === "login_required") {
-      return {
-        status: "error",
-        message: `Login bei ${vendor.name} ist fehlgeschlagen. Prüf Benutzername und Passwort.`,
-        vendorKey: vendor.canonicalKey,
-      };
-    }
-    if (result.status === "two_factor") {
-      return {
-        status: "error",
-        message: `${vendor.name} fordert einen 2FA-Code. Das unterstützen wir noch nicht automatisch — du kannst die Sitzung einmal manuell anmelden.`,
-        vendorKey: vendor.canonicalKey,
-      };
-    }
-    if (result.status === "captcha") {
-      return {
-        status: "error",
-        message: `${vendor.name} zeigt ein CAPTCHA. Bitte einmal manuell anmelden, danach übernehmen wir.`,
-        vendorKey: vendor.canonicalKey,
-      };
-    }
     return {
-      status: "error",
-      message: result.errorMessage ?? `Konnten ${vendor.name} nicht abrufen.`,
+      status: "success",
+      message: `${vendor.name} verbunden. Die Rechnungen werden automatisch abgeholt.`,
       vendorKey: vendor.canonicalKey,
     };
   } catch (error) {
