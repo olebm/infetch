@@ -52,9 +52,10 @@ export function RemoveAccountButton({ vendorKey, name }: { vendorKey: string; na
       <button
         type="submit"
         className="inline-flex items-center gap-1.5 rounded border border-line bg-white px-3 py-2 text-xs font-medium text-muted hover:border-danger/30 hover:text-danger"
-        title="Entfernen"
+        title="Zugang trennen — jederzeit widerrufbar. Wir vergessen Login, Recipe und Browser-Sitzung."
       >
         <Trash2 className="h-3.5 w-3.5" aria-hidden />
+        Trennen
       </button>
     </form>
   );
