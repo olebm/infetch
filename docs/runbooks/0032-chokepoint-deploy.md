@@ -14,11 +14,26 @@ Secret-Read eine nicht existierende Funktion auf → **alle Zugänge brechen**.
 `0032` liegt **nur** im Branch `feat/credential-decrypt-chokepoint`, **nicht** auf
 `main`. Also: Migration zuerst anwenden, **dann** #138 mergen (= Code-Deploy).
 
+## Wo ausführen?
+
+- **`git …` / `gh pr merge`** → dein **Laptop** (lokaler Repo-Checkout). `gh` redet
+  nur mit GitHub; Coolify deployt nach dem Merge automatisch.
+- **Die `0032`-Migration** → gegen die **Prod-Supabase-DB**
+  (`aws-0-eu-central-1…supabase.com`). Zwei Wege:
+  - **Empfohlen (kein Terminal):** Supabase Dashboard → **SQL Editor** →
+    0032-SQL einfügen → **Run**. Läuft als `postgres` — genau richtig, damit die
+    `SECURITY DEFINER`-Funktion `vault.decrypted_secrets` lesen darf. Die SQL gibt's
+    im PR [#138](https://github.com/olebm/infetch/pull/138) →
+    `supabase/migrations/0032_credential_decrypt_chokepoint.sql` (Raw kopieren).
+  - **Alternative (psql):** gegen die **Direct Connection (Port 5432)** aus
+    Supabase → Project Settings → Database → „Direct connection". **Nicht** den
+    Transaction-Pooler `:6543` (PgBouncer zickt bei DDL).
+
 ## Voraussetzungen
 
-- Prod-`DATABASE_URL` (Superuser `postgres` oder `service_role`) → unten `$PROD_DB`.
-- Frischer Prod-DB-Snapshot/Backup (Regel: erst Snapshot, dann Migration).
-- Lokaler Checkout, sauberes Arbeitsverzeichnis.
+- Frischer Prod-DB-Snapshot/Backup (Regel: erst Snapshot, dann Migration). In
+  Supabase: Database → Backups.
+- Für den psql-Weg: die Direct-Connection-URL (Port 5432) → unten `$PROD_DB`.
 
 ## Schritte
 
@@ -29,20 +44,25 @@ git fetch origin
 git checkout feat/credential-decrypt-chokepoint
 ```
 
-### 2. Migration anwenden — Path A (empfohlen: chirurgisch, idempotent)
+### 2. Migration anwenden
 
 `0032` ist idempotent (`CREATE OR REPLACE FUNCTION`, `REVOKE`, guarded `GRANT`) —
-direkt einspielen, kleinster Blast-Radius, rührt 0027–0031 nicht an:
+kleinster Blast-Radius, rührt 0027–0031 nicht an.
+
+**Path A (empfohlen) — Supabase SQL Editor:** Inhalt von
+`0032_credential_decrypt_chokepoint.sql` (aus #138) in den SQL Editor einfügen →
+**Run**. Fertig.
+
+**Path B — psql gegen die Direct Connection (5432):**
 
 ```bash
 psql "$PROD_DB" -v ON_ERROR_STOP=1 -f supabase/migrations/0032_credential_decrypt_chokepoint.sql
 ```
 
-> **Path B (Alternative):** der lineare Runner wendet ALLE fehlenden Migrationen an
-> (trackt `public.schema_migrations`, transaktional, bricht bei Fehler ab):
-> `node scripts/apply-all-migrations.mjs "$PROD_DB"`
-> Nur nutzen, wenn `schema_migrations` auf Prod sauber ist und du 0027–0031
-> ohnehin nachziehen willst. Prüfe die gemeldete Pending-Liste, bevor du bestätigst.
+> **Path C (nur wenn du 0027–0031 mitnehmen willst):** der lineare Runner wendet
+> ALLE fehlenden Migrationen an (trackt `public.schema_migrations`, transaktional):
+> `node scripts/apply-all-migrations.mjs "$PROD_DB"` — nur bei sauberem
+> `schema_migrations`; gemeldete Pending-Liste vorher prüfen.
 
 ### 3. Funktion verifizieren (read-only)
 
