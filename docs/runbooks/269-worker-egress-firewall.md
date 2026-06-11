@@ -62,25 +62,16 @@ ORDER BY host;
 
 ## Layer 2 — Code-Hook: Browser über den Proxy zwingen
 
-Eine Zeile in `src/portals/agent/agent-connector.ts` an der `chromium.launch`-Stelle
-(aktuell ~Z. 109), env-gated (No-op, solange die Variable nicht gesetzt ist):
+**Implementiert (env-gated):** `appConfig.portalAgent.egressProxy` liest
+`PORTAL_EGRESS_PROXY`; `src/portals/agent/agent-connector.ts` reicht ihn an
+`chromium.launch({ proxy: … })` durch. Ohne Variable: No-op, direkter Egress
+wie bisher — abgesichert durch `tests/unit/portal-egress-proxy.test.ts`.
 
-```ts
-await chromium.launch({
-  headless,
-  proxy: process.env.PORTAL_EGRESS_PROXY
-    ? { server: process.env.PORTAL_EGRESS_PROXY }   // z. B. http://127.0.0.1:3128
-    : undefined,
-  args: ["--disable-blink-features=AutomationControlled", "--disable-dev-shm-usage"],
-});
-```
+Aktivierung = Coolify-ENV der Worker-Box: `PORTAL_EGRESS_PROXY=http://127.0.0.1:3128`.
 
-Coolify-ENV der Worker-Box: `PORTAL_EGRESS_PROXY=http://127.0.0.1:3128`.
-
-> Diese Code-Zeile ist bewusst noch **nicht** gemerged — sie lässt sich erst
-> end-to-end verifizieren, wenn der Squid steht. Sag Bescheid, dann liefere ich
-> sie als kleinen env-gated PR (mit Test, dass ohne ENV das Verhalten identisch
-> bleibt).
+> End-to-end (Browser → Squid, Fremd-Domain → 403) ist erst mit stehendem Squid
+> verifizierbar — Kommandos unter „Verifikation". Bis dahin gilt nur der
+> Unit-Level als belegt.
 
 ## Layer 3 — Hetzner Cloud Firewall (grober IP-Backstop)
 
