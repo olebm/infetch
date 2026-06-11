@@ -32,12 +32,12 @@ export async function playRecipe(
   page: Page,
   recipe: Recipe,
   credentials: AgentCredentials,
-  options: { targetYearMonth?: string; since?: string } = {},
+  options: { targetYearMonth?: string; since?: string; allowedVendorUrl?: string | null } = {},
 ): Promise<PlayResult> {
   const downloads: PlayDownload[] = [];
   try {
     for (const step of [...recipe.loginFlow, ...recipe.navigationFlow]) {
-      await executeStep(page, step, credentials);
+      await executeStep(page, step, credentials, options.allowedVendorUrl);
       // Pruefe nach jedem Schritt auf Friktionspunkte (CAPTCHA, 2FA, Login-Wall)
       const friction = await detectFriction(page);
       if (friction) {
@@ -207,9 +207,20 @@ async function detectFriction(page: Page): Promise<FrictionResult | null> {
   }
 }
 
-async function executeStep(page: Page, step: RecipeStep, credentials: AgentCredentials) {
+async function executeStep(
+  page: Page,
+  step: RecipeStep,
+  credentials: AgentCredentials,
+  allowedVendorUrl: string | null | undefined,
+) {
   switch (step.type) {
     case "goto":
+      // Egress-Schutz (INFETCH-265): nur auf die Domain des Vendors navigieren.
+      // Verhindert, dass ein vergiftetes (Community-)Recipe die Browser-Session
+      // inkl. Credentials auf eine Fremd-Domain leitet.
+      if (!hostAllowedForVendor(step.url, allowedVendorUrl)) {
+        throw new Error(`Navigation auf fremde Domain blockiert (Security): ${step.url}`);
+      }
       await page.goto(step.url, { timeout: DEFAULT_NAV_TIMEOUT, waitUntil: "domcontentloaded" });
       break;
     case "fill": {
@@ -271,6 +282,52 @@ async function extractRowDate(
     return null;
   } catch {
     return null;
+  }
+}
+
+// Bekannte zweistufige Public-Suffixe — damit z.B. portal.kunde.co.uk korrekt auf
+// die Registrable-Domain kunde.co.uk reduziert wird (nicht co.uk).
+const KNOWN_MULTI_TLDS = new Set([
+  "co.uk",
+  "org.uk",
+  "com.au",
+  "co.jp",
+  "co.nz",
+  "com.br",
+  "co.za",
+]);
+
+/** Registrable-Domain (eTLD+1) eines Hosts — pragmatische Heuristik. */
+function registrableDomain(host: string): string {
+  const parts = host.toLowerCase().replace(/\.$/, "").split(".").filter(Boolean);
+  if (parts.length <= 2) return parts.join(".");
+  const lastTwo = parts.slice(-2).join(".");
+  return KNOWN_MULTI_TLDS.has(lastTwo) ? parts.slice(-3).join(".") : lastTwo;
+}
+
+/**
+ * Egress-Sicherheits-Check (INFETCH-265): darf der Agent zu `targetUrl` navigieren?
+ * Erlaubt nur die Registrable-Domain des VERTRAUENSWÜRDIGEN vendorUrl (vom Kunden
+ * beim Verbinden eingegeben) und deren Subdomains. Schützt vor vergifteten
+ * Community-Recipes, die Credentials auf eine Fremd-Domain leiten würden.
+ * vendorUrl fehlt/unparsebar → nicht erzwingbar (true); targetUrl unparsebar → false.
+ */
+export function hostAllowedForVendor(
+  targetUrl: string,
+  vendorUrl: string | null | undefined,
+): boolean {
+  if (!vendorUrl) return true;
+  let vendorHost: string;
+  try {
+    vendorHost = new URL(vendorUrl).hostname;
+  } catch {
+    return true;
+  }
+  try {
+    const targetHost = new URL(targetUrl).hostname;
+    return registrableDomain(targetHost) === registrableDomain(vendorHost);
+  } catch {
+    return false;
   }
 }
 
