@@ -42,11 +42,11 @@ export async function writeDbSecret(secretRef: string, secret: string): Promise<
  * Gibt null zurück wenn kein Eintrag unter `secretRef` vorhanden ist.
  */
 export async function readDbSecret(secretRef: string): Promise<string | null> {
-  const rows = await sql<{ decryptedSecret: string }[]>`
-    SELECT decrypted_secret AS "decryptedSecret"
-    FROM vault.decrypted_secrets
-    WHERE name = ${secretRef}
-    LIMIT 1
+  // Decrypt-Chokepoint (INFETCH-263a): NICHT direkt aus vault.decrypted_secrets
+  // lesen, sondern über die SECURITY-DEFINER-Funktion. So steuert ein EXECUTE-Grant,
+  // wer überhaupt entschlüsseln darf (später: nur die Worker-Rolle, nicht die Web-App).
+  const rows = await sql<{ decryptedSecret: string | null }[]>`
+    SELECT public.app_read_vault_secret(${secretRef}) AS "decryptedSecret"
   `;
   return rows[0]?.decryptedSecret ?? null;
 }
