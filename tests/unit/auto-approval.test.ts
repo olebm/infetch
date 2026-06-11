@@ -34,7 +34,7 @@ function buildExtraction(overrides: Partial<InvoiceAiExtraction>): InvoiceAiExtr
 }
 
 describe("evaluateAutoApproval", () => {
-  it("auto-approves via high_confidence when all fields exceed threshold (no rule needed)", async () => {
+  it("auto-approves via high_confidence when all fields exceed threshold (known vendor, under cap)", async () => {
     const decision = await evaluateAutoApproval(
       buildExtraction({ vendor_confidence: 0.95, date_confidence: 0.95, amount_confidence: 0.95 }),
       {
@@ -43,6 +43,7 @@ describe("evaluateAutoApproval", () => {
         vendorName: "OpenAI",
         amountGross: 29,
         invoiceDate: "2026-05-01",
+        vendorKnown: true,
       },
     );
 
@@ -60,6 +61,7 @@ describe("evaluateAutoApproval", () => {
       vendorName: "OpenAI",
       amountGross: 29,
       invoiceDate: "2026-05-01",
+      vendorKnown: true,
     });
 
     expect(decision.autoApproved).toBe(false);
@@ -72,6 +74,7 @@ describe("evaluateAutoApproval", () => {
       vendorName: "OpenAI",
       amountGross: 29,
       invoiceDate: "2026-05-01",
+      vendorKnown: true,
     });
 
     expect(decision.autoApproved).toBe(false);
@@ -87,7 +90,41 @@ describe("evaluateAutoApproval", () => {
       vendorName: "OpenAI",
       amountGross: null,
       invoiceDate: "2026-05-01",
+      vendorKnown: true,
     });
+
+    expect(decision.autoApproved).toBe(false);
+  });
+
+  // INFETCH-272: High-Confidence darf einen Großbetrag nicht selbst freigeben,
+  // selbst wenn das (ggf. injizierte) Modell-Output volle Confidence behauptet.
+  it("rejects high_confidence above the amount cap even for a known vendor", async () => {
+    const decision = await evaluateAutoApproval(buildExtraction({ amount_gross: 999_999 }), {
+      organizationId: null,
+      vendorId: VENDOR_ID,
+      vendorName: "OpenAI",
+      amountGross: 999_999,
+      invoiceDate: "2026-05-01",
+      vendorKnown: true,
+    });
+
+    expect(decision.autoApproved).toBe(false);
+  });
+
+  // INFETCH-272: Ein unbekannter Anbieter (keine Org-Historie) qualifiziert nicht
+  // für den High-Confidence-Pfad — schützt vor frisch erfundenen Vendors.
+  it("rejects high_confidence for an unknown vendor even under the cap", async () => {
+    const decision = await evaluateAutoApproval(
+      buildExtraction({ vendor_confidence: 0.99, date_confidence: 0.99, amount_confidence: 0.99 }),
+      {
+        organizationId: null,
+        vendorId: VENDOR_ID,
+        vendorName: "OpenAI",
+        amountGross: 29,
+        invoiceDate: "2026-05-01",
+        vendorKnown: false,
+      },
+    );
 
     expect(decision.autoApproved).toBe(false);
   });

@@ -1,5 +1,6 @@
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { evaluateAutoApproval } from "@/lib/automation/auto-approval";
+import { vendorHasApprovedHistory } from "@/lib/db/queries";
 import { recordSyncEvent } from "@/lib/db/events";
 import type { InvoiceAiExtraction } from "@/ai/schemas";
 
@@ -69,12 +70,16 @@ export async function reevaluateReviewQueue(): Promise<ReevalResult> {
     }
 
     // Phase 2: Echte Rechnung → Auto-Approval erneut versuchen
+    const vendorKnown =
+      row.vendor_id != null &&
+      (await vendorHasApprovedHistory(row.vendor_id, row.organization_id, row.id));
     const decision = await evaluateAutoApproval(extraction, {
       organizationId: row.organization_id,
       vendorId: row.vendor_id,
       vendorName: row.vendor_name,
       amountGross: row.amount_gross,
       invoiceDate: row.invoice_date,
+      vendorKnown,
     });
 
     if (decision.autoApproved) {

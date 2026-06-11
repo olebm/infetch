@@ -180,6 +180,7 @@ describe("auto-approval per-field-confidence fallback", () => {
         vendorName: "OpenAI",
         amountGross: 29,
         invoiceDate: "2026-05-01",
+        vendorKnown: true,
       },
     );
 
@@ -217,6 +218,7 @@ describe("auto-approval per-field-confidence fallback", () => {
         vendorName: "OpenAI",
         amountGross: 29,
         invoiceDate: "2026-05-01",
+        vendorKnown: true,
       },
     );
 

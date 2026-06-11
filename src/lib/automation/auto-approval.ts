@@ -4,6 +4,21 @@ import { appConfig } from "@/lib/config/env";
 
 const PER_FIELD_RULE_THRESHOLD = 0.95;
 
+/**
+ * Rein & CI-testbar (INFETCH-272): Darf der High-Confidence-Pfad greifen? Nur
+ * unter dem Betrags-Cap UND für einen bekannten Anbieter. Beides zusammen
+ * schließt den Prompt-Injection-Geldpfad: ein injiziertes PDF kann zwar
+ * Confidence/Betrag im Modell-Output steuern, aber weder den Cap aushebeln noch
+ * sich Org-Historie erfinden.
+ */
+export function highConfidenceAllowed(
+  amountCents: number,
+  maxAmountCents: number,
+  vendorKnown: boolean,
+): boolean {
+  return vendorKnown && amountCents <= maxAmountCents;
+}
+
 export type AutoApprovalDecision =
   | { autoApproved: true; ruleId: number | null; via: "high_confidence" | "rule" }
   | { autoApproved: false; reason: string };
@@ -14,6 +29,8 @@ export type AutoApprovalInput = {
   vendorName: string | null;
   amountGross: number | null;
   invoiceDate: string | null;
+  /** Bekannter Anbieter? (≥1 zuvor verarbeitete Rechnung in dieser Org — INFETCH-272.) */
+  vendorKnown: boolean;
 };
 
 export async function evaluateAutoApproval(
@@ -28,6 +45,19 @@ export async function evaluateAutoApproval(
   }
   const overallThreshold = appConfig.features.autoApprovalConfidenceThreshold;
 
+  // SECURITY (INFETCH-272): Der High-Confidence-Pfad vertraut der modell-
+  // selbstberichteten Confidence, die aus dem (untrusted) PDF-Inhalt stammt.
+  // Damit eine prompt-injizierte Rechnung sich nicht selbst freigibt, greift er
+  // nur unter dem Betrags-Cap UND für einen bekannten Anbieter (Org-Historie).
+  // Außerhalb → durchfallen zum expliziten Per-Vendor-Rule-Pfad (kunden-Cap)
+  // bzw. manuelles Review.
+  const amountCents = Math.round(resolved.amountGross * 100);
+  const highConfOk = highConfidenceAllowed(
+    amountCents,
+    appConfig.features.autoApprovalMaxAmountCents,
+    resolved.vendorKnown,
+  );
+
   const confidences = [
     extraction.amount_confidence,
     extraction.date_confidence,
@@ -36,17 +66,17 @@ export async function evaluateAutoApproval(
 
   // Fallback: aktuelle Mistral-Pipeline liefert nur top-level `confidence`,
   // keine per-Field-Werte mehr. Wenn Top-Level über Threshold UND alle
-  // Kernfelder gefüllt → vertrauen wir der Gesamteinschätzung.
+  // Kernfelder gefüllt → vertrauen wir der Gesamteinschätzung (im Cap/known-Gate).
   if (confidences.some((c) => c === null)) {
-    if (extraction.confidence !== null && extraction.confidence >= overallThreshold) {
+    if (highConfOk && extraction.confidence !== null && extraction.confidence >= overallThreshold) {
       return { autoApproved: true, ruleId: null, via: "high_confidence" };
     }
     return { autoApproved: false, reason: "missing per-field confidence" };
   }
   const minConfidence = Math.min(...(confidences as number[]));
 
-  // Path 1: High overall confidence — bypass rule requirement (Auto-Pilot path).
-  if (minConfidence >= overallThreshold) {
+  // Path 1: High overall confidence — nur unter Cap + bekannter Vendor.
+  if (minConfidence >= overallThreshold && highConfOk) {
     return { autoApproved: true, ruleId: null, via: "high_confidence" };
   }
 
@@ -62,7 +92,6 @@ export async function evaluateAutoApproval(
   if (rules.length === 0) {
     return { autoApproved: false, reason: "no matching rule" };
   }
-  const amountCents = Math.round(resolved.amountGross * 100);
   for (const rule of rules) {
     if (rule.maxAmountCents !== null && amountCents > rule.maxAmountCents) continue;
     return { autoApproved: true, ruleId: rule.id, via: "rule" };
