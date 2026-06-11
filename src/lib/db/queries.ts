@@ -1363,10 +1363,34 @@ export async function getAutoApprovalRulesForVendor(
       AND (
         (r.vendor_id IS NOT NULL AND r.vendor_id = ${vendorId})
         OR (r.vendor_pattern IS NOT NULL
-            AND ${vendorName} IS NOT NULL
+            AND ${vendorName}::text IS NOT NULL
             AND LOWER(${vendorName}) LIKE '%' || LOWER(r.vendor_pattern) || '%')
       )`;
   return rows.map(mapAutoApprovalRow);
+}
+
+/**
+ * "Bekannter Anbieter" (INFETCH-272): hat dieser Vendor in dieser Org bereits
+ * ≥1 verarbeitete Rechnung (Status ready/exported)? Dient als fälschungssicheres
+ * Gate für den High-Confidence-Auto-Approve — ein frisch aus einem (ggf.
+ * prompt-injizierten) PDF gematchter Anbieter ohne Historie qualifiziert nicht.
+ * Ohne Org → konservativ false.
+ */
+export async function vendorHasApprovedHistory(
+  vendorId: number,
+  organizationId: string | null,
+  excludeInvoiceId: number,
+): Promise<boolean> {
+  if (!organizationId) return false;
+  const rows = await sql<{ one: number }[]>`
+    SELECT 1 AS one FROM invoices
+    WHERE vendor_id = ${vendorId}
+      AND organization_id = ${organizationId}
+      AND status IN ('ready', 'exported')
+      AND id <> ${excludeInvoiceId}
+    LIMIT 1
+  `;
+  return rows.length > 0;
 }
 
 export async function upsertAutoApprovalRule(input: {

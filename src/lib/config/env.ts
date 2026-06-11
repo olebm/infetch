@@ -48,6 +48,15 @@ export const appConfig = {
     enableMissingMatrix: process.env.ENABLE_MISSING_MATRIX !== "false",
     autoPilotEnabled: process.env.AUTO_PILOT_ENABLED !== "false",
     autoApprovalConfidenceThreshold: clampConfidence(process.env.AUTO_APPROVE_CONFIDENCE, 0.9),
+    // SECURITY (INFETCH-272): Obergrenze für den High-Confidence-Auto-Approve.
+    // Größere Beträge brauchen manuelles Review bzw. eine explizite Per-Vendor-
+    // Regel (mit eigenem Cap) — schützt gegen prompt-injizierte Rechnungen, die
+    // sich über modell-selbstberichtete Confidence selbst freigeben würden.
+    // Default 500 € (50000 Cent), via AUTO_APPROVE_MAX_AMOUNT_CENTS anpassbar.
+    autoApprovalMaxAmountCents: Math.max(
+      0,
+      Math.round(Number(process.env.AUTO_APPROVE_MAX_AMOUNT_CENTS) || 50_000),
+    ),
   },
   selfHealing: {
     // Nach N erfolgreichen Imports pro Vendor wird automatisch eine

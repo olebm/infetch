@@ -1,5 +1,6 @@
 import { sql } from "../src/lib/db/client";
 import { evaluateAutoApproval } from "../src/lib/automation/auto-approval";
+import { vendorHasApprovedHistory } from "../src/lib/db/queries";
 import type { InvoiceAiExtraction } from "../src/ai/schemas";
 
 const beforeRows = await sql<
@@ -49,12 +50,16 @@ for (const row of rows) {
   }
 
   // Step 2: Echte Rechnungen → Auto-Approval-Logik erneut anwenden
+  const vendorKnown =
+    row.vendor_id != null &&
+    (await vendorHasApprovedHistory(row.vendor_id, row.organization_id, row.id));
   const decision = await evaluateAutoApproval(extraction, {
     organizationId: row.organization_id,
     vendorId: row.vendor_id,
     vendorName: row.vendor_name,
     amountGross: row.amount_gross,
     invoiceDate: row.invoice_date,
+    vendorKnown,
   });
 
   if (decision.autoApproved) {

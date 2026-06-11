@@ -11,6 +11,7 @@ import {
 } from "@/ai/prompt-versions";
 import { invoiceAiExtractionSchema, type InvoiceAiExtraction } from "@/ai/schemas";
 import { evaluateAutoApproval } from "@/lib/automation/auto-approval";
+import { vendorHasApprovedHistory } from "@/lib/db/queries";
 import { isExtractionPlausible } from "@/invoices/plausibility";
 
 type LocalParsedInvoice = {
@@ -322,12 +323,15 @@ async function applyAiExtractionToInvoice(
   });
 
   if (status !== "ready") {
+    const vendorKnown =
+      vendorId != null && (await vendorHasApprovedHistory(vendorId, organizationId, invoiceId));
     const decision = await evaluateAutoApproval(extraction, {
       organizationId,
       vendorId,
       vendorName: extraction.vendor,
       amountGross,
       invoiceDate,
+      vendorKnown,
     });
     if (decision.autoApproved) {
       status = "ready";
