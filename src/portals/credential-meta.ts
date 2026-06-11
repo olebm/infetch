@@ -63,6 +63,7 @@ export async function readPortalCredential(
   const password = await readCredentialSecret({
     scope: "portal",
     ownerId: vendorKey,
+    organizationId,
   });
   if (!password) return null;
 
@@ -77,9 +78,11 @@ export async function readPortalCredential(
  * (org-scoped, autoritativ). Bridge von vendorKey → Org für Agent + Cron-Gating.
  */
 export async function getPortalAccountOrg(vendorKey: string): Promise<string | null> {
+  // owner_id ist der Klartext-vendorKey; der secret_ref ist gehasht (enthält den
+  // Key NICHT) — daher Lookup über owner_id, nicht secret_ref LIKE (INFETCH-262).
   const rows = await sql<{ organization_id: string | null }[]>`
     SELECT organization_id FROM credential_refs
-    WHERE scope = 'portal' AND secret_ref LIKE ${`%:${vendorKey}:%`}
+    WHERE scope = 'portal' AND owner_id = ${vendorKey}
       AND organization_id IS NOT NULL
     ORDER BY created_at ASC
     LIMIT 1
@@ -94,15 +97,19 @@ export async function getPortalAccountOrg(vendorKey: string): Promise<string | n
  * Reihenfolge fürs Tier-Limit-Gating (älteste zuerst).
  */
 export async function listPortalVendorKeysForCron(): Promise<
-  Array<{ vendorKey: string; updatedAt: string | null }>
+  Array<{ vendorKey: string; organizationId: string; updatedAt: string | null }>
 > {
-  const rows = await sql<{ vendorKey: string; createdAt: string | null }[]>`
-    SELECT owner_id AS "vendorKey", MIN(created_at) AS "createdAt"
+  const rows = await sql<{ vendorKey: string; organizationId: string; createdAt: string | null }[]>`
+    SELECT owner_id AS "vendorKey", organization_id AS "organizationId", MIN(created_at) AS "createdAt"
     FROM credential_refs
     WHERE scope = 'portal' AND organization_id IS NOT NULL AND owner_id IS NOT NULL
-    GROUP BY owner_id
+    GROUP BY owner_id, organization_id
   `;
-  return rows.map((r) => ({ vendorKey: r.vendorKey, updatedAt: r.createdAt }));
+  return rows.map((r) => ({
+    vendorKey: r.vendorKey,
+    organizationId: r.organizationId,
+    updatedAt: r.createdAt,
+  }));
 }
 
 /**

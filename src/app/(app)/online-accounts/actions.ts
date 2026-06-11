@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
-import { saveCredentialSecret } from "@/lib/secrets/credential-store";
+import { saveCredentialSecret, deleteCredentialSecret } from "@/lib/secrets/credential-store";
 import { savePortalCredentialMeta, resetPortalCredentialMeta } from "@/portals/credential-meta";
 import { runAgentForVendor } from "@/portals/agent/agent-connector";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
@@ -120,6 +120,7 @@ export async function connectOnlineAccountAction(
     await saveCredentialSecret({
       scope: "portal",
       ownerId: vendor.canonicalKey,
+      organizationId: orgId,
       label: `${vendor.name} Online-Konto`,
       secret: password,
     });
@@ -135,6 +136,7 @@ export async function connectOnlineAccountAction(
       await saveCredentialSecret({
         scope: "totp",
         ownerId: vendor.canonicalKey,
+        organizationId: orgId,
         label: `${vendor.name} TOTP-Schlüssel`,
         secret: cleaned,
       });
@@ -281,13 +283,11 @@ export async function removeOnlineAccountAction(formData: FormData): Promise<voi
   if (!orgId) throw new Error("Keine Organisation zugeordnet.");
   const vendorKey = String(formData.get("vendorKey") || "").trim();
   if (!vendorKey) return;
-  // credential_refs hat organization_id — nur die eigenen Org-Credentials löschen.
-  await sql`
-    DELETE FROM credential_refs
-    WHERE scope IN ('portal','totp')
-      AND secret_ref LIKE ${`%:${vendorKey}:%`}
-      AND organization_id = ${orgId}
-  `;
+  // Portal- + TOTP-Secret org-scoped vollständig entfernen (Store-Eintrag UND
+  // credential_refs). owner_id = vendorKey ist Klartext; der secret_ref ist
+  // gehasht, daher kein LIKE. deleteCredentialSecret räumt auch den Vault-Eintrag.
+  await deleteCredentialSecret({ scope: "portal", ownerId: vendorKey, organizationId: orgId });
+  await deleteCredentialSecret({ scope: "totp", ownerId: vendorKey, organizationId: orgId });
   // portal_recipes und portal_run_logs sind aktuell global (kein organization_id).
   // Cross-Tenant-Sicherheit: NICHT pauschal löschen — sonst können andere Orgs,
   // die denselben vendor_key nutzen, zerstört werden. Recipes/Logs bleiben stehen;

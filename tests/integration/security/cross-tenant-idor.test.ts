@@ -57,6 +57,7 @@ import {
 } from "@/app/(app)/audit/actions";
 import { toggleVendorHiddenAction } from "@/app/(app)/fehlt/actions";
 import { removeOnlineAccountAction } from "@/app/(app)/online-accounts/actions";
+import { buildSecretRef } from "@/lib/secrets/credential-store";
 
 async function seedUser(id: string) {
   await sql`INSERT INTO users (id, email, name) VALUES (${id}, ${`${id}@idor.local`}, 'IDOR') ON CONFLICT DO NOTHING`;
@@ -89,16 +90,19 @@ async function seedVendor(orgId: string, key: string): Promise<number> {
 }
 
 async function seedCredentialRef(orgId: string, vendorKey: string): Promise<number> {
+  // Realistisch wie der echte Connect-Pfad (INFETCH-262): owner_id = Klartext-
+  // vendorKey, secret_ref = gehasht via buildSecretRef. So findet das org-scoped
+  // deleteCredentialSecret in removeOnlineAccount die richtige Zeile.
   const [row] = await sql<{ id: number }[]>`
-    INSERT INTO credential_refs (organization_id, scope, secret_store, secret_ref, label, status)
-    VALUES (${orgId}, 'portal', 'encrypted_db', ${`vault:portal:${vendorKey}:${orgId}:${SUFFIX}`}, 'IDOR-Test', 'configured')
+    INSERT INTO credential_refs (organization_id, scope, owner_id, secret_store, secret_ref, label, status)
+    VALUES (${orgId}, 'portal', ${vendorKey}, 'encrypted_db', ${buildSecretRef("portal", vendorKey, orgId)}, 'IDOR-Test', 'configured')
     RETURNING id
   `;
   return row.id;
 }
 
 async function cleanup() {
-  await sql`DELETE FROM credential_refs WHERE secret_ref LIKE ${`%:${SUFFIX}`}`;
+  await sql`DELETE FROM credential_refs WHERE organization_id IN (${ORG_A}, ${ORG_B})`;
   await sql`DELETE FROM invoices WHERE organization_id IN (${ORG_A}, ${ORG_B})`;
   await sql`DELETE FROM vendors WHERE organization_id IN (${ORG_A}, ${ORG_B})`;
   await sql`DELETE FROM organizations WHERE id IN (${ORG_A}, ${ORG_B})`;

@@ -307,7 +307,8 @@ async function loadCredentials(
   if (!meta) return null;
   const { readCredentialSecret } = await import("@/lib/secrets/credential-store");
   const totpSecret =
-    (await readCredentialSecret({ scope: "totp", ownerId: vendorKey })) ?? undefined;
+    (await readCredentialSecret({ scope: "totp", ownerId: vendorKey, organizationId })) ??
+    undefined;
   return { username: meta.username, password: meta.password, totpSecret };
 }
 
