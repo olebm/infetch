@@ -35,9 +35,31 @@ export async function playRecipe(
   options: { targetYearMonth?: string; since?: string; allowedVendorUrl?: string | null } = {},
 ): Promise<PlayResult> {
   const downloads: PlayDownload[] = [];
+  // Egress-Härtung (INFETCH-273): Ohne vertrauenswürdige Vendor-URL lässt sich die
+  // Domain-Bindung nicht erzwingen → fail-closed statt offen ausführen.
+  if (!options.allowedVendorUrl) {
+    return {
+      ok: false,
+      status: "failed",
+      message: "Kein Vendor-URL hinterlegt — Portal-Abruf aus Sicherheitsgründen abgebrochen.",
+      downloads,
+    };
+  }
   try {
     for (const step of [...recipe.loginFlow, ...recipe.navigationFlow]) {
       await executeStep(page, step, credentials, options.allowedVendorUrl);
+      // Egress-Recheck NACH dem Schritt (INFETCH-273): fängt 30x-Redirects
+      // (Playwright folgt automatisch) und click/submit-getriebene Navigation,
+      // die der goto-Pre-Check nicht sieht. Direkt zurückgeben (nicht werfen),
+      // um nicht via detectFriction mit der fremden Seite zu interagieren.
+      if (!egressAllowed(page.url(), options.allowedVendorUrl)) {
+        return {
+          ok: false,
+          status: "failed",
+          message: `Navigation auf fremde Domain blockiert (Security): ${page.url()}`,
+          downloads,
+        };
+      }
       // Pruefe nach jedem Schritt auf Friktionspunkte (CAPTCHA, 2FA, Login-Wall)
       const friction = await detectFriction(page);
       if (friction) {
@@ -218,7 +240,7 @@ async function executeStep(
       // Egress-Schutz (INFETCH-265): nur auf die Domain des Vendors navigieren.
       // Verhindert, dass ein vergiftetes (Community-)Recipe die Browser-Session
       // inkl. Credentials auf eine Fremd-Domain leitet.
-      if (!hostAllowedForVendor(step.url, allowedVendorUrl)) {
+      if (!egressAllowed(step.url, allowedVendorUrl)) {
         throw new Error(`Navigation auf fremde Domain blockiert (Security): ${step.url}`);
       }
       await page.goto(step.url, { timeout: DEFAULT_NAV_TIMEOUT, waitUntil: "domcontentloaded" });
@@ -329,6 +351,19 @@ export function hostAllowedForVendor(
   } catch {
     return false;
   }
+}
+
+/**
+ * Laufzeit-Egress-Entscheidung (INFETCH-273): Darf der Agent JETZT auf `targetUrl`
+ * sein/navigieren? Strikter als hostAllowedForVendor — ohne vertrauenswürdige
+ * vendorUrl ist die Domain-Bindung nicht erzwingbar, also fail-closed (false statt
+ * "nicht erzwingbar → true"). Genutzt für den goto-Pre-Check UND den Post-
+ * Navigations-Recheck, der Redirects (Playwright folgt 30x automatisch) und
+ * click/submit-getriebene Navigation abfängt, die ein reiner goto-Check nicht sieht.
+ */
+export function egressAllowed(targetUrl: string, vendorUrl: string | null | undefined): boolean {
+  if (!vendorUrl) return false;
+  return hostAllowedForVendor(targetUrl, vendorUrl);
 }
 
 /**
