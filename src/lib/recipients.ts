@@ -122,6 +122,9 @@ export const SUBJECT_VARIABLES: { token: string; label: string; sample: string }
 
 export const DEFAULT_SUBJECT_TEMPLATE = "Rechnung · {{vendor}} · {{date}} · {{amount}}";
 
+/** Default schema for PDF attachment filenames on export/download. */
+export const DEFAULT_PDF_FILENAME_TEMPLATE = "{{vendor}}_{{date}}_{{amount}}.pdf";
+
 /**
  * Render a subject template. Missing values drop their token and any dangling
  * separators/empty brackets, so a template like
@@ -142,4 +145,42 @@ export function renderSubjectTemplate(template: string, v: SubjectVars): string 
     .replace(/\s{2,}/g, " ")
     .trim();
   return s || "Rechnung";
+}
+
+/**
+ * Render a PDF filename template.
+ * Same tokens as renderSubjectTemplate but with filesystem-safe output:
+ * – consecutive `_` from missing values are collapsed
+ * – characters forbidden on Windows/macOS/Linux filesystems are stripped
+ * – result always ends with `.pdf`
+ * – falls back to "Rechnung.pdf" if everything resolves to empty
+ */
+export function renderPdfFilenameTemplate(template: string, v: SubjectVars): string {
+  const map: Record<string, string> = {
+    vendor: v.vendor ?? "",
+    date: v.date ?? "",
+    amount: v.amount ?? "",
+  };
+
+  // 1. Replace tokens.
+  let s = template.replace(/\{\{\s*(vendor|date|amount)\s*\}\}/g, (_, k: string) => map[k] ?? "");
+
+  // 2. Collapse consecutive underscores/dashes left by empty tokens.
+  s = s.replace(/_{2,}/g, "_").replace(/-{2,}/g, "-");
+
+  // 3. Strip characters illegal on Windows (and common platforms).
+  s = s.replace(/[/\\:*?"<>|]/g, "");
+
+  // 4. Separate out any .pdf extension so the cleanup doesn't destroy it.
+  const hasPdfExt = /\.pdf$/i.test(s);
+  const body = hasPdfExt ? s.slice(0, -4) : s;
+
+  // 5. Strip leading/trailing separators from the body and normalise spaces.
+  const clean = body
+    .replace(/^[_\-.\s]+/, "")
+    .replace(/[_\-.\s]+$/, "")
+    .replace(/\s+/g, "_")
+    .trim();
+
+  return `${clean || "Rechnung"}.pdf`;
 }

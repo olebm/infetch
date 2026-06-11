@@ -13,7 +13,7 @@ import {
 } from "@/lib/secrets/credential-store";
 import { getProviderFromEmail } from "@/lib/mail-providers";
 import { getExportTargets } from "@/exports/export-pipeline";
-import { readOrgJsonSetting } from "@/lib/db/settings-store";
+import { readOrgJsonSetting, readJsonSetting } from "@/lib/db/settings-store";
 import {
   MailboxConnectCard,
   type MailboxSlot,
@@ -30,6 +30,7 @@ import {
 import { RemoveTargetButton } from "@/components/einstellungen/remove-target-button";
 import { ConfidenceSlider } from "@/components/einstellungen/confidence-slider";
 import { SubjectTemplateCard } from "@/components/einstellungen/subject-template-card";
+import { PdfFilenameTemplateCard } from "@/components/einstellungen/pdf-filename-template-card";
 import { Tabs, type TabItem } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -51,6 +52,7 @@ export default async function SetupPage() {
     exportTargets,
     confidenceThreshold,
     invoiceSubjectTemplate,
+    pdfFilenameTemplate,
     imapPrimary,
     imapSecondary,
     primaryHasCredential,
@@ -71,6 +73,7 @@ export default async function SetupPage() {
       appConfig.features.autoApprovalConfidenceThreshold,
     ),
     readOrgJsonSetting<string>("invoice_subject_template", auth?.organization?.id ?? null, ""),
+    readJsonSetting<string>("pdf_filename_template", ""),
     getPrimaryMailAccount(auth?.organization?.id ?? null),
     getSecondaryMailAccount(auth?.organization?.id ?? null),
     hasConfiguredCredential("imap", "primary", auth?.organization?.id),
@@ -270,6 +273,16 @@ export default async function SetupPage() {
             Standard.
           </div>
           <SubjectTemplateCard initialValue={invoiceSubjectTemplate} />
+        </div>
+      </Card>
+
+      <Card padding="none">
+        <div className="p-5">
+          <div className="mb-1 text-sm font-medium text-ink">Dateiname der Rechnungs-PDFs</div>
+          <div className="mb-4 text-xs text-muted">
+            Gilt beim Weiterleiten per E-Mail und beim ZIP-Download. Leer = Originalname behalten.
+          </div>
+          <PdfFilenameTemplateCard initialValue={pdfFilenameTemplate} />
         </div>
       </Card>
     </div>

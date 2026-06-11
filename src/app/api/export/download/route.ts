@@ -7,6 +7,8 @@ import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { downloadFromStorage, BUCKETS } from "@/lib/supabase/storage";
 import { canBulkDownload } from "@/lib/tier";
+import { readJsonSetting } from "@/lib/db/settings-store";
+import { renderPdfFilenameTemplate } from "@/lib/recipients";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +214,9 @@ export async function GET(request: NextRequest) {
   if (year && vendorId) label = `${rows[0]?.vendorKey ?? vendorId}-${year}`;
   const filename = `infetch-rechnungen-${label}.zip`;
 
+  // PDF filename template — applied per-row inside the ZIP.
+  const pdfFilenameTemplate = await readJsonSetting<string>("pdf_filename_template", "");
+
   // PERF (INFETCH-173): Streaming-ZIP mit `archiver` statt In-Memory-JSZip.
   // Bei großen Exports (>1000 Rechnungen) wäre der In-Memory-ZIP-Aufbau ein
   // OOM-Risiko. archiver-output ist ein Node-Readable; wir konvertieren ihn
@@ -233,7 +238,22 @@ export async function GET(request: NextRequest) {
       try {
         const buffer = await downloadFromStorage(BUCKETS.INVOICES, row.storedPath);
         const folder = safeZipSegment(row.vendorKey ?? "", "unbekannt");
-        const name = safeZipSegment(row.originalFilename ?? "", `rechnung-${row.invoiceId}.pdf`);
+        // Apply PDF filename template if configured, otherwise use original filename.
+        const amountStr =
+          row.amountGross != null
+            ? `${row.amountGross.toFixed(2)} ${row.currency ?? ""}`.trim()
+            : undefined;
+        const templateName = pdfFilenameTemplate.trim()
+          ? renderPdfFilenameTemplate(pdfFilenameTemplate, {
+              vendor: row.vendorName,
+              date: row.invoiceDate,
+              amount: amountStr ?? null,
+            })
+          : null;
+        const name = safeZipSegment(
+          templateName ?? row.originalFilename ?? "",
+          `rechnung-${row.invoiceId}.pdf`,
+        );
         archive.append(buffer, { name: `${folder}/${name}` });
       } catch {
         // skip unreadable file — still included in CSV

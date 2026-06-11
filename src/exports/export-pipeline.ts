@@ -3,7 +3,8 @@ import { sendInvoiceMail } from "@/mail/smtp-client";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";
 import { withAdvisoryLock } from "@/lib/db/advisory-lock";
-import { readOrgJsonSetting } from "@/lib/db/settings-store";
+import { readOrgJsonSetting, readJsonSetting } from "@/lib/db/settings-store";
+import { renderPdfFilenameTemplate } from "@/lib/recipients";
 
 export type DispatchResult = {
   enqueued: number;
@@ -143,6 +144,9 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
     subjectTemplateCache.set(cacheKey, tpl);
     return tpl;
   };
+  // PDF-Dateiname-Vorlage (INFETCH-50); leer → Originaldateiname beibehalten.
+  // Folge-Issue: analog zur Betreffvorlage org-scopen (aktuell global gelesen).
+  const pdfFilenameTemplate = await readJsonSetting<string>("pdf_filename_template", "");
 
   let sent = 0;
   let failed = 0;
@@ -164,6 +168,19 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
       // stored_path ist ein Supabase-Storage-Key — Inhalt vor Versand laden.
       const pdfContent = await downloadFromStorage(BUCKETS.INVOICES, file.storedPath);
 
+      // Apply PDF filename template if configured.
+      const amountStr =
+        row.amountGross != null
+          ? `${row.amountGross.toFixed(2)} ${row.currency ?? ""}`.trim()
+          : undefined;
+      const attachmentFilename = pdfFilenameTemplate.trim()
+        ? renderPdfFilenameTemplate(pdfFilenameTemplate, {
+            vendor: row.vendorName,
+            date: row.invoiceDate,
+            amount: amountStr ?? null,
+          })
+        : undefined;
+
       await sendInvoiceMail({
         smtpSlot: row.smtpSlot ?? "primary",
         organizationId: row.organizationId,
@@ -175,6 +192,7 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
         subjectTemplate: await subjectTemplateFor(row.organizationId),
         pdfContent,
         originalFilename: file.originalFilename,
+        attachmentFilename,
       });
 
       await sql`
