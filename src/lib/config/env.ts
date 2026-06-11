@@ -77,6 +77,9 @@ export const appConfig = {
     slowMoMs: Math.max(0, Number(process.env.PORTAL_SLOWMO_MS || 0)),
     screenshotOnFailure: process.env.PORTAL_SCREENSHOT_ON_FAILURE !== "false",
     verbose: process.env.PORTAL_VERBOSE === "true",
+    // Egress-Proxy (Squid) für den Portal-Browser: CONNECT nur auf Allowlist-
+    // Domains (Runbook 269, Layer 2). Nicht gesetzt = direkter Egress (No-op).
+    egressProxy: process.env.PORTAL_EGRESS_PROXY?.trim() || null,
   },
   aiProxy: {
     // Wenn url gesetzt: App ruft externen Proxy via HTTPS.

@@ -109,6 +109,9 @@ export async function runAgentForVendor(input: AgentRunInput): Promise<RunResult
     (await chromium.launch({
       headless,
       slowMo: appConfig.portalAgent.slowMoMs > 0 ? appConfig.portalAgent.slowMoMs : undefined,
+      proxy: appConfig.portalAgent.egressProxy
+        ? { server: appConfig.portalAgent.egressProxy }
+        : undefined,
       args: ["--disable-blink-features=AutomationControlled", "--disable-dev-shm-usage"],
     }));
   if (appConfig.portalAgent.verbose) {
