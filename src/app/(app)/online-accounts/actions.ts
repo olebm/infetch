@@ -1,12 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import fs from "node:fs/promises";
 import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { saveCredentialSecret, deleteCredentialSecret } from "@/lib/secrets/credential-store";
 import { savePortalCredentialMeta, resetPortalCredentialMeta } from "@/portals/credential-meta";
-import { runAgentForVendor } from "@/portals/agent/agent-connector";
-import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { invalidateBrowserSession } from "@/portals/agent/session-store";
 import { findVendorByCanonicalKey, upsertVendor } from "@/lib/db/queries";
 import { syncCommunityRecipes } from "@/portals/agent/community-sync";
@@ -175,27 +172,10 @@ export async function fetchOnlineAccountNowAction(
     const vendorKey = String(formData.get("vendorKey") || "").trim();
     if (!vendorKey) return { status: "error", message: "Kein Lieferant angegeben." };
 
-    const result = await runAgentForVendor({ vendorKey });
-    await importDownloads(result.downloads, vendorKey);
-
+    // Kein Agent-Lauf im Web-Request (INFETCH-264): der Abruf läuft ausschließlich
+    // im isolierten Worker. Das Konto wird beim nächsten portalFetch-Lauf geholt.
     revalidatePath("/einstellungen");
-    revalidatePath("/audit");
-    revalidatePath("/fehlt");
-    revalidatePath("/");
-
-    if (result.status === "success") {
-      return {
-        status: "success",
-        message: `${result.invoicesFound} Rechnung${result.invoicesFound === 1 ? "" : "en"} geholt.`,
-      };
-    }
-    if (result.status === "login_required") {
-      return { status: "error", message: "Login abgelaufen — bitte neu verbinden." };
-    }
-    if (result.status === "no_invoices") {
-      return { status: "success", message: "Keine neuen Rechnungen gefunden." };
-    }
-    return { status: "error", message: result.errorMessage ?? "Konnten nicht abrufen." };
+    return { status: "success", message: "Wird beim nächsten automatischen Lauf geholt." };
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : "Fehler." };
   }
@@ -265,25 +245,6 @@ export async function removeOnlineAccountAction(formData: FormData): Promise<voi
   await invalidateBrowserSession(vendorKey);
   await resetPortalCredentialMeta(vendorKey, orgId);
   revalidatePath("/einstellungen");
-}
-
-async function importDownloads(
-  downloads: Array<{ filePath: string; invoiceDate: string | null; originalFilename: string }>,
-  vendorKey: string,
-) {
-  for (const download of downloads) {
-    try {
-      const buffer = await fs.readFile(download.filePath);
-      await importPdfBuffer({
-        buffer,
-        originalFilename: download.originalFilename,
-        sourceType: "portal",
-        sourceRefId: vendorKey,
-      });
-    } catch {
-      // Failures sind in portal_run_logs sichtbar
-    }
-  }
 }
 
 /**

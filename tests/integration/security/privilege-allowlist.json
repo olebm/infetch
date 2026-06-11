@@ -31,7 +31,7 @@
     "vendor_month_status",
     "vendors"
   ],
-  "securityDefinerFunctions": [],
+  "securityDefinerFunctions": ["app_read_vault_secret"],
   "rlsEnabledTablesWithoutPolicy": [
     "encrypted_secrets",
     "jobs",
