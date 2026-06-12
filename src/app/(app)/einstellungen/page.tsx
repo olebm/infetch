@@ -13,7 +13,7 @@ import {
 } from "@/lib/secrets/credential-store";
 import { getProviderFromEmail } from "@/lib/mail-providers";
 import { getExportTargets } from "@/exports/export-pipeline";
-import { readOrgJsonSetting, readJsonSetting } from "@/lib/db/settings-store";
+import { readOrgJsonSetting } from "@/lib/db/settings-store";
 import {
   MailboxConnectCard,
   type MailboxSlot,
@@ -73,7 +73,7 @@ export default async function SetupPage() {
       appConfig.features.autoApprovalConfidenceThreshold,
     ),
     readOrgJsonSetting<string>("invoice_subject_template", auth?.organization?.id ?? null, ""),
-    readJsonSetting<string>("pdf_filename_template", ""),
+    readOrgJsonSetting<string>("pdf_filename_template", auth?.organization?.id ?? null, ""),
     getPrimaryMailAccount(auth?.organization?.id ?? null),
     getSecondaryMailAccount(auth?.organization?.id ?? null),
     hasConfiguredCredential("imap", "primary", auth?.organization?.id),

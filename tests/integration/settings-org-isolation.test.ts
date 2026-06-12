@@ -58,4 +58,23 @@ describe.skipIf(!hasDb)("settings store — per-org isolation", () => {
     expect(await readJsonSetting<string>(KEY, "MISS")).toBe("global-write");
     expect(await readOrgJsonSetting<string>(KEY, null, "default")).toBe("global-write");
   });
+
+  // INFETCH-278: pdf_filename_template muss org-gescopt sein wie das Betreff-Template
+  // (vorher global via readJsonSetting/writeJsonSetting gelesen/geschrieben).
+  it("pdf_filename_template wird org-gescopt geschrieben + gelesen", async () => {
+    const orgA = `pdf-a-${SUFFIX}`;
+    try {
+      await writeOrgJsonSetting("pdf_filename_template", orgA, "{vendor}-{date}.pdf");
+      // Schreiben trifft nur den org-gescopten Key, nicht den Globalkey.
+      expect(await readJsonSetting<string>(`pdf_filename_template:${orgA}`, "MISS")).toBe(
+        "{vendor}-{date}.pdf",
+      );
+      // Org-gescoptes Lesen liefert den eigenen Wert.
+      expect(await readOrgJsonSetting<string>("pdf_filename_template", orgA, "DEFAULT")).toBe(
+        "{vendor}-{date}.pdf",
+      );
+    } finally {
+      await sql`DELETE FROM settings WHERE key = ${`pdf_filename_template:${orgA}`}`;
+    }
+  });
 });
