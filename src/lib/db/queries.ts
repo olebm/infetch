@@ -1297,12 +1297,12 @@ export async function getSecondaryMailAccount(organizationId?: string | null) {
   )[0];
 }
 
-export async function getPrimarySmtpAccount() {
-  return getStoredSmtpAccount("primary");
+export async function getPrimarySmtpAccount(organizationId: string | null | undefined) {
+  return getStoredSmtpAccount("primary", organizationId);
 }
 
-export async function getSecondarySmtpAccount() {
-  return getStoredSmtpAccount("secondary");
+export async function getSecondarySmtpAccount(organizationId: string | null | undefined) {
+  return getStoredSmtpAccount("secondary", organizationId);
 }
 
 function safeParseJson(value: string) {

@@ -36,7 +36,7 @@ export type SendInvoiceMailOptions = {
 };
 
 export async function sendInvoiceMail(options: SendInvoiceMailOptions): Promise<void> {
-  const account = await getStoredSmtpAccount(options.smtpSlot);
+  const account = await getStoredSmtpAccount(options.smtpSlot, options.organizationId);
   if (!account) {
     throw new Error(`SMTP Postfach "${options.smtpSlot}" ist nicht konfiguriert.`);
   }
@@ -112,7 +112,7 @@ export async function verifySmtpAccountConnection(
   ownerId: SmtpCredentialOwnerId,
   organizationId?: string | null,
 ): Promise<SmtpVerifyResult> {
-  const account = await getStoredSmtpAccount(ownerId);
+  const account = await getStoredSmtpAccount(ownerId, organizationId);
   if (!account) {
     throw new Error(`SMTP Postfach "${ownerId}" ist nicht konfiguriert.`);
   }

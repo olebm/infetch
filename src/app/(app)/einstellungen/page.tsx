@@ -82,8 +82,8 @@ export default async function SetupPage() {
     hasStoredCredentialRef("imap", "secondary", auth?.organization?.id),
     listIntegrationTargets(auth?.organization?.id ?? null),
     getOrgTier(auth?.organization?.id ?? null),
-    getPrimarySmtpAccount(),
-    getSecondarySmtpAccount(),
+    getPrimarySmtpAccount(auth?.organization?.id ?? null),
+    getSecondarySmtpAccount(auth?.organization?.id ?? null),
     hasConfiguredCredential("smtp", "secondary", auth?.organization?.id),
     hasStoredCredentialRef("smtp", "secondary", auth?.organization?.id),
   ]);
