@@ -8,6 +8,12 @@ import { defineConfig, devices } from "@playwright/test";
 // Prozess — die App-E2E laufen gegen einen separaten Next-Server.
 process.env.INVOICE_STORAGE_PATH ??= join(tmpdir(), "infetch-e2e-portal-invoices");
 
+// INFETCH-283: Der Recorder-E2E importiert den Agent-Graph, der beim Laden den DB-Client
+// konstruiert (verlangt ein gültiges DATABASE_URL-Format). Die Tests injizieren Fakes und
+// fragen die DB nie ab; postgres.js verbindet lazy → ein lokaler String genügt, damit der
+// Import nicht wirft. Bewusst LOKAL (kein Prod-Host).
+process.env.DATABASE_URL ??= "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3456";
 
 export default defineConfig({
@@ -41,13 +47,13 @@ export default defineConfig({
       },
       dependencies: ["setup"],
       // Portal-Replay läuft eigenständig (eigener Fixture-Server, kein App-Login).
-      testIgnore: /portal-replay\.test\.ts/,
+      testIgnore: /portal-.*\.test\.ts/,
     },
     {
       // INFETCH-259: Portal-Agent-Replay gegen lokale Fixture — kein App-Login,
       // kein laufender Next-Server, keine setup-Abhängigkeit.
       name: "portal-agent",
-      testMatch: /portal-replay\.test\.ts/,
+      testMatch: /portal-.*\.test\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
   ],

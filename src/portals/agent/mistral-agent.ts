@@ -38,6 +38,9 @@ export type AgentCallResult = {
 
 const PRIMARY_MODEL = "mistral-medium-latest";
 const FALLBACK_MODEL = "mistral-large-latest";
+// Vision-Fallback (INFETCH-283): Mistral Pixtral, EU-gehostet — Screenshots können
+// PII enthalten, daher bewusst kein US-Vision-Dienst.
+const VISION_MODEL = "pixtral-12b-latest";
 
 const nextActionTool = {
   type: "function" as const,
@@ -106,28 +109,9 @@ export async function callAgent(input: {
   const model = input.escalate ? FALLBACK_MODEL : PRIMARY_MODEL;
 
   const messages = [
-    {
-      role: "system" as const,
-      content: [
-        "You are an autonomous browser agent that helps automate invoice collection from vendor portals.",
-        `Goal: ${input.goal}`,
-        "You will see the accessibility tree of the current page as JSON. Each element has an id (e.g. 'el-12').",
-        "Respond ONLY by calling the 'next_action' function. Choose ONE action per turn.",
-        "Available actions:",
-        " - click: click an element by id",
-        " - fill: fill a form field. For credentials, set value to 'credential.username', 'credential.password', or 'totp' — never expose real credentials.",
-        " - press: press a keyboard key (Enter, Tab, etc.)",
-        " - wait: wait for network/render to settle",
-        " - done: stop the loop (you reached the goal or determined it's impossible)",
-        " - needs_vision: request a visual fallback when DOM is ambiguous",
-        "Prefer 'done' once you see an invoice list or after downloading.",
-      ].join("\n"),
-    },
+    { role: "system" as const, content: buildSystemContent(input.goal, false) },
     ...input.messages.map((m) => ({ role: m.role, content: m.content })),
-    {
-      role: "user" as const,
-      content: `Current accessibility tree:\n${input.treeJson}`,
-    },
+    { role: "user" as const, content: `Current accessibility tree:\n${input.treeJson}` },
   ];
 
   const response = await client.chat.complete({
@@ -139,22 +123,101 @@ export async function callAgent(input: {
     messages,
   });
 
+  return parseAgentResponse(response, model);
+}
+
+/**
+ * Vision-Fallback (INFETCH-283): wie callAgent, aber mit einem maskierten Screenshot
+ * der Seite zusätzlich zum Accessibility-Tree. Wird nur aufgerufen, wenn der Recorder
+ * ein `needs_vision`-Signal bekommt (DOM allein mehrdeutig). Modell: Mistral Pixtral.
+ */
+export async function callAgentWithVision(input: {
+  messages: AgentMessage[];
+  treeJson: string;
+  goal: string;
+  screenshotBase64: string;
+}): Promise<AgentCallResult> {
+  const apiKey = await readCredentialSecret({ scope: "mistral" });
+  if (!apiKey) {
+    throw new Error("MISTRAL_API_KEY ist nicht konfiguriert.");
+  }
+  const client = new Mistral({ apiKey, timeoutMs: 30_000 });
+
+  const messages = [
+    { role: "system" as const, content: buildSystemContent(input.goal, true) },
+    ...input.messages.map((m) => ({ role: m.role, content: m.content })),
+    {
+      role: "user" as const,
+      content: [
+        { type: "text" as const, text: `Current accessibility tree:\n${input.treeJson}` },
+        {
+          type: "image_url" as const,
+          imageUrl: `data:image/png;base64,${input.screenshotBase64}`,
+        },
+      ],
+    },
+  ];
+
+  const response = await client.chat.complete({
+    model: VISION_MODEL,
+    temperature: 0,
+    maxTokens: 512,
+    tools: [nextActionTool],
+    toolChoice: "any",
+    messages,
+  });
+
+  return parseAgentResponse(response, VISION_MODEL);
+}
+
+/** Gemeinsamer System-Prompt für Text- und Vision-Aufrufe. */
+function buildSystemContent(goal: string, withVision: boolean): string {
+  return [
+    "You are an autonomous browser agent that helps automate invoice collection from vendor portals.",
+    `Goal: ${goal}`,
+    "You will see the accessibility tree of the current page as JSON. Each element has an id (e.g. 'el-12').",
+    withVision
+      ? "You ALSO receive a screenshot of the page (sensitive input values are masked). Use it to disambiguate which tree element to act on, then return a concrete click/fill/press/done — do NOT return needs_vision."
+      : "",
+    "Respond ONLY by calling the 'next_action' function. Choose ONE action per turn.",
+    "Available actions:",
+    " - click: click an element by id",
+    " - fill: fill a form field. For credentials, set value to 'credential.username', 'credential.password', or 'totp' — never expose real credentials.",
+    " - press: press a keyboard key (Enter, Tab, etc.)",
+    " - wait: wait for network/render to settle",
+    " - done: stop the loop (you reached the goal or determined it's impossible)",
+    " - needs_vision: request a visual fallback when DOM is ambiguous",
+    "Prefer 'done' once you see an invoice list or after downloading.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Minimal-Struktur der Mistral-Antwort, die wir auswerten (entkoppelt vom SDK-Typ). */
+type RawChatResponse = {
+  choices?: Array<{
+    message?: {
+      content?: unknown;
+      toolCalls?: Array<{ function?: { arguments?: unknown } }> | null;
+    } | null;
+  }> | null;
+  usage?: { promptTokens?: number | null; completionTokens?: number | null } | null;
+};
+
+function parseAgentResponse(response: RawChatResponse, model: string): AgentCallResult {
   const choice = response.choices?.[0];
   const toolCalls = choice?.message?.toolCalls ?? [];
   const rawReply = typeof choice?.message?.content === "string" ? choice.message.content : "";
-
   const usage = {
     inputTokens: response.usage?.promptTokens ?? 0,
     outputTokens: response.usage?.completionTokens ?? 0,
   };
-
   if (toolCalls.length === 0) {
     return { decision: null, rawReply, usage, modelUsed: model };
   }
   const args = toolCalls[0]?.function?.arguments;
   const parsed = typeof args === "string" ? safeJsonParse(args) : args;
-  const decision = normalizeDecision(parsed);
-  return { decision, rawReply, usage, modelUsed: model };
+  return { decision: normalizeDecision(parsed), rawReply, usage, modelUsed: model };
 }
 
 function safeJsonParse(value: string): unknown {
@@ -219,6 +282,8 @@ function normalizeDecision(raw: unknown): AgentDecision | null {
 const PRICE_PER_M_TOKENS_CENT: Record<string, { input: number; output: number }> = {
   "mistral-medium-latest": { input: 40, output: 200 },
   "mistral-large-latest": { input: 200, output: 600 },
+  // Pixtral 12B (Vision) — Richtwert, gegen aktuelle Mistral-Preisliste zu verifizieren.
+  "pixtral-12b-latest": { input: 15, output: 15 },
 };
 
 export function calculateCostCents(
