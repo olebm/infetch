@@ -132,13 +132,17 @@ export async function completeOnboardingAction(
       label: "Primary SMTP Password",
       secret: smtpPassword,
     });
-    await saveStoredSmtpAccount("primary", {
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      username: smtpEmail,
-      fromAddress: smtpEmail,
-    });
+    await saveStoredSmtpAccount(
+      "primary",
+      {
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        username: smtpEmail,
+        fromAddress: smtpEmail,
+      },
+      organizationId,
+    );
 
     // 3) mail_accounts + export_targets atomar in einer Postgres-Transaktion.
     //    So gibt es entweder beide Rows in konsistentem Zustand oder keine -

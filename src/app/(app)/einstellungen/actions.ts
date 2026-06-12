@@ -305,15 +305,19 @@ async function persistSmtpAccount(
     };
   }
 
-  await saveStoredSmtpAccount(mailSlot, {
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpSecure,
-    // Login-Name: abweichender Benutzername (z. B. älteres webgo-Postfach) oder
-    // E-Mail als Default. fromAddress bleibt immer die Absende-Adresse.
-    username: smtpUsername?.trim() || smtpEmail,
-    fromAddress: smtpEmail,
-  });
+  await saveStoredSmtpAccount(
+    mailSlot,
+    {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      // Login-Name: abweichender Benutzername (z. B. älteres webgo-Postfach) oder
+      // E-Mail als Default. fromAddress bleibt immer die Absende-Adresse.
+      username: smtpUsername?.trim() || smtpEmail,
+      fromAddress: smtpEmail,
+    },
+    organizationId,
+  );
   return { ok: true };
 }
 
@@ -502,7 +506,7 @@ export async function deleteSmtpAccountAction(formData: FormData): Promise<void>
 
   // 2) Credential (org-scoped) und 3) gespeichertes Konto entfernen.
   await deleteCredentialSecret({ scope: "smtp", ownerId: "secondary", organizationId });
-  await removeStoredSmtpAccount("secondary");
+  await removeStoredSmtpAccount("secondary", organizationId);
 
   revalidatePath("/");
   revalidatePath("/einstellungen");

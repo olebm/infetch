@@ -89,20 +89,24 @@ describe.skipIf(!hasDb)("2. Absende-Konto löschen", () => {
   });
 
   it("entfernt das gespeicherte Konto und das Credential von Konto 2", async () => {
-    await saveStoredSmtpAccount("secondary", {
-      host: "smtp.example.com",
-      port: 587,
-      secure: false,
-      username: "zweit@example.com",
-      fromAddress: "zweit@example.com",
-    });
+    await saveStoredSmtpAccount(
+      "secondary",
+      {
+        host: "smtp.example.com",
+        port: 587,
+        secure: false,
+        username: "zweit@example.com",
+        fromAddress: "zweit@example.com",
+      },
+      ORG,
+    );
     await insertSecondarySmtpCredential();
-    expect(await getStoredSmtpAccount("secondary")).toBeDefined();
+    expect(await getStoredSmtpAccount("secondary", ORG)).toBeDefined();
     expect(await hasStoredCredentialRef("smtp", "secondary", ORG)).toBe(true);
 
     await deleteSmtpAccountAction(fd({ mailSlot: "secondary" }));
 
-    expect(await getStoredSmtpAccount("secondary")).toBeUndefined();
+    expect(await getStoredSmtpAccount("secondary", ORG)).toBeUndefined();
     expect(await hasStoredCredentialRef("smtp", "secondary", ORG)).toBe(false);
   });
 

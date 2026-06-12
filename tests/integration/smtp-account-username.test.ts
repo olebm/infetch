@@ -70,7 +70,7 @@ describe.skipIf(!hasDb)("SMTP abweichender Benutzername (webgo-Postfachname)", (
       }),
     );
     expect(result.status).toBe("success");
-    const acc = await getStoredSmtpAccount("primary");
+    const acc = await getStoredSmtpAccount("primary", ORG);
     expect(acc?.username).toBe("web000p1");
     expect(acc?.fromAddress).toBe("tools@ole-beekmann.de");
   });
@@ -87,7 +87,7 @@ describe.skipIf(!hasDb)("SMTP abweichender Benutzername (webgo-Postfachname)", (
         smtpSecure: "false",
       }),
     );
-    const acc = await getStoredSmtpAccount("primary");
+    const acc = await getStoredSmtpAccount("primary", ORG);
     expect(acc?.username).toBe("tools@ole-beekmann.de");
     expect(acc?.fromAddress).toBe("tools@ole-beekmann.de");
   });
