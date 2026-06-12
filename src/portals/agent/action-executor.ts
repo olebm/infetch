@@ -7,7 +7,6 @@
  */
 
 import type { Page } from "playwright";
-import { generate as generateTotp } from "otplib";
 import type { AgentAction } from "@/portals/agent/mistral-agent";
 import type { LocatorHint } from "@/portals/agent/tree-serializer";
 import type { AgentCredentials, RecipeStep } from "@/portals/agent/types";
@@ -93,7 +92,10 @@ async function resolveCredentialValue(
   if (value === "credential.password") return credentials.password;
   if (value === "totp") {
     if (!credentials.totpSecret) throw new Error("TOTP-Secret fehlt fuer diesen Schritt.");
-    return generateTotp({ secret: credentials.totpSecret });
+    // Lazy-Import: otplib zieht @scure/base (pure ESM) — als Top-Level-Import bräche
+    // das jeden CJS-Consumer (u. a. den Playwright-Recorder-E2E). Nur im TOTP-Pfad laden.
+    const { generate } = await import("otplib");
+    return generate({ secret: credentials.totpSecret });
   }
   // Literal-Wert (z.B. ein Suchbegriff)
   return value;

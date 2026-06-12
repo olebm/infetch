@@ -13,9 +13,15 @@
  */
 
 import type { Page } from "playwright";
-import { callAgent, calculateCostCents, type AgentMessage } from "@/portals/agent/mistral-agent";
+import {
+  callAgent,
+  callAgentWithVision,
+  calculateCostCents,
+  type AgentMessage,
+} from "@/portals/agent/mistral-agent";
 import { snapshotTree } from "@/portals/agent/tree-serializer";
 import { executeAction } from "@/portals/agent/action-executor";
+import { maskSensitiveInputs } from "@/portals/agent/screenshot-redaction";
 import { readCredentialSecret } from "@/lib/secrets/credential-store";
 import type { AgentCredentials, Recipe, RecipeStep } from "@/portals/agent/types";
 
@@ -30,13 +36,43 @@ export type RecordResult = {
 const MAX_STEPS = 20;
 const MAX_AMBIGUITY_RETRIES = 2;
 
-export async function recordRecipe(input: {
-  page: Page;
-  vendorKey: string;
-  loginUrl: string;
-  credentials: AgentCredentials;
-}): Promise<RecordResult> {
-  const apiKey = await readCredentialSecret({ scope: "mistral" });
+/**
+ * Injizierbare LLM-/Screenshot-Grenzen — Default sind die echten Implementierungen.
+ * Tests übergeben Fakes, um den Vision-Pfad ohne echten Mistral-Call zu prüfen.
+ */
+export type RecorderDeps = {
+  readApiKey: () => Promise<string | null>;
+  callAgent: typeof callAgent;
+  callAgentWithVision: typeof callAgentWithVision;
+  captureMaskedScreenshot: (page: Page) => Promise<string>;
+};
+
+// Fail-closed: zuerst maskieren (page.evaluate); wirft das → kein Screenshot und kein
+// Bild-Versand. Gibt den Screenshot base64-kodiert zurück.
+async function defaultCaptureMaskedScreenshot(page: Page): Promise<string> {
+  await page.evaluate(maskSensitiveInputs);
+  const buffer = await page.screenshot();
+  return buffer.toString("base64");
+}
+
+const defaultDeps: RecorderDeps = {
+  readApiKey: () => readCredentialSecret({ scope: "mistral" }),
+  callAgent,
+  callAgentWithVision,
+  captureMaskedScreenshot: defaultCaptureMaskedScreenshot,
+};
+
+export async function recordRecipe(
+  input: {
+    page: Page;
+    vendorKey: string;
+    loginUrl: string;
+    credentials: AgentCredentials;
+  },
+  deps: Partial<RecorderDeps> = {},
+): Promise<RecordResult> {
+  const d = { ...defaultDeps, ...deps };
+  const apiKey = await d.readApiKey();
   if (!apiKey) {
     return {
       ok: false,
@@ -83,7 +119,7 @@ export async function recordRecipe(input: {
 
     let result;
     try {
-      result = await callAgent({
+      result = await d.callAgent({
         messages: conversation,
         treeJson,
         goal,
@@ -141,22 +177,78 @@ export async function recordRecipe(input: {
       if (executed.step) steps.push(executed.step);
 
       if (executed.needsVision) {
-        // Vision-Fallback nicht in MVP — wir markieren als ambiguity-retry
-        if (ambiguityRetries < MAX_AMBIGUITY_RETRIES) {
-          ambiguityRetries += 1;
-          conversation.push({
-            role: "user",
-            content: "Vision noch nicht verfuegbar. Versuche eine DOM-basierte Aktion stattdessen.",
-          });
-          continue;
+        // Vision-Fallback (INFETCH-283): DOM allein war mehrdeutig → maskierter
+        // Screenshot an Pixtral, um die richtige Tree-Element-Entscheidung zu treffen.
+        let screenshotBase64: string;
+        try {
+          screenshotBase64 = await d.captureMaskedScreenshot(input.page);
+        } catch (error) {
+          // Fail-closed: Masking/Screenshot fehlgeschlagen → kein Bild-Versand.
+          return {
+            ok: false,
+            recipe: null,
+            llmCalls,
+            llmCostCents,
+            errorMessage: `Vision-Fallback abgebrochen (Screenshot/Masking fehlgeschlagen): ${describeError(error)}`,
+          };
         }
-        return {
-          ok: false,
-          recipe: null,
-          llmCalls,
-          llmCostCents,
-          errorMessage: "Portal-UI ist im DOM nicht eindeutig — manuelle Hilfe nötig.",
-        };
+
+        let visionResult;
+        try {
+          visionResult = await d.callAgentWithVision({
+            messages: conversation,
+            treeJson,
+            goal,
+            screenshotBase64,
+          });
+        } catch (error) {
+          return {
+            ok: false,
+            recipe: null,
+            llmCalls,
+            llmCostCents,
+            errorMessage: `Vision-Aufruf fehlgeschlagen: ${describeError(error)}`,
+          };
+        }
+        llmCalls += 1;
+        llmCostCents += calculateCostCents(visionResult.usage, visionResult.modelUsed);
+
+        if (!visionResult.decision || visionResult.decision.action.type === "needs_vision") {
+          return {
+            ok: false,
+            recipe: null,
+            llmCalls,
+            llmCostCents,
+            errorMessage: "Portal-UI auch visuell nicht eindeutig — manuelle Hilfe nötig.",
+          };
+        }
+
+        const visionLocator =
+          visionResult.decision.action.type === "click" ||
+          visionResult.decision.action.type === "fill"
+            ? (locatorById.get((visionResult.decision.action as { elementId: string }).elementId) ??
+              null)
+            : null;
+        const visionExecuted = await executeAction(
+          input.page,
+          visionResult.decision.action,
+          visionLocator,
+          input.credentials,
+        );
+        conversation.push({
+          role: "assistant",
+          content: `${visionResult.decision.reasoning} — Vision-Action: ${JSON.stringify(visionResult.decision.action)}`,
+        });
+        if (visionExecuted.step) steps.push(visionExecuted.step);
+        if (visionExecuted.finished) {
+          const recipe = synthesizeRecipe({
+            vendorKey: input.vendorKey,
+            loginUrl: input.loginUrl,
+            steps,
+          });
+          return { ok: true, recipe, llmCalls, llmCostCents, errorMessage: null };
+        }
+        continue;
       }
 
       if (executed.finished) {
