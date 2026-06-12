@@ -7,7 +7,7 @@ import { unsafeGlobalSql as sql } from "@/lib/db/unsafe-global";
 import { getCurrentAuth } from "@/lib/auth/current";
 import { downloadFromStorage, BUCKETS } from "@/lib/supabase/storage";
 import { canBulkDownload } from "@/lib/tier";
-import { readJsonSetting } from "@/lib/db/settings-store";
+import { readOrgJsonSetting } from "@/lib/db/settings-store";
 import { renderPdfFilenameTemplate } from "@/lib/recipients";
 
 export const dynamic = "force-dynamic";
@@ -214,8 +214,8 @@ export async function GET(request: NextRequest) {
   if (year && vendorId) label = `${rows[0]?.vendorKey ?? vendorId}-${year}`;
   const filename = `infetch-rechnungen-${label}.zip`;
 
-  // PDF filename template — applied per-row inside the ZIP.
-  const pdfFilenameTemplate = await readJsonSetting<string>("pdf_filename_template", "");
+  // PDF filename template (org-scoped, INFETCH-278) — applied per-row inside the ZIP.
+  const pdfFilenameTemplate = await readOrgJsonSetting<string>("pdf_filename_template", orgId, "");
 
   // PERF (INFETCH-173): Streaming-ZIP mit `archiver` statt In-Memory-JSZip.
   // Bei großen Exports (>1000 Rechnungen) wäre der In-Memory-ZIP-Aufbau ein

@@ -28,7 +28,7 @@ import {
   markIntegrationVerified,
   type IntegrationProvider,
 } from "@/lib/db/queries";
-import { writeOrgJsonSetting, writeJsonSetting } from "@/lib/db/settings-store";
+import { writeOrgJsonSetting } from "@/lib/db/settings-store";
 import { verifyLexofficeConnection, LexofficeApiError } from "@/lib/integrations/lexoffice-client";
 import { verifySevdeskConnection, SevdeskApiError } from "@/lib/integrations/sevdesk-client";
 import { getCurrentAuth, requireCurrentAuth } from "@/lib/auth/current";
@@ -958,7 +958,8 @@ export async function updatePdfFilenameTemplateAction(
   formData: FormData,
 ): Promise<SubjectTemplateState> {
   void _previousState;
-  await requireCurrentAuth();
+  const auth = await requireCurrentAuth();
+  const orgId = auth.organization?.id ?? null;
   try {
     const raw = String(formData.get("pdfFilenameTemplate") || "")
       .replace(/[\r\n]+/g, " ")
@@ -966,7 +967,7 @@ export async function updatePdfFilenameTemplateAction(
     if (raw.length > 200) {
       return { status: "error", message: "Dateiname-Schema ist zu lang (max. 200 Zeichen)." };
     }
-    await writeJsonSetting("pdf_filename_template", raw);
+    await writeOrgJsonSetting("pdf_filename_template", orgId, raw);
     revalidatePath("/einstellungen");
     return { status: "success", message: "Dateiname-Schema gespeichert.", value: raw };
   } catch (error) {

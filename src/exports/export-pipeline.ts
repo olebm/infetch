@@ -3,7 +3,7 @@ import { sendInvoiceMail } from "@/mail/smtp-client";
 import type { SmtpCredentialOwnerId } from "@/mail/smtp-account-slots";
 import { BUCKETS, downloadFromStorage } from "@/lib/supabase/storage";
 import { withAdvisoryLock } from "@/lib/db/advisory-lock";
-import { readOrgJsonSetting, readJsonSetting } from "@/lib/db/settings-store";
+import { readOrgJsonSetting } from "@/lib/db/settings-store";
 import { renderPdfFilenameTemplate } from "@/lib/recipients";
 
 export type DispatchResult = {
@@ -144,9 +144,17 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
     subjectTemplateCache.set(cacheKey, tpl);
     return tpl;
   };
-  // PDF-Dateiname-Vorlage (INFETCH-50); leer → Originaldateiname beibehalten.
-  // Folge-Issue: analog zur Betreffvorlage org-scopen (aktuell global gelesen).
-  const pdfFilenameTemplate = await readJsonSetting<string>("pdf_filename_template", "");
+  // PDF-Dateiname-Vorlage pro Org (org-gescopt + memoisiert, analog Betreff;
+  // INFETCH-278). Leer → Originaldateiname beibehalten.
+  const pdfTemplateCache = new Map<string, string>();
+  const pdfFilenameTemplateFor = async (orgId: string | null): Promise<string> => {
+    const cacheKey = orgId ?? "";
+    const cached = pdfTemplateCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+    const tpl = await readOrgJsonSetting<string>("pdf_filename_template", orgId, "");
+    pdfTemplateCache.set(cacheKey, tpl);
+    return tpl;
+  };
 
   let sent = 0;
   let failed = 0;
@@ -173,8 +181,9 @@ async function dispatchPendingExportsImpl(): Promise<DispatchResult> {
         row.amountGross != null
           ? `${row.amountGross.toFixed(2)} ${row.currency ?? ""}`.trim()
           : undefined;
-      const attachmentFilename = pdfFilenameTemplate.trim()
-        ? renderPdfFilenameTemplate(pdfFilenameTemplate, {
+      const pdfTemplate = await pdfFilenameTemplateFor(row.organizationId);
+      const attachmentFilename = pdfTemplate.trim()
+        ? renderPdfFilenameTemplate(pdfTemplate, {
             vendor: row.vendorName,
             date: row.invoiceDate,
             amount: amountStr ?? null,
