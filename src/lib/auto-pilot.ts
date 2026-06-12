@@ -7,6 +7,7 @@ import { runMissingInvoiceCheck } from "@/invoices/missing-check";
 import { dispatchPendingExports } from "@/exports/export-pipeline";
 import { importPdfBuffer } from "@/invoices/import-pipeline";
 import { runAgentForVendor } from "@/portals/agent/agent-connector";
+import { notifyPortalFrictionIfNeeded } from "@/portals/agent/friction-notify";
 import { syncCommunityRecipes } from "@/portals/agent/community-sync";
 import { listPortalVendorKeysForCron, getPortalAccountOrg } from "@/portals/credential-meta";
 import { getOrgTier, getLimits } from "@/lib/tier";
@@ -184,6 +185,17 @@ async function runPortalFetch() {
           } catch {
             // import-Fehler werden in portal_run_logs ohnehin protokolliert
           }
+        }
+        // Friktions-Benachrichtigung (INFETCH-257): braucht das Konto manuellen
+        // Eingriff (CAPTCHA/2FA/Login), genau einmal den Org-Owner informieren.
+        try {
+          await notifyPortalFrictionIfNeeded({
+            vendorKey: account.vendorKey,
+            organizationId: account.organizationId,
+            status: result.status,
+          });
+        } catch {
+          // Benachrichtigung darf den Abruf nicht stören
         }
       } catch {
         // pro-Vendor-Fehler darf nicht den ganzen Job stoppen

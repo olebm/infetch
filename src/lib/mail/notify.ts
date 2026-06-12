@@ -207,6 +207,60 @@ export async function sendReviewNotification(opts: {
   });
 }
 
+// ─── Portal-Friktion (manueller Eingriff nötig) ───────────────────────────────
+
+export type PortalFrictionStatus = "login_required" | "two_factor" | "captcha";
+
+const FRICTION_COPY: Record<
+  PortalFrictionStatus,
+  { headline: string; detail: string; action: string }
+> = {
+  login_required: {
+    headline: "Die Anmeldung muss erneuert werden.",
+    detail:
+      "Der automatische Login bei {vendor} ist abgelaufen oder wurde abgelehnt — häufig nach einer Passwortänderung.",
+    action: "Bitte aktualisiere Benutzername/Passwort unter Einstellungen → Online-Konten.",
+  },
+  two_factor: {
+    headline: "{vendor} verlangt einen Bestätigungscode.",
+    detail: "Das Portal fragt einen 2FA-Code ab, den der Auto-Pilot nicht selbst eingeben kann.",
+    action:
+      "Hinterlege einen TOTP-Schlüssel unter Online-Konten oder melde dich einmal manuell an.",
+  },
+  captcha: {
+    headline: "{vendor} verlangt eine Sicherheitsabfrage.",
+    detail: "Das Portal zeigt ein CAPTCHA, das nur ein Mensch lösen kann.",
+    action:
+      "Bitte melde dich einmal manuell beim Portal an — danach übernimmt Infetch die Sitzung wieder.",
+  },
+};
+
+export async function sendPortalFrictionEmail(opts: {
+  to: string;
+  name?: string | null;
+  vendorName: string;
+  status: PortalFrictionStatus;
+  appUrl?: string;
+}): Promise<boolean> {
+  const url = opts.appUrl ?? "https://app.infetch.de";
+  const copy = FRICTION_COPY[opts.status];
+  const headline = copy.headline.replace("{vendor}", opts.vendorName);
+  const detail = copy.detail.replace("{vendor}", opts.vendorName);
+  const greeting = opts.name ? `Hallo ${opts.name.split(" ")[0]},` : "Hallo,";
+  return sendEmail({
+    to: opts.to,
+    subject: `Aktion nötig: ${opts.vendorName} braucht kurz deine Hilfe`,
+    html: base(`
+      <h1>${headline}</h1>
+      <p>${greeting}</p>
+      <p>${detail}</p>
+      <p style="color:#151a22"><strong>Das ist zu tun:</strong> ${copy.action}</p>
+      <a href="${url}/einstellungen" class="btn">Online-Konten öffnen →</a>
+      <p style="font-size:12px;color:#a0a09a">Du erhältst diese Mail einmalig für diesen Fall. Sobald der Abruf wieder klappt, ist alles erledigt.</p>
+    `),
+  });
+}
+
 // ─── Monatlicher Report ───────────────────────────────────────────────────────
 
 const MONTHS_DE = [
