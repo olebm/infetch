@@ -5,6 +5,8 @@ import {
   writeJsonSetting,
   readOrgJsonSetting,
   writeOrgJsonSetting,
+  readUserJsonSetting,
+  writeUserJsonSetting,
 } from "@/lib/db/settings-store";
 
 // Regressionstest für die Per-Org-Isolierung des globalen Settings-Stores.
@@ -75,6 +77,23 @@ describe.skipIf(!hasDb)("settings store — per-org isolation", () => {
       );
     } finally {
       await sql`DELETE FROM settings WHERE key = ${`pdf_filename_template:${orgA}`}`;
+    }
+  });
+
+  // INFETCH-279: ui_language/timezone sind pro-User-Präferenzen (vorher global —
+  // ein Nutzer stellte die Sprache für alle um).
+  it("readUserJsonSetting/writeUserJsonSetting isolieren pro Nutzer (kein Bleed)", async () => {
+    const userA = `u-a-${SUFFIX}`;
+    const userB = `u-b-${SUFFIX}`;
+    try {
+      await writeUserJsonSetting("ui_language", userA, "en");
+      // Schreiben trifft nur den user-gescopten Key, nicht den Globalkey.
+      expect(await readJsonSetting<string>(`ui_language:user:${userA}`, "MISS")).toBe("en");
+      // User A liest seinen Wert; User B sieht ihn NICHT (kein Bleed).
+      expect(await readUserJsonSetting<string>("ui_language", userA, "de")).toBe("en");
+      expect(await readUserJsonSetting<string>("ui_language", userB, "de")).not.toBe("en");
+    } finally {
+      await sql`DELETE FROM settings WHERE key = ${`ui_language:user:${userA}`}`;
     }
   });
 });

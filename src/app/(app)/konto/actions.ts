@@ -6,7 +6,7 @@ import { getCurrentAuth } from "@/lib/auth/current";
 import { updateUserAvatar } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getLimits, getOrgTier } from "@/lib/tier";
-import { writeJsonSetting } from "@/lib/db/settings-store";
+import { writeUserJsonSetting } from "@/lib/db/settings-store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -339,7 +339,7 @@ const ALLOWED_LANGUAGES = ["de", "en"] as const;
 type Language = (typeof ALLOWED_LANGUAGES)[number];
 
 /**
- * Speichert ui_language und timezone in der globalen settings-Tabelle.
+ * Speichert ui_language und timezone user-gescopt (pro Nutzer, INFETCH-279).
  * Die Werte werden für zukünftige i18n-Basis und Datumsformatierung genutzt.
  */
 export async function saveLocaleSettingsAction(
@@ -364,7 +364,10 @@ export async function saveLocaleSettingsAction(
   }
 
   try {
-    await Promise.all([writeJsonSetting("ui_language", lang), writeJsonSetting("timezone", tz)]);
+    await Promise.all([
+      writeUserJsonSetting("ui_language", auth.user.id, lang),
+      writeUserJsonSetting("timezone", auth.user.id, tz),
+    ]);
   } catch (err) {
     console.error("[saveLocaleSettingsAction]", err);
     return { status: "error", message: "Einstellungen konnten nicht gespeichert werden." };

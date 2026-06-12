@@ -62,3 +62,34 @@ export async function writeOrgJsonSetting(
 ): Promise<void> {
   await writeJsonSetting(orgId ? `${key}:${orgId}` : key, value);
 }
+
+/**
+ * Per-User-Lesen: liest `${key}:user:${userId}`, sonst Fallback auf den alten
+ * globalen Key (Legacy-Migrationspfad), sonst `fallback`. Für persönliche
+ * Präferenzen (Sprache, Zeitzone) — ein Nutzer ändert sie nur für sich, nicht
+ * für andere. `:user:`-Suffix kollidiert nicht mit dem Org-Suffix (`:${orgId}`).
+ */
+export async function readUserJsonSetting<T>(
+  key: string,
+  userId: string | null | undefined,
+  fallback: T,
+): Promise<T> {
+  if (!userId) return readJsonSetting(key, fallback);
+  const scoped = await readJsonSetting<T | typeof MISSING_SETTING>(
+    `${key}:user:${userId}`,
+    MISSING_SETTING,
+  );
+  return scoped === MISSING_SETTING ? readJsonSetting(key, fallback) : scoped;
+}
+
+/**
+ * Per-User-Schreiben: schreibt ausschließlich `${key}:user:${userId}` — nie den
+ * Globalkey, damit Nutzer sich nicht gegenseitig überschreiben.
+ */
+export async function writeUserJsonSetting(
+  key: string,
+  userId: string | null | undefined,
+  value: unknown,
+): Promise<void> {
+  await writeJsonSetting(userId ? `${key}:user:${userId}` : key, value);
+}

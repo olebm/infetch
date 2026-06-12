@@ -19,7 +19,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/status/status-badge";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { unsafeGlobalSql } from "@/lib/db/unsafe-global";
-import { readJsonSetting } from "@/lib/db/settings-store";
+import { readUserJsonSetting } from "@/lib/db/settings-store";
 
 export const dynamic = "force-dynamic";
 
@@ -58,8 +58,8 @@ export default async function KontoPage() {
           () => [] as { stripe_customer_id: string | null }[],
         )
       : Promise.resolve([] as { stripe_customer_id: string | null }[]),
-    readJsonSetting<string>("ui_language", "de"),
-    readJsonSetting<string>("timezone", "Europe/Berlin"),
+    readUserJsonSetting<string>("ui_language", auth?.user?.id ?? null, "de"),
+    readUserJsonSetting<string>("timezone", auth?.user?.id ?? null, "Europe/Berlin"),
   ]);
 
   const hasStripeCustomer = Boolean(
