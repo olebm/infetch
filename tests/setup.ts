@@ -15,3 +15,16 @@ if (/supabase\.co/i.test(process.env.DATABASE_URL ?? "")) {
       "(*.supabase.co). Tests must use the local DB — ensure .env.test.local exists.",
   );
 }
+
+// Hard guard: the sentry-webhook route appends to data/sentry-errors.jsonl in
+// cwd. Tests that POST to it must never pollute the real file (incident
+// 2026-06-11: nine phantom "Unbekannter Fehler" entries written by test runs).
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+if (!process.env.SENTRY_ERRORS_FILE) {
+  process.env.SENTRY_ERRORS_FILE = join(
+    tmpdir(),
+    `infetch-test-${process.pid}`,
+    "sentry-errors.jsonl",
+  );
+}

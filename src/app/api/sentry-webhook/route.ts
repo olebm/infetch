@@ -4,38 +4,26 @@
  *
  * Glitchtip konfigurieren:
  *   Project → Alerts → Add Recipient → Webhook
- *   URL: https://app.infetch.de/api/sentry-webhook
+ *   URL: https://app.infetch.de/api/sentry-webhook?token=<SENTRY_WEBHOOK_SECRET>
  *
- * Glitchtip sendet Slack-kompatibles JSON:
- *   { alias, text, attachments: [{ title, title_link, color, fields }] }
+ * Das Payload-Format hängt vom gewählten Recipient-Typ ab (General/Slack,
+ * MS Teams, Discord, Google Chat) — das Mapping übernimmt parseAlertPayload.
+ * Unbekannte Formate werden mit einem Roh-Sample geloggt, damit ein
+ * Format-Mismatch diagnostizierbar bleibt (INFETCH-285: neun kontextlose
+ * "Unbekannter Fehler"-Einträge ohne jede Spur zur Ursache).
  */
 
 import crypto from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { NextResponse } from "next/server";
+import { parseAlertPayload } from "@/lib/sentry/parse-alert";
 
 export const runtime = "nodejs";
 
-const ERROR_LOG = join(process.cwd(), "data", "sentry-errors.jsonl");
 const MAX_ENTRIES = 50;
 const MAX_BODY_BYTES = 64 * 1024; // Glitchtip-Alerts sind klein — Schutz gegen Disk-Fill/RAM-Abuse
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type GlitchtipField = { title: string; value: string; short: boolean };
-type GlitchtipAttachment = {
-  title?: string;
-  title_link?: string;
-  text?: string;
-  color?: string;
-  fields?: GlitchtipField[];
-};
-type GlitchtipPayload = {
-  alias?: string;
-  text?: string;
-  attachments?: GlitchtipAttachment[];
-};
+const MAX_RAW_SAMPLE_CHARS = 2048; // reicht zur Format-Diagnose, hält die Datei klein
 
 type ErrorEntry = {
   receivedAt: string;
@@ -44,29 +32,29 @@ type ErrorEntry = {
   level: string;
   project: string;
   culprit: string;
+  format: string;
+  /** Nur bei format "unknown": gekürzte Roh-Payload zur Diagnose. */
+  raw?: string;
 };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function colorToLevel(color?: string): string {
-  if (!color) return "error";
-  if (color === "warning") return "warning";
-  if (color === "good") return "info";
-  return "error"; // "danger" und alles andere
-}
-
-function fieldValue(fields: GlitchtipField[] | undefined, key: string): string {
-  return fields?.find((f) => f.title.toLowerCase() === key)?.value ?? "";
-}
 
 // ── Rollierende JSONL-Datei ───────────────────────────────────────────────────
 
+// Zur Request-Zeit aufgelöst, damit Tests den Pfad per Env umleiten können —
+// Testläufe dürfen nie die echte Datei beschreiben (genau so entstanden die
+// neun Phantom-Einträge des Incidents vom 2026-06-11).
+function errorLogPath(): string {
+  return (
+    process.env.SENTRY_ERRORS_FILE?.trim() || join(process.cwd(), "data", "sentry-errors.jsonl")
+  );
+}
+
 function appendEntry(entry: ErrorEntry) {
   try {
-    mkdirSync(join(process.cwd(), "data"), { recursive: true });
+    const logPath = errorLogPath();
+    mkdirSync(dirname(logPath), { recursive: true });
 
-    const existing: ErrorEntry[] = existsSync(ERROR_LOG)
-      ? readFileSync(ERROR_LOG, "utf8")
+    const existing: ErrorEntry[] = existsSync(logPath)
+      ? readFileSync(logPath, "utf8")
           .split("\n")
           .filter(Boolean)
           .flatMap((line) => {
@@ -79,9 +67,9 @@ function appendEntry(entry: ErrorEntry) {
       : [];
 
     const updated = [...existing, entry].slice(-MAX_ENTRIES);
-    const tmp = `${ERROR_LOG}.${process.pid}.tmp`;
+    const tmp = `${logPath}.${process.pid}.tmp`;
     writeFileSync(tmp, updated.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
-    renameSync(tmp, ERROR_LOG);
+    renameSync(tmp, logPath);
   } catch (err) {
     console.error("[glitchtip-webhook] Fehler beim Schreiben:", err);
   }
@@ -113,24 +101,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Payload zu groß." }, { status: 413 });
   }
 
-  let payload: GlitchtipPayload;
+  let payload: unknown;
   try {
-    payload = JSON.parse(rawBody) as GlitchtipPayload;
+    payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Ungültiges JSON." }, { status: 400 });
   }
 
-  const attachment = payload.attachments?.[0];
-  const fields = attachment?.fields;
-
-  const entry: ErrorEntry = {
-    receivedAt: new Date().toISOString(),
-    title: attachment?.title ?? payload.text ?? "Unbekannter Fehler",
-    permalink: attachment?.title_link ?? "",
-    level: colorToLevel(attachment?.color),
-    project: fieldValue(fields, "project"),
-    culprit: fieldValue(fields, "culprit") || fieldValue(fields, "release") || "",
-  };
+  const parsed = parseAlertPayload(payload);
+  const entry: ErrorEntry = parsed
+    ? { receivedAt: new Date().toISOString(), ...parsed }
+    : {
+        receivedAt: new Date().toISOString(),
+        title: "Unbekannter Fehler",
+        permalink: "",
+        level: "error",
+        project: "",
+        culprit: "",
+        format: "unknown",
+        raw: rawBody.slice(0, MAX_RAW_SAMPLE_CHARS),
+      };
 
   appendEntry(entry);
 
