@@ -71,37 +71,76 @@ export async function playRecipe(
       }
     }
 
-    const rows = await page.$$(recipe.invoiceList.rowSelector);
-    if (rows.length === 0) {
-      // Vielleicht sind wir auf einer Login-Seite gelandet ohne dass ein Selector throwte
-      const friction = await detectFriction(page);
-      if (friction) {
-        return { ok: false, status: friction.status, message: friction.message, downloads };
+    const rowSelector = recipe.invoiceList.rowSelector;
+    const paginationSelector = recipe.invoiceList.paginationSelector;
+    const maxPages = recipe.invoiceList.maxPages ?? 5;
+
+    // Pagination (INFETCH-281): Seite für Seite durchblättern, bis maxPages erreicht,
+    // keine weitere Seite vorhanden, oder der since-Filter signalisiert „ab hier alt".
+    for (let pageNum = 0; pageNum < maxPages; pageNum++) {
+      const rows = await page.$$(rowSelector);
+      if (rows.length === 0) {
+        if (pageNum === 0) {
+          // Erste Seite leer → evtl. Login-Wall ohne geworfenen Selector-Fehler.
+          const friction = await detectFriction(page);
+          if (friction) {
+            return { ok: false, status: friction.status, message: friction.message, downloads };
+          }
+          return {
+            ok: false,
+            status: "no_invoices",
+            message: "Keine Rechnungen auf der Seite gefunden.",
+            downloads,
+          };
+        }
+        break; // Folgeseite leer → Ende der Liste.
       }
-      return {
-        ok: false,
-        status: "no_invoices",
-        message: "Keine Rechnungen auf der Seite gefunden.",
-        downloads,
-      };
-    }
 
-    for (const row of rows) {
-      const rowDate = await extractRowDate(row, recipe.invoiceList);
-      if (!shouldFetchRow(rowDate, options)) continue;
-      const downloadEl = await row.$(recipe.invoiceList.downloadSelector);
-      if (!downloadEl) continue;
+      let reachedOlderThanSince = false;
+      for (const row of rows) {
+        const rowDate = await extractRowDate(row, recipe.invoiceList);
+        if (options.since && rowDate && rowDate < options.since) reachedOlderThanSince = true;
+        if (!shouldFetchRow(rowDate, options)) continue;
+        const downloadEl = await row.$(recipe.invoiceList.downloadSelector);
+        if (!downloadEl) continue;
 
-      const [download] = await Promise.all([
-        page.waitForEvent("download", { timeout: 20_000 }),
-        downloadEl.click(),
-      ]);
-      const suggestedName = download.suggestedFilename();
-      const targetDir = path.join(appConfig.invoiceStoragePath, "portal-agent");
-      fs.mkdirSync(targetDir, { recursive: true });
-      const filePath = path.join(targetDir, `${Date.now()}-${suggestedName}`);
-      await download.saveAs(filePath);
-      downloads.push({ filePath, invoiceDate: rowDate, originalFilename: suggestedName });
+        const [download] = await Promise.all([
+          page.waitForEvent("download", { timeout: 20_000 }),
+          downloadEl.click(),
+        ]);
+        const suggestedName = download.suggestedFilename();
+        const targetDir = path.join(appConfig.invoiceStoragePath, "portal-agent");
+        fs.mkdirSync(targetDir, { recursive: true });
+        const filePath = path.join(targetDir, `${Date.now()}-${suggestedName}`);
+        await download.saveAs(filePath);
+        downloads.push({ filePath, invoiceDate: rowDate, originalFilename: suggestedName });
+      }
+
+      if (
+        shouldStopPaginating({
+          paginationSelector,
+          since: options.since,
+          reachedOlderThanSince,
+          pageNum,
+          maxPages,
+        }) ||
+        !paginationSelector
+      ) {
+        break;
+      }
+      const signature = await pageSignature(page, rowSelector);
+      const advanced = await advancePage(page, paginationSelector, rowSelector, signature);
+      if (!advanced) break;
+      // Egress-Recheck (INFETCH-273) auch für die Pagination-Navigation: ein vergiftetes
+      // Recipe darf den „next"-Klick nicht nutzen, um auf eine Fremd-Domain zu wechseln.
+      if (!egressAllowed(page.url(), options.allowedVendorUrl)) {
+        return {
+          ok: false,
+          status: "failed",
+          message: `Navigation auf fremde Domain blockiert (Security): ${page.url()}`,
+          downloads,
+        };
+      }
     }
 
     if (downloads.length === 0) {
@@ -400,6 +439,66 @@ export function shouldFetchRow(
   if (options.targetYearMonth && !rowDate.startsWith(options.targetYearMonth)) return false;
   if (options.since && rowDate < options.since) return false;
   return true;
+}
+
+/**
+ * Reine, testbare Entscheidung, ob die Pagination beendet werden soll:
+ *  - kein paginationSelector konfiguriert, ODER
+ *  - since gesetzt UND auf der aktuellen Seite tauchten bereits ältere Rechnungen auf
+ *    (newest-first angenommen → Folgeseiten sind erst recht älter).
+ */
+export function shouldStopPaginating(input: {
+  paginationSelector?: string;
+  since?: string;
+  reachedOlderThanSince: boolean;
+  pageNum: number;
+  maxPages: number;
+}): boolean {
+  if (!input.paginationSelector) return true;
+  if (input.pageNum + 1 >= input.maxPages) return true; // Seiten-Cap erreicht
+  if (input.since && input.reachedOlderThanSince) return true;
+  return false;
+}
+
+/** Signatur der aktuell sichtbaren Zeilen — erkennt, ob ein Seitenwechsel gegriffen hat. */
+async function pageSignature(page: Page, rowSelector: string): Promise<string> {
+  return page.$$eval(rowSelector, (rows) => rows.map((r) => r.textContent ?? "").join("|"));
+}
+
+/**
+ * Klickt das Pagination-Element und wartet, bis sich die Zeilen-Signatur ändert.
+ * Liefert false, wenn es kein (aktives) Next-Element gibt oder sich nichts ändert
+ * (= letzte Seite). Funktioniert für echte Navigation UND SPA-Re-Render.
+ */
+async function advancePage(
+  page: Page,
+  paginationSelector: string,
+  rowSelector: string,
+  previousSignature: string,
+): Promise<boolean> {
+  const nextEl = await page.$(paginationSelector);
+  if (!nextEl) return false;
+  const disabled = await nextEl.evaluate(
+    (el) =>
+      (el as HTMLButtonElement).disabled === true ||
+      el.getAttribute("aria-disabled") === "true" ||
+      el.classList.contains("disabled"),
+  );
+  if (disabled) return false;
+  await nextEl.click().catch(() => {});
+  try {
+    await page.waitForFunction(
+      ([sel, prev]) =>
+        Array.from(document.querySelectorAll(sel))
+          .map((r) => r.textContent ?? "")
+          .join("|") !== prev,
+      [rowSelector, previousSignature] as [string, string],
+      { timeout: 8_000 },
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeDate(value: string): string | null {

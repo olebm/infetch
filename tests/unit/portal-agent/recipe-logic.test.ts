@@ -4,6 +4,7 @@ import {
   classifyPlayError,
   normalizeDate,
   resolveValueFrom,
+  shouldStopPaginating,
   type FrictionSnapshot,
 } from "@/portals/agent/recipe-player";
 import type { AgentCredentials } from "@/portals/agent/types";
@@ -156,5 +157,49 @@ describe("normalizeDate", () => {
   it("gibt null bei nicht parsebarem Wert", () => {
     expect(normalizeDate("März 2025")).toBeNull();
     expect(normalizeDate("")).toBeNull();
+  });
+});
+
+describe("shouldStopPaginating", () => {
+  const base = { reachedOlderThanSince: false, pageNum: 0, maxPages: 5 };
+
+  it("stoppt, wenn kein paginationSelector konfiguriert ist", () => {
+    expect(shouldStopPaginating({ ...base })).toBe(true);
+  });
+
+  it("blättert weiter bei paginationSelector und ohne since-Treffer", () => {
+    expect(shouldStopPaginating({ ...base, paginationSelector: "a.next" })).toBe(false);
+  });
+
+  it("stoppt am Seiten-Cap (pageNum + 1 >= maxPages)", () => {
+    expect(
+      shouldStopPaginating({ ...base, paginationSelector: "a.next", pageNum: 4, maxPages: 5 }),
+    ).toBe(true);
+    // maxPages=1 → schon nach der ersten Seite stoppen.
+    expect(
+      shouldStopPaginating({ ...base, paginationSelector: "a.next", pageNum: 0, maxPages: 1 }),
+    ).toBe(true);
+  });
+
+  it("stoppt früh, wenn since gesetzt und ältere Rechnungen auf der Seite waren", () => {
+    expect(
+      shouldStopPaginating({
+        ...base,
+        paginationSelector: "a.next",
+        since: "2026-04-01",
+        reachedOlderThanSince: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("blättert weiter, wenn since gesetzt aber noch keine älteren Rechnungen", () => {
+    expect(
+      shouldStopPaginating({
+        ...base,
+        paginationSelector: "a.next",
+        since: "2026-04-01",
+        reachedOlderThanSince: false,
+      }),
+    ).toBe(false);
   });
 });

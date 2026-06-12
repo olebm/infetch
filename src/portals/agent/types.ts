@@ -20,6 +20,8 @@ export type RecipeInvoiceList = {
   dateFormat?: string;
   downloadSelector: string;
   paginationSelector?: string;
+  /** Max. Seiten, die im Replay durchgeblättert werden (Default 5). */
+  maxPages?: number;
 };
 
 export type Recipe = {
