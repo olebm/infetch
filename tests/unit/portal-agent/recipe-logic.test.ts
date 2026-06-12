@@ -70,6 +70,32 @@ describe("classifyFriction", () => {
     };
     expect(classifyFriction(both)?.status).toBe("captcha");
   });
+
+  // INFETCH-259: login_required während des loginFlow unterdrücken (eine Login-Seite
+  // ist dort der Normalfall), CAPTCHA/2FA aber weiterhin erkennen. Ohne diese Regel
+  // brach jeder Login-Flow nach dem ersten Schritt mit login_required ab.
+  it("unterdrückt login_required während des Logins (URL-Pattern)", () => {
+    const onLoginPage = { ...cleanPage, url: "https://portal.example/login" };
+    expect(classifyFriction(onLoginPage)?.status).toBe("login_required");
+    expect(classifyFriction(onLoginPage, { duringLogin: true })).toBeNull();
+  });
+
+  it("unterdrückt login_required während des Logins (Passwort+Email-Feld)", () => {
+    const loginForm = { ...cleanPage, hasPasswordField: true, hasEmailField: true };
+    expect(classifyFriction(loginForm)?.status).toBe("login_required");
+    expect(classifyFriction(loginForm, { duringLogin: true })).toBeNull();
+  });
+
+  it("erkennt CAPTCHA und 2FA auch während des Logins", () => {
+    const captcha = { ...cleanPage, hasCaptchaIframe: true };
+    expect(classifyFriction(captcha, { duringLogin: true })?.status).toBe("captcha");
+    const twoFa = {
+      ...cleanPage,
+      bodyTextLower: "geben sie ihren bestätigungscode ein",
+      hasShortCodeInput: true,
+    };
+    expect(classifyFriction(twoFa, { duringLogin: true })?.status).toBe("two_factor");
+  });
 });
 
 describe("classifyPlayError", () => {

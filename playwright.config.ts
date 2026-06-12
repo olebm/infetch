@@ -1,4 +1,12 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+
+// INFETCH-259: Der Portal-Replay-Test speichert heruntergeladene PDFs über
+// appConfig.invoiceStoragePath. Vor dem Laden der App-Config auf ein tmp-Verzeichnis
+// umlenken, damit der Test nicht ins Repo schreibt. Betrifft nur den Test-Runner-
+// Prozess — die App-E2E laufen gegen einen separaten Next-Server.
+process.env.INVOICE_STORAGE_PATH ??= join(tmpdir(), "infetch-e2e-portal-invoices");
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3456";
 
@@ -32,6 +40,15 @@ export default defineConfig({
         storageState: "tests/e2e/.auth/user.json",
       },
       dependencies: ["setup"],
+      // Portal-Replay läuft eigenständig (eigener Fixture-Server, kein App-Login).
+      testIgnore: /portal-replay\.test\.ts/,
+    },
+    {
+      // INFETCH-259: Portal-Agent-Replay gegen lokale Fixture — kein App-Login,
+      // kein laufender Next-Server, keine setup-Abhängigkeit.
+      name: "portal-agent",
+      testMatch: /portal-replay\.test\.ts/,
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
 

@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright";
-import { generate as generateTotp } from "otplib";
 import { appConfig } from "@/lib/config/env";
 import type { AgentCredentials, Recipe, RecipeStep } from "@/portals/agent/types";
 
@@ -46,7 +45,9 @@ export async function playRecipe(
     };
   }
   try {
-    for (const step of [...recipe.loginFlow, ...recipe.navigationFlow]) {
+    const steps = [...recipe.loginFlow, ...recipe.navigationFlow];
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
       await executeStep(page, step, credentials, options.allowedVendorUrl);
       // Egress-Recheck NACH dem Schritt (INFETCH-273): fängt 30x-Redirects
       // (Playwright folgt automatisch) und click/submit-getriebene Navigation,
@@ -60,8 +61,11 @@ export async function playRecipe(
           downloads,
         };
       }
-      // Pruefe nach jedem Schritt auf Friktionspunkte (CAPTCHA, 2FA, Login-Wall)
-      const friction = await detectFriction(page);
+      // Friktion nach jedem Schritt prüfen (CAPTCHA, 2FA, Login-Wall). Während des
+      // loginFlow ist eine Login-Seite erwartbar → login_required dort unterdrücken
+      // (INFETCH-259); CAPTCHA/2FA bleiben aktiv. Ein fehlgeschlagener Login fällt
+      // danach über den 0-Zeilen-/catch-Pfad (volle detectFriction) als login_required.
+      const friction = await detectFriction(page, { duringLogin: i < recipe.loginFlow.length });
       if (friction) {
         return { ok: false, status: friction.status, message: friction.message, downloads };
       }
@@ -166,7 +170,10 @@ export type FrictionSnapshot = {
  *
  * Reihenfolge wichtig: CAPTCHA > 2FA > Login-Wall.
  */
-export function classifyFriction(s: FrictionSnapshot): FrictionResult | null {
+export function classifyFriction(
+  s: FrictionSnapshot,
+  opts: { duringLogin?: boolean } = {},
+): FrictionResult | null {
   if (s.hasCaptchaIframe || /captcha|i'm not a robot|ich bin kein roboter/i.test(s.bodyTextLower)) {
     return {
       status: "captcha",
@@ -185,11 +192,16 @@ export function classifyFriction(s: FrictionSnapshot): FrictionResult | null {
         "Portal fordert einen 2FA-Code. Wenn du einen TOTP-Schlüssel hinterlegt hast, lernen wir das beim nächsten Recording.",
     };
   }
-  if (looksLikeLoginRedirect(s.url)) {
-    return { status: "login_required", message: "Login abgelaufen — Session erneuern nötig." };
-  }
-  if (s.hasPasswordField && s.hasEmailField) {
-    return { status: "login_required", message: "Wir sind noch auf einer Anmeldeseite." };
+  // login_required heißt „auf eine Anmeldeseite zurückgeworfen" — nur AUSSERHALB des
+  // Login-Flows ein Fehler. Während des Logins ist die Login-Seite der Normalfall
+  // (URL-Pattern bzw. Passwort+Email-Feld); CAPTCHA/2FA werden oben weiterhin erkannt.
+  if (!opts.duringLogin) {
+    if (looksLikeLoginRedirect(s.url)) {
+      return { status: "login_required", message: "Login abgelaufen — Session erneuern nötig." };
+    }
+    if (s.hasPasswordField && s.hasEmailField) {
+      return { status: "login_required", message: "Wir sind noch auf einer Anmeldeseite." };
+    }
   }
   return null;
 }
@@ -198,7 +210,10 @@ export function classifyFriction(s: FrictionSnapshot): FrictionResult | null {
  * Liest den Friktions-Snapshot aus der echten Seite und delegiert die Bewertung an
  * classifyFriction. Soll nie throwen.
  */
-async function detectFriction(page: Page): Promise<FrictionResult | null> {
+async function detectFriction(
+  page: Page,
+  opts: { duringLogin?: boolean } = {},
+): Promise<FrictionResult | null> {
   try {
     const snapshot = await page.evaluate(() => {
       const hosts = ["recaptcha", "captcha", "hcaptcha", "challenges.cloudflare"];
@@ -222,7 +237,7 @@ async function detectFriction(page: Page): Promise<FrictionResult | null> {
         hasEmailField,
       };
     });
-    return classifyFriction({ url: page.url(), ...snapshot });
+    return classifyFriction({ url: page.url(), ...snapshot }, opts);
   } catch {
     // Friktions-Check soll nie throwen
     return null;
@@ -276,7 +291,10 @@ export async function resolveValueFrom(
   if (source === "credential.password") return creds.password;
   if (source === "totp") {
     if (!creds.totpSecret) throw new Error("TOTP-Schlüssel fehlt für dieses Recipe.");
-    return generateTotp({ secret: creds.totpSecret });
+    // Lazy-Import: otplib zieht @scure/base (pure ESM) — als Top-Level-Import bräche
+    // das jeden CJS-Consumer (u. a. den Playwright-Replay-E2E). Nur im TOTP-Pfad laden.
+    const { generate } = await import("otplib");
+    return generate({ secret: creds.totpSecret });
   }
   throw new Error(`Unbekannte Quelle: ${source}`);
 }
