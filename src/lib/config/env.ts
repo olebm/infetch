@@ -34,6 +34,13 @@ export const appConfig = {
     // Reaktivieren später per NEXT_PUBLIC_PRO_ENABLED=true (Server + Browser,
     // da NEXT_PUBLIC_ zur Build-Zeit inlined wird).
     proEnabled: process.env.NEXT_PUBLIC_PRO_ENABLED === "true",
+    // INFETCH-289: Ops-gesteuerte Test-Orgs, die im Free-only-Launch trotzdem als
+    // Pro gelten (gescopt — kein globaler Launch). Reines Server-Env (Runtime/Restart,
+    // kein Rebuild) und nicht user-kontrollierbar.
+    proTestOrgIds: (process.env.PRO_TEST_ORG_IDS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   },
   features: {
     // Manueller PDF-Upload: standardmäßig ausgeblendet (Launch-Entscheidung).

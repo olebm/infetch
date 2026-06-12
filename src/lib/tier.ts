@@ -109,7 +109,16 @@ export async function getOrgTier(organizationId: string | null | undefined): Pro
   // effektive Stufe IMMER "free" — unabhängig von organizations.tier (z. B.
   // Alt-Abos). Damit greifen alle nachgelagerten Gates (canExport, Limits,
   // isPro-Props) automatisch als Free.
-  if (!appConfig.billing.proEnabled) return "free";
+  if (!appConfig.billing.proEnabled) {
+    // Ausnahme (INFETCH-289): explizit gelistete Test-Orgs gelten auch im
+    // Free-only-Launch als Pro — damit Pro-Features (z. B. Portale) auf Prod
+    // testbar sind, ohne Pro global zu launchen. Greift nur in diesem Clamp-Zweig;
+    // ist proEnabled global an, gilt wieder das normale DB-Verhalten unten.
+    if (organizationId && appConfig.billing.proTestOrgIds.includes(organizationId)) {
+      return "pro";
+    }
+    return "free";
+  }
   if (organizationId) {
     const rows = await sql<{ tier: string }[]>`
       SELECT tier FROM organizations WHERE id = ${organizationId} LIMIT 1
