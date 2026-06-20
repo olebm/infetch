@@ -332,7 +332,7 @@ export default async function LandingPage() {
               {[
                 "Verschlüsselt (AES-256)",
                 "EU-Server · Frankfurt",
-                "KI-Verarbeitung: EU-Server",
+                "Europäische KI (Mistral)",
                 "Jederzeit löschbar",
                 "AVV inklusive",
               ].map((t, i) => (
@@ -699,6 +699,14 @@ export default async function LandingPage() {
                     Datenschutzerklärung lesen
                   </Link>
                 </div>
+                <div className="mt-8 rounded-lg border border-line bg-paper p-5">
+                  <div className="text-sm font-medium text-ink">Maximale Trennung? Deine Wahl.</div>
+                  <p className="mt-2 text-sm text-muted leading-relaxed">
+                    Wer sein Hauptpostfach ganz außen vor lassen will, legt sich eine Adresse nur
+                    für Rechnungen an, hinterlegt sie bei den Anbietern und verbindet allein dieses
+                    Postfach. Dann sieht Infetch nichts außer Rechnungen.
+                  </p>
+                </div>
               </div>
 
               <div className="flex flex-col gap-8">
@@ -720,9 +728,9 @@ export default async function LandingPage() {
                     { label: "Verschlüsselung", value: "AES-256", detail: "at rest · in transit" },
                     { label: "DSGVO", value: "AVV inklusive", detail: "Art. 28 DSGVO" },
                     {
-                      label: "KI-Nutzung",
-                      value: "EU-Server",
-                      detail: "Mistral AI, Frankreich — keine Weitergabe an Werbung durch uns",
+                      label: "Europäische KI",
+                      value: "Mistral · Paris",
+                      detail: "An die KI geht nur der Rechnungstext — kein Bild, kein Postfach.",
                     },
                   ].map(({ label, value, detail }) => (
                     <div key={label}>
@@ -733,6 +741,80 @@ export default async function LandingPage() {
                   ))}
                 </dl>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ================================================================== */}
+        {/* DATENSPARSAMKEIT — was wir sehen / was nicht                        */}
+        {/* ================================================================== */}
+        <section className="py-20 md:py-28 bg-paper border-y border-line">
+          <div className="max-w-[1180px] mx-auto px-6 md:px-8">
+            <div className="max-w-2xl">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-muted">
+                Datensparsamkeit
+              </div>
+              <h2 className="mt-3 font-display text-4xl md:text-5xl text-ink leading-[1.05]">
+                Was Infetch sieht — und was nicht.
+              </h2>
+              <p className="mt-5 text-muted text-lg leading-relaxed max-w-xl">
+                Wir holen bewusst so wenig wie möglich. Mails ohne Rechnung laden wir gar nicht erst
+                herunter.
+              </p>
+            </div>
+
+            <div className="mt-14 grid md:grid-cols-2 gap-8">
+              <div className="rounded-lg border border-line bg-white p-6">
+                <div className="text-xs uppercase tracking-[0.14em] text-muted">Sieht Infetch</div>
+                <ul className="mt-5 space-y-3 text-sm text-ink">
+                  {[
+                    "Mails mit Rechnung im Anhang",
+                    "Anbieter, Betrag & Steuersatz aus dem PDF",
+                    "die Belege, die du behalten willst",
+                  ].map((t) => (
+                    <li key={t} className="flex items-start gap-3">
+                      <span className="mt-0.5 text-ok" aria-hidden="true">
+                        ✓
+                      </span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-lg border border-line bg-white p-6">
+                <div className="text-xs uppercase tracking-[0.14em] text-muted">
+                  Sieht Infetch nicht
+                </div>
+                <ul className="mt-5 space-y-3 text-sm text-ink">
+                  {[
+                    "Mails ohne Anhang — laden wir nie herunter",
+                    "private Nachrichten & Newsletter",
+                    "dein Postfach-Passwort (verschlüsselt, nie im Klartext)",
+                  ].map((t) => (
+                    <li key={t} className="flex items-start gap-3">
+                      <span className="mt-0.5 text-muted" aria-hidden="true">
+                        ✗
+                      </span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-10 pt-8 border-t border-line">
+              <div className="text-xs uppercase tracking-[0.14em] text-muted">
+                Unsere Dienstleister
+              </div>
+              <p className="mt-4 text-sm text-muted leading-relaxed max-w-3xl">
+                Hetzner (Hosting, Frankfurt) · Mistral AI (KI, Paris) · Supabase (Datenhaltung
+                EU/Frankfurt) · Stripe (Zahlung, Irland) · Brevo (E-Mail, Paris) — Verarbeitung in
+                EU-Rechenzentren.{" "}
+                <Link href="/datenschutz" className="ul-link text-ink">
+                  Details in der Datenschutzerklärung
+                </Link>
+                .
+              </p>
             </div>
           </div>
         </section>
@@ -1007,6 +1089,10 @@ export default async function LandingPage() {
                 {
                   q: "Wer sieht meine Rechnungen?",
                   a: "Nur du und die Empfänger, die du selbst hinterlegst. Kein Mensch außer dir hat Zugriff auf deine Belegdaten.",
+                },
+                {
+                  q: "Kann ich Infetch von meinem privaten Postfach fernhalten?",
+                  a: "Ja. Leg dir eine eigene Adresse nur für Rechnungen an (z. B. belege@deinefirma.de), hinterlege sie bei deinen Anbietern und verbinde nur dieses Postfach mit Infetch. So bleibt dein privates Postfach komplett außen vor — Infetch sieht ausschließlich Rechnungen.",
                 },
                 {
                   q: "Brauche ich technisches Wissen?",
