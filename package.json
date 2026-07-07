@@ -41,7 +41,7 @@
     "mailparser": "^3.7.2",
     "next": "^16.2.6",
     "node-cron": "^4.2.1",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.0.3",
     "otplib": "^13.4.0",
     "patchright": "^1.60.2",
     "pdf-parse": "^1.1.1",
