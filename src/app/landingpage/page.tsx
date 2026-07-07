@@ -1212,6 +1212,11 @@ export default async function LandingPage() {
                 </a>
               </li>
               <li>
+                <a href="/avv" className="hover:text-muted">
+                  AVV (DSGVO)
+                </a>
+              </li>
+              <li>
                 <a href="/datenschutz" className="hover:text-muted">
                   Datenschutz
                 </a>
@@ -1219,11 +1224,6 @@ export default async function LandingPage() {
               <li>
                 <a href="/impressum" className="hover:text-muted">
                   Impressum
-                </a>
-              </li>
-              <li>
-                <a href="/avv" className="hover:text-muted">
-                  AVV (DSGVO)
                 </a>
               </li>
             </ul>
