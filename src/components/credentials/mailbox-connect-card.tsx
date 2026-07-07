@@ -36,9 +36,12 @@ interface MailboxConnectCardProps {
   isPro: boolean;
 }
 
-// "Weiteres Postfach verbinden" (sekundäres Postfach) ist ein Pro-Feature und
-// vorerst ausgeblendet — Code bleibt erhalten; auf true setzen zum Reaktivieren.
-const SHOW_SECONDARY_MAILBOX = false;
+// "Weiteres Postfach verbinden" (sekundäres Postfach) ist ein Pro-Feature.
+// Aktiv: Pro-User (inkl. PRO_TEST_ORG_IDS-Override) sehen den Sekundär-Slot,
+// Free sieht die ProBadge. Backend trägt beide Slots — der Tier-Gate in
+// einstellungen/actions.ts erlaubt den zweiten INSERT und mail-scanner.ts
+// scannt beide Postfächer pro Org.
+const SHOW_SECONDARY_MAILBOX = true;
 
 export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
   const [openSlot, setOpenSlot] = useState<"primary" | "secondary" | null>(null);
