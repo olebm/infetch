@@ -7,6 +7,35 @@ export type ParsedInvoiceFields = {
 
 const isoDatePattern = /\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])(?=\D|$)/;
 const germanDatePattern = /\b(0?[1-9]|[12]\d|3[01])[.](0?[1-9]|1[0-2])[.](20\d{2})\b/;
+
+// Englische Monatsnamen-Daten auf US/intl. SaaS-Belegen (Stripe/Paddle):
+// "July 7, 2026" · "Jul 7 2026" · "7 July 2026" · "Sept 05th, 2026".
+// Rein numerische US-Slashes (07/07/2026) bleiben bewusst außen vor —
+// MM/DD vs. DD/MM ist mehrdeutig und Sache der KI-Extraktion.
+const EN_MONTHS: Record<string, number> = {
+  jan: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12,
+};
+const enMonth =
+  "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+const englishMonthFirstPattern = new RegExp(
+  `\\b(${enMonth})\\.?\\s+(0?[1-9]|[12]\\d|3[01])(?:st|nd|rd|th)?,?\\s+(20\\d{2})\\b`,
+  "i",
+);
+const englishDayFirstPattern = new RegExp(
+  `\\b(0?[1-9]|[12]\\d|3[01])(?:st|nd|rd|th)?\\.?\\s+(${enMonth})\\.?,?\\s+(20\\d{2})\\b`,
+  "i",
+);
 const invoiceNumberPattern =
   /\b(?:rechnungsnummer|rechnung\s*nr\.?|invoice\s*number|invoice\s*no\.?)\s*[:#-]\s*([A-Z0-9][A-Z0-9._/-]{2,})/i;
 // Betrags-Token: optionales Vorzeichen / Klammer-Gutschrift, beliebig viele
@@ -19,14 +48,23 @@ export function parseInvoiceFields(text: string, filename = ""): ParsedInvoiceFi
   const input = `${filename}\n${text}`;
   const iso = input.match(isoDatePattern);
   const german = input.match(germanDatePattern);
+  const enMonthFirst = input.match(englishMonthFirstPattern);
+  const enDayFirst = input.match(englishDayFirstPattern);
   const invoiceNumber = input.match(invoiceNumberPattern)?.[1] || null;
   const amount = input.match(amountPattern);
 
   const isoDate = iso ? normalizeIsoDate(iso) : null;
   const germanDate = german ? normalizeGermanDate(german) : null;
+  // Englischer Fallback NUR wenn weder ISO noch DE griffen → bestehendes
+  // Verhalten bleibt bitidentisch, es kommt reine Zusatz-Abdeckung dazu.
+  const englishDate =
+    (enMonthFirst
+      ? normalizeEnglishDate(enMonthFirst[3], enMonthFirst[1], enMonthFirst[2])
+      : null) ??
+    (enDayFirst ? normalizeEnglishDate(enDayFirst[3], enDayFirst[2], enDayFirst[1]) : null);
 
   return {
-    invoiceDate: isoDate ?? germanDate ?? null,
+    invoiceDate: isoDate ?? germanDate ?? englishDate ?? null,
     invoiceNumber,
     amountGross: amount?.[1] != null ? parseAmount(amount[1]) : null,
     currency: normalizeCurrency(amount?.[2] || null),
@@ -69,6 +107,14 @@ function normalizeIsoDate(match: RegExpMatchArray): string | null {
 function normalizeGermanDate(match: RegExpMatchArray): string | null {
   const [, day, month, year] = match;
   const iso = buildValidDate(year, month, day);
+  return iso && isNotFuture(iso) ? iso : null;
+}
+
+/** Englisches Monatsnamen-Datum → ISO. Nutzt dieselben Kalender-/Zukunfts-Guards. */
+function normalizeEnglishDate(year: string, monthWord: string, day: string): string | null {
+  const month = EN_MONTHS[monthWord.toLowerCase().slice(0, 3)];
+  if (!month) return null;
+  const iso = buildValidDate(year, String(month), day);
   return iso && isNotFuture(iso) ? iso : null;
 }
 

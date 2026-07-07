@@ -56,4 +56,45 @@ describe("invoice parser", () => {
     // Verklebte/zerrissene OCR-Zahl → unzuverlässig → null (statt Müll).
     expect(parseInvoiceFields("Gesamt: 12.34.567,89 EUR").amountGross).toBeNull();
   });
+
+  // Englische Monatsnamen-Daten (Stripe/Paddle-Belege von US/intl. SaaS wie
+  // Mistral, OpenAI, GitHub). Zuvor fiel das Datum durch → Rechnung blieb ohne
+  // Datum in "prüfen" hängen und war nicht exportbereit.
+  it("extracts English month-name dates (month first, various forms)", () => {
+    expect(parseInvoiceFields("Date paid July 7, 2023").invoiceDate).toBe("2023-07-07");
+    expect(parseInvoiceFields("Jul 7 2023").invoiceDate).toBe("2023-07-07");
+    expect(parseInvoiceFields("Issued: July 7th, 2023").invoiceDate).toBe("2023-07-07");
+    expect(parseInvoiceFields("Sept 5, 2023").invoiceDate).toBe("2023-09-05");
+    expect(parseInvoiceFields("December 31, 2023").invoiceDate).toBe("2023-12-31");
+  });
+
+  it("extracts English month-name dates (day first)", () => {
+    expect(parseInvoiceFields("7 July 2023").invoiceDate).toBe("2023-07-07");
+    expect(parseInvoiceFields("07 Jul 2023").invoiceDate).toBe("2023-07-07");
+    expect(parseInvoiceFields("Invoice date: 5th September 2023").invoiceDate).toBe("2023-09-05");
+  });
+
+  it("applies calendar + future guards to English dates too", () => {
+    expect(parseInvoiceFields("February 31, 2023").invoiceDate).toBeNull();
+    expect(parseInvoiceFields("December 5, 2099").invoiceDate).toBeNull();
+  });
+
+  it("keeps ISO/German precedence when an English date is also present", () => {
+    // DE-Rechnungsdatum muss gewinnen, auch wenn ein engl. Fälligkeitsdatum daneben steht.
+    const parsed = parseInvoiceFields(`
+      Rechnungsdatum: 01.05.2023
+      Payment due July 30, 2023
+    `);
+    expect(parsed.invoiceDate).toBe("2023-05-01");
+  });
+
+  it("parses a Mistral/Stripe-style receipt that previously lost its date", () => {
+    const parsed = parseInvoiceFields(`
+      Mistral AI SAS
+      Receipt MSTRL-API-788844-RCPT-000007
+      Date paid: July 7, 2023
+      Amount paid €0.80
+    `);
+    expect(parsed.invoiceDate).toBe("2023-07-07");
+  });
 });
