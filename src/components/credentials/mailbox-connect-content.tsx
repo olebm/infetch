@@ -475,9 +475,9 @@ export function MailboxConnectContent({
               href={detectionAppPasswordUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-1.5 inline-flex items-center gap-0.5 font-medium text-brand hover:underline"
+              className="ml-1.5 inline-flex items-center gap-0.5 font-bold text-brand underline underline-offset-2 hover:text-brand/80"
             >
-              App-Passwort erstellen <ExternalLink size={10} aria-hidden />
+              App-Passwort erstellen <ExternalLink size={11} aria-hidden />
             </a>
           )}
         </div>
