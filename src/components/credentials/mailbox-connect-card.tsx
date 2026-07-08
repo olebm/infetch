@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/modal";
 import { MailboxConnectContent } from "@/components/credentials/mailbox-connect-content";
 import { VendorLogo } from "@/components/ui/vendor-logo";
 import { StatusBadge } from "@/components/status/status-badge";
+import { DeleteImapAccountButton } from "@/components/einstellungen/delete-imap-account-button";
 
 export interface MailboxSlot {
   key: "primary" | "secondary" | "tertiary";
@@ -120,13 +121,16 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
                 Empfang aktiv · Sekundäres Postfach
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpenSlot("secondary")}
-              className="shrink-0 rounded border border-line px-3 py-1.5 text-xs text-muted hover:border-brand/50 hover:text-ink"
-            >
-              Ändern
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOpenSlot("secondary")}
+                className="rounded border border-line px-3 py-1.5 text-xs text-muted hover:border-brand/50 hover:text-ink"
+              >
+                Ändern
+              </button>
+              <DeleteImapAccountButton slot="secondary" />
+            </div>
           </div>
         ) : (
           /* Show "add secondary" only once primary is connected (vorerst ausgeblendet) */
@@ -185,13 +189,16 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
                 Empfang aktiv · Drittes Postfach
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpenSlot("tertiary")}
-              className="shrink-0 rounded border border-line px-3 py-1.5 text-xs text-muted hover:border-brand/50 hover:text-ink"
-            >
-              Ändern
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOpenSlot("tertiary")}
+                className="rounded border border-line px-3 py-1.5 text-xs text-muted hover:border-brand/50 hover:text-ink"
+              >
+                Ändern
+              </button>
+              <DeleteImapAccountButton slot="tertiary" />
+            </div>
           </div>
         ) : (
           /* Drittes Postfach erst anbieten, wenn das zweite verbunden ist (Pro). */
