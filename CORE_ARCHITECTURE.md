@@ -666,10 +666,10 @@ updateCredentialVerificationStatus({ scope, ownerId?, organizationId?, status })
 
 | Limit | Free | Pro | Business |
 |---|---|---|---|
-| Invoices / month | 15 | 150 | ∞ |
+| Invoices / month | 30 | 150 | ∞ |
 | Mail accounts | 1 | 3 | ∞ |
 | Team members | 1 | 3 | ∞ |
-| Storage | 500 MB | 2 GB | 50 GB |
+| Storage | 500 MB | 2 GB | 20 GB |
 | Export to accounting | ✗ | ✓ | ✓ |
 | Retroactive 12m scan | ✗ | ✓ | ✓ |
 | Bulk ZIP download | ✗ | ✓ | ✓ |

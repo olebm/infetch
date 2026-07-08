@@ -328,12 +328,21 @@ export async function getAutomationStats(
       daysActive: null,
     };
   }
-  // "versendet" = invoices.status='exported' (zuverlässig org-gescopt). Vorher
-  // las das die exports-Tabelle (status='sent'), die beim INSERT aber KEIN
-  // organization_id setzt → org-Filter lieferte 0 trotz erfolgter Sends (Hero
-  // zeigte fälschlich „unterwegs"). invoices.status='exported' wird in derselben
-  // Transaktion wie exports.sent gesetzt und ist die org-sichere Quelle der
-  // Wahrheit — konsistent mit capturedCount und getMonthlyKpis.
+  // Datenquelle "versendet" = invoices.status='exported', aggregiert auf
+  // updated_at (Verarbeitungs-/Versandzeit). Bewusst NICHT die exports-Tabelle:
+  // exports hat zwar seit Migration 0011 ein organization_id (der INSERT in
+  // export-pipeline.ts setzt es) — invoices.status='exported' bleibt aber die
+  // org-sichere Quelle der Wahrheit, konsistent mit capturedCount, getMonthlyKpis
+  // und getDailyTimeseries (alle updated_at-basiert). updated_at wird beim
+  // Statuswechsel auf 'exported' gesetzt (export-pipeline.ts:215) → ≈ Sendezeit.
+  //
+  // SEMANTIK-CAVEAT (Item 3, stats-kpi-queries-untested): updated_at ist KEIN
+  // unveränderlicher Versandstempel. Ein erneuter Export oder ein Review-Speichern
+  // (review.ts) datiert eine bereits exportierte Rechnung neu → sie erscheint
+  // erneut in today/thisWeek. Reine Inhalts-Edits (Audit-Flags) fassen updated_at
+  // nicht an (es gibt keinen Trigger). Bewusst so belassen (echter Versand ist der
+  // Normalfall, Re-Sends selten); Regressionstest pinnt die Semantik:
+  // tests/integration/dashboard-kpis.test.ts, describe "Zeitachse (Guardrail)".
   const [exportAgg, needsReviewRow, capturedRow] = await Promise.all([
     sql<{ today: string; thisWeek: string; lifetime: string; days: number | null }[]>`
       SELECT
@@ -355,6 +364,10 @@ export async function getAutomationStats(
 
   const agg = exportAgg[0];
   const exportedLifetime = Number(agg?.lifetime ?? 0);
+  // SCHÄTZUNG, keine gemessene Zahl: pauschal 2 Min manuelle Bearbeitung je
+  // Rechnung, die der Auto-Pilot erspart (Ablegen/Weiterleiten/Abtippen). Die UI
+  // kennzeichnet den Wert als "Heuristik: 2 Min/Rechnung" (stat-row.tsx) und
+  // rundet auf ≈ x h — bewusst grob, nicht als exakte Zeitersparnis verkaufen.
   const minutesSaved = exportedLifetime * 2;
 
   return {
