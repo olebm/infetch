@@ -468,16 +468,18 @@ export function MailboxConnectContent({
       {/* App-password warning — above the password field so it's read before entry */}
       {provider?.id !== "protonmail" && !unsupportedReason && detectionHint && (
         <div className="rounded-md border border-warn/20 bg-warn/5 px-3 py-2.5 text-xs font-medium text-ink">
-          <span className="font-semibold">Wichtig: </span>
-          {detectionHint}
+          <p>
+            <span className="font-semibold">Wichtig: </span>
+            {detectionHint}
+          </p>
           {detectionAppPasswordUrl && (
             <a
               href={detectionAppPasswordUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-1.5 inline-flex items-center gap-0.5 font-medium text-brand hover:underline"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90"
             >
-              App-Passwort erstellen <ExternalLink size={10} aria-hidden />
+              App-Passwort erstellen <ExternalLink size={13} aria-hidden />
             </a>
           )}
         </div>
