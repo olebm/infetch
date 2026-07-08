@@ -7,6 +7,7 @@ import { SMTP_ACCOUNT_SLOTS } from "@/mail/smtp-account-slots";
 import { saveStoredSmtpAccount, removeStoredSmtpAccount } from "@/mail/smtp-settings";
 import {
   saveCredentialSecret,
+  readCredentialSecret,
   hasStoredCredentialRef,
   deleteCredentialSecret,
 } from "@/lib/secrets/credential-store";
@@ -532,6 +533,45 @@ export async function deleteImapAccountAction(formData: FormData): Promise<void>
 
   // 3) Credential (org-scoped) entfernen.
   await deleteCredentialSecret({ scope: "imap", ownerId: slot, organizationId });
+
+  // 4) Lückenlos halten: nach dem Entfernen von "secondary" rückt ein vorhandenes
+  //    drittes Postfach auf "secondary" nach — keine Lücke (primär → sekundär →
+  //    tertiär). Das verschlüsselte Credential muss dabei UMGEZOGEN werden: der
+  //    secret_ref hasht den ownerId, ein blosses Umbenennen würde das Passwort
+  //    verwaisen lassen. Daher read → save(secondary) → delete(tertiary).
+  if (slot === "secondary") {
+    const tertiaryRows = await scopedSql<{ id: number }[]>`
+      SELECT id FROM mail_accounts
+      WHERE label = 'Tertiary IMAP' AND organization_id = ${organizationId}
+      LIMIT 1
+    `;
+    if (tertiaryRows[0]) {
+      const secret = await readCredentialSecret({
+        scope: "imap",
+        ownerId: "tertiary",
+        organizationId,
+      });
+      if (secret) {
+        await saveCredentialSecret({
+          scope: "imap",
+          ownerId: "secondary",
+          organizationId,
+          label: "Secondary IMAP Password",
+          secret,
+        });
+      }
+      // Slot umbenennen — mail_messages (Scan-Historie) folgen via mail_account_id.
+      // credential_ref_id wird geleert (FK lösen); der Scan lädt das Passwort über
+      // den ownerId, und beim nächsten Speichern wird die Verknüpfung neu gesetzt.
+      await scopedSql`
+        UPDATE mail_accounts
+        SET label = 'Secondary IMAP', credential_ref_id = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${tertiaryRows[0].id}
+      `;
+      // Altes tertiäres Credential entfernen (kein Postfach zeigt mehr darauf).
+      await deleteCredentialSecret({ scope: "imap", ownerId: "tertiary", organizationId });
+    }
+  }
 
   revalidatePath("/");
   revalidatePath("/einstellungen");
