@@ -16,7 +16,7 @@ import { VendorLogo } from "@/components/ui/vendor-logo";
 import { StatusBadge } from "@/components/status/status-badge";
 
 export interface MailboxSlot {
-  key: "primary" | "secondary";
+  key: "primary" | "secondary" | "tertiary";
   isConnected: boolean;
   email: string | null;
   providerDomain: string | null;
@@ -44,11 +44,13 @@ interface MailboxConnectCardProps {
 const SHOW_SECONDARY_MAILBOX = true;
 
 export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
-  const [openSlot, setOpenSlot] = useState<"primary" | "secondary" | null>(null);
+  const [openSlot, setOpenSlot] = useState<"primary" | "secondary" | "tertiary" | null>(null);
 
   const primary = slots.find((s) => s.key === "primary")!;
   const secondary = slots.find((s) => s.key === "secondary");
   const hasSecondary = secondary?.isConnected;
+  const tertiary = slots.find((s) => s.key === "tertiary");
+  const hasTertiary = tertiary?.isConnected;
 
   return (
     <>
@@ -163,13 +165,67 @@ export function MailboxConnectCard({ slots, isPro }: MailboxConnectCardProps) {
             </div>
           ))
         )}
+
+        {/* ── Tertiary slot ────────────────────────────────────────────────── */}
+        {hasTertiary && tertiary?.email ? (
+          <div className="flex items-center gap-3 py-3">
+            <VendorLogo
+              domain={tertiary.providerDomain ?? null}
+              name={tertiary.email}
+              size={36}
+              className="shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate text-sm font-medium text-ink">{tertiary.email}</span>
+                <StatusBadge status="configured" label="verbunden" />
+              </div>
+              <div className="mt-0.5 flex items-center gap-1 text-xs text-ok">
+                <Check size={11} aria-hidden />
+                Empfang aktiv · Drittes Postfach
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpenSlot("tertiary")}
+              className="shrink-0 rounded border border-line px-3 py-1.5 text-xs text-muted hover:border-brand/50 hover:text-ink"
+            >
+              Ändern
+            </button>
+          </div>
+        ) : (
+          /* Drittes Postfach erst anbieten, wenn das zweite verbunden ist (Pro). */
+          SHOW_SECONDARY_MAILBOX &&
+          secondary?.isConnected &&
+          isPro && (
+            <button
+              type="button"
+              onClick={() => setOpenSlot("tertiary")}
+              className="flex w-full items-center gap-3 py-3 text-left hover:opacity-80"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-dashed border-line bg-surface text-muted">
+                <Plus size={14} aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-muted">Weiteres Postfach verbinden</div>
+                <div className="text-xs text-muted">Drittes Empfangs-Konto (Pro).</div>
+              </div>
+            </button>
+          )
+        )}
       </div>
 
       {/* ── Modal ──────────────────────────────────────────────────────────── */}
       <Modal
         open={openSlot !== null}
         onClose={() => setOpenSlot(null)}
-        title={openSlot === "secondary" ? "Sekundäres Postfach verbinden" : "Postfach verbinden"}
+        title={
+          openSlot === "secondary"
+            ? "Sekundäres Postfach verbinden"
+            : openSlot === "tertiary"
+              ? "Drittes Postfach verbinden"
+              : "Postfach verbinden"
+        }
         size="md"
       >
         {openSlot !== null && (

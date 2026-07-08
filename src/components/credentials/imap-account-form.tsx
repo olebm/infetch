@@ -23,7 +23,7 @@ export function ImapAccountForm({
   secretPresent = false,
   lastVerifiedAt = null,
 }: {
-  slot: "primary" | "secondary";
+  slot: "primary" | "secondary" | "tertiary";
   account?: { host: string; port: number; secure: number; username: string };
   credentialStored?: boolean;
   secretPresent?: boolean;
@@ -39,7 +39,12 @@ export function ImapAccountForm({
   const [port, setPort] = useState(String(account?.port || 993));
   const [secure, setSecure] = useState(account ? Boolean(account.secure) : true);
 
-  const heading = slot === "primary" ? "Empfangs-Postfach" : "Empfangs-Postfach 2";
+  const heading =
+    slot === "primary"
+      ? "Empfangs-Postfach"
+      : slot === "secondary"
+        ? "Empfangs-Postfach 2"
+        : "Empfangs-Postfach 3";
   const secretOnFile = secretPresent || credentialStored || state.status === "success";
   const showStoredMask = secretOnFile && passwordLength === 0;
 

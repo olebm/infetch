@@ -50,7 +50,7 @@ export type MailboxData = {
 
 interface MailboxConnectContentProps {
   mode: "settings" | "onboarding";
-  slot?: "primary" | "secondary";
+  slot?: "primary" | "secondary" | "tertiary";
   initialEmail?: string;
   /** Vorbefüllter Login-Name, falls abweichend von der E-Mail (z. B. webgo-Postfachname). */
   initialUsername?: string;

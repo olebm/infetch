@@ -2,6 +2,7 @@
 export const IMAP_MAIL_ACCOUNT_SLOTS = [
   { label: "Primary IMAP" as const, ownerId: "primary" as const },
   { label: "Secondary IMAP" as const, ownerId: "secondary" as const },
+  { label: "Tertiary IMAP" as const, ownerId: "tertiary" as const },
 ] as const;
 
 export type ImapMailAccountLabel = (typeof IMAP_MAIL_ACCOUNT_SLOTS)[number]["label"];

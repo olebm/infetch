@@ -103,8 +103,7 @@ export async function saveImapCredentialAction(
     }
 
     const organizationId = auth.organization?.id ?? null;
-    const credentialLabel =
-      slot.label === "Primary IMAP" ? "Primary IMAP Password" : "Secondary IMAP Password";
+    const credentialLabel = `${slot.label} Password`;
 
     let credentialRefId: number | null = null;
 
@@ -184,7 +183,7 @@ type PersistOutcome = { ok: true } | { ok: false; message: string };
 async function persistImapAccount(
   scopedSql: ScopedSql,
   organizationId: string | null,
-  mailSlot: "primary" | "secondary",
+  mailSlot: "primary" | "secondary" | "tertiary",
   args: {
     email: string;
     password: string;
@@ -193,8 +192,13 @@ async function persistImapAccount(
     imapSecure: boolean;
   },
 ): Promise<PersistOutcome> {
-  const slotLabel = mailSlot === "secondary" ? "Secondary IMAP" : "Primary IMAP";
-  const slotPwd = mailSlot === "secondary" ? "Secondary IMAP Password" : "Primary IMAP Password";
+  const slotLabel =
+    mailSlot === "tertiary"
+      ? "Tertiary IMAP"
+      : mailSlot === "secondary"
+        ? "Secondary IMAP"
+        : "Primary IMAP";
+  const slotPwd = `${slotLabel} Password`;
   const { email, password, imapHost, imapPort, imapSecure } = args;
 
   let imapCredRefId: number | null = null;
@@ -326,6 +330,17 @@ function parseMailSlot(formData: FormData): "primary" | "secondary" {
 }
 
 /**
+ * IMAP-Empfang kennt drei Slots (Pro = 3 Postfächer). Der SMTP-Versand bleibt
+ * bei zwei Absende-Konten und nutzt weiterhin parseMailSlot.
+ */
+function parseImapSlot(formData: FormData): "primary" | "secondary" | "tertiary" {
+  const raw = String(formData.get("mailSlot") || "primary");
+  if (raw === "secondary") return "secondary";
+  if (raw === "tertiary") return "tertiary";
+  return "primary";
+}
+
+/**
  * Kombinierte Mailbox-Action: speichert IMAP + SMTP in einem Schritt.
  * Nimmt E-Mail + Passwort plus vorausgefüllte (hidden) Server-Felder vom Provider-Picker.
  */
@@ -403,7 +418,7 @@ export async function saveImapMailboxAction(
   const scopedSql = auth.scopedSql!;
 
   try {
-    const mailSlot = parseMailSlot(formData);
+    const mailSlot = parseImapSlot(formData);
     const email = String(formData.get("mailEmail") || "").trim();
     const password = String(formData.get("mailPassword") || "");
     const imapHost = String(formData.get("imapHost") || "").trim();
@@ -572,11 +587,12 @@ export async function testImapConnectionAction(
 
   try {
     const slotParam = String(formData.get("imapSlot") || "primary").trim();
-    if (slotParam !== "primary" && slotParam !== "secondary") {
+    const slot = IMAP_MAIL_ACCOUNT_SLOTS.find((s) => s.ownerId === slotParam);
+    if (!slot) {
       return { status: "error", message: "Ungültiges IMAP-Konto." };
     }
 
-    const result = await verifyImapAccountConnection(slotParam);
+    const result = await verifyImapAccountConnection(slot.ownerId);
     revalidatePath("/");
     revalidatePath("/einstellungen");
     return {
