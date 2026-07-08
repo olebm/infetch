@@ -41,6 +41,7 @@ const eslintConfig = [
   {
     ignores: [
       ".next/**",
+      ".claude/**", // ephemere Agent-Worktrees (git-ignored) — enthält Build-Artefakte, kein App-Code
       "node_modules/**",
       "data/**",
       "coverage/**",

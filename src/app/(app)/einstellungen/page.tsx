@@ -2,6 +2,7 @@ import { appConfig } from "@/lib/config/env";
 import {
   getPrimaryMailAccount,
   getSecondaryMailAccount,
+  getTertiaryMailAccount,
   getPrimarySmtpAccount,
   getSecondarySmtpAccount,
   listIntegrationTargets,
@@ -55,10 +56,13 @@ export default async function SetupPage() {
     pdfFilenameTemplate,
     imapPrimary,
     imapSecondary,
+    imapTertiary,
     primaryHasCredential,
     primaryHasRef,
     secondaryHasCredential,
     secondaryHasRef,
+    tertiaryHasCredential,
+    tertiaryHasRef,
     integrationTargets,
     tier,
     smtpPrimary,
@@ -76,10 +80,13 @@ export default async function SetupPage() {
     readOrgJsonSetting<string>("pdf_filename_template", auth?.organization?.id ?? null, ""),
     getPrimaryMailAccount(auth?.organization?.id ?? null),
     getSecondaryMailAccount(auth?.organization?.id ?? null),
+    getTertiaryMailAccount(auth?.organization?.id ?? null),
     hasConfiguredCredential("imap", "primary", auth?.organization?.id),
     hasStoredCredentialRef("imap", "primary", auth?.organization?.id),
     hasConfiguredCredential("imap", "secondary", auth?.organization?.id),
     hasStoredCredentialRef("imap", "secondary", auth?.organization?.id),
+    hasConfiguredCredential("imap", "tertiary", auth?.organization?.id),
+    hasStoredCredentialRef("imap", "tertiary", auth?.organization?.id),
     listIntegrationTargets(auth?.organization?.id ?? null),
     getOrgTier(auth?.organization?.id ?? null),
     getPrimarySmtpAccount(auth?.organization?.id ?? null),
@@ -137,6 +144,22 @@ export default async function SetupPage() {
               smtpSecure: smtpSecondary?.secure,
             }
           : undefined,
+    },
+    {
+      // Drittes Empfangs-Postfach (Pro). IMAP-only — kein gekoppeltes SMTP-Konto.
+      key: "tertiary",
+      isConnected: tertiaryHasCredential || tertiaryHasRef,
+      email: imapTertiary?.username ?? null,
+      providerDomain: imapTertiary?.username
+        ? (getProviderFromEmail(imapTertiary.username)?.domain ?? null)
+        : null,
+      servers: imapTertiary
+        ? {
+            imapHost: imapTertiary.host,
+            imapPort: imapTertiary.port,
+            imapSecure: Boolean(imapTertiary.secure),
+          }
+        : undefined,
     },
   ];
 
