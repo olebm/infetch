@@ -495,6 +495,49 @@ export async function saveSmtpMailboxAction(
 }
 
 /**
+ * Entfernt ein sekundäres/tertiäres Empfangs-Postfach (IMAP). Das primäre
+ * Postfach ist Pflicht-Empfang und wird geschützt — der Guard lehnt jeden
+ * anderen Slot still ab. Bereits importierte Rechnungen bleiben erhalten
+ * (invoices hängen nicht am mail_account); nur die Scan-Historie (mail_messages)
+ * des Postfachs wird mitentfernt, damit der FK-Constraint den mail_accounts-
+ * Delete zulässt und der Slot wieder frei wird (zählt nicht mehr gegen das Limit).
+ */
+export async function deleteImapAccountAction(formData: FormData): Promise<void> {
+  const auth = await requireCurrentAuth();
+  if (!auth.organization) return;
+  const scopedSql = auth.scopedSql!;
+
+  // Nur sekundäre/tertiäre Empfangs-Postfächer sind löschbar; primär bleibt Pflicht.
+  const slot = parseImapSlot(formData);
+  if (slot !== "secondary" && slot !== "tertiary") return;
+
+  const organizationId = auth.organization.id;
+  const slotLabel = slot === "tertiary" ? "Tertiary IMAP" : "Secondary IMAP";
+
+  // 1) Scan-Historie des Postfachs entfernen — FK-Voraussetzung für Schritt 2.
+  //    invoices bleiben (keine FK auf mail_messages).
+  await scopedSql`
+    DELETE FROM mail_messages
+    WHERE mail_account_id IN (
+      SELECT id FROM mail_accounts
+      WHERE label = ${slotLabel} AND organization_id = ${organizationId}
+    )
+  `;
+
+  // 2) Postfach-Slot entfernen → Slot wird frei (Tier-Gate zählt eins weniger).
+  await scopedSql`
+    DELETE FROM mail_accounts
+    WHERE label = ${slotLabel} AND organization_id = ${organizationId}
+  `;
+
+  // 3) Credential (org-scoped) entfernen.
+  await deleteCredentialSecret({ scope: "imap", ownerId: slot, organizationId });
+
+  revalidatePath("/");
+  revalidatePath("/einstellungen");
+}
+
+/**
  * Löscht das 2. Absende-Konto (secondary). Konto 1 (primary) ist das
  * Pflicht-Versandkonto und kann NICHT gelöscht werden — der Guard lehnt jeden
  * anderen Slot still ab. Empfänger, die auf das gelöschte Konto zeigten, fallen
